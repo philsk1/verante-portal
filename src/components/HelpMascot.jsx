@@ -190,7 +190,7 @@ const HelpMascot = ({ activeTab }) => {
   return (
     <>
       {/* Vera's home */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '1.75rem' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
 
         {/* Full-size owl */}
         <div
