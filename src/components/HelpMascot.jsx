@@ -131,7 +131,7 @@ const FloatingVera = ({ text, rect, blink }) => {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const HelpMascot = ({ activeTab, businessName = '' }) => {
+const HelpMascot = ({ activeTab }) => {
   const [helpMode, setHelpMode] = useState(false)
   const [blink, setBlink]       = useState(false)
   const [floatEl, setFloatEl]   = useState(null) // { text, rect }
@@ -190,7 +190,7 @@ const HelpMascot = ({ activeTab, businessName = '' }) => {
   return (
     <>
       {/* Vera's home */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '1.75rem' }}>
 
         {/* Full-size owl */}
         <div
@@ -202,36 +202,21 @@ const HelpMascot = ({ activeTab, businessName = '' }) => {
           <Owl w={44} h={72} blink={blink} />
         </div>
 
-        {/* Business name + Vera label */}
-        <div>
-          {businessName && (
-            <div style={{
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 700,
-              fontSize: '1.375rem',
-              color: '#1a1a1a',
-              lineHeight: 1.2,
-              marginBottom: '0.25rem',
-            }}>
-              {businessName}
-            </div>
-          )}
-          <div
-            onClick={() => { setHelpMode(m => !m); setFloatEl(null) }}
-            style={{ cursor: 'pointer', display: 'inline-block' }}
-          >
-            <span style={{
-              fontSize: '0.72rem',
-              color: helpMode ? '#5e3b87' : '#bbb',
-              fontStyle: 'italic',
-              userSelect: 'none',
-              fontFamily: "'DM Sans', sans-serif",
-              fontWeight: helpMode ? 500 : 400,
-            }}>
-              {helpMode ? 'Vera · click to sleep' : 'Vera · click for help'}
-            </span>
-          </div>
-        </div>
+        {/* Vera label */}
+        <span
+          onClick={() => { setHelpMode(m => !m); setFloatEl(null) }}
+          style={{
+            fontSize: '0.72rem',
+            color: helpMode ? '#5e3b87' : '#bbb',
+            fontStyle: 'italic',
+            userSelect: 'none',
+            fontFamily: "'DM Sans', sans-serif",
+            fontWeight: helpMode ? 500 : 400,
+            cursor: 'pointer',
+          }}
+        >
+          {helpMode ? 'Vera · click to sleep' : 'Vera · click for help'}
+        </span>
 
         {/* Home speech bubble — awake, nothing hovered */}
         {helpMode && !floatEl && (

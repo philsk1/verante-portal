@@ -378,7 +378,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* Greeting */}
       {businessName && (
-        <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: '1.25rem' }}>
+        <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', marginBottom: '1.25rem', margin: '0 0 1.25rem' }}>
           {businessName}
         </p>
       )}
