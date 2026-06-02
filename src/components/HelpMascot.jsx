@@ -189,24 +189,37 @@ const HelpMascot = ({ activeTab }) => {
 
   return (
     <>
-      {/* Vera's home — fixed height so nothing below shifts */}
-      <div style={{ position: 'relative', height: 76, marginBottom: '1rem' }}>
+      {/* Vera's home — inline row, fixed height so nothing shifts */}
+      <div style={{ position: 'relative', height: 44, marginBottom: '1rem' }}>
 
+        {/* Owl + label side by side */}
         <div
-          className={helpMode ? 'vera-active' : 'vera-idle'}
           onClick={() => { setHelpMode(m => !m); setFloatEl(null) }}
           title={helpMode ? 'Click to put Vera to sleep' : 'Click to wake Vera'}
-          style={{ cursor: 'pointer', lineHeight: 0, display: 'inline-block' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
         >
-          <Owl w={44} h={72} blink={blink} />
+          <div className={helpMode ? 'vera-active' : 'vera-idle'} style={{ lineHeight: 0, flexShrink: 0 }}>
+            <Owl w={26} h={43} blink={blink} />
+          </div>
+          <span style={{
+            fontSize: '0.72rem',
+            color: helpMode ? '#5e3b87' : '#bbb',
+            fontStyle: 'italic',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+            fontFamily: "'DM Sans', sans-serif",
+            fontWeight: helpMode ? 500 : 400,
+          }}>
+            {helpMode ? 'Vera · click to sleep' : 'Vera · click for help'}
+          </span>
         </div>
 
-        {/* Home speech bubble — only shows when awake and nothing is being hovered */}
+        {/* Home speech bubble — awake, nothing hovered */}
         {helpMode && !floatEl && (
           <div style={{
             position: 'absolute',
-            top: 8,
-            left: 52,
+            top: 48,
+            left: 0,
             zIndex: 50,
             background: 'white',
             border: '1px solid rgba(94,59,135,0.18)',
@@ -215,23 +228,12 @@ const HelpMascot = ({ activeTab }) => {
             boxShadow: '0 6px 20px rgba(94,59,135,0.1)',
             width: 300,
           }}>
-            <div style={{ position: 'absolute', left: -7, top: 14, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid rgba(94,59,135,0.18)' }} />
-            <div style={{ position: 'absolute', left: -5, top: 14, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '6px solid white' }} />
+            <div style={{ position: 'absolute', top: -7, left: 16, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '7px solid rgba(94,59,135,0.18)' }} />
+            <div style={{ position: 'absolute', top: -5, left: 16, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid white' }} />
             <p style={{ margin: 0, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
               Hover over anything on this page and I'll explain it. Click me to put me back to sleep.
             </p>
           </div>
-        )}
-
-        {/* Idle label */}
-        {!helpMode && (
-          <span style={{
-            position: 'absolute', left: 52, top: 28,
-            fontSize: '0.72rem', color: '#bbb', fontStyle: 'italic',
-            userSelect: 'none', whiteSpace: 'nowrap',
-          }}>
-            Vera · click for help
-          </span>
         )}
       </div>
 
