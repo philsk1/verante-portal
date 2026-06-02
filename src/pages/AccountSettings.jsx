@@ -1,0 +1,848 @@
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../supabase'
+import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
+
+// ─── constants ────────────────────────────────────────────────────────────────
+
+const TIERS = {
+  light:      { label: 'Light',      price: '£29', minutes: 60,  concurrent: 1 },
+  standard:   { label: 'Standard',   price: '£49', minutes: 150, concurrent: 1 },
+  enterprise: { label: 'Enterprise', price: '£99', minutes: 400, concurrent: 3 },
+  bespoke:    { label: 'Bespoke',    price: 'Custom', minutes: null, concurrent: null },
+}
+
+const UPGRADE_PATH = {
+  light:      ['standard', 'enterprise'],
+  standard:   ['enterprise'],
+  enterprise: [],
+  bespoke:    [],
+}
+
+// ─── styles ───────────────────────────────────────────────────────────────────
+
+const s = {
+  section: {
+    background: 'white',
+    borderRadius: '10px',
+    padding: '1.75rem',
+    border: '0.5px solid rgba(94,59,135,0.1)',
+    marginBottom: '1.25rem',
+  },
+  sectionTitle: {
+    fontSize: '0.9375rem',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    margin: '0 0 0.2rem',
+  },
+  sectionSubtitle: {
+    fontSize: '0.8rem',
+    color: '#888',
+    marginBottom: '1.25rem',
+    lineHeight: 1.55,
+  },
+  label: {
+    display: 'block',
+    fontSize: '0.75rem',
+    fontWeight: '500',
+    color: '#555',
+    marginBottom: '0.4rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.07em',
+  },
+  // Plan
+  planRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    background: '#f3f1f6',
+    borderRadius: '8px',
+    marginBottom: '1.25rem',
+  },
+  planBadge: (tier) => ({
+    display: 'inline-block',
+    padding: '0.3rem 0.75rem',
+    borderRadius: '6px',
+    fontSize: '0.8rem',
+    fontWeight: '700',
+    fontFamily: "'Syne', sans-serif",
+    background: tier === 'enterprise' || tier === 'bespoke' ? '#5e3b87' : '#ede8f5',
+    color: tier === 'enterprise' || tier === 'bespoke' ? 'white' : '#5e3b87',
+    flexShrink: 0,
+  }),
+  planPrice: {
+    fontFamily: "'Syne', sans-serif",
+    fontSize: '1.25rem',
+    fontWeight: 700,
+    color: '#1a1a1a',
+  },
+  planMeta: {
+    fontSize: '0.775rem',
+    color: '#888',
+  },
+  upgradeGrid: {
+    display: 'grid',
+    gap: '0.75rem',
+  },
+  upgradeCard: (highlight) => ({
+    border: `1.5px solid ${highlight ? '#5e3b87' : 'rgba(94,59,135,0.15)'}`,
+    borderRadius: '8px',
+    padding: '1rem 1.25rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  }),
+  upgradeCardTitle: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: '0.2rem',
+  },
+  upgradeCardMeta: {
+    fontSize: '0.775rem',
+    color: '#888',
+  },
+  upgradeBtn: {
+    padding: '0.45rem 1rem',
+    background: '#f0a500',
+    color: '#1a0533',
+    border: 'none',
+    borderRadius: '7px',
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+    flexShrink: 0,
+  },
+  // Account details
+  fieldRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '1rem',
+    marginBottom: '1rem',
+  },
+  fieldWrap: {
+    marginBottom: '1rem',
+  },
+  input: {
+    width: '100%',
+    padding: '0.6rem 0.75rem',
+    border: '1px solid rgba(94,59,135,0.2)',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    color: '#1a1a1a',
+    background: 'white',
+    boxSizing: 'border-box',
+    outline: 'none',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  inputReadOnly: {
+    width: '100%',
+    padding: '0.6rem 0.75rem',
+    border: '1px solid rgba(94,59,135,0.1)',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    color: '#888',
+    background: '#f8f7fa',
+    boxSizing: 'border-box',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  saveBtn: {
+    padding: '0.55rem 1.25rem',
+    background: '#f0a500',
+    color: '#1a0533',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  saveBtnDisabled: {
+    padding: '0.55rem 1.25rem',
+    background: '#f5d98a',
+    color: '#7a5c1a',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'not-allowed',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  ghostBtn: {
+    background: 'none',
+    border: '1px solid rgba(94,59,135,0.2)',
+    borderRadius: '8px',
+    padding: '0.55rem 1.25rem',
+    fontSize: '0.875rem',
+    color: '#5e3b87',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+    fontWeight: '500',
+  },
+  toast: (type) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    marginLeft: '0.75rem',
+    padding: '0.45rem 0.85rem',
+    borderRadius: '8px',
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    background: type === 'success' ? '#e6f5ee' : '#fef2f2',
+    color: type === 'success' ? '#1e7a4a' : '#b91c1c',
+    border: `1px solid ${type === 'success' ? '#a7e8c2' : '#fecaca'}`,
+  }),
+  // Toggles
+  toggleRow: (last) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0.85rem 0',
+    borderBottom: last ? 'none' : '1px solid rgba(94,59,135,0.06)',
+    gap: '1rem',
+  }),
+  toggleLabel: {
+    fontSize: '0.875rem',
+    color: '#1a1a1a',
+    fontWeight: '500',
+    marginBottom: '0.15rem',
+  },
+  toggleDesc: {
+    fontSize: '0.775rem',
+    color: '#999',
+  },
+  // Feedback stars
+  starRow: {
+    display: 'flex',
+    gap: '0.35rem',
+    marginBottom: '1rem',
+  },
+  star: (filled) => ({
+    fontSize: '1.75rem',
+    cursor: 'pointer',
+    color: filled ? '#f0a500' : '#e2e0e8',
+    lineHeight: 1,
+    userSelect: 'none',
+  }),
+  feedbackTextarea: {
+    width: '100%',
+    padding: '0.65rem 0.75rem',
+    border: '1px solid rgba(94,59,135,0.2)',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    color: '#1a1a1a',
+    boxSizing: 'border-box',
+    outline: 'none',
+    resize: 'vertical',
+    minHeight: '90px',
+    fontFamily: "'DM Sans', sans-serif",
+    lineHeight: 1.55,
+    marginBottom: '1rem',
+  },
+  lockedFeedback: {
+    background: '#f8f7fa',
+    borderRadius: '8px',
+    padding: '1.25rem',
+    textAlign: 'center',
+    border: '1px dashed rgba(94,59,135,0.15)',
+  },
+  // Support chat
+  chatWrap: {
+    border: '1px solid rgba(94,59,135,0.12)',
+    borderRadius: '10px',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '360px',
+  },
+  chatMessages: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    background: '#faf9fc',
+  },
+  chatBubble: (isUser) => ({
+    maxWidth: '75%',
+    padding: '0.6rem 0.85rem',
+    borderRadius: isUser ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+    background: isUser ? '#5e3b87' : 'white',
+    color: isUser ? 'white' : '#1a1a1a',
+    fontSize: '0.8rem',
+    lineHeight: 1.55,
+    alignSelf: isUser ? 'flex-end' : 'flex-start',
+    border: isUser ? 'none' : '1px solid rgba(94,59,135,0.1)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+  }),
+  chatInputRow: {
+    display: 'flex',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderTop: '1px solid rgba(94,59,135,0.08)',
+    background: 'white',
+  },
+  chatInput: {
+    flex: 1,
+    padding: '0.55rem 0.75rem',
+    border: '1px solid rgba(94,59,135,0.2)',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    color: '#1a1a1a',
+    outline: 'none',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  chatSend: {
+    padding: '0.55rem 1rem',
+    background: '#5e3b87',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+    flexShrink: 0,
+  },
+  chatSendDisabled: {
+    padding: '0.55rem 1rem',
+    background: '#d1c4e9',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    cursor: 'not-allowed',
+    fontFamily: "'DM Sans', sans-serif",
+    flexShrink: 0,
+  },
+  // Cancel / danger
+  dangerSection: {
+    background: 'white',
+    borderRadius: '10px',
+    padding: '1.75rem',
+    border: '0.5px solid rgba(185,28,28,0.15)',
+    marginBottom: '1.25rem',
+  },
+  cancelBtn: {
+    padding: '0.55rem 1.25rem',
+    background: 'white',
+    color: '#b91c1c',
+    border: '1px solid rgba(185,28,28,0.3)',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  // Modal
+  modalBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(26,5,51,0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    padding: '1rem',
+  },
+  modal: {
+    background: 'white',
+    borderRadius: '14px',
+    padding: '2rem',
+    maxWidth: '480px',
+    width: '100%',
+    boxShadow: '0 20px 60px rgba(94,59,135,0.2)',
+  },
+  modalTitle: {
+    fontFamily: "'Syne', sans-serif",
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: '#1a1a1a',
+    marginBottom: '0.5rem',
+  },
+  modalBody: {
+    fontSize: '0.875rem',
+    color: '#555',
+    lineHeight: 1.6,
+    marginBottom: '1.25rem',
+  },
+  lossItem: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.6rem',
+    padding: '0.6rem 0',
+    borderBottom: '1px solid rgba(94,59,135,0.06)',
+    fontSize: '0.8rem',
+    color: '#444',
+  },
+  lossDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#f0a500',
+    marginTop: 5,
+    flexShrink: 0,
+  },
+  modalBtnRow: {
+    display: 'flex',
+    gap: '0.75rem',
+    marginTop: '1.5rem',
+    flexWrap: 'wrap',
+  },
+  modalCancelFinal: {
+    padding: '0.55rem 1.1rem',
+    background: 'white',
+    color: '#b91c1c',
+    border: '1px solid rgba(185,28,28,0.3)',
+    borderRadius: '8px',
+    fontSize: '0.8125rem',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  modalStay: {
+    flex: 1,
+    padding: '0.55rem 1.1rem',
+    background: '#5e3b87',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+}
+
+// ─── toggle switch ────────────────────────────────────────────────────────────
+
+const Toggle = ({ checked, onChange }) => (
+  <button
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    style={{ width: 42, height: 24, borderRadius: 12, background: checked ? '#5e3b87' : '#d1d5db', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0 }}
+  >
+    <span style={{ position: 'absolute', top: 3, left: checked ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
+  </button>
+)
+
+// ─── main component ───────────────────────────────────────────────────────────
+
+const AccountSettings = ({ onNavigate }) => {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  const [loading, setLoading] = useState(true)
+  const [tenantId, setTenantId] = useState(null)
+  const [tier, setTier] = useState('light')
+  const [tenantCreatedAt, setTenantCreatedAt] = useState(null)
+  const [feedbackShown, setFeedbackShown] = useState(false)
+  const [partnerCount, setPartnerCount] = useState(0)
+  const [outboundCount, setOutboundCount] = useState(0)
+  const [leadCount, setLeadCount] = useState(0)
+
+  // Account details
+  const [displayName, setDisplayName] = useState('')
+  const [accountSaving, setAccountSaving] = useState(false)
+  const [accountToast, setAccountToast] = useState({ msg: '', type: '' })
+
+  // Notifications (local toggles — columns added to tenants when backend is ready)
+  const [notifyNewLead, setNotifyNewLead] = useState(true)
+  const [notifyDailySummary, setNotifyDailySummary] = useState(false)
+  const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
+
+  // Feedback
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackSaving, setFeedbackSaving] = useState(false)
+  const [feedbackDone, setFeedbackDone] = useState(false)
+
+  // Support chat
+  const [chatMessages, setChatMessages] = useState([
+    { role: 'ai', text: 'Hi — I\'m your Verrante support assistant. I have access to your account context and can help with portal settings, AI behaviour, and billing questions. What can I help you with?' }
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [chatWaiting, setChatWaiting] = useState(false)
+  const chatEndRef = useRef(null)
+
+  // Cancel modal
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      setLoading(true)
+      try {
+        const { data: membership } = await supabase
+          .from('tenant_memberships')
+          .select('tenant_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!membership) return
+        const tid = membership.tenant_id
+        setTenantId(tid)
+
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown')
+          .eq('id', tid)
+          .maybeSingle()
+
+        if (tenant) {
+          setDisplayName(tenant.business_name || '')
+          setTier(tenant.subscription_tier || 'light')
+          setTenantCreatedAt(tenant.created_at)
+          setFeedbackShown(tenant.feedback_prompt_shown || false)
+        }
+
+        const [pRes, lRes, rRes] = await Promise.all([
+          supabase.from('referral_partners').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+          supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+          supabase.from('referral_log').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+        ])
+
+        setPartnerCount(pRes.count || 0)
+        setLeadCount(lRes.count || 0)
+        setOutboundCount(rRes.count || 0)
+      } catch (err) {
+        console.error('Account load error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [user])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  const showAccountToast = (msg, type = 'success') => {
+    setAccountToast({ msg, type })
+    setTimeout(() => setAccountToast({ msg: '', type: '' }), 3000)
+  }
+
+  const saveAccountDetails = async () => {
+    if (!tenantId) return
+    setAccountSaving(true)
+    const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
+    setAccountSaving(false)
+    showAccountToast(error ? 'Could not save. Please try again.' : 'Details saved.', error ? 'error' : 'success')
+  }
+
+  const sendPasswordReset = async () => {
+    await supabase.auth.resetPasswordForEmail(user.email)
+    showAccountToast('Password reset email sent.', 'success')
+  }
+
+  const submitFeedback = async () => {
+    if (!rating || !tenantId) return
+    setFeedbackSaving(true)
+    await supabase.from('tenant_feedback').insert({ tenant_id: tenantId, rating, feedback_text: feedbackText.trim() || null })
+    await supabase.from('tenants').update({ feedback_prompt_shown: true }).eq('id', tenantId)
+    setFeedbackSaving(false)
+    setFeedbackDone(true)
+  }
+
+  const sendChatMessage = async () => {
+    const text = chatInput.trim()
+    if (!text || chatWaiting) return
+    setChatMessages(prev => [...prev, { role: 'user', text }])
+    setChatInput('')
+    setChatWaiting(true)
+    // AI support endpoint — wired to Claude API + tenant context in a later build phase
+    await new Promise(r => setTimeout(r, 900))
+    setChatMessages(prev => [...prev, {
+      role: 'ai',
+      text: 'Thanks for your message. AI support is being configured with your account context — a team member will respond to this shortly. For urgent issues, email support@verrante.com.'
+    }])
+    setChatWaiting(false)
+  }
+
+  const handleCancelConfirm = async () => {
+    // Stripe cancellation endpoint — wired in a later build phase
+    setShowCancelModal(false)
+    navigate('/login')
+  }
+
+  // ── computed ────────────────────────────────────────────────────────────────
+
+  const tierInfo = TIERS[tier] || TIERS.light
+  const upgradeTiers = UPGRADE_PATH[tier] || []
+  const sixWeeksAgo = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000)
+  const feedbackUnlocked = tenantCreatedAt && new Date(tenantCreatedAt) <= sixWeeksAgo
+  const daysUntilFeedback = tenantCreatedAt
+    ? Math.max(0, Math.ceil((new Date(tenantCreatedAt).getTime() + 42 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null
+
+  if (loading) {
+    return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading account…</div>
+  }
+
+  return (
+    <div>
+
+      {/* Plan & Billing */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Plan & Billing</h3>
+        <p style={s.sectionSubtitle}>Your current plan and available upgrades. Billing is managed via Stripe.</p>
+
+        <div style={s.planRow}>
+          <span style={s.planBadge(tier)}>{tierInfo.label}</span>
+          <div style={{ flex: 1 }}>
+            <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
+            <div style={s.planMeta}>
+              {tierInfo.minutes ? `${tierInfo.minutes} minutes included` : 'Custom allowance'}
+              {tierInfo.concurrent ? ` · ${tierInfo.concurrent} concurrent call${tierInfo.concurrent > 1 ? 's' : ''}` : ''}
+            </div>
+          </div>
+        </div>
+
+        {upgradeTiers.length > 0 ? (
+          <div style={s.upgradeGrid}>
+            {upgradeTiers.map((t, i) => {
+              const info = TIERS[t]
+              return (
+                <div key={t} style={s.upgradeCard(i === upgradeTiers.length - 1)}>
+                  <div>
+                    <div style={s.upgradeCardTitle}>{info.label} — {info.price}/month</div>
+                    <div style={s.upgradeCardMeta}>
+                      {info.minutes} minutes · {info.concurrent}+ concurrent call{info.concurrent > 1 ? 's' : ''}
+                      {t === 'enterprise' ? ' · Full analytics · Priority support' : ' · Number blocking · Staff profiles'}
+                    </div>
+                  </div>
+                  <button style={s.upgradeBtn}>Upgrade</button>
+                </div>
+              )
+            })}
+          </div>
+        ) : tier === 'bespoke' ? (
+          <div style={{ fontSize: '0.8rem', color: '#888' }}>You are on a managed Bespoke plan. Contact us to discuss changes.</div>
+        ) : (
+          <div style={{ fontSize: '0.8rem', color: '#3db87a', fontWeight: 500 }}>You are on the Enterprise plan — full access enabled.</div>
+        )}
+      </div>
+
+      {/* Account Details */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Account Details</h3>
+        <p style={s.sectionSubtitle}>Your business name and login details.</p>
+
+        <div style={s.fieldRow}>
+          <div>
+            <label style={s.label}>Business name</label>
+            <input
+              style={s.input}
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="Your business name"
+            />
+          </div>
+          <div>
+            <label style={s.label}>Email address</label>
+            <input style={s.inputReadOnly} value={user?.email || ''} readOnly />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button style={accountSaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveAccountDetails} disabled={accountSaving}>
+            {accountSaving ? 'Saving…' : 'Save details'}
+          </button>
+          <button style={s.ghostBtn} onClick={sendPasswordReset}>
+            Send password reset
+          </button>
+          {accountToast.msg && (
+            <span style={s.toast(accountToast.type)}>{accountToast.type === 'success' ? '✓' : '!'} {accountToast.msg}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Notification Preferences */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Notifications</h3>
+        <p style={s.sectionSubtitle}>Choose when Verrante contacts you. All notifications are sent to your account email.</p>
+
+        {[
+          { label: 'New lead captured', desc: 'Immediate email when your AI captures a new lead.', val: notifyNewLead, set: setNotifyNewLead },
+          { label: 'Daily summary', desc: 'A brief end-of-day digest of calls, leads, and referrals.', val: notifyDailySummary, set: setNotifyDailySummary },
+          { label: 'Weekly report', desc: 'Monday morning overview of the past week\'s performance.', val: notifyWeeklyReport, set: setNotifyWeeklyReport },
+        ].map((item, i, arr) => (
+          <div key={item.label} style={s.toggleRow(i === arr.length - 1)}>
+            <div>
+              <div style={s.toggleLabel}>{item.label}</div>
+              <div style={s.toggleDesc}>{item.desc}</div>
+            </div>
+            <Toggle checked={item.val} onChange={item.set} />
+          </div>
+        ))}
+      </div>
+
+      {/* Feedback */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Share Your Feedback</h3>
+        <p style={s.sectionSubtitle}>
+          {feedbackUnlocked
+            ? 'You\'ve been using Verrante for over six weeks. Your honest take helps shape what gets built next.'
+            : 'Unlocks after six weeks of use — enough time to form a real opinion.'}
+        </p>
+
+        {feedbackDone || feedbackShown ? (
+          <div style={{ fontSize: '0.875rem', color: '#3db87a', fontWeight: 500 }}>
+            Thank you — your feedback has been received.
+          </div>
+        ) : feedbackUnlocked ? (
+          <>
+            <div style={s.label}>How would you rate Verrante so far?</div>
+            <div style={s.starRow}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <span
+                  key={n}
+                  style={s.star(n <= (hoverRating || rating))}
+                  onClick={() => setRating(n)}
+                  onMouseEnter={() => setHoverRating(n)}
+                  onMouseLeave={() => setHoverRating(0)}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <textarea
+              style={s.feedbackTextarea}
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              placeholder="What's working well? What would you change? Any feature you wish existed?"
+            />
+            <button
+              style={!rating || feedbackSaving ? s.saveBtnDisabled : s.saveBtn}
+              onClick={submitFeedback}
+              disabled={!rating || feedbackSaving}
+            >
+              {feedbackSaving ? 'Submitting…' : 'Submit feedback'}
+            </button>
+          </>
+        ) : (
+          <div style={s.lockedFeedback}>
+            <div style={{ fontSize: '0.875rem', color: '#5e3b87', fontWeight: 600, marginBottom: '0.3rem' }}>
+              {daysUntilFeedback !== null ? `Unlocks in ${daysUntilFeedback} day${daysUntilFeedback !== 1 ? 's' : ''}` : 'Coming soon'}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
+              First impressions are cheap. Six weeks of real use tells us something worth knowing.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Support chat */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Support</h3>
+        <p style={s.sectionSubtitle}>Ask anything about your account, settings, or how your AI works.</p>
+
+        <div style={s.chatWrap}>
+          <div style={s.chatMessages}>
+            {chatMessages.map((msg, i) => (
+              <div key={i} style={s.chatBubble(msg.role === 'user')}>{msg.text}</div>
+            ))}
+            {chatWaiting && (
+              <div style={{ ...s.chatBubble(false), color: '#bbb', fontStyle: 'italic' }}>Thinking…</div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <div style={s.chatInputRow}>
+            <input
+              style={s.chatInput}
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') sendChatMessage() }}
+              placeholder="Ask a question…"
+              disabled={chatWaiting}
+            />
+            <button
+              style={!chatInput.trim() || chatWaiting ? s.chatSendDisabled : s.chatSend}
+              onClick={sendChatMessage}
+              disabled={!chatInput.trim() || chatWaiting}
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Cancel */}
+      <div style={s.dangerSection}>
+        <h3 style={{ ...s.sectionTitle, marginBottom: '0.3rem' }}>Cancel Subscription</h3>
+        <p style={{ ...s.sectionSubtitle, marginBottom: '1rem' }}>
+          Your AI will stop taking calls at the end of your billing period. Your data is retained for 90 days.
+        </p>
+        <button style={s.cancelBtn} onClick={() => { setShowCancelModal(true); setCancelConfirm(false) }}>
+          Cancel subscription
+        </button>
+      </div>
+
+      {/* Retention modal */}
+      {showCancelModal && (
+        <div style={s.modalBackdrop} onClick={() => setShowCancelModal(false)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            {!cancelConfirm ? (
+              <>
+                <div style={s.modalTitle}>Before you go</div>
+                <div style={s.modalBody}>
+                  Cancelling means losing access to everything your account has built up. Here is what you would be walking away from:
+                </div>
+
+                <div style={{ marginBottom: '0.5rem' }}>
+                  {[
+                    leadCount > 0 && `${leadCount} lead${leadCount !== 1 ? 's' : ''} captured — contact history lost after 90 days`,
+                    partnerCount > 0 && `${partnerCount} referral partner${partnerCount !== 1 ? 's' : ''} — reciprocal obligation ends immediately`,
+                    outboundCount > 0 && `${outboundCount} outbound referral${outboundCount !== 1 ? 's' : ''} sent — the value you built in the network disappears`,
+                    'Your AI stops answering calls — missed leads go straight to voicemail',
+                    'Caller history and notes are no longer accessible after 90 days',
+                  ].filter(Boolean).map((item, i) => (
+                    <div key={i} style={s.lossItem}>
+                      <span style={s.lossDot} />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={s.modalBtnRow}>
+                  <button style={s.modalStay} onClick={() => setShowCancelModal(false)}>
+                    Keep my account
+                  </button>
+                  <button style={s.modalCancelFinal} onClick={() => setCancelConfirm(true)}>
+                    Continue to cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={s.modalTitle}>Confirm cancellation</div>
+                <div style={s.modalBody}>
+                  Your subscription will end at your next billing date. Your account and data remain accessible until then.
+                </div>
+                <div style={s.modalBtnRow}>
+                  <button style={s.modalStay} onClick={() => setShowCancelModal(false)}>
+                    Go back
+                  </button>
+                  <button style={s.modalCancelFinal} onClick={handleCancelConfirm}>
+                    Yes, cancel my subscription
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+export default AccountSettings

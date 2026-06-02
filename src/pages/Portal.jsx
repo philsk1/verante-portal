@@ -1,12 +1,34 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../supabase'
 import { useNavigate } from 'react-router-dom'
+import BusinessProfile from './BusinessProfile'
+import AIBehaviour from './AIBehaviour'
+import ActivityDashboard from './ActivityDashboard'
+import DataAnalytics from './DataAnalytics'
+import PartnersReferrals from './PartnersReferrals'
+import AccountSettings from './AccountSettings'
 
 const Portal = () => {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [checking, setChecking] = useState(true)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('tenant_memberships')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) navigate('/onboarding', { replace: true })
+        else setChecking(false)
+      })
+  }, [user])
+
+  if (checking) return null
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -18,59 +40,104 @@ const Portal = () => {
     { id: 'ai', label: 'AI Behaviour' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'analytics', label: 'Analytics' },
-    { id: 'referrals', label: 'Partners and Referrals' },
+    { id: 'referrals', label: 'Partners & Referrals' },
     { id: 'account', label: 'Account' },
   ]
 
+  const renderTab = () => {
+    switch (activeTab) {
+      case 'profile':
+        return <BusinessProfile />
+      case 'ai':
+        return <AIBehaviour onNavigate={setActiveTab} />
+      case 'dashboard':
+        return <ActivityDashboard onNavigate={setActiveTab} />
+      case 'analytics':
+        return <DataAnalytics onNavigate={setActiveTab} />
+      case 'referrals':
+        return <PartnersReferrals />
+      case 'account':
+        return <AccountSettings onNavigate={setActiveTab} />
+      default:
+        return (
+          <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '0.5rem' }}>
+              {tabs.find(t => t.id === activeTab)?.label}
+            </h2>
+            <p style={{ color: '#aaa', fontSize: '0.875rem' }}>This section is coming soon.</p>
+          </div>
+        )
+    }
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex' }}>
-      <div style={{ width: '240px', background: 'white', borderRight: '1px solid #e2e8f0', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#6366f1' }}>Verrante</h1>
-          <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>{user?.email}</p>
+    <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+
+      {/* Header */}
+      <div style={{
+        height: 64,
+        background: '#5e3b87',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 2rem',
+        boxSizing: 'border-box',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em' }}>
+            Verrante
+          </span>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
         </div>
-
-        <nav style={{ flex: 1 }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                padding: '0.625rem 0.75rem',
-                marginBottom: '0.25rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: activeTab === tab.id ? '#eef2ff' : 'transparent',
-                color: activeTab === tab.id ? '#6366f1' : '#64748b',
-                fontWeight: activeTab === tab.id ? '600' : '400',
-                fontSize: '0.875rem',
-                cursor: 'pointer'
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          style={{ padding: '0.625rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'transparent', color: '#64748b', fontSize: '0.875rem', cursor: 'pointer' }}
-        >
-          Sign out
-        </button>
-      </div>
-
-      <div style={{ flex: 1, padding: '2rem' }}>
-        <div style={{ background: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#0f172a', marginBottom: '1rem' }}>
-            {tabs.find(t => t.id === activeTab)?.label}
-          </h2>
-          <p style={{ color: '#94a3b8' }}>This section is coming soon.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>{user?.email}</span>
+          <button
+            onClick={handleSignOut}
+            style={{ padding: '0.375rem 0.85rem', border: '1px solid rgba(255,255,255,0.22)', borderRadius: '6px', background: 'transparent', color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', cursor: 'pointer' }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
+
+      {/* Nav strip */}
+      <div style={{
+        height: 44,
+        background: '#4a2d6e',
+        display: 'flex',
+        alignItems: 'stretch',
+        padding: '0 1.5rem',
+        boxSizing: 'border-box',
+        overflowX: 'auto',
+      }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '0 1.1rem',
+              border: 'none',
+              borderBottom: `2.5px solid ${activeTab === tab.id ? '#f0a500' : 'transparent'}`,
+              background: 'transparent',
+              color: activeTab === tab.id ? '#f0a500' : 'rgba(255,255,255,0.58)',
+              fontSize: '0.8125rem',
+              fontWeight: activeTab === tab.id ? 500 : 400,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              fontFamily: "'DM Sans', sans-serif",
+              transition: 'color 0.15s',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '2rem', maxWidth: 940, margin: '0 auto', boxSizing: 'border-box' }}>
+        {renderTab()}
+      </div>
+
     </div>
   )
 }
