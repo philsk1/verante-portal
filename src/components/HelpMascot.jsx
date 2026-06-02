@@ -192,38 +192,52 @@ const HelpMascot = ({ activeTab }) => {
   const prevTip = (e) => { e.stopPropagation(); setElementHelp(null); setTipIndex(i => (i - 1 + tips.length) % tips.length) }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+    /* Fixed-height row — bubble is absolute so it never shifts page layout */
+    <div style={{ position: 'relative', height: 52, marginBottom: '1.25rem' }}>
 
-      {/* Owl — animation class on wrapper so React state changes don't restart it */}
+      {/* Owl */}
       <div
         className={helpMode ? 'vera-active' : 'vera-idle'}
         onClick={handleClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         title={helpMode ? 'Click to close help' : 'Click for help'}
-        style={{ cursor: 'pointer', flexShrink: 0, lineHeight: 0 }}
+        style={{ cursor: 'pointer', lineHeight: 0, display: 'inline-block' }}
       >
-        <OwlFace blink={blink} active={isActive} />
+        <OwlFace blink={blink} active={helpMode} />
       </div>
 
-      {/* Speech bubble */}
-      {isActive && displayText ? (
+      {/* Idle label — sits inline, never causes layout shift */}
+      {!helpMode && !hovered && (
+        <span style={{
+          position: 'absolute', left: 52, top: 16,
+          fontSize: '0.72rem', color: '#bbb', fontStyle: 'italic',
+          userSelect: 'none', whiteSpace: 'nowrap',
+        }}>
+          Vera · click for help
+        </span>
+      )}
+
+      {/* Speech bubble — absolutely positioned, floats over page content */}
+      {(hovered || helpMode) && displayText && (
         <div
           ref={bubbleRef}
           style={{
+            position: 'absolute',
+            top: 0,
+            left: 58,
+            zIndex: 50,
             background: 'white',
-            border: '0.5px solid rgba(94,59,135,0.15)',
-            borderRadius: '10px',
+            border: '1px solid rgba(94,59,135,0.18)',
+            borderRadius: '12px',
             padding: '0.75rem 1rem',
-            boxShadow: '0 4px 20px rgba(94,59,135,0.1)',
-            maxWidth: 360,
-            position: 'relative',
-            flex: 1,
+            boxShadow: '0 6px 24px rgba(94,59,135,0.13)',
+            width: 340,
           }}
         >
-          {/* Pointer */}
-          <div style={{ position: 'absolute', left: -7, top: 14, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid rgba(94,59,135,0.15)' }} />
-          <div style={{ position: 'absolute', left: -6, top: 14, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid white' }} />
+          {/* Bubble tail */}
+          <div style={{ position: 'absolute', left: -8, top: 16, width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderRight: '8px solid rgba(94,59,135,0.18)' }} />
+          <div style={{ position: 'absolute', left: -6, top: 16, width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderRight: '7px solid white' }} />
 
           {elementHelp && (
             <div style={{ fontSize: '0.65rem', fontWeight: '600', color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem' }}>
@@ -250,10 +264,6 @@ const HelpMascot = ({ activeTab }) => {
               Hover anything on this page for an explanation
             </div>
           )}
-        </div>
-      ) : (
-        <div style={{ fontSize: '0.75rem', color: '#aaa', fontStyle: 'italic', userSelect: 'none' }}>
-          {helpMode ? 'Help mode on · hover anything to explain it' : 'Vera · click for help'}
         </div>
       )}
     </div>
