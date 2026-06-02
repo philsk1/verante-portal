@@ -592,7 +592,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Plan & Billing */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Plan & Billing</h3>
+        <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
         <p style={s.sectionSubtitle}>Your current plan and available upgrades. Billing is managed via Stripe.</p>
 
         <div style={s.planRow}>
@@ -667,7 +667,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Notification Preferences */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Notifications</h3>
+        <h3 style={s.sectionTitle} data-help="Notifications control when Verrante sends you emails. New lead = an immediate alert the moment your AI captures a lead. Daily summary = a brief end-of-day digest. Weekly report = a Monday morning overview. All emails go to your account email address.">Notifications</h3>
         <p style={s.sectionSubtitle}>Choose when Verrante contacts you. All notifications are sent to your account email.</p>
 
         {[

@@ -8,6 +8,7 @@ import ActivityDashboard from './ActivityDashboard'
 import DataAnalytics from './DataAnalytics'
 import PartnersReferrals from './PartnersReferrals'
 import AccountSettings from './AccountSettings'
+import HelpMascot from '../components/HelpMascot'
 
 const Portal = () => {
   const { user } = useAuth()
@@ -135,6 +136,7 @@ const Portal = () => {
 
       {/* Content */}
       <div style={{ padding: '2rem', maxWidth: 940, margin: '0 auto', boxSizing: 'border-box' }}>
+        <HelpMascot activeTab={activeTab} />
         {renderTab()}
       </div>
 

@@ -385,26 +385,18 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
-        <StatCard
-          label="Calls today"
-          value={callsToday}
-          trend={callsThisMonth > 0 ? `${callsThisMonth} this month` : null}
-        />
-        <StatCard
-          label="New leads"
-          value={leadsThisWeek}
-          trend="last 7 days"
-        />
-        <StatCard
-          label="Referrals sent"
-          value={referralsThisWeek}
-          trend="last 7 days"
-        />
-        <StatCard
-          label="Minutes used"
-          value={minutesUsed}
-          trend={`of ${includedMinutes} this month`}
-        />
+        <div data-help="Calls today shows how many conversations your AI has had so far today. The smaller number below is the total for the whole month.">
+          <StatCard label="Calls today" value={callsToday} trend={callsThisMonth > 0 ? `${callsThisMonth} this month` : null} />
+        </div>
+        <div data-help="New leads are people your AI spoke to in the last 7 days who expressed genuine interest — they gave their details or asked to be followed up. These are warm prospects.">
+          <StatCard label="New leads" value={leadsThisWeek} trend="last 7 days" />
+        </div>
+        <div data-help="Referrals sent is how many callers your AI passed to a partner business this week because they needed something outside your scope. Every referral builds goodwill.">
+          <StatCard label="Referrals sent" value={referralsThisWeek} trend="last 7 days" />
+        </div>
+        <div data-help="Minutes used shows how much of your monthly call allowance has been used. When this reaches 100%, your AI stops answering calls until the next billing cycle — so keep an eye on it.">
+          <StatCard label="Minutes used" value={minutesUsed} trend={`of ${includedMinutes} this month`} />
+        </div>
       </div>
 
       {/* Recommendation */}
@@ -419,7 +411,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* Recent calls */}
       <div style={{ ...s.section, marginBottom: '1.25rem' }}>
-        <div style={s.sectionTitle}>Recent calls</div>
+        <div style={s.sectionTitle} data-help="Recent calls is a log of the last 8 conversations your AI handled. The coloured dot shows the outcome — green means booked, purple means a lead was captured, grey means the call was closed or filtered. The italicised text is the summary your AI wrote after the call.">Recent calls</div>
         {recentCalls.length === 0 ? (
           <div style={s.emptyState}>No calls recorded yet.</div>
         ) : (

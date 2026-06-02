@@ -643,7 +643,7 @@ const BusinessProfile = () => {
 
       {/* Business Details */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Business Details</h3>
+        <h3 style={s.sectionTitle} data-help="Business Details are the basics your AI uses to represent you on every call — your trading name, phone number, email address, and where you're based.">Business Details</h3>
         <p style={s.sectionSubtitle}>Used to personalise your AI and appears in caller communications.</p>
         <div style={s.row}>
           <Field label="Business name" value={details.business_name} onChange={v => setDetails(p => ({ ...p, business_name: v }))} />
@@ -664,7 +664,7 @@ const BusinessProfile = () => {
 
       {/* Your Services */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Your Services</h3>
+        <h3 style={s.sectionTitle} data-help="Your Services is the list of things your AI will actively help callers with. If someone asks for a service not on this list, the AI handles it differently — referring out or politely declining.">Your Services</h3>
         <p style={s.sectionSubtitle}>The services your AI will accept enquiries and bookings for.</p>
         <ServiceChips items={services} onRemove={removeService} onAdd={addService}
           placeholder="e.g. Boiler service, Emergency callout…" chipStyle={s.chipDefault} />
@@ -672,7 +672,7 @@ const BusinessProfile = () => {
 
       {/* Partner Services */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Partner Services</h3>
+        <h3 style={s.sectionTitle} data-help="Partner Services are things you can't do but actively pass to an associate. When a caller asks for one of these, your AI gives a warm referral — 'I can't help with that but my colleague at X can' — rather than a flat no. Much better for the caller.">Partner Services</h3>
         <p style={s.sectionSubtitle}>
           Services you cannot fulfil but actively pass to an associate business. When a caller asks for one of these, your AI makes a warm referral rather than a flat decline. Anything outside both lists is politely turned away.
         </p>
@@ -682,7 +682,7 @@ const BusinessProfile = () => {
 
       {/* Client Directory */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Client Directory</h3>
+        <h3 style={s.sectionTitle} data-help="The Client Directory is a list of known clients. When one of their numbers calls in, your AI recognises them by name and follows your special instructions for them — great for VIP clients or anyone who needs different handling.">Client Directory</h3>
         <p style={s.sectionSubtitle}>
           Known clients with specialist instructions. When a listed number calls in, your AI recognises them by name and uses your instructions to handle the call appropriately.
         </p>
@@ -745,7 +745,7 @@ const BusinessProfile = () => {
 
       {/* Employee Profiles */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Employee Profiles</h3>
+        <h3 style={s.sectionTitle} data-help="Employee Profiles is an Enterprise feature. Add your team members with their specialist services and your AI can route callers to the right person — and tell callers who handles what.">Employee Profiles</h3>
         <p style={s.sectionSubtitle}>
           Add team members with their specialist services. Your AI uses these to route calls to the right person — and to tell callers who handles what.
         </p>

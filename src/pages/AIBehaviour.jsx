@@ -601,7 +601,7 @@ const AIBehaviour = ({ onNavigate }) => {
         <h3 style={s.sectionTitle}>Call Handling</h3>
         <p style={s.sectionSubtitle}>Global defaults — overridden per call type below.</p>
 
-        <label style={s.label}>Default triage mode</label>
+        <label style={s.label} data-help="Triage mode controls the pace and style of your AI's conversations. Strict = short and efficient, gets what it needs quickly and closes. Balanced = standard, recommended for most businesses. Open = more relaxed and conversational, good where relationship matters more than speed.">Default triage mode</label>
         <div style={s.segmented}>
           {TRIAGE_MODES.map(mode => (
             <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={s.segBtn(triageMode === mode.id)}>
@@ -612,7 +612,7 @@ const AIBehaviour = ({ onNavigate }) => {
         {currentMode && <p style={s.hint}>{currentMode.desc}</p>}
 
         <div style={{ marginTop: '1.5rem' }}>
-          <label style={s.label}>When the AI cannot resolve a call</label>
+          <label style={s.label} data-help="This controls what happens when your AI genuinely can't help a caller. 'Escalate to me' means it tries to transfer the call to you live — if you don't answer, it takes a callback. 'Hard close' means it wraps up politely without trying to reach you, and offers a callback request instead.">When the AI cannot resolve a call</label>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button onClick={() => setEscalationPref('escalate')} style={s.pairBtn(escalationPref === 'escalate')}>Escalate to me</button>
             <button onClick={() => setEscalationPref('hard_close')} style={s.pairBtn(escalationPref === 'hard_close')}>Hard close</button>
@@ -627,7 +627,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Call Type Rules */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Call Type Rules</h3>
+        <h3 style={s.sectionTitle} data-help="Call Type Rules let you set completely different behaviour for different kinds of callers. A new customer gets one treatment, a cold sales call gets another, a supplier gets another. Expand each card to set the pace, closing method, and any special instructions.">Call Type Rules</h3>
         <p style={s.sectionSubtitle}>
           Configure how your AI handles each category of incoming call — the conversation mode, how it closes, and any specialist instructions. Known clients follow their individual instructions instead.
         </p>
@@ -652,7 +652,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Emergency Keywords */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Emergency Keywords</h3>
+        <h3 style={s.sectionTitle} data-help="Emergency Keywords are words that trigger an immediate escalation to you, no matter what else is happening on the call. Add things like 'gas leak', 'not breathing', 'flooding', 'emergency'. As soon as your AI hears one of these, it escalates — no other rules apply.">Emergency Keywords</h3>
         <p style={s.sectionSubtitle}>
           If a caller uses any of these words, your AI escalates immediately — regardless of call type rules or triage mode.
         </p>
@@ -694,7 +694,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Call Filtering */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Call Filtering</h3>
+        <h3 style={s.sectionTitle} data-help="Call Filtering sits upstream of everything else — it blocks known spam, autodialler patterns, and unsolicited sales calls before they even reach your AI. This protects your included minutes so they go to real callers, not bots and cold callers.">Call Filtering</h3>
         <p style={s.sectionSubtitle}>Upstream filters — applied before call type rules. Changes take effect immediately.</p>
         <ToggleRow label="Spam detection" desc="Block known spam call patterns before they consume triage turns."
           checked={spamFilter} onChange={v => { setSpamFilter(v); saveToggle('spam_filter_enabled', v) }} />

@@ -490,10 +490,11 @@ const PartnersReferrals = () => {
 
       {/* Partner network */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>
+        <h3 style={s.sectionTitle} data-help="Your Partner Network is the list of businesses your AI can refer callers to when they ask for something you don't do. Every referral builds reciprocal obligation — partners who receive your callers are far more likely to send their callers to you.">
           Your Partner Network
           <span style={s.allPlans}>All plans · unlimited</span>
         </h3>
+
         <p style={s.sectionSubtitle}>
           When your AI cannot help a caller, it refers them to one of these businesses. Every referral you send builds an expectation of reciprocation. There is no limit to how many partners you can add.
         </p>
@@ -568,7 +569,7 @@ const PartnersReferrals = () => {
           Your Referral Code
           <span style={s.allPlans}>All plans</span>
         </h3>
-        <p style={s.sectionSubtitle}>
+        <p style={s.sectionSubtitle} data-help="Your Referral Code is unique to you. Share it with any business owner who takes calls — a plumber, a salon, a solicitor, anyone. When they sign up and enter your code, you earn one free month of Verrante automatically. No chasing, no admin.">
           Share this with any business owner. When they sign up, you earn a free month and they start knowing someone vouched for the product.
         </p>
 
