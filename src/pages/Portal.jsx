@@ -14,6 +14,7 @@ const Portal = () => {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [checking, setChecking] = useState(true)
+  const [businessName, setBusinessName] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -23,9 +24,12 @@ const Portal = () => {
       .select('tenant_id')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => {
-        if (!data) navigate('/onboarding', { replace: true })
-        else setChecking(false)
+      .then(async ({ data }) => {
+        if (!data) { navigate('/onboarding', { replace: true }); return }
+        const { data: tenant } = await supabase
+          .from('tenants').select('business_name').eq('id', data.tenant_id).maybeSingle()
+        setBusinessName(tenant?.business_name || '')
+        setChecking(false)
       })
   }, [user])
 
@@ -136,7 +140,7 @@ const Portal = () => {
 
       {/* Content */}
       <div style={{ padding: '2rem', maxWidth: 940, margin: '0 auto', boxSizing: 'border-box' }}>
-        <HelpMascot activeTab={activeTab} />
+        <HelpMascot activeTab={activeTab} businessName={businessName} />
         {renderTab()}
       </div>
 

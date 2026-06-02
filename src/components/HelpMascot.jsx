@@ -131,7 +131,7 @@ const FloatingVera = ({ text, rect, blink }) => {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const HelpMascot = ({ activeTab }) => {
+const HelpMascot = ({ activeTab, businessName = '' }) => {
   const [helpMode, setHelpMode] = useState(false)
   const [blink, setBlink]       = useState(false)
   const [floatEl, setFloatEl]   = useState(null) // { text, rect }
@@ -240,6 +240,20 @@ const HelpMascot = ({ activeTab }) => {
           </div>
         )}
       </div>
+
+      {/* Business name — shown on every page */}
+      {businessName && (
+        <p style={{
+          fontFamily: "'Syne', sans-serif",
+          fontWeight: 700,
+          fontSize: '1.6rem',
+          color: '#aaa',
+          margin: '0 0 1.25rem',
+          lineHeight: 1.2,
+        }}>
+          {businessName}
+        </p>
+      )}
 
       {/* Floating Vera — rendered via portal-like fixed div, appears next to hovered elements */}
       <FloatingVera text={floatEl?.text} rect={floatEl?.rect} blink={blink} />

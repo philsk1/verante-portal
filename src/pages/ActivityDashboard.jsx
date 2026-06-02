@@ -377,11 +377,6 @@ const ActivityDashboard = ({ onNavigate }) => {
     <div>
 
       {/* Greeting */}
-      {businessName && (
-        <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', marginBottom: '1.25rem', margin: '0 0 1.25rem' }}>
-          {businessName}
-        </p>
-      )}
 
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
