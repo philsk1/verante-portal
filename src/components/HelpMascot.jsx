@@ -83,47 +83,70 @@ const injectStyles = () => {
 // ─── owl SVG ─────────────────────────────────────────────────────────────────
 
 const OwlFace = ({ blink, active }) => (
-  <svg width="42" height="42" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg width="44" height="72" viewBox="0 0 80 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+
     {/* Ear tufts */}
-    <ellipse cx="22" cy="9" rx="7" ry="13" fill="#4a2d6e" transform="rotate(-18 22 9)" />
-    <ellipse cx="58" cy="9" rx="7" ry="13" fill="#4a2d6e" transform="rotate(18 58 9)" />
+    <ellipse cx="23" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(-18 23 8)" />
+    <ellipse cx="57" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(18 57 8)" />
+
+    {/* Body */}
+    <ellipse cx="40" cy="94" rx="21" ry="28" fill="#5e3b87" />
+
+    {/* Wings */}
+    <path d="M22,78 C6,84 2,102 10,114 C16,110 20,100 26,90 Z" fill="#4a2d6e" />
+    <path d="M58,78 C74,84 78,102 70,114 C64,110 60,100 54,90 Z" fill="#4a2d6e" />
+
+    {/* Belly fluff */}
+    <ellipse cx="40" cy="100" rx="13" ry="18" fill="rgba(255,255,255,0.1)" />
+
+    {/* Feather lines on belly */}
+    <path d="M31,88 Q40,92 49,88"  stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" fill="none" />
+    <path d="M29,98 Q40,102 51,98" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" fill="none" />
 
     {/* Head */}
-    <circle cx="40" cy="44" r="34" fill="#5e3b87" />
+    <circle cx="40" cy="38" r="30" fill="#5e3b87" />
 
-    {/* Facial disc — soft lighter patch around eyes */}
-    <ellipse cx="40" cy="46" rx="27" ry="23" fill="rgba(255,255,255,0.09)" />
+    {/* Facial disc */}
+    <ellipse cx="40" cy="40" rx="23" ry="20" fill="rgba(255,255,255,0.09)" />
 
-    {/* ── Left eye ── */}
-    <circle cx="26" cy="40" r="13" fill="#f0a500" />
-    <circle cx="26" cy="40" r="10" fill="white" />
+    {/* Left eye */}
+    <circle cx="27" cy="36" r="12" fill="#f0a500" />
+    <circle cx="27" cy="36" r="9"  fill="white" />
     {blink
-      ? <ellipse cx="26" cy="40" rx="10" ry="2.5" fill="#5e3b87" />
+      ? <ellipse cx="27" cy="36" rx="9" ry="2" fill="#5e3b87" />
       : <>
-          <circle cx={active ? 28 : 27} cy={active ? 38 : 39} r="6" fill="#1a0533" />
-          <circle cx={active ? 30 : 29} cy={active ? 35 : 36} r="2" fill="white" />
+          <circle cx="28" cy="35" r="5.5" fill="#1a0533" />
+          <circle cx="30" cy="33" r="1.8" fill="white" />
         </>
     }
 
-    {/* ── Right eye ── */}
-    <circle cx="54" cy="40" r="13" fill="#f0a500" />
-    <circle cx="54" cy="40" r="10" fill="white" />
+    {/* Right eye */}
+    <circle cx="53" cy="36" r="12" fill="#f0a500" />
+    <circle cx="53" cy="36" r="9"  fill="white" />
     {blink
-      ? <ellipse cx="54" cy="40" rx="10" ry="2.5" fill="#5e3b87" />
+      ? <ellipse cx="53" cy="36" rx="9" ry="2" fill="#5e3b87" />
       : <>
-          <circle cx={active ? 56 : 55} cy={active ? 38 : 39} r="6" fill="#1a0533" />
-          <circle cx={active ? 58 : 57} cy={active ? 35 : 36} r="2" fill="white" />
+          <circle cx="54" cy="35" r="5.5" fill="#1a0533" />
+          <circle cx="56" cy="33" r="1.8" fill="white" />
         </>
     }
 
     {/* Beak */}
-    <polygon points="40,52 34,63 46,63" fill="#f0a500" />
+    <polygon points="40,47 35,57 45,57" fill="#f0a500" />
 
-    {/* Belly fluff */}
-    <ellipse cx="40" cy="72" rx="14" ry="7" fill="rgba(255,255,255,0.12)" />
+    {/* Feet */}
+    <line x1="33" y1="119" x2="33" y2="126" stroke="#f0a500" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="33" y1="126" x2="26" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
+    <line x1="33" y1="126" x2="33" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
+    <line x1="33" y1="126" x2="40" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
 
-    {/* Amber dot — Verrante brand mark */}
-    <circle cx="66" cy="16" r="5" fill="#f0a500" />
+    <line x1="47" y1="119" x2="47" y2="126" stroke="#f0a500" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="47" y1="126" x2="40" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
+    <line x1="47" y1="126" x2="47" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
+    <line x1="47" y1="126" x2="54" y2="130" stroke="#f0a500" strokeWidth="2"   strokeLinecap="round" />
+
+    {/* Brand dot */}
+    <circle cx="65" cy="14" r="5" fill="#f0a500" />
   </svg>
 )
 
@@ -131,7 +154,6 @@ const OwlFace = ({ blink, active }) => (
 
 const HelpMascot = ({ activeTab }) => {
   const [helpMode, setHelpMode]       = useState(false)
-  const [hovered, setHovered]         = useState(false)
   const [tipIndex, setTipIndex]       = useState(0)
   const [elementHelp, setElementHelp] = useState(null)
   const [blink, setBlink]             = useState(false)
@@ -193,24 +215,22 @@ const HelpMascot = ({ activeTab }) => {
 
   return (
     /* Fixed-height row — bubble is absolute so it never shifts page layout */
-    <div style={{ position: 'relative', height: 52, marginBottom: '1.25rem' }}>
+    <div style={{ position: 'relative', height: 76, marginBottom: '1rem' }}>
 
-      {/* Owl */}
+      {/* Owl — no hover state, click only */}
       <div
         className={helpMode ? 'vera-active' : 'vera-idle'}
         onClick={handleClick}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         title={helpMode ? 'Click to close help' : 'Click for help'}
         style={{ cursor: 'pointer', lineHeight: 0, display: 'inline-block' }}
       >
         <OwlFace blink={blink} active={helpMode} />
       </div>
 
-      {/* Idle label — sits inline, never causes layout shift */}
-      {!helpMode && !hovered && (
+      {/* Idle label */}
+      {!helpMode && (
         <span style={{
-          position: 'absolute', left: 52, top: 16,
+          position: 'absolute', left: 52, top: 26,
           fontSize: '0.72rem', color: '#bbb', fontStyle: 'italic',
           userSelect: 'none', whiteSpace: 'nowrap',
         }}>
@@ -218,8 +238,8 @@ const HelpMascot = ({ activeTab }) => {
         </span>
       )}
 
-      {/* Speech bubble — absolutely positioned, floats over page content */}
-      {(hovered || helpMode) && displayText && (
+      {/* Speech bubble — click-only, absolutely positioned over content */}
+      {helpMode && displayText && (
         <div
           ref={bubbleRef}
           style={{
