@@ -201,7 +201,7 @@ const HelpMascot = ({ activeTab }) => {
 
   const tips = PAGE_HELP[activeTab] || []
   const displayText = elementHelp || tips[tipIndex] || ''
-  const isActive = helpMode || hovered
+  const isActive = helpMode
 
   const handleClick = () => {
     setHelpMode(m => {
