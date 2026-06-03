@@ -44,7 +44,7 @@ const formatDuration = (secs) => {
 }
 
 const callerLabel = (call) =>
-  call.callers?.name || call.callers?.phone_number || call.caller_phone || 'Unknown caller'
+  call.callers?.full_name || call.callers?.phone_number || call.caller_phone || 'Unknown caller'
 
 const OUTCOME_BADGES = {
   booked:         { label: 'Booked',       bg: '#e6f5ee', color: '#1e7a4a' },
@@ -281,7 +281,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         const [callRes, leadRes, refRes] = await Promise.all([
           supabase
             .from('call_logs')
-            .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, name)')
+            .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, full_name)')
             .eq('tenant_id', tid)
             .gte('created_at', monthIso)
             .order('created_at', { ascending: false })
