@@ -262,17 +262,23 @@ Logo: "Verrante" Syne 700 + 7px amber dot (marginLeft 3, marginBottom 8).
 - [x] Visual language — Login, Signup, Onboarding, Portal all on violet palette
 - [x] Deployed to Vercel — auto-deploys on git push
 - [x] Notification preferences — persisted to tenants table
-- [x] Vapi webhook handler — `api/vapi-webhook.js`, deployed on Vercel
-- [x] `vapi_assistant_id` column on tenants — webhook can look up tenant per call
-- [x] Test call end-to-end — call made, log saved, visible in Dashboard
+- [x] Vapi webhook handler — `api/vapi-webhook.js`, writes call_logs, leads, referral_log
+- [x] `vapi_assistant_id` on tenants — webhook looks up tenant per call
+- [x] System prompt builder — `api/_build-prompt.js`, builds full AI prompt from tenant DB data
+- [x] `api/vapi-sync.js` — patches Vapi assistant on every Business Profile / AI Behaviour save. Needs `VAPI_PRIVATE_KEY` in Vercel env vars.
+- [x] `api/vapi-assistant-request.js` — dynamic assistant config for future phone number routing
+- [x] call_logs schema aligned — columns: duration_seconds, ai_summary, call_outcome, caller_phone, transcript
+- [x] Dashboard end-to-end confirmed — call appears with AI summary
+
+### Known gap
+- call_outcome is null on calls — AI summary works but structured data extraction not returning values. analysisPlan sent via vapi-sync but needs verification in Vapi dashboard that it applied.
 
 ### Next (in priority order)
-- [ ] Vapi assistant system prompt — business context injection, structured data extraction, 5 call type behaviours (core product)
-- [ ] RLS verification — confirm enabled/disabled, fix before go-live
+- [ ] Fix call_outcome — verify analysisPlan on Vapi assistant, confirm structured data extraction works
+- [ ] RLS — verify current status (conflict between docs), fix before go-live
 - [ ] Stripe — billing, upgrade flow, webhook for plan changes
 - [ ] Support chat — Claude API endpoint + tenant context injection
-- [ ] get_vapi_context PostgreSQL function — context injection for VIP caller handling
-- [ ] Make.com scenario wiring
+- [ ] Call quality — voice choice, prompt polish once Business Profile is fully filled in
 
 ---
 
