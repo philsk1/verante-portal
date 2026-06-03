@@ -11,15 +11,18 @@ export default async function handler(req, res) {
   }
 
   const event = req.body
+  const eventType = event.message?.type || event.type || 'unknown'
+  console.log('Vapi event received:', eventType, JSON.stringify(event).slice(0, 300))
 
   // Only process call-ended events
-  if (event.message?.type !== 'end-of-call-report') {
+  if (eventType !== 'end-of-call-report') {
     return res.status(200).json({ received: true })
   }
 
-  const call     = event.message.call
-  const analysis = event.message.analysis || {}
-  const artifact = event.message.artifact || {}
+  const payload  = event.message || event
+  const call     = payload.call
+  const analysis = payload.analysis || {}
+  const artifact = payload.artifact || {}
 
   const assistantId  = call?.assistantId
   const callerNumber = call?.customer?.number || null
