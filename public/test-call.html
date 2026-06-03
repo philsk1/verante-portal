@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vapi Test Call</title>
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f7f6f9; flex-direction: column; gap: 1rem; }
+    h1 { color: #5e3b87; font-size: 1.25rem; }
+    p { color: #888; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>Verrante — Test Call</h1>
+  <p>Click the purple button bottom-right to start a call with the AI.</p>
+  <p>Pretend to be a customer. Ask about booking, services, anything.</p>
+  <p>End the call, then check your Verrante Dashboard for the call log.</p>
+
+  <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js" defer async></script>
+  <script>
+    window.addEventListener("load", () => {
+      window.vapiSDK.run({
+        apiKey: "dc883e5d-1041-4afe-8a63-60f6380f9e16",
+        assistant: "a5637a5e-acb1-43c6-9dd1-e3f3dfc12613",
+        config: { position: "bottom-right" },
+      });
+    });
+  </script>
+</body>
+</html>
