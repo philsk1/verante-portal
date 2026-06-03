@@ -492,7 +492,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report')
           .eq('id', tid)
           .maybeSingle()
 
@@ -501,6 +501,9 @@ const AccountSettings = ({ onNavigate }) => {
           setTier(tenant.subscription_tier || 'light')
           setTenantCreatedAt(tenant.created_at)
           setFeedbackShown(tenant.feedback_prompt_shown || false)
+          setNotifyNewLead(tenant.notify_new_lead !== false)
+          setNotifyDailySummary(tenant.notify_daily_summary === true)
+          setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -536,6 +539,11 @@ const AccountSettings = ({ onNavigate }) => {
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
     showAccountToast(error ? 'Could not save. Please try again.' : 'Details saved.', error ? 'error' : 'success')
+  }
+
+  const saveNotification = async (field, value) => {
+    if (!tenantId) return
+    await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
   const sendPasswordReset = async () => {
@@ -671,9 +679,9 @@ const AccountSettings = ({ onNavigate }) => {
         <p style={s.sectionSubtitle}>Choose when Verrante contacts you. All notifications are sent to your account email.</p>
 
         {[
-          { label: 'New lead captured', desc: 'Immediate email when your AI captures a new lead.', val: notifyNewLead, set: setNotifyNewLead },
-          { label: 'Daily summary', desc: 'A brief end-of-day digest of calls, leads, and referrals.', val: notifyDailySummary, set: setNotifyDailySummary },
-          { label: 'Weekly report', desc: 'Monday morning overview of the past week\'s performance.', val: notifyWeeklyReport, set: setNotifyWeeklyReport },
+          { label: 'New lead captured', desc: 'Immediate email when your AI captures a new lead.', val: notifyNewLead, set: v => { setNotifyNewLead(v); saveNotification('notify_new_lead', v) } },
+          { label: 'Daily summary', desc: 'A brief end-of-day digest of calls, leads, and referrals.', val: notifyDailySummary, set: v => { setNotifyDailySummary(v); saveNotification('notify_daily_summary', v) } },
+          { label: 'Weekly report', desc: 'Monday morning overview of the past week\'s performance.', val: notifyWeeklyReport, set: v => { setNotifyWeeklyReport(v); saveNotification('notify_weekly_report', v) } },
         ].map((item, i, arr) => (
           <div key={item.label} style={s.toggleRow(i === arr.length - 1)}>
             <div>
