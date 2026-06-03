@@ -120,20 +120,20 @@ Each tab is a standalone component imported in `Portal.jsx`. All connect to `ten
 
 ### Done
 - [x] All 6 portal tabs — fully built and wired
-- [x] Business Profile save — working (tenant FK issue resolved)
 - [x] Auth guards — Portal ↔ Onboarding bidirectional
-- [x] RLS — all tables secured, FK restored
-- [x] Vera mascot — owl with body/wings/feet, click to wake, floats to elements
-- [x] Visual language — Login, Signup, Onboarding all on violet palette
-- [x] Business name — fetched in Portal, shown on every tab
+- [x] Vera mascot — owl, click to wake, floats to data-help elements
+- [x] Visual language — Login, Signup, Onboarding, Portal all on violet palette
 - [x] Deployed to Vercel — auto-deploys on git push
-- [x] vercel.json — SPA routing fixed
+- [x] Notification preferences — persisted to tenants table
+- [x] Vapi webhook handler — `api/vapi-webhook.js`, deployed on Vercel, uses service_role key via env var
+- [x] `vapi_assistant_id` column on tenants — webhook looks up tenant per call
+- [x] Test call end-to-end — confirmed working, call log saved to DB
 
-### Next
-- [ ] Vapi AI backend — call handling, lead capture, triage (core product, biggest build)
+### Next (priority order)
+- [ ] Vapi assistant system prompt — business context injection, structured data extraction, 5 call type behaviours
+- [ ] RLS — verify current status (conflict between docs), fix before go-live
 - [ ] Stripe — billing, upgrade flow, webhook for plan changes
-- [ ] Notification preferences — currently local state only, not persisted to DB
-- [ ] Vapi/AI worker needs service_role key (not anon) to write call_logs and leads
+- [ ] Support chat — Claude API endpoint + tenant context injection
 
 ---
 
