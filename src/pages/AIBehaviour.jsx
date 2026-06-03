@@ -541,6 +541,7 @@ const AIBehaviour = ({ onNavigate }) => {
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
+    if (!error) syncVapi(tenantId)
   }
 
   const saveRules = async () => {
@@ -561,6 +562,15 @@ const AIBehaviour = ({ onNavigate }) => {
       .upsert(rows, { onConflict: 'tenant_id,call_type' })
     setRulesSaving(false)
     showRulesToast(error ? 'Could not save. Please try again.' : 'Call handling saved.', error ? 'error' : 'success')
+    if (!error) syncVapi(tenantId)
+  }
+
+  const syncVapi = (tid) => {
+    fetch('/api/vapi-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: tid }),
+    }).catch(() => {})
   }
 
   const saveToggle = async (field, value) => {

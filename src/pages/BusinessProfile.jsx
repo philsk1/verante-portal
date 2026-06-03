@@ -519,7 +519,16 @@ const BusinessProfile = () => {
     } else {
       setDetailsToast({ msg: 'Details saved.', type: 'success' })
       setTimeout(() => setDetailsToast({ msg: '', type: '' }), 3000)
+      syncVapi(tenantId)
     }
+  }
+
+  const syncVapi = (tid) => {
+    fetch('/api/vapi-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: tid }),
+    }).catch(() => {})
   }
 
   // ── services ────────────────────────────────────────────────────────────────
