@@ -44,7 +44,7 @@ const formatDuration = (secs) => {
 }
 
 const callerLabel = (call) =>
-  call.callers?.name || call.callers?.phone_number || 'Unknown caller'
+  call.callers?.name || call.callers?.phone_number || call.caller_phone || 'Unknown caller'
 
 const OUTCOME_BADGES = {
   booked:         { label: 'Booked',       bg: '#e6f5ee', color: '#1e7a4a' },
@@ -281,7 +281,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         const [callRes, leadRes, refRes] = await Promise.all([
           supabase
             .from('call_logs')
-            .select('id, created_at, duration, caller_notes, triage_outcome, callers(phone_number, name)')
+            .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, name)')
             .eq('tenant_id', tid)
             .gte('created_at', monthIso)
             .order('created_at', { ascending: false })
@@ -327,7 +327,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const referralsThisWeek = referrals.filter(r => new Date(r.created_at) >= weekAgo).length
   const referralsToday = referrals.filter(r => new Date(r.created_at) >= today)
 
-  const totalSeconds = calls.reduce((sum, c) => sum + (c.duration || 0), 0)
+  const totalSeconds = calls.reduce((sum, c) => sum + (c.duration_seconds || 0), 0)
   const minutesUsed = Math.round(totalSeconds / 60)
   const minutesPct = includedMinutes > 0 ? Math.round((minutesUsed / includedMinutes) * 100) : 0
 
@@ -411,19 +411,19 @@ const ActivityDashboard = ({ onNavigate }) => {
           <div style={s.emptyState}>No calls recorded yet.</div>
         ) : (
           recentCalls.map((call, i) => {
-            const badge = outcomeBadge(call.triage_outcome)
+            const badge = outcomeBadge(call.call_outcome)
             const isLast = i === recentCalls.length - 1
             return (
               <div key={call.id} style={{ ...s.callRow, borderBottom: isLast ? 'none' : s.callRow.borderBottom }}>
-                <span style={s.callDot(call.triage_outcome)} />
+                <span style={s.callDot(call.call_outcome)} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={s.callCaller}>{callerLabel(call)}</div>
                   <div style={s.callMeta}>
                     {formatDateLabel(call.created_at)} · {formatTime(call.created_at)}
-                    {call.duration ? ` · ${formatDuration(call.duration)}` : ''}
+                    {call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ''}
                   </div>
-                  {call.caller_notes && (
-                    <div style={s.callNotes}>"{call.caller_notes}"</div>
+                  {call.ai_summary && (
+                    <div style={s.callNotes}>"{call.ai_summary}"</div>
                   )}
                 </div>
                 <span style={s.badge(badge.bg, badge.color)}>{badge.label}</span>

@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   const duration     = Math.round((call?.endedAt - call?.startedAt) / 1000) || 0
   const transcript   = artifact.transcript || null
   const summary      = analysis.summary || null
-  const outcome      = analysis.structuredData?.triage_outcome || null
+  const outcome      = analysis.structuredData?.triage_outcome || analysis.structuredData?.call_outcome || null
 
   // Look up which tenant this assistant belongs to
   const { data: tenant } = await supabase
@@ -67,18 +67,21 @@ export default async function handler(req, res) {
   }
 
   // Write call log
-  const { data: callLog } = await supabase
+  const { data: callLog, error: logError } = await supabase
     .from('call_logs')
     .insert({
-      tenant_id:      tenantId,
-      caller_id:      callerId,
-      duration,
+      tenant_id:       tenantId,
+      caller_id:       callerId,
+      caller_phone:    callerNumber,
+      duration_seconds: duration,
       transcript,
-      caller_notes:   summary,
-      triage_outcome: outcome,
+      ai_summary:      summary,
+      call_outcome:    outcome,
     })
     .select()
     .maybeSingle()
+
+  if (logError) console.error('call_logs insert error:', logError.message)
 
   // Write lead if captured
   if (outcome === 'lead_captured' || outcome === 'booked') {
