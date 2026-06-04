@@ -2,15 +2,12 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DemoProvider, useDemo } from '../context/DemoContext'
 import DemoBanner from '../components/DemoBanner'
+import BusinessProfile from './BusinessProfile'
+import AIBehaviour from './AIBehaviour'
 import ActivityDashboard from './ActivityDashboard'
 import DataAnalytics from './DataAnalytics'
-
-const PLACEHOLDER_TABS = {
-  profile:   { title: 'Business Profile',     body: 'Full demo preview coming in Session 3.' },
-  ai:        { title: 'AI Behaviour',         body: 'Full demo preview coming in Session 3.' },
-  referrals: { title: 'Partners & Referrals', body: 'Full demo preview coming in Session 3.' },
-  account:   { title: 'Account',              body: 'Full demo preview coming in Session 3.' },
-}
+import PartnersReferrals from './PartnersReferrals'
+import AccountSettings from './AccountSettings'
 
 const DemoPortalInner = ({ businessId }) => {
   const demo = useDemo()
@@ -18,34 +15,32 @@ const DemoPortalInner = ({ businessId }) => {
   const [activeTab, setActiveTab] = useState('dashboard')
 
   const tabs = [
-    { id: 'profile',    label: 'Business Profile' },
-    { id: 'ai',         label: 'AI Behaviour' },
-    { id: 'dashboard',  label: 'Dashboard' },
-    { id: 'analytics',  label: 'Analytics' },
-    { id: 'referrals',  label: 'Partners & Referrals' },
-    { id: 'account',    label: 'Account' },
+    { id: 'profile',   label: 'Business Profile' },
+    { id: 'ai',        label: 'AI Behaviour' },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'referrals', label: 'Partners & Referrals' },
+    { id: 'account',   label: 'Account' },
   ]
 
   const session = JSON.parse(localStorage.getItem('demo_session') || '{}')
 
   const renderTab = () => {
-    if (activeTab === 'dashboard') return <ActivityDashboard onNavigate={setActiveTab} />
-    if (activeTab === 'analytics') return <DataAnalytics onNavigate={setActiveTab} />
-    const placeholder = PLACEHOLDER_TABS[activeTab]
-    return (
-      <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.5rem', marginTop: 0 }}>
-          {placeholder?.title}
-        </h2>
-        <p style={{ color: '#aaa', fontSize: '0.875rem', margin: 0 }}>{placeholder?.body}</p>
-      </div>
-    )
+    switch (activeTab) {
+      case 'profile':   return <BusinessProfile />
+      case 'ai':        return <AIBehaviour onNavigate={setActiveTab} />
+      case 'dashboard': return <ActivityDashboard onNavigate={setActiveTab} />
+      case 'analytics': return <DataAnalytics onNavigate={setActiveTab} />
+      case 'referrals': return <PartnersReferrals />
+      case 'account':   return <AccountSettings onNavigate={setActiveTab} />
+      default:          return null
+    }
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', system-ui, sans-serif", display: 'flex', flexDirection: 'column' }}>
 
-      {/* Demo banner */}
+      {/* Demo banner with inline tier switcher */}
       {demo.business && (
         <DemoBanner
           businessName={demo.business.business_name}
@@ -61,7 +56,6 @@ const DemoPortalInner = ({ businessId }) => {
             <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em' }}>Verrante</span>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
           </div>
-          <span style={{ fontSize: '0.7rem', background: '#f0a500', color: '#1a0533', borderRadius: '4px', padding: '0.2rem 0.5rem', fontWeight: '600', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Demo</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>{session.name || session.email}</span>

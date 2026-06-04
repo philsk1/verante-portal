@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useDemo } from '../context/DemoContext'
 
 // ─── tier config ──────────────────────────────────────────────────────────────
 
@@ -413,6 +414,8 @@ const ServiceChips = ({ items, onRemove, onAdd, placeholder, chipStyle }) => {
 
 const BusinessProfile = () => {
   const { user } = useAuth()
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
@@ -441,8 +444,29 @@ const BusinessProfile = () => {
   const [staffAdding, setStaffAdding] = useState(false)
   const [staffError, setStaffError] = useState(false)
 
+  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!user) return
+    if (!isDemo || demo?.loading) return
+    const biz = demo.business || {}
+    setTier(demo.tier)
+    setDetails({
+      business_name:    biz.business_name    || '',
+      business_phone:   biz.business_phone   || '',
+      business_email:   biz.business_email   || '',
+      business_address: '',
+      booking_link:     biz.booking_link     || '',
+      opening_hours:    biz.opening_hours    || '',
+      business_context: biz.business_context || '',
+    })
+    setServices(demo.services.map(s => ({ id: s.id, service_name: s.service_name })))
+    setPartnerServices([])
+    setClients([])
+    setStaff(demo.staff.map(s => ({ id: s.id, name: s.name, role: s.role, specialist_services: s.specialist_services, phone: s.phone, active: s.active })))
+    setLoading(false)
+  }, [isDemo, demo?.loading])
+
+  useEffect(() => {
+    if (isDemo || !user) return
     const load = async () => {
       setLoading(true)
       try {
@@ -498,11 +522,12 @@ const BusinessProfile = () => {
       }
     }
     load()
-  }, [user])
+  }, [user, isDemo])
 
   // ── business details ────────────────────────────────────────────────────────
 
   const saveDetails = async () => {
+    if (isDemo) return
     if (!tenantId) {
       setDetailsToast({ msg: 'Account not linked to a business. Complete setup at /onboarding.', type: 'error' })
       return
@@ -534,13 +559,14 @@ const BusinessProfile = () => {
   // ── services ────────────────────────────────────────────────────────────────
 
   const addService = async (name) => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     const { data, error } = await supabase.from('services')
       .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
     if (!error && data) setServices(prev => [...prev, data])
   }
 
   const removeService = async (i) => {
+    if (isDemo) return
     const item = services[i]
     if (item.id) await supabase.from('services').delete().eq('id', item.id)
     setServices(prev => prev.filter((_, idx) => idx !== i))
@@ -549,13 +575,14 @@ const BusinessProfile = () => {
   // ── partner services ────────────────────────────────────────────────────────
 
   const addPartnerService = async (name) => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     const { data, error } = await supabase.from('banned_services')
       .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
     if (!error && data) setPartnerServices(prev => [...prev, data])
   }
 
   const removePartnerService = async (i) => {
+    if (isDemo) return
     const item = partnerServices[i]
     if (item.id) await supabase.from('banned_services').delete().eq('id', item.id)
     setPartnerServices(prev => prev.filter((_, idx) => idx !== i))
@@ -567,6 +594,7 @@ const BusinessProfile = () => {
   const atClientLimit = clients.length >= clientLimit
 
   const addClient = async () => {
+    if (isDemo) return
     const name = clientDraft.name.trim()
     const phone = clientDraft.phone.trim()
     if (!name || !phone || !tenantId || atClientLimit) return
@@ -601,6 +629,7 @@ const BusinessProfile = () => {
   }
 
   const removeClient = async (id) => {
+    if (isDemo) return
     await supabase.from('caller_tenant_relationships').delete().eq('id', id)
     setClients(prev => prev.filter(c => c.id !== id))
   }
@@ -608,6 +637,7 @@ const BusinessProfile = () => {
   // ── staff profiles ──────────────────────────────────────────────────────────
 
   const addStaff = async () => {
+    if (isDemo) return
     const name = staffDraft.name.trim()
     if (!name || !tenantId) return
     setStaffAdding(true)
@@ -634,6 +664,7 @@ const BusinessProfile = () => {
   }
 
   const removeStaff = async (id) => {
+    if (isDemo) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
   }

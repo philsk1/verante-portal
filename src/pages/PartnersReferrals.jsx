@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useDemo } from '../context/DemoContext'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -349,6 +350,8 @@ const networkStrength = (n) => {
 
 const PartnersReferrals = () => {
   const { user } = useAuth()
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo
 
   const [loading, setLoading] = useState(true)
   const [tenantId, setTenantId] = useState(null)
@@ -368,8 +371,20 @@ const PartnersReferrals = () => {
   const referralUrl = referralCode ? `verrante.com/join?ref=${referralCode}` : ''
   const fullReferralUrl = `https://${referralUrl}`
 
+  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!user) return
+    if (!isDemo || demo?.loading) return
+    const biz = demo.business || {}
+    setReferralCode(biz.referral_code || '')
+    setCreditMonths(biz.credits_balance || 0)
+    setPartners(demo.partners.map(p => ({ id: p.id, business_name: p.business_name, business_phone: p.phone || '' })))
+    setPartnerSpecialties({})
+    setOutboundCount(demo.referrals.length)
+    setLoading(false)
+  }, [isDemo, demo?.loading])
+
+  useEffect(() => {
+    if (isDemo || !user) return
     const load = async () => {
       setLoading(true)
       try {
@@ -427,9 +442,10 @@ const PartnersReferrals = () => {
       }
     }
     load()
-  }, [user])
+  }, [user, isDemo])
 
   const addPartner = async () => {
+    if (isDemo) return
     const name = draft.name.trim()
     if (!name || !tenantId) return
     setAdding(true)
@@ -458,6 +474,7 @@ const PartnersReferrals = () => {
   }
 
   const removePartner = async (id) => {
+    if (isDemo) return
     await supabase.from('referral_service_map').delete().eq('partner_id', id)
     await supabase.from('referral_partners').delete().eq('id', id)
     setPartners(prev => prev.filter(p => p.id !== id))

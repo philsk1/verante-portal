@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useDemo } from '../context/DemoContext'
 import { useNavigate } from 'react-router-dom'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -454,6 +455,8 @@ const Toggle = ({ checked, onChange }) => (
 
 const AccountSettings = ({ onNavigate }) => {
   const { user } = useAuth()
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -510,8 +513,26 @@ const AccountSettings = ({ onNavigate }) => {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
 
+  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!user) return
+    if (!isDemo || demo?.loading) return
+    const biz = demo.business || {}
+    setDisplayName(biz.business_name || '')
+    setTier(demo.tier)
+    setTenantCreatedAt(null)
+    setNotifyNewLead(true)
+    setNotifyDailySummary(false)
+    setNotifyWeeklyReport(true)
+    setHolidayMode(false)
+    setDataRetentionDays(90)
+    setPartnerCount(demo.partners.length)
+    setLeadCount(demo.leads.length)
+    setOutboundCount(demo.referrals.length)
+    setLoading(false)
+  }, [isDemo, demo?.loading])
+
+  useEffect(() => {
+    if (isDemo || !user) return
     const load = async () => {
       setLoading(true)
       try {
@@ -563,7 +584,7 @@ const AccountSettings = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user])
+  }, [user, isDemo])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -575,7 +596,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveAccountDetails = async () => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     setAccountSaving(true)
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
@@ -583,7 +604,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveNotification = async (field, value) => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -593,7 +614,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveHolidaySettings = async () => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     setHolidaySaving(true)
     const { error } = await supabase.from('tenants').update({
       holiday_mode: holidayMode,
@@ -614,7 +635,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveDataRetention = async (days) => {
-    if (!tenantId) return
+    if (isDemo || !tenantId) return
     setDataRetentionDays(days)
     setDataSaving(true)
     const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
@@ -637,7 +658,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const submitFeedback = async () => {
-    if (!rating || !tenantId) return
+    if (isDemo || !rating || !tenantId) return
     setFeedbackSaving(true)
     await supabase.from('tenant_feedback').insert({ tenant_id: tenantId, rating, feedback_text: feedbackText.trim() || null })
     await supabase.from('tenants').update({ feedback_prompt_shown: true }).eq('id', tenantId)
@@ -661,6 +682,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const handleCancelConfirm = async () => {
+    if (isDemo) { setShowCancelModal(false); return }
     // Stripe cancellation endpoint — wired in a later build phase
     setShowCancelModal(false)
     navigate('/login')
