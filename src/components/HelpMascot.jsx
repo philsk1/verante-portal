@@ -312,7 +312,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
         </div>
 
         {/* Need more help button — right of Vera */}
-        <div style={{ paddingTop: '2.75rem', flexShrink: 0 }}>
+        <div style={{ paddingTop: '1.1rem', flexShrink: 0 }}>
           {!needHelpMode ? (
             <button
               onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
