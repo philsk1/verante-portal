@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useDemo } from '../context/DemoContext'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -242,6 +243,8 @@ const RecoCard = ({ title, body, actionLabel, onAction }) => (
 
 const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo
 
   const [loading, setLoading] = useState(true)
   const [businessName, setBusinessName] = useState('')
@@ -251,8 +254,19 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
 
+  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!user) return
+    if (!isDemo || demo?.loading) return
+    setCalls(demo.calls)
+    setLeads(demo.leads)
+    setReferrals(demo.referrals)
+    setBusinessName(demo.business?.business_name || '')
+    setIncludedMinutes(demo.includedMinutes)
+    setLoading(false)
+  }, [isDemo, demo?.loading])
+
+  useEffect(() => {
+    if (isDemo || !user) return
     const load = async () => {
       setLoading(true)
       try {
@@ -314,7 +328,7 @@ const ActivityDashboard = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user])
+  }, [user, isDemo])
 
   // ── computed stats ──────────────────────────────────────────────────────────
 
