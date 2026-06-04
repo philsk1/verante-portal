@@ -1,9 +1,64 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail, email80pct, emailExhausted } from './_emails.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+// Returns "2026-06" — used to deduplicate monthly notifications
+function currentMonthKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Check minute thresholds after a call and fire notifications if needed
+async function checkMinuteNotifications(tenant, tenantId) {
+  const { included_minutes, subscription_tier, business_email, business_name,
+          overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month } = tenant
+
+  // Free tier: no included minutes, no threshold notifications
+  if (!included_minutes || subscription_tier === 'free') return
+  if (!business_email) return
+
+  const monthKey = currentMonthKey()
+
+  // Sum this calendar month's call durations
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const { data: monthCalls } = await supabase
+    .from('call_logs')
+    .select('duration_seconds')
+    .eq('tenant_id', tenantId)
+    .gte('created_at', startOfMonth.toISOString())
+
+  const totalSecs = (monthCalls || []).reduce((s, c) => s + (c.duration_seconds || 0), 0)
+  const minutesUsed = Math.round(totalSecs / 60)
+  const pct = minutesUsed / included_minutes
+
+  const overagePref = overage_voice_preference || 'premium'
+  const updates = {}
+
+  // 80% notification
+  if (pct >= 0.8 && pct < 1.0 && notify_80pct_sent_month !== monthKey) {
+    const { subject, html } = email80pct({ businessName: business_name, minutesUsed, includedMinutes: included_minutes, overagePref })
+    await sendEmail({ to: business_email, subject, html })
+    updates.notify_80pct_sent_month = monthKey
+  }
+
+  // 100% exhausted notification
+  if (pct >= 1.0 && notify_exhausted_sent_month !== monthKey) {
+    const { subject, html } = emailExhausted({ businessName: business_name, includedMinutes: included_minutes, overagePref, tier: subscription_tier })
+    await sendEmail({ to: business_email, subject, html })
+    updates.notify_exhausted_sent_month = monthKey
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await supabase.from('tenants').update(updates).eq('id', tenantId)
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,7 +69,6 @@ export default async function handler(req, res) {
   const eventType = event.message?.type || event.type || 'unknown'
   console.log('Vapi event received:', eventType, JSON.stringify(event).slice(0, 300))
 
-  // Only process call-ended events
   if (eventType !== 'end-of-call-report') {
     return res.status(200).json({ received: true })
   }
@@ -31,10 +85,9 @@ export default async function handler(req, res) {
   const summary      = analysis.summary || null
   const outcome      = analysis.structuredData?.triage_outcome || analysis.structuredData?.call_outcome || null
 
-  // Look up which tenant this assistant belongs to
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, business_name, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id')
+    .select('id, business_name, business_email, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id')
     .eq('vapi_assistant_id', assistantId)
     .maybeSingle()
 
@@ -43,11 +96,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true })
   }
 
-  const tenantId = tenant.id
-  const isUrgent = outcome === 'escalated'
+  const tenantId  = tenant.id
+  const isUrgent  = outcome === 'escalated'
   const callerName = analysis.structuredData?.caller_name || null
 
-  // Check if tenant's subcategory is sensitive — minimal storage applies
   let isSensitive = false
   if (tenant.subcategory_id) {
     const { data: sub } = await supabase
@@ -68,24 +120,17 @@ export default async function handler(req, res) {
   let callerId = null
   if (callerNumber) {
     const { data: existing } = await supabase
-      .from('callers')
-      .select('id')
-      .eq('phone_number', callerNumber)
-      .maybeSingle()
-
+      .from('callers').select('id').eq('phone_number', callerNumber).maybeSingle()
     if (existing) {
       callerId = existing.id
     } else {
       const { data: newCaller } = await supabase
-        .from('callers')
-        .insert({ phone_number: callerNumber })
-        .select()
-        .maybeSingle()
+        .from('callers').insert({ phone_number: callerNumber }).select().maybeSingle()
       callerId = newCaller?.id || null
     }
   }
 
-  // Write call log — sensitive types: no summary or transcript stored
+  // Write call log
   const { data: callLog, error: logError } = await supabase
     .from('call_logs')
     .insert({
@@ -118,21 +163,20 @@ export default async function handler(req, res) {
     const partnerName = analysis.structuredData?.referred_to || null
     if (partnerName) {
       const { data: partner } = await supabase
-        .from('referral_partners')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .ilike('business_name', `%${partnerName}%`)
-        .maybeSingle()
-
+        .from('referral_partners').select('id')
+        .eq('tenant_id', tenantId).ilike('business_name', `%${partnerName}%`).maybeSingle()
       if (partner) {
         await supabase.from('referral_log').insert({
-          tenant_id:  tenantId,
-          partner_id: partner.id,
+          tenant_id:   tenantId,
+          partner_id:  partner.id,
           call_log_id: callLog?.id || null,
         })
       }
     }
   }
+
+  // Check minute thresholds — fire 80% and exhausted notifications as needed
+  await checkMinuteNotifications(tenant, tenantId)
 
   return res.status(200).json({ received: true })
 }
