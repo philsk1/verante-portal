@@ -224,7 +224,10 @@ If you hear: ${keywords.join(', ')}
 Say: "I'm treating this as urgent — ${name} will be notified immediately." End call.
 → triage_outcome = "escalated"
 ` : ''}
-━━━ REQUIRED OUTCOME ━━━
+${tenant.additional_instructions ? `━━━ ADDITIONAL INSTRUCTIONS ━━━
+${tenant.additional_instructions}
+
+` : ''}━━━ REQUIRED OUTCOME ━━━
 At the end of every call, set exactly one triage_outcome:
   lead_captured   — New customer interested, gave contact details
   booked          — Caller booked or confirmed appointment
