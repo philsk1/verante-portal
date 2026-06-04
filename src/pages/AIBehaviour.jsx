@@ -503,6 +503,9 @@ const AIBehaviour = ({ onNavigate }) => {
   const [bookingBufferMins, setBookingBufferMins] = useState(30)
   const [bookingConfirmationWindowMins, setBookingConfirmationWindowMins] = useState(120)
 
+  // Overage voice preference
+  const [overageVoicePref, setOverageVoicePref] = useState('premium')
+
   // Emergency keywords
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
@@ -525,6 +528,7 @@ const AIBehaviour = ({ onNavigate }) => {
     setBusinessName(biz.business_name || '')
     setOwnerName(biz.lead_contact_name || '')
     setBookingLink(biz.booking_link || '')
+    setOverageVoicePref('premium')
     setLoading(false)
   }, [isDemo, demo?.loading])
 
@@ -541,7 +545,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -567,6 +571,7 @@ const AIBehaviour = ({ onNavigate }) => {
           setBookingSlotsToOffer(tenant.booking_slots_to_offer ?? 2)
           setBookingBufferMins(tenant.booking_buffer_mins ?? 30)
           setBookingConfirmationWindowMins(tenant.booking_confirmation_window_mins ?? 120)
+          setOverageVoicePref(tenant.overage_voice_preference || 'premium')
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
               ? tenant.emergency_keywords
@@ -634,6 +639,7 @@ const AIBehaviour = ({ onNavigate }) => {
       booking_slots_to_offer: bookingSlotsToOffer,
       booking_buffer_mins: bookingBufferMins,
       booking_confirmation_window_mins: bookingConfirmationWindowMins,
+      overage_voice_preference: overageVoicePref,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -823,6 +829,51 @@ const AIBehaviour = ({ onNavigate }) => {
           />
           <p style={s.hint}>Your AI uses this when closing a call — "Please allow me to take your details — [owner] will call you back [this]."</p>
         </div>
+
+        {/* Overage voice preference — paid tiers only */}
+        {tier !== 'free' && (
+          <div style={{ marginTop: '1.5rem' }} data-help="When your included Premium minutes run out, your AI keeps going. This setting controls whether it continues on Premium voice (18p/min) or drops to Standard voice (14p/min) to save you money. Premium is the default — your callers never notice a change.">
+            <label style={s.label}>When you run over your included minutes</label>
+            <p style={{ ...s.hint, marginBottom: '0.75rem', marginTop: 0 }}>Your AI keeps handling calls — choose how it charges for additional minutes.</p>
+            {[
+              {
+                id: 'premium',
+                title: 'Stay on Premium voice — 18p/min',
+                desc: 'Keep the same quality your callers have experienced all month. No change for them, continuity for you.',
+              },
+              {
+                id: 'standard',
+                title: 'Switch to Standard voice — 14p/min',
+                desc: 'Save 4p per minute on additional calls. Slightly different voice quality. You\'ll return to Premium automatically when your allowance renews.',
+              },
+            ].map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => setOverageVoicePref(opt.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  width: '100%',
+                  padding: '0.875rem 1rem',
+                  marginBottom: '0.5rem',
+                  borderRadius: '8px',
+                  border: overageVoicePref === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+                  background: overageVoicePref === opt.id ? '#f4effe' : 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                <div style={{ width: 16, height: 16, borderRadius: '50%', border: overageVoicePref === opt.id ? '5px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '0.875rem', color: overageVoicePref === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.2rem' }}>{opt.title}</div>
+                  <div style={{ fontSize: '0.775rem', color: '#888', lineHeight: 1.5 }}>{opt.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Call Type Rules */}
