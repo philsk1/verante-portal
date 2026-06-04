@@ -44,12 +44,16 @@ const Portal = () => {
         .from('tenants').select('business_name').eq('id', membership.tenant_id).maybeSingle()
       setBusinessName(tenant?.business_name || '')
 
-      // Check owner flag via Supabase app_metadata (set in Auth dashboard, admin-only)
-      if (user.app_metadata?.is_owner === true) {
+      // Owner check — email-gated until a proper admin flag system is in place
+      if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
-        const { data: tenants } = await supabase
-          .from('tenants').select('id, business_name').order('business_name')
-        setAllTenants(tenants || [])
+        const res = await fetch('/api/owner-tenants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userEmail: user.email }),
+        })
+        const json = await res.json()
+        setAllTenants(json.tenants || [])
       }
 
       setChecking(false)
