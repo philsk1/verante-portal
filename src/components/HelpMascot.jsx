@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
@@ -8,48 +8,30 @@ const injectStyles = () => {
   const el = document.createElement('style')
   el.id = 'vera-styles'
   el.textContent = `
-    @keyframes veraFlyIn {
-      0%   { transform: translateY(-80px) scale(0.7); opacity: 0; }
-      60%  { transform: translateY(4px)   scale(1.04); opacity: 1; }
-      80%  { transform: translateY(-2px)  scale(0.98); }
-      100% { transform: translateY(0)     scale(1); opacity: 1; }
-    }
-    @keyframes veraFlyOut {
-      0%   { transform: translateY(0)     scale(1); opacity: 1; }
-      100% { transform: translateY(-60px) scale(0.8); opacity: 0; }
-    }
     @keyframes veraBob {
       0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(-3px); }
+      50%       { transform: translateY(-4px); }
     }
-    @keyframes veraWingPulse {
-      0%, 100% { transform: scaleX(1); }
-      50%       { transform: scaleX(1.04); }
+    @keyframes veraFlyIn {
+      0%   { opacity: 0; transform: translateY(-8px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0)    scale(1); }
     }
-    .vera-fly-in  { animation: veraFlyIn  0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-    .vera-fly-out { animation: veraFlyOut 0.4s ease-in forwards; }
-    .vera-bob     { animation: veraBob    5s ease-in-out infinite; }
-    .vera-speak   { animation: veraWingPulse 0.8s ease-in-out infinite; }
-    .vera-help-mode [data-help] { cursor: help !important; }
-    .vera-help-icon {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 16px; height: 16px; border-radius: 50%;
-      background: rgba(94,59,135,0.12); color: #5e3b87;
-      font-size: 10px; font-weight: 700; cursor: pointer;
-      margin-left: 5px; vertical-align: middle; border: none;
-      font-family: 'DM Sans', sans-serif; flex-shrink: 0;
-      transition: background 0.15s;
+    @keyframes veraFlyOut {
+      0%   { opacity: 1; transform: translateY(0)   scale(1); }
+      100% { opacity: 0; transform: translateY(-8px) scale(0.96); }
     }
-    .vera-help-icon:hover { background: rgba(94,59,135,0.22); }
+    .vera-idle { animation: veraBob 5s ease-in-out infinite; }
+    .vera-bubble-in  { animation: veraFlyIn  0.18s ease-out forwards; }
+    .vera-bubble-out { animation: veraFlyOut 0.15s ease-in  forwards; }
+    [data-help] { cursor: help; }
   `
   document.head.appendChild(el)
 }
 
 // ─── Owl SVG ──────────────────────────────────────────────────────────────────
 
-const Owl = ({ w = 44, h = 72, blink = false, speaking = false }) => (
-  <svg width={w} height={h} viewBox="0 0 80 130" fill="none" xmlns="http://www.w3.org/2000/svg"
-    className={speaking ? 'vera-speak' : ''}>
+const Owl = ({ w = 44, h = 72, blink = false }) => (
+  <svg width={w} height={h} viewBox="0 0 80 130" fill="none" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="23" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(-18 23 8)" />
     <ellipse cx="57" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(18 57 8)" />
     <ellipse cx="40" cy="94" rx="21" ry="28" fill="#5e3b87" />
@@ -83,20 +65,65 @@ const Owl = ({ w = 44, h = 72, blink = false, speaking = false }) => (
   </svg>
 )
 
+// ─── Floating bubble — fixed to viewport near the hovered element ─────────────
+
+const FloatingBubble = ({ text, rect, visible }) => {
+  if (!rect || !text) return null
+
+  const BUBBLE_W = 280
+  const OWL_W   = 30
+  const spaceRight = window.innerWidth - rect.right - 16
+  const goLeft  = spaceRight < BUBBLE_W + OWL_W + 20
+  const top     = Math.min(Math.max(8, rect.top - 4), window.innerHeight - 160)
+  const left    = goLeft ? rect.left - BUBBLE_W - OWL_W - 16 : rect.right + 12
+
+  return (
+    <div
+      className={visible ? 'vera-bubble-in' : 'vera-bubble-out'}
+      style={{
+        position: 'fixed',
+        top,
+        left,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '6px',
+        pointerEvents: 'none',
+      }}
+    >
+      <div style={{ flexShrink: 0, lineHeight: 0 }}>
+        <Owl w={30} h={49} />
+      </div>
+      <div style={{
+        position: 'relative',
+        background: 'white',
+        border: '1px solid rgba(94,59,135,0.2)',
+        borderRadius: '10px',
+        padding: '0.6rem 0.85rem',
+        boxShadow: '0 6px 20px rgba(94,59,135,0.15)',
+        width: BUBBLE_W,
+        marginTop: 4,
+      }}>
+        <div style={{ position: 'absolute', left: -7, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid rgba(94,59,135,0.2)' }} />
+        <div style={{ position: 'absolute', left: -5, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '6px solid white' }} />
+        <div style={{ fontSize: '0.7rem', fontWeight: '600', color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.25rem' }}>Vera explains</div>
+        <p style={{ margin: 0, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>{text}</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
-  const [phase, setPhase]         = useState('hidden')   // hidden | entering | visible | leaving
-  const [speech, setSpeech]       = useState(null)       // { speech_text, audio_url }
-  const [helpMode, setHelpMode]   = useState(false)
-  const [helpTarget, setHelpTarget] = useState(null)     // { text, rect } for on-demand
-  const [blink, setBlink]         = useState(false)
-  const audioRef                  = useRef(null)
-  const dismissTimer              = useRef(null)
+  const [blink, setBlink]       = useState(false)
+  const [floatEl, setFloatEl]   = useState(null)   // { text, rect }
+  const [bubbleVisible, setBubbleVisible] = useState(false)
+  const leaveTimer = useRef(null)
 
   useEffect(() => { injectStyles() }, [])
 
-  // Occasional blink
+  // Blink
   useEffect(() => {
     const schedule = () => setTimeout(() => {
       setBlink(true)
@@ -106,198 +133,127 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
     return () => clearTimeout(t)
   }, [])
 
-  // Reset help mode when tab changes
+  // Reset on tab change
   useEffect(() => {
-    setHelpMode(false)
-    setHelpTarget(null)
+    setFloatEl(null)
+    setBubbleVisible(false)
   }, [activeTab])
 
-  // Proactive appearance — check vera_speeches + vera_seen on contextKey change
+  // Hover detection — always on, no click required
+  useEffect(() => {
+    const handleOver = (e) => {
+      const el = e.target.closest('[data-help]')
+      if (!el) return
+      clearTimeout(leaveTimer.current)
+      const text = el.getAttribute('data-help')
+      const rect = el.getBoundingClientRect()
+      setFloatEl({ text, rect })
+      setBubbleVisible(true)
+    }
+
+    const handleOut = (e) => {
+      const el = e.target.closest('[data-help]')
+      if (!el) return
+      // Small delay: if mouse moves directly to another data-help element
+      // the over handler fires before this clears, keeping the bubble alive
+      leaveTimer.current = setTimeout(() => {
+        setBubbleVisible(false)
+        setTimeout(() => setFloatEl(null), 180)
+      }, 80)
+    }
+
+    document.addEventListener('mouseover', handleOver)
+    document.addEventListener('mouseout', handleOut)
+    return () => {
+      document.removeEventListener('mouseover', handleOver)
+      document.removeEventListener('mouseout', handleOut)
+      clearTimeout(leaveTimer.current)
+    }
+  }, [])
+
+  // Proactive speech (contextKey → vera_speeches → vera_seen)
+  const [proactiveSpeech, setProactiveSpeech] = useState(null)
+  const [proactiveVisible, setProactiveVisible] = useState(false)
+
   useEffect(() => {
     if (!contextKey || !tenantId) return
     let cancelled = false
 
     const tryShow = async () => {
-      // Already showing something
-      if (phase !== 'hidden') return
-
-      // Check if already seen
       const { data: seen } = await supabase
-        .from('vera_seen')
-        .select('seen_at')
-        .eq('tenant_id', tenantId)
-        .eq('speech_key', contextKey)
-        .maybeSingle()
+        .from('vera_seen').select('seen_at')
+        .eq('tenant_id', tenantId).eq('speech_key', contextKey).maybeSingle()
       if (seen || cancelled) return
 
-      // Load speech
       const { data: s } = await supabase
-        .from('vera_speeches')
-        .select('speech_text, audio_url')
-        .eq('context_key', contextKey)
-        .maybeSingle()
+        .from('vera_speeches').select('speech_text, audio_url')
+        .eq('context_key', contextKey).maybeSingle()
       if (!s || cancelled) return
 
-      setSpeech(s)
-      flyIn(s, true) // mark as seen
+      setProactiveSpeech(s.speech_text)
+      setProactiveVisible(true)
+      setTimeout(() => {
+        setProactiveVisible(false)
+        setTimeout(() => setProactiveSpeech(null), 400)
+      }, 9000)
 
-      // Mark seen
-      await supabase.from('vera_seen').insert({
-        tenant_id: tenantId,
-        speech_key: contextKey,
-      }).then(() => {}).catch(() => {})
+      await supabase.from('vera_seen')
+        .insert({ tenant_id: tenantId, speech_key: contextKey })
+        .then(() => {}).catch(() => {})
     }
 
     tryShow()
     return () => { cancelled = true }
   }, [contextKey, tenantId])
 
-  // Help mode — inject ? icons on data-help elements
-  useEffect(() => {
-    if (!helpMode) {
-      document.body.classList.remove('vera-help-mode')
-      return
-    }
-    document.body.classList.add('vera-help-mode')
-
-    const icons = []
-    document.querySelectorAll('[data-help]').forEach(el => {
-      if (el.querySelector('.vera-help-icon')) return
-      const btn = document.createElement('button')
-      btn.className = 'vera-help-icon'
-      btn.textContent = '?'
-      btn.title = 'Ask Vera'
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        const text = el.getAttribute('data-help')
-        const rect = el.getBoundingClientRect()
-        setHelpTarget({ text, rect })
-        setSpeech({ speech_text: text, audio_url: null })
-        flyIn({ speech_text: text, audio_url: null }, false)
-      })
-      el.appendChild(btn)
-      icons.push({ el, btn })
-    })
-
-    return () => {
-      document.body.classList.remove('vera-help-mode')
-      icons.forEach(({ el, btn }) => {
-        if (el.contains(btn)) el.removeChild(btn)
-      })
-    }
-  }, [helpMode])
-
-  const flyIn = useCallback((s, autoHide = true) => {
-    setSpeech(s)
-    setPhase('entering')
-    setTimeout(() => {
-      setPhase('visible')
-      // Play audio if available
-      if (s.audio_url && audioRef.current) {
-        audioRef.current.src = s.audio_url
-        audioRef.current.play().catch(() => {})
-      }
-      // Auto-dismiss after 9s (reading time)
-      if (autoHide) {
-        clearTimeout(dismissTimer.current)
-        dismissTimer.current = setTimeout(() => flyOut(), 9000)
-      }
-    }, 600)
-  }, [])
-
-  const flyOut = useCallback(() => {
-    clearTimeout(dismissTimer.current)
-    if (audioRef.current) audioRef.current.pause()
-    setPhase('leaving')
-    setTimeout(() => {
-      setPhase('hidden')
-      setSpeech(null)
-      setHelpTarget(null)
-    }, 400)
-  }, [])
-
-  const isVisible = phase !== 'hidden'
-  const animClass = phase === 'entering' ? 'vera-fly-in'
-                  : phase === 'leaving'  ? 'vera-fly-out'
-                  : 'vera-bob'
-
   return (
     <>
-      <audio ref={audioRef} style={{ display: 'none' }} />
+      {/* Vera — top left, full size, always present */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <div className="vera-idle" style={{ lineHeight: 0, flexShrink: 0 }}>
+          <Owl w={44} h={72} blink={blink} />
+        </div>
 
-      {/* Top bar — business name + help toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-        {businessName && (
-          <p style={{
-            fontFamily: "'Syne', sans-serif",
-            fontWeight: 700,
-            fontSize: '1.6rem',
-            color: '#aaa',
-            margin: 0,
-            lineHeight: 1.2,
-            flex: 1,
-          }}>
-            {businessName}
-          </p>
-        )}
+        <div style={{ paddingTop: 4, flex: 1 }}>
+          {/* Business name */}
+          {businessName && (
+            <p style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 700,
+              fontSize: '1.6rem',
+              color: '#aaa',
+              margin: '0 0 0.25rem',
+              lineHeight: 1.2,
+            }}>
+              {businessName}
+            </p>
+          )}
 
-        {/* Vera trigger — small owl icon, always available */}
-        <button
-          onClick={() => {
-            if (isVisible) { flyOut(); setHelpMode(false) }
-            else setHelpMode(m => !m)
-          }}
-          title={helpMode ? 'Close Vera' : 'Ask Vera for help'}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '4px', lineHeight: 0, opacity: helpMode ? 1 : 0.5,
-            transition: 'opacity 0.2s', flexShrink: 0,
-          }}
-        >
-          <Owl w={28} h={46} blink={blink} />
-        </button>
-        {helpMode && !isVisible && (
-          <span style={{ fontSize: '0.72rem', color: '#5e3b87', fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif', userSelect: 'none'" }}>
-            Click ? on anything
-          </span>
-        )}
+          {/* Proactive speech inline below name */}
+          {proactiveSpeech && (
+            <div
+              className={proactiveVisible ? 'vera-bubble-in' : 'vera-bubble-out'}
+              style={{
+                background: 'white',
+                border: '1px solid rgba(94,59,135,0.15)',
+                borderRadius: '10px',
+                padding: '0.6rem 0.85rem',
+                boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
+                maxWidth: 400,
+                fontSize: '0.8rem',
+                color: '#1a1a1a',
+                lineHeight: 1.6,
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              {proactiveSpeech}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Proactive / on-demand speech — flies in from top */}
-      {isVisible && speech && (
-        <div
-          className={animClass}
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            border: '1px solid rgba(94,59,135,0.15)',
-            boxShadow: '0 8px 28px rgba(94,59,135,0.12)',
-            padding: '1rem 1rem 1rem 0.75rem',
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '0.75rem',
-          }}
-        >
-          <div style={{ flexShrink: 0, lineHeight: 0, marginTop: 2 }}>
-            <Owl w={36} h={59} blink={blink} speaking={phase === 'visible'} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: '600', color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>
-              Vera
-            </div>
-            <p style={{ margin: 0, fontSize: '0.825rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>
-              {speech.speech_text}
-            </p>
-          </div>
-          <button
-            onClick={flyOut}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0, marginTop: -2, fontFamily: 'sans-serif' }}
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {/* Floating bubble — follows hovered data-help element */}
+      {floatEl && <FloatingBubble text={floatEl.text} rect={floatEl.rect} visible={bubbleVisible} />}
     </>
   )
 }
