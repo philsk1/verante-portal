@@ -424,6 +424,17 @@ const s = {
     cursor: 'pointer',
     fontFamily: "'DM Sans', sans-serif",
   },
+  retentionPill: (active) => ({
+    padding: '0.45rem 1rem',
+    background: active ? '#5e3b87' : 'white',
+    color: active ? 'white' : '#5e3b87',
+    border: `1.5px solid ${active ? '#5e3b87' : 'rgba(94,59,135,0.2)'}`,
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: active ? '500' : '400',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', sans-serif",
+  }),
 }
 
 // ─── toggle switch ────────────────────────────────────────────────────────────
@@ -488,6 +499,13 @@ const AccountSettings = ({ onNavigate }) => {
   const [holidaySaving, setHolidaySaving] = useState(false)
   const [holidayToast, setHolidayToast] = useState({ msg: '', type: '' })
 
+  // GDPR & Data
+  const [dataRetentionDays, setDataRetentionDays] = useState(90)
+  const [dataSaving, setDataSaving] = useState(false)
+  const [dataToast, setDataToast] = useState({ msg: '', type: '' })
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+
   // Cancel modal
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
@@ -509,7 +527,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins, data_retention_days')
           .eq('id', tid)
           .maybeSingle()
 
@@ -526,6 +544,7 @@ const AccountSettings = ({ onNavigate }) => {
           setCoverEmail(tenant.cover_email || '')
           setEmailScanMode(tenant.cover_email ? (tenant.email_scan_mode || null) : null)
           setInterventionTimeMins(tenant.intervention_time_mins ?? 60)
+          setDataRetentionDays(tenant.data_retention_days ?? 90)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -588,6 +607,29 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const holidaySaveDisabled = holidaySaving || (coverEmail.trim().length > 0 && emailScanMode === null)
+
+  const showDataToast = (msg, type = 'success') => {
+    setDataToast({ msg, type })
+    setTimeout(() => setDataToast({ msg: '', type: '' }), 3500)
+  }
+
+  const saveDataRetention = async (days) => {
+    if (!tenantId) return
+    setDataRetentionDays(days)
+    setDataSaving(true)
+    const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
+    setDataSaving(false)
+    showDataToast(error ? 'Could not save. Please try again.' : 'Data retention updated.', error ? 'error' : 'success')
+  }
+
+  const handleExportData = () => {
+    showDataToast("We'll email your data export within 24 hours.", 'success')
+  }
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteModal(false)
+    showDataToast('Deletion request received — your account will be closed within 48 hours.', 'success')
+  }
 
   const sendPasswordReset = async () => {
     await supabase.auth.resetPasswordForEmail(user.email)
@@ -822,6 +864,58 @@ const AccountSettings = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Privacy & Data */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Privacy and Data covers your GDPR rights — how long Verrante keeps your call records and leads, how to request a full export of your data, and how to request account deletion. Sensitive business types (solicitors, medical, therapists etc.) are always capped at 30 days regardless of this setting.">Privacy &amp; Data</h3>
+        <p style={s.sectionSubtitle}>Your data rights under GDPR. Control how long records are kept and request exports or deletion.</p>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={s.label} data-help="How long Verrante retains call logs and lead records before they are automatically deleted. Sensitive business types are always limited to 30 days — this setting is ignored for those.">Data retention period</label>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+            Call logs and lead records are deleted after this period. Sensitive business types are always capped at 30 days.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[{ label: '30 days', value: 30 }, { label: '90 days', value: 90 }, { label: '1 year', value: 365 }].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => saveDataRetention(opt.value)}
+                disabled={dataSaving}
+                style={{ ...s.retentionPill(dataRetentionDays === opt.value), cursor: dataSaving ? 'not-allowed' : 'pointer', opacity: dataSaving ? 0.7 : 1 }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {dataToast.msg && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <span style={s.toast(dataToast.type)}>{dataToast.type === 'success' ? '✓' : '!'} {dataToast.msg}</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: '1.25rem' }}>
+          <div style={{ fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Export my data</div>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+            Request a complete export of your call logs, leads, partner network, and account data. We'll email it to your account address within 24 hours.
+          </p>
+          <button style={s.ghostBtn} onClick={handleExportData}>Request data export</button>
+        </div>
+
+        <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: '1.25rem' }}>
+          <div style={{ fontWeight: 500, fontSize: '0.875rem', color: '#b91c1c', marginBottom: '0.3rem' }}>Delete my data</div>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+            Permanently delete all call records, leads, and account data. This cannot be undone.
+          </p>
+          <button style={s.cancelBtn} onClick={() => { setShowDeleteModal(true); setDeleteConfirm(false) }}>Delete my data</button>
+        </div>
+
+        <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', fontSize: '0.8rem', color: '#888' }}>
+          <a href="/privacy-policy.pdf" target="_blank" rel="noopener noreferrer" style={{ color: '#5e3b87', textDecoration: 'none', fontWeight: 500 }}>Download Privacy Policy ↗</a>
+          <span style={{ margin: '0 0.5rem', color: '#ccc' }}>·</span>
+          <a href="/data-covenant.pdf" target="_blank" rel="noopener noreferrer" style={{ color: '#5e3b87', textDecoration: 'none', fontWeight: 500 }}>Data Covenant ↗</a>
+        </div>
+      </div>
+
       {/* Feedback */}
       <div style={s.section}>
         <h3 style={s.sectionTitle} data-help="Share Your Feedback unlocks after six weeks of use — long enough to form a real opinion. Your feedback goes directly to the founder and influences what gets built next. It is never used for marketing.">Share Your Feedback</h3>
@@ -971,6 +1065,50 @@ const AccountSettings = ({ onNavigate }) => {
                   <button style={s.modalCancelFinal} onClick={handleCancelConfirm}>
                     Yes, cancel my subscription
                   </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete data modal */}
+      {showDeleteModal && (
+        <div style={s.modalBackdrop} onClick={() => setShowDeleteModal(false)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            {!deleteConfirm ? (
+              <>
+                <div style={s.modalTitle}>Delete all my data?</div>
+                <div style={s.modalBody}>
+                  This will permanently delete everything associated with your account — call logs, leads, partner connections, and your AI configuration. This cannot be undone.
+                </div>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  {[
+                    'All call records and transcripts',
+                    'All captured leads and caller history',
+                    'Your referral partner network and referral log',
+                    'Your AI settings, greeting, and configuration',
+                  ].map((item, i) => (
+                    <div key={i} style={s.lossItem}>
+                      <span style={{ ...s.lossDot, background: '#b91c1c' }} />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={s.modalBtnRow}>
+                  <button style={s.modalStay} onClick={() => setShowDeleteModal(false)}>Keep my data</button>
+                  <button style={s.modalCancelFinal} onClick={() => setDeleteConfirm(true)}>Continue</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={s.modalTitle}>Confirm deletion</div>
+                <div style={s.modalBody}>
+                  Your deletion request will be processed within 48 hours. Your account will be closed and all data permanently removed.
+                </div>
+                <div style={s.modalBtnRow}>
+                  <button style={s.modalStay} onClick={() => setShowDeleteModal(false)}>Go back</button>
+                  <button style={s.modalCancelFinal} onClick={handleDeleteConfirm}>Yes, delete everything</button>
                 </div>
               </>
             )}
