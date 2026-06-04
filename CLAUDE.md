@@ -4,7 +4,7 @@ This file is auto-loaded by Claude Code at the start of every session.
 It is the single source of truth for project context, strategy, and state.
 Update it at the end of every working session.
 
-**Full strategic context:** `verrante-handoff-V9.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
+**Full strategic context:** `verrante-handoff-V10.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
 
 ---
 
@@ -159,7 +159,7 @@ supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 
 ---
 
-## Current Build State (last updated: 2026-06-04)
+## Current Build State (last updated: 2026-06-05)
 
 ### Done — Section 1
 - [x] All 6 portal tabs — fully built and wired to Supabase
@@ -179,21 +179,22 @@ supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 - [x] Provisional booking — Professional+ section, toggle + rule + slots/buffer/window
 - [x] Vera speeches — first-visit speech data for all 6 tabs
 
-### Done — Section 2 (this session, 2026-06-04)
+### Done — Section 2 (2026-06-04)
 - [x] Task 2 — GDPR: Privacy & Data section in Account tab (retention selector 30d/90d/1yr, export placeholder, delete two-stage modal, policy links). `data_retention_days` column migrated.
 - [x] Task 3 — RLS enabled on all tables. `supabase_rls.sql` updated to be idempotent, added vera_speeches, vera_seen, tenant_credits, minute_usage. Confirmed live.
 - [x] Vera UX — help zones pulse amber on Vera click. "Need more help?" button moved right of owl with gap. Label split two lines, 12px, violet `#5e3b87`.
 
-### Next — Demo Environment (3 sessions)
-Full spec in `verrante-handoff-V9.md`. Build sequence:
+### Done — Demo Session 1 (2026-06-05)
+- [x] All `demo_` tables created in Supabase — demo_businesses, demo_services, demo_staff, demo_partners, demo_call_logs, demo_leads, demo_referral_log, demo_pricing_intelligence, demo_competitor_intelligence, demo_users, demo_sessions
+- [x] 10 demo businesses seeded across all tiers (Light × 3, Standard × 4, Professional × 2, Enterprise × 1)
+- [x] ~480 call logs (26 today + generate_series history 26 days), outcomes tuned per business type
+- [x] 50 leads — mix of new/contacted/converted/lost, 2-3 actionable per business
+- [x] 40 referral log entries — several today per active business
+- [x] Pricing intelligence + competitor intelligence for Restore Physiotherapy (Enterprise)
+- [x] demo_users: demo@verrante.app / VERRANTE2026
+- [x] Seed script: `demo_seed.sql` in project root — safe to re-run
 
-**Session 1 — Data layer (do first)**
-- Create all `demo_` tables in Supabase
-- Seed 10 demo businesses with full data (call logs, leads, analytics, staff, services, partners)
-- Create demo_users table, insert test rep account
-- Confirm all data queryable
-
-**Session 2 — Routes and context**
+### Next — Demo Session 2 (routes and context)
 - Add `/demo` route family to React Router
 - Build `DemoContext.jsx` — wraps portal tabs, supplies demo data, no-ops all saves
 - Build `/demo/login` — email check against demo_users, JWT in localStorage (no Supabase auth)
@@ -201,7 +202,7 @@ Full spec in `verrante-handoff-V9.md`. Build sequence:
 - Build `TierSelector.jsx` — tier cards per business
 - Build `DemoBanner.jsx` — persistent amber strip, never dismissible
 
-**Session 3 — Portal integration and performance**
+### Demo Session 3 — Portal integration (after Session 2)
 - Modify each tab to accept demo data from DemoContext (one hook check per tab)
 - Build `DemoPortal.jsx` wrapper
 - Build tier switcher (below banner, above nav)
