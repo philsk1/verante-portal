@@ -307,12 +307,12 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
             cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
             fontWeight: helpMode ? 500 : 400,
           }} onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}>
-            {helpMode ? 'Vera · click to close' : 'Vera · click for help'}
+            {helpMode ? 'Click to close' : 'Click on Vera the owl for suggestions'}
           </span>
         </div>
 
-        {/* Need more help button — right of Vera */}
-        <div style={{ paddingTop: '1.1rem', flexShrink: 0 }}>
+        {/* Need more help button — right of Vera with extra margin */}
+        <div style={{ paddingTop: '1.1rem', flexShrink: 0, marginLeft: '1.25rem' }}>
           {!needHelpMode ? (
             <button
               onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
@@ -322,10 +322,10 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
                 border: '1px solid rgba(94,59,135,0.25)',
                 borderRadius: '6px',
                 fontSize: '0.75rem',
-                color: '#5e3b87',
+                color: '#3a2057',
                 cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 500,
+                fontWeight: 600,
               }}
             >
               Need more help?
