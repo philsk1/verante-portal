@@ -47,13 +47,19 @@ const Portal = () => {
       // Owner check — email-gated until a proper admin flag system is in place
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
-        const res = await fetch('/api/owner-tenants', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userEmail: user.email }),
-        })
-        const json = await res.json()
-        setAllTenants(json.tenants || [])
+        try {
+          const res = await fetch('/api/owner-tenants', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userEmail: user.email }),
+          })
+          if (res.ok) {
+            const json = await res.json()
+            setAllTenants(json.tenants || [])
+          }
+        } catch {
+          // API not available on localhost — owner mode still active, tenant list empty
+        }
       }
 
       setChecking(false)
