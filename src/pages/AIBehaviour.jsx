@@ -493,6 +493,13 @@ const AIBehaviour = ({ onNavigate }) => {
   const [generatorNotes, setGeneratorNotes] = useState('')
   const [generatingGreeting, setGeneratingGreeting] = useState(false)
 
+  // Provisional booking
+  const [provisionalBookingEnabled, setProvisionalBookingEnabled] = useState(false)
+  const [provisionalBookingRule, setProvisionalBookingRule] = useState('')
+  const [bookingSlotsToOffer, setBookingSlotsToOffer] = useState(2)
+  const [bookingBufferMins, setBookingBufferMins] = useState(30)
+  const [bookingConfirmationWindowMins, setBookingConfirmationWindowMins] = useState(120)
+
   // Emergency keywords
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
@@ -510,7 +517,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -531,6 +538,11 @@ const AIBehaviour = ({ onNavigate }) => {
           setBookingLink(tenant.booking_link || '')
           setUrgentCallbackMins(tenant.urgent_callback_mins ?? 60)
           setUrgentEscalationMethod(tenant.urgent_escalation_method || 'both')
+          setProvisionalBookingEnabled(tenant.provisional_booking_enabled || false)
+          setProvisionalBookingRule(tenant.provisional_booking_rule || '')
+          setBookingSlotsToOffer(tenant.booking_slots_to_offer ?? 2)
+          setBookingBufferMins(tenant.booking_buffer_mins ?? 30)
+          setBookingConfirmationWindowMins(tenant.booking_confirmation_window_mins ?? 120)
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
               ? tenant.emergency_keywords
@@ -593,6 +605,11 @@ const AIBehaviour = ({ onNavigate }) => {
       additional_instructions: additionalInstructions.trim() || null,
       urgent_callback_mins: urgentCallbackMins,
       urgent_escalation_method: urgentEscalationMethod,
+      provisional_booking_enabled: provisionalBookingEnabled,
+      provisional_booking_rule: provisionalBookingRule.trim() || null,
+      booking_slots_to_offer: bookingSlotsToOffer,
+      booking_buffer_mins: bookingBufferMins,
+      booking_confirmation_window_mins: bookingConfirmationWindowMins,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -675,6 +692,8 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const currentMode = TRIAGE_MODES.find(m => m.id === triageMode)
+  const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
+  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
   return (
     <div>
@@ -930,6 +949,98 @@ const AIBehaviour = ({ onNavigate }) => {
           </div>
         ) : (
           <p style={{ fontSize: '0.85rem', color: '#aaa' }}>Number blocking management coming soon.</p>
+        )}
+      </div>
+
+      {/* Provisional Booking */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Provisional Booking lets your AI offer real appointment slots on your behalf, based on rules you set. It checks your calendar for availability and holds a slot — the caller gets confirmation, you get a notification. Professional and Enterprise only.">Provisional Booking</h3>
+        <p style={s.sectionSubtitle}>Let your AI offer provisional appointment slots based on your calendar availability.</p>
+
+        {!isProfessional ? (
+          <div style={s.lockedOverlay}>
+            <div style={s.lockedBlur}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ padding: '0.75rem 1rem', border: '1px solid rgba(94,59,135,0.1)', borderRadius: '8px', fontSize: '0.875rem', color: '#334155', background: '#f8fafc' }}>Allow my AI to make provisional bookings — Off</div>
+                <div style={{ padding: '0.75rem 1rem', border: '1px solid rgba(94,59,135,0.1)', borderRadius: '8px', fontSize: '0.875rem', color: '#334155', background: '#f8fafc' }}>When should your AI book? — [your rule here]</div>
+              </div>
+            </div>
+            <div style={s.lockedBadge}>
+              <div style={s.lockedBadgeTitle}>Professional plan and above</div>
+              <div style={s.lockedBadgeText}>Upgrade to enable provisional booking.</div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0', borderBottom: '1px solid rgba(94,59,135,0.07)', marginBottom: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1a1a1a' }}>Allow my AI to make provisional bookings</div>
+                <div style={{ fontSize: '0.775rem', color: '#888', marginTop: '0.2rem' }}>Your AI will offer slots from your connected calendar when the booking rule is met.</div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={provisionalBookingEnabled}
+                onClick={() => setProvisionalBookingEnabled(v => !v)}
+                style={{ width: 42, height: 24, borderRadius: 12, background: provisionalBookingEnabled ? '#5e3b87' : '#d1d5db', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0 }}
+              >
+                <span style={{ position: 'absolute', top: 3, left: provisionalBookingEnabled ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
+              </button>
+            </div>
+
+            {provisionalBookingEnabled && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={s.label} data-help="Write the rule your AI follows when deciding whether to offer a booking. It applies this with good judgement — if the caller clearly meets the rule it books, if uncertain it takes details for a callback.">When should your AI make a provisional booking?</label>
+                  <textarea
+                    style={{ ...s.textarea, minHeight: '72px' }}
+                    value={provisionalBookingRule}
+                    onChange={e => setProvisionalBookingRule(e.target.value)}
+                    placeholder="e.g. Make a provisional booking if the caller has expressed a clear intent to use my services within one month."
+                  />
+                </div>
+
+                <div>
+                  <label style={s.label}>Slots to offer</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {[1, 2, 3].map(n => (
+                      <button key={n} onClick={() => setBookingSlotsToOffer(n)} style={{ ...s.pairBtn(bookingSlotsToOffer === n), minWidth: '52px' }}>{n}</button>
+                    ))}
+                  </div>
+                  <p style={s.hint}>How many available slots your AI offers the caller to choose from.</p>
+                </div>
+
+                <div>
+                  <label style={s.label}>Booking buffer</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {[15, 30, 45, 60].map(n => (
+                      <button key={n} onClick={() => setBookingBufferMins(n)} style={{ ...s.pairBtn(bookingBufferMins === n), minWidth: '52px' }}>{n} min</button>
+                    ))}
+                  </div>
+                  <p style={s.hint}>Minimum gap between now and the earliest slot your AI can offer.</p>
+                </div>
+
+                <div>
+                  <label style={s.label}>Confirmation window</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {[{ label: '1 hour', value: 60 }, { label: '2 hours', value: 120 }, { label: 'Same day', value: 1440 }].map(opt => (
+                      <button key={opt.value} onClick={() => setBookingConfirmationWindowMins(opt.value)} style={s.pairBtn(bookingConfirmationWindowMins === opt.value)}>{opt.label}</button>
+                    ))}
+                  </div>
+                  <p style={s.hint}>How long the caller has to confirm before the provisional slot is released.</p>
+                </div>
+
+                <div style={{ padding: '1rem', background: '#f4effe', borderRadius: '8px', fontSize: '0.8rem', color: '#5e3b87', lineHeight: 1.5 }}>
+                  <strong>Calendar not connected.</strong> Connect your calendar below to enable provisional booking. Without a connected calendar your AI will revert to standard callback behaviour.
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+              <label style={s.label} data-help="Connect your calendar so your AI can check availability and make provisional bookings. Supports Google Calendar, Apple Calendar, Outlook, Fastmail, and any CalDAV-compatible service.">Calendar integration</label>
+              <p style={s.hint}>Read availability · Write provisional bookings · Supports Google, Apple, Outlook, Fastmail, and all CalDAV providers.</p>
+              <p style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.25rem' }}>Calendar connection coming soon.</p>
+            </div>
+          </>
         )}
       </div>
 

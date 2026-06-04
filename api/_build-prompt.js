@@ -225,7 +225,12 @@ If you hear: ${keywords.join(', ')}
 Say: "I'm treating this as urgent — ${name} will be notified immediately." End call.
 → triage_outcome = "escalated"
 ` : ''}
-${tenant.additional_instructions ? `━━━ ADDITIONAL INSTRUCTIONS ━━━
+${tenant.provisional_booking_enabled && tenant.provisional_booking_rule ? `━━━ PROVISIONAL BOOKING ━━━
+Booking rule set by owner: "${tenant.provisional_booking_rule}"
+Apply it using good judgement. If the caller clearly meets the rule, offer a provisional slot. If clearly not, proceed with standard callback or booking link. If uncertain, take details for a callback.
+Slots to offer: ${tenant.booking_slots_to_offer || 2}. Buffer: ${tenant.booking_buffer_mins || 30} minutes. Confirmation window: ${tenant.booking_confirmation_window_mins === 1440 ? 'same day' : `${tenant.booking_confirmation_window_mins || 120} minutes`}.
+
+` : ''}${tenant.additional_instructions ? `━━━ ADDITIONAL INSTRUCTIONS ━━━
 ${tenant.additional_instructions}
 
 ` : ''}━━━ REQUIRED OUTCOME ━━━
