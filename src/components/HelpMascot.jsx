@@ -29,10 +29,19 @@ const injectStyles = () => {
       0%, 100% { box-shadow: 0 0 8px rgba(240,165,0,0.3);  border-color: rgba(240,165,0,0.4); }
       50%       { box-shadow: 0 0 16px rgba(240,165,0,0.5); border-color: rgba(240,165,0,0.7); }
     }
+    @keyframes veraHelpPulse {
+      0%, 100% { background: rgba(240,165,0,0.05); outline-color: rgba(240,165,0,0.35); }
+      50%       { background: rgba(240,165,0,0.12); outline-color: rgba(240,165,0,0.65); }
+    }
     .vera-idle      { animation: veraBob    5s ease-in-out infinite; }
     .vera-bubble-in { animation: veraFlyIn  0.18s ease-out forwards; }
     .vera-glow-zone { animation: veraGlow   2s ease-in-out infinite; cursor: pointer; }
     [data-help]     { cursor: help; }
+    .vera-hover-mode [data-help] {
+      outline: 1.5px dashed rgba(240,165,0,0.5);
+      border-radius: 4px;
+      animation: veraHelpPulse 2s ease-in-out infinite;
+    }
   `
   document.head.appendChild(el)
 }
@@ -161,6 +170,16 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
     setZones([])
     setDialogues([])
   }, [activeTab])
+
+  // Toggle body class so CSS can highlight all [data-help] elements
+  useEffect(() => {
+    if (helpMode) {
+      document.body.classList.add('vera-hover-mode')
+    } else {
+      document.body.classList.remove('vera-hover-mode')
+    }
+    return () => document.body.classList.remove('vera-hover-mode')
+  }, [helpMode])
 
   // ── Vera hover mode — always on when helpMode ────────────────────────────
   useEffect(() => {
@@ -292,28 +311,8 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
           </span>
         </div>
 
-        {/* Business name + proactive speech + need more help button */}
-        <div style={{ flex: 1, paddingTop: 4 }}>
-          {businessName && (
-            <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', margin: '0 0 0.35rem', lineHeight: 1.2 }}>
-              {businessName}
-            </p>
-          )}
-
-          {/* Proactive speech */}
-          {proactiveSpeech && (
-            <div style={{
-              background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px',
-              padding: '0.6rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
-              maxWidth: 420, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6,
-              fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem',
-              opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s',
-            }}>
-              {proactiveSpeech}
-            </div>
-          )}
-
-          {/* Need more help button */}
+        {/* Need more help button — right of Vera */}
+        <div style={{ paddingTop: '2.75rem', flexShrink: 0 }}>
           {!needHelpMode ? (
             <button
               onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
@@ -348,6 +347,28 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
             >
               Close all · done
             </button>
+          )}
+        </div>
+
+        {/* Business name + proactive speech */}
+        <div style={{ flex: 1, paddingTop: 4 }}>
+          {businessName && (
+            <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', margin: '0 0 0.35rem', lineHeight: 1.2 }}>
+              {businessName}
+            </p>
+          )}
+
+          {/* Proactive speech */}
+          {proactiveSpeech && (
+            <div style={{
+              background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px',
+              padding: '0.6rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
+              maxWidth: 420, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6,
+              fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem',
+              opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s',
+            }}>
+              {proactiveSpeech}
+            </div>
           )}
         </div>
       </div>
