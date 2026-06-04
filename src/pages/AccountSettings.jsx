@@ -505,6 +505,11 @@ const AccountSettings = ({ onNavigate }) => {
   const [holidaySaving, setHolidaySaving] = useState(false)
   const [holidayToast, setHolidayToast] = useState({ msg: '', type: '' })
 
+  // Billing
+  const [billingModel, setBillingModel] = useState('subscription')
+  const [monthlyCostLimit, setMonthlyCostLimit] = useState(20)
+  const [costLimitSaving, setCostLimitSaving] = useState(false)
+
   // GDPR & Data
   const [dataRetentionDays, setDataRetentionDays] = useState(90)
   const [dataSaving, setDataSaving] = useState(false)
@@ -528,6 +533,8 @@ const AccountSettings = ({ onNavigate }) => {
     setNotifyWeeklyReport(true)
     setHolidayMode(false)
     setDataRetentionDays(90)
+    setBillingModel('subscription')
+    setMonthlyCostLimit(20)
     setPartnerCount(demo.partners.length)
     setLeadCount(demo.leads.length)
     setOutboundCount(demo.referrals.length)
@@ -551,7 +558,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins, data_retention_days')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins, data_retention_days, billing_model, monthly_cost_limit')
           .eq('id', tid)
           .maybeSingle()
 
@@ -569,6 +576,8 @@ const AccountSettings = ({ onNavigate }) => {
           setEmailScanMode(tenant.cover_email ? (tenant.email_scan_mode || null) : null)
           setInterventionTimeMins(tenant.intervention_time_mins ?? 60)
           setDataRetentionDays(tenant.data_retention_days ?? 90)
+          setBillingModel(tenant.billing_model || 'subscription')
+          setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -635,6 +644,14 @@ const AccountSettings = ({ onNavigate }) => {
   const showDataToast = (msg, type = 'success') => {
     setDataToast({ msg, type })
     setTimeout(() => setDataToast({ msg: '', type: '' }), 3500)
+  }
+
+  const saveCostLimit = async (val) => {
+    if (isDemo || !tenantId) return
+    setMonthlyCostLimit(val)
+    setCostLimitSaving(true)
+    await supabase.from('tenants').update({ monthly_cost_limit: val }).eq('id', tenantId)
+    setCostLimitSaving(false)
   }
 
   const saveDataRetention = async (days) => {
@@ -723,6 +740,29 @@ const AccountSettings = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+
+        {/* Cost limit — PAYG tenants only */}
+        {billingModel === 'payg' && (
+          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#b07a00', marginBottom: '0.4rem' }}>Monthly spending limit</div>
+            <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.625rem', lineHeight: 1.5 }}>
+              We'll pause your AI and notify you when you reach this. At 35p/min, £{monthlyCostLimit} covers ~{Math.floor(monthlyCostLimit / 0.35)} minutes.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontWeight: '600', color: '#1a1a1a' }}>£</span>
+              <input
+                type="number"
+                min={5}
+                step={5}
+                value={monthlyCostLimit}
+                onChange={e => setMonthlyCostLimit(parseFloat(e.target.value) || 20)}
+                onBlur={e => saveCostLimit(parseFloat(e.target.value) || 20)}
+                style={{ width: '80px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, textAlign: 'center', outline: 'none' }}
+              />
+              <span style={{ fontSize: '0.8rem', color: '#888' }}>per month {costLimitSaving ? '· Saving…' : ''}</span>
+            </div>
+          </div>
+        )}
 
         {upgradeTiers.length > 0 ? (
           <div style={s.upgradeGrid}>

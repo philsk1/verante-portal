@@ -91,6 +91,33 @@ export function emailExhausted({ businessName, includedMinutes, overagePref, tie
   }
 }
 
+// Daily cost report — PAYG tenants only
+export function emailDailyCost({ businessName, callsToday, leadsToday, minutesToday, costToday, totalCostMonth, costLimit }) {
+  const pct = costLimit > 0 ? Math.round((totalCostMonth / costLimit) * 100) : 0
+  const barWidth = Math.min(pct, 100)
+  const barColor = pct >= 80 ? '#f0a500' : '#5e3b87'
+  return {
+    subject: `Your Verrante daily summary — ${businessName}`,
+    html: wrap(`
+      <p>Hi ${businessName},</p>
+      <p>Here's what your AI handled today.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Calls handled</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${callsToday}</td></tr>
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Leads captured</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${leadsToday}</td></tr>
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Minutes used today</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${minutesToday} min</td></tr>
+        <tr><td style="padding:0.5rem 0;color:#aaa;font-size:0.8rem;">Cost today</td><td style="padding:0.5rem 0;font-weight:600;text-align:right;">£${costToday.toFixed(2)}</td></tr>
+      </table>
+      <div style="margin-bottom:0.4rem;display:flex;justify-content:space-between;font-size:0.8rem;">
+        <span style="color:#aaa;">Month to date</span>
+        <span style="font-weight:600;">£${totalCostMonth.toFixed(2)} of £${costLimit} limit (${pct}%)</span>
+      </div>
+      <div style="height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;">
+        <div style="height:6px;width:${barWidth}%;background:${barColor};border-radius:3px;"></div>
+      </div>
+    `),
+  }
+}
+
 // Notification 3 — monthly renewal
 export function emailRenewal({ businessName, includedMinutes }) {
   return {

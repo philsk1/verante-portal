@@ -9,7 +9,8 @@ const steps = [
   'Your services',
   'Your boundaries',
   'Your partners',
-  'Review & launch'
+  'Choose your plan',
+  'Review & launch',
 ]
 
 const emptyRow = () => ({ service_name: '', price_from: '', price_to: '', price_note: '' })
@@ -329,6 +330,121 @@ const Step4Partners = ({ partners, onChange }) => {
   )
 }
 
+// ─── step 5 — plan selection ──────────────────────────────────────────────────
+
+const PLAN_TIERS = [
+  { id: 'light',        name: 'Light',        price: '£29', minutes: '120 Premium minutes/month' },
+  { id: 'standard',     name: 'Standard',     price: '£49', minutes: '250 Premium minutes/month' },
+  { id: 'professional', name: 'Professional', price: '£69', minutes: '450 Premium minutes/month' },
+  { id: 'enterprise',   name: 'Enterprise',   price: '£249', minutes: '1,000 Premium minutes/month' },
+]
+
+const Step5PlanSelection = ({ data, update }) => {
+  const billingModel    = data.billing_model || 'subscription'
+  const selectedTier    = data.subscription_tier || 'standard'
+  const costLimit       = data.monthly_cost_limit ?? 20
+
+  const pathCard = (id, title, desc, tag) => (
+    <button
+      key={id}
+      onClick={() => update('billing_model', id)}
+      style={{
+        padding: '1.125rem 1.25rem',
+        borderRadius: '10px',
+        border: billingModel === id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+        background: billingModel === id ? '#f4effe' : 'white',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontFamily: "'DM Sans', sans-serif",
+        width: '100%',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.75rem',
+        marginBottom: '0.625rem',
+      }}
+    >
+      <div style={{ width: 16, height: 16, borderRadius: '50%', border: billingModel === id ? '5px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 3 }} />
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+          <span style={{ fontWeight: '600', fontSize: '0.9rem', color: billingModel === id ? '#5e3b87' : '#1a1a1a' }}>{title}</span>
+          {tag && <span style={{ fontSize: '0.65rem', background: '#f0a500', color: '#1a0533', borderRadius: '4px', padding: '0.1rem 0.4rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{tag}</span>}
+        </div>
+        <div style={{ fontSize: '0.8rem', color: '#888', lineHeight: 1.55 }}>{desc}</div>
+      </div>
+    </button>
+  )
+
+  return (
+    <div>
+      <h2 style={heading}>Choose how you pay</h2>
+      <p style={sub}>Two options. No lock-in. Cancel any time.</p>
+
+      {pathCard('subscription', 'Commit to a plan', 'Choose your tier below. First month free — subscription starts in month 2.', 'First month free')}
+      {pathCard('payg', 'Pay as you go', 'No subscription. No commitment. Billed per minute at 35p/min. Enter a spending limit and we\'ll pause your AI if you reach it.', null)}
+
+      {/* Tier cards for subscription path */}
+      {billingModel === 'subscription' && (
+        <div style={{ marginTop: '1.25rem' }}>
+          <p style={{ ...hint, marginBottom: '0.625rem' }}>Select your plan:</p>
+          {PLAN_TIERS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => update('subscription_tier', t.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '0.75rem 1rem',
+                marginBottom: '0.4rem',
+                borderRadius: '8px',
+                border: selectedTier === t.id ? '2px solid #5e3b87' : '1px solid rgba(94,59,135,0.12)',
+                background: selectedTier === t.id ? '#f4effe' : 'white',
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ fontWeight: '600', fontSize: '0.875rem', color: selectedTier === t.id ? '#5e3b87' : '#1a1a1a' }}>{t.name}</span>
+              <span style={{ fontSize: '0.8rem', color: '#888' }}>{t.minutes}</span>
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: selectedTier === t.id ? '#5e3b87' : '#1a1a1a', flexShrink: 0 }}>{t.price}<span style={{ fontWeight: 400, fontSize: '0.75rem', color: '#aaa' }}>/mo</span></span>
+            </button>
+          ))}
+          <p style={{ ...hint, marginTop: '0.625rem' }}>Premium voice included. Overage billed at 18p/min.</p>
+        </div>
+      )}
+
+      {/* Cost limit for PAYG path */}
+      {billingModel === 'payg' && (
+        <div style={{ marginTop: '1.25rem', padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
+          <label style={{ ...label, marginBottom: '0.375rem' }}>Monthly spending limit</label>
+          <p style={{ ...hint, marginBottom: '0.5rem' }}>We'll pause your AI and notify you when you reach this. You can change it any time in Account settings.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.125rem', color: '#1a1a1a', fontWeight: '600' }}>£</span>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={costLimit}
+              onChange={e => update('monthly_cost_limit', parseFloat(e.target.value) || 20)}
+              style={{ ...input, width: '100px', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: '#888' }}>per month</span>
+          </div>
+          <p style={{ ...hint, marginTop: '0.5rem', marginBottom: 0 }}>At 35p/min, £{costLimit} covers ~{Math.floor(costLimit / 0.35)} minutes.</p>
+        </div>
+      )}
+
+      {/* The Tenant Tip */}
+      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'rgba(94,59,135,0.04)', borderRadius: '8px', borderLeft: '3px solid #5e3b87' }}>
+        <p style={{ fontSize: '0.825rem', color: '#444', lineHeight: 1.65, margin: 0, fontStyle: 'italic' }}>
+          "Higher call charges help cover your monthly costs — but there's nothing stopping you from instructing your AI to keep calls short and to the point. Your AI, your rules."
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const Onboarding = () => {
@@ -377,6 +493,9 @@ const Onboarding = () => {
     wont_touch: '',
     services: [],
     partners: [],
+    billing_model: 'subscription',
+    subscription_tier: 'standard',
+    monthly_cost_limit: 20,
   })
 
   const update = (field, value) => setData(prev => ({ ...prev, [field]: value }))
@@ -407,7 +526,9 @@ const Onboarding = () => {
         subcategory_id: data.subcategory_id || null,
         business_outcome_type: data.business_outcome_type || 'quote',
         referral_code: referralCode,
-        subscription_tier: 'light',
+        billing_model: data.billing_model || 'subscription',
+        subscription_tier: data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard'),
+        monthly_cost_limit: data.billing_model === 'payg' ? (data.monthly_cost_limit || 20) : null,
         active: true,
       })
       .select()
@@ -529,6 +650,9 @@ const Onboarding = () => {
           />
         )}
         {step === 5 && (
+          <Step5PlanSelection data={data} update={update} />
+        )}
+        {step === 6 && (
           <div>
             <h2 style={heading}>You're ready to launch</h2>
             <p style={sub}>Here's what we've set up for you.</p>
@@ -545,6 +669,7 @@ const Onboarding = () => {
               { label: "Won't touch",   value: data.wont_touch },
               { label: 'Services',      value: data.services.filter(s => s.service_name.trim()).map(s => s.service_name).join(', ') },
               { label: 'Partners',      value: data.partners.filter(p => p.name.trim()).map(p => p.name).join(', ') },
+              { label: 'Billing',       value: data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },
             ].filter(item => item.value).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
                 <span style={{ fontSize: '0.8rem', color: '#aaa', flexShrink: 0, marginRight: '1rem' }}>{item.label}</span>

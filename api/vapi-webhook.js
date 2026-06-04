@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, email80pct, emailExhausted } from './_emails.js'
+import { sendEmail, email80pct, emailExhausted, emailDailyCost } from './_emails.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -177,6 +177,22 @@ export default async function handler(req, res) {
 
   // Check minute thresholds — fire 80% and exhausted notifications as needed
   await checkMinuteNotifications(tenant, tenantId)
+
+  // PAYG cost limit check
+  if (tenant.billing_model === 'payg' && tenant.monthly_cost_limit && tenant.business_email) {
+    const monthStart = new Date()
+    monthStart.setDate(1)
+    monthStart.setHours(0, 0, 0, 0)
+    const { data: mCalls } = await supabase
+      .from('call_logs').select('duration_seconds').eq('tenant_id', tenantId)
+      .gte('created_at', monthStart.toISOString())
+    const monthMins = Math.round((mCalls || []).reduce((s, c) => s + (c.duration_seconds || 0), 0) / 60)
+    const monthCost = monthMins * 0.35
+    if (monthCost >= tenant.monthly_cost_limit) {
+      // Log warning — actual AI pause requires Vapi API call (Task 4 / future)
+      console.warn(`PAYG limit reached for tenant ${tenantId}: £${monthCost.toFixed(2)} >= £${tenant.monthly_cost_limit}`)
+    }
+  }
 
   return res.status(200).json({ received: true })
 }

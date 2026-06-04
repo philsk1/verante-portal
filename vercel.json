@@ -6,6 +6,10 @@
     {
       "path": "/api/notify-renewal",
       "schedule": "0 8 1 * *"
+    },
+    {
+      "path": "/api/notify-daily-cost",
+      "schedule": "0 9 * * *"
     }
   ]
 }
