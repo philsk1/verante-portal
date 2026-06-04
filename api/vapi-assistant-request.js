@@ -14,7 +14,7 @@ async function fetchTenantData(tenantId) {
     await Promise.all([
       supabase
         .from('tenants')
-        .select('business_name, business_email, business_phone, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords')
+        .select('business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, callback_preference_note, urgent_callback_mins')
         .eq('id', tenantId)
         .maybeSingle(),
       supabase.from('services').select('service_name').eq('tenant_id', tenantId),
