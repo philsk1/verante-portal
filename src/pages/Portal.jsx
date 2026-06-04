@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
 import { useNavigate } from 'react-router-dom'
 import BusinessProfile from './BusinessProfile'
@@ -12,10 +13,13 @@ import HelpMascot from '../components/HelpMascot'
 
 const Portal = () => {
   const { user } = useAuth()
+  const preview = usePreview()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [checking, setChecking] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [tenantId, setTenantId] = useState(null)
+  const [isOwner, setIsOwner] = useState(false)
+  const [allTenants, setAllTenants] = useState([])
   const navigate = useNavigate()
 
   // Tab → vera context key mapping
@@ -30,19 +34,29 @@ const Portal = () => {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('tenant_memberships')
-      .select('tenant_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) { navigate('/onboarding', { replace: true }); return }
-        setTenantId(data.tenant_id)
-        const { data: tenant } = await supabase
-          .from('tenants').select('business_name').eq('id', data.tenant_id).maybeSingle()
-        setBusinessName(tenant?.business_name || '')
-        setChecking(false)
-      })
+    const init = async () => {
+      const { data: membership } = await supabase
+        .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+      if (!membership) { navigate('/onboarding', { replace: true }); return }
+      setTenantId(membership.tenant_id)
+
+      const { data: tenant } = await supabase
+        .from('tenants').select('business_name').eq('id', membership.tenant_id).maybeSingle()
+      setBusinessName(tenant?.business_name || '')
+
+      // Check owner flag
+      const { data: profile } = await supabase
+        .from('profiles').select('is_owner').eq('id', user.id).maybeSingle()
+      if (profile?.is_owner) {
+        setIsOwner(true)
+        const { data: tenants } = await supabase
+          .from('tenants').select('id, business_name').order('business_name')
+        setAllTenants(tenants || [])
+      }
+
+      setChecking(false)
+    }
+    init()
   }, [user])
 
   if (checking) return null
@@ -87,8 +101,26 @@ const Portal = () => {
     }
   }
 
+  const displayName = preview.isPreview ? preview.previewBusinessName : businessName
+
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+
+      {/* Owner preview banner */}
+      {preview.isPreview && (
+        <div style={{ background: '#f0a500', color: '#1a0533', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', boxSizing: 'border-box', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif" }}>
+          <span style={{ fontWeight: '600' }}>
+            <span style={{ opacity: 0.65, fontWeight: '700', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Owner preview</span>
+            {'  ·  '}{preview.previewBusinessName}
+          </span>
+          <button
+            onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
+            style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: '500', cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Exit preview
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{
@@ -107,6 +139,25 @@ const Portal = () => {
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* Owner tenant selector */}
+          {isOwner && (
+            <select
+              value={preview.isPreview ? preview.previewTenantId : ''}
+              onChange={e => {
+                const tid = e.target.value
+                if (!tid) { preview.exitPreview(); return }
+                const t = allTenants.find(t => t.id === tid)
+                preview.enterPreview(tid, t?.business_name || '')
+                setActiveTab('dashboard')
+              }}
+              style={{ padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '0.75rem', cursor: 'pointer', maxWidth: '180px', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              <option value="" style={{ background: '#5e3b87' }}>— Preview a tenant —</option>
+              {allTenants.map(t => (
+                <option key={t.id} value={t.id} style={{ background: '#5e3b87' }}>{t.business_name}</option>
+              ))}
+            </select>
+          )}
           <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>{user?.email}</span>
           <button
             onClick={handleSignOut}
@@ -154,8 +205,8 @@ const Portal = () => {
       <div style={{ padding: '2rem', maxWidth: 940, margin: '0 auto', boxSizing: 'border-box' }}>
         <HelpMascot
           activeTab={activeTab}
-          businessName={businessName}
-          tenantId={tenantId}
+          businessName={displayName}
+          tenantId={preview.isPreview ? preview.previewTenantId : tenantId}
           contextKey={TAB_CONTEXT[activeTab]}
         />
         {renderTab()}

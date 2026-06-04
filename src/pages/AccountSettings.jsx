@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
+import { usePreview } from '../context/PreviewContext'
 import { useNavigate } from 'react-router-dom'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -460,6 +461,8 @@ const AccountSettings = ({ onNavigate }) => {
   const { user } = useAuth()
   const demo = useDemo()
   const isDemo = !!demo?.isDemo
+  const preview = usePreview()
+  const isPreview = !!preview?.isPreview
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -542,18 +545,19 @@ const AccountSettings = ({ onNavigate }) => {
   }, [isDemo, demo?.loading])
 
   useEffect(() => {
-    if (isDemo || !user) return
+    if (isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
       try {
-        const { data: membership } = await supabase
-          .from('tenant_memberships')
-          .select('tenant_id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (!membership) return
-        const tid = membership.tenant_id
+        let tid
+        if (isPreview) {
+          tid = preview.previewTenantId
+        } else {
+          const { data: membership } = await supabase
+            .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+          if (!membership) return
+          tid = membership.tenant_id
+        }
         setTenantId(tid)
 
         const { data: tenant } = await supabase
@@ -596,7 +600,7 @@ const AccountSettings = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo])
+  }, [user, isDemo, isPreview])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -608,7 +612,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveAccountDetails = async () => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setAccountSaving(true)
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
@@ -616,7 +620,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveNotification = async (field, value) => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -626,7 +630,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveHolidaySettings = async () => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setHolidaySaving(true)
     const { error } = await supabase.from('tenants').update({
       holiday_mode: holidayMode,
@@ -647,7 +651,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveCostLimit = async (val) => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setMonthlyCostLimit(val)
     setCostLimitSaving(true)
     await supabase.from('tenants').update({ monthly_cost_limit: val }).eq('id', tenantId)
@@ -655,7 +659,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const saveDataRetention = async (days) => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setDataRetentionDays(days)
     setDataSaving(true)
     const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
@@ -702,7 +706,7 @@ const AccountSettings = ({ onNavigate }) => {
   }
 
   const handleCancelConfirm = async () => {
-    if (isDemo) { setShowCancelModal(false); return }
+    if (isDemo || isPreview) { setShowCancelModal(false); return }
     // Stripe cancellation endpoint — wired in a later build phase
     setShowCancelModal(false)
     navigate('/login')

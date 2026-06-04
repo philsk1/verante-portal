@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
+import { usePreview } from '../context/PreviewContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -454,6 +455,8 @@ const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
   const demo = useDemo()
   const isDemo = !!demo?.isDemo
+  const preview = usePreview()
+  const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
@@ -533,14 +536,19 @@ const AIBehaviour = ({ onNavigate }) => {
   }, [isDemo, demo?.loading])
 
   useEffect(() => {
-    if (isDemo || !user) return
+    if (isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
       try {
-        const { data: membership } = await supabase
-          .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
-        if (!membership) return
-        const tid = membership.tenant_id
+        let tid
+        if (isPreview) {
+          tid = preview.previewTenantId
+        } else {
+          const { data: membership } = await supabase
+            .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+          if (!membership) return
+          tid = membership.tenant_id
+        }
         setTenantId(tid)
 
         const { data: tenant } = await supabase
@@ -607,7 +615,7 @@ const AIBehaviour = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo])
+  }, [user, isDemo, isPreview])
 
   // ── handlers ────────────────────────────────────────────────────────────────
 
@@ -622,7 +630,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveMainSettings = async () => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setSaving(true)
     const { error } = await supabase.from('tenants').update({
       triage_mode: triageMode,
@@ -647,7 +655,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveRules = async () => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     setRulesSaving(true)
     const rows = CALL_TYPES.map(type => ({
       tenant_id:     tenantId,
@@ -676,7 +684,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveToggle = async (field, value) => {
-    if (isDemo || !tenantId) return
+    if (isDemo || isPreview || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -685,7 +693,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const addKeyword = async (word) => {
-    if (isDemo) return
+    if (isDemo || isPreview) return
     const trimmed = word.trim()
     if (!trimmed || !tenantId) return
     const updated = [...keywords, trimmed]

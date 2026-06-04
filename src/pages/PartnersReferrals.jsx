@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
+import { usePreview } from '../context/PreviewContext'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -352,6 +353,8 @@ const PartnersReferrals = () => {
   const { user } = useAuth()
   const demo = useDemo()
   const isDemo = !!demo?.isDemo
+  const preview = usePreview()
+  const isPreview = !!preview?.isPreview
 
   const [loading, setLoading] = useState(true)
   const [tenantId, setTenantId] = useState(null)
@@ -384,18 +387,19 @@ const PartnersReferrals = () => {
   }, [isDemo, demo?.loading])
 
   useEffect(() => {
-    if (isDemo || !user) return
+    if (isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
       try {
-        const { data: membership } = await supabase
-          .from('tenant_memberships')
-          .select('tenant_id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (!membership) return
-        const tid = membership.tenant_id
+        let tid
+        if (isPreview) {
+          tid = preview.previewTenantId
+        } else {
+          const { data: membership } = await supabase
+            .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+          if (!membership) return
+          tid = membership.tenant_id
+        }
         setTenantId(tid)
 
         const { data: tenant } = await supabase
@@ -442,10 +446,10 @@ const PartnersReferrals = () => {
       }
     }
     load()
-  }, [user, isDemo])
+  }, [user, isDemo, isPreview])
 
   const addPartner = async () => {
-    if (isDemo) return
+    if (isDemo || isPreview) return
     const name = draft.name.trim()
     if (!name || !tenantId) return
     setAdding(true)
@@ -474,7 +478,7 @@ const PartnersReferrals = () => {
   }
 
   const removePartner = async (id) => {
-    if (isDemo) return
+    if (isDemo || isPreview) return
     await supabase.from('referral_service_map').delete().eq('partner_id', id)
     await supabase.from('referral_partners').delete().eq('id', id)
     setPartners(prev => prev.filter(p => p.id !== id))

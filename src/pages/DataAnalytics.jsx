@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
+import { usePreview } from '../context/PreviewContext'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -317,6 +318,8 @@ const DataAnalytics = ({ onNavigate }) => {
   const { user } = useAuth()
   const demo = useDemo()
   const isDemo = !!demo?.isDemo
+  const preview = usePreview()
+  const isPreview = !!preview?.isPreview
 
   const [loading, setLoading] = useState(true)
   const [tier, setTier] = useState('light')
@@ -362,18 +365,19 @@ const DataAnalytics = ({ onNavigate }) => {
   }, [isDemo, demo?.loading])
 
   useEffect(() => {
-    if (isDemo || !user) return
+    if (isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
       try {
-        const { data: membership } = await supabase
-          .from('tenant_memberships')
-          .select('tenant_id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (!membership) return
-        const tid = membership.tenant_id
+        let tid
+        if (isPreview) {
+          tid = preview.previewTenantId
+        } else {
+          const { data: membership } = await supabase
+            .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+          if (!membership) return
+          tid = membership.tenant_id
+        }
 
         const { data: tenant } = await supabase
           .from('tenants')
@@ -428,7 +432,7 @@ const DataAnalytics = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo])
+  }, [user, isDemo, isPreview])
 
   const leadRate = pct(totalLeads, totalCalls)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
