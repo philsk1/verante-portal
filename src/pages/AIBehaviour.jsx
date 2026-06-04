@@ -453,6 +453,12 @@ const AIBehaviour = ({ onNavigate }) => {
   const [salesHandling, setSalesHandling] = useState(true)
   const [autodialerDetection, setAutodialerDetection] = useState(true)
 
+  // New settings
+  const [toneRegister, setToneRegister] = useState('warm')
+  const [businessOutcomeType, setBusinessOutcomeType] = useState('quote')
+  const [callbackPrefNote, setCallbackPrefNote] = useState('')
+  const [additionalInstructions, setAdditionalInstructions] = useState('')
+
   // Emergency keywords
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
@@ -470,7 +476,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -482,6 +488,10 @@ const AIBehaviour = ({ onNavigate }) => {
           setSpamFilter(tenant.spam_filter_enabled !== false)
           setSalesHandling(tenant.sales_call_handling !== false)
           setAutodialerDetection(tenant.autodialler_detection !== false)
+          setToneRegister(tenant.tone_register || 'warm')
+          setBusinessOutcomeType(tenant.business_outcome_type || 'quote')
+          setCallbackPrefNote(tenant.callback_preference_note || '')
+          setAdditionalInstructions(tenant.additional_instructions || '')
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
               ? tenant.emergency_keywords
@@ -538,6 +548,10 @@ const AIBehaviour = ({ onNavigate }) => {
       triage_mode: triageMode,
       escalation_preference: escalationPref,
       greeting_message: greetingMessage.trim() || null,
+      tone_register: toneRegister,
+      business_outcome_type: businessOutcomeType,
+      callback_preference_note: callbackPrefNote.trim() || null,
+      additional_instructions: additionalInstructions.trim() || null,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -611,6 +625,41 @@ const AIBehaviour = ({ onNavigate }) => {
         <h3 style={s.sectionTitle}>Call Handling</h3>
         <p style={s.sectionSubtitle}>Global defaults — overridden per call type below.</p>
 
+        {/* Tone register */}
+        <label style={s.label} data-help="Your assistant's tone. Warm is friendly and natural — right for most businesses. Formal is professional and precise — suits solicitors, accountants, and formal practices. Both versions are professionally crafted.">Assistant tone</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          {[
+            { id: 'warm', label: 'Warm', example: '"Good morning, Lumino Wellness. Tracy is busy — I\'m her virtual assistant. I\'ll be taking a brief note of your enquiry. How can I help?"' },
+            { id: 'formal', label: 'Formal', example: '"Good morning. You have reached Lumino Wellness. Tracy is currently unavailable — I am her virtual assistant. I will be taking a brief note of your enquiry. How may I assist you?"' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setToneRegister(opt.id)} style={{
+              padding: '0.875rem 1rem',
+              borderRadius: '8px',
+              border: toneRegister === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+              background: toneRegister === opt.id ? '#f4effe' : 'white',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              <div style={{ fontWeight: '600', fontSize: '0.875rem', color: toneRegister === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.4rem' }}>{opt.label}</div>
+              <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.5, fontStyle: 'italic' }}>{opt.example}</div>
+            </button>
+          ))}
+        </div>
+        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>Both greetings include "please allow me" when taking details — this is non-negotiable and protects the quality of every call.</p>
+
+        {/* Business outcome type */}
+        <label style={s.label} data-help="This tells your AI what a successful call looks like for you. Booking businesses route callers to an appointment. Quote businesses route callers to a callback conversation.">What does a successful call look like?</label>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <button onClick={() => setBusinessOutcomeType('booking')} style={s.pairBtn(businessOutcomeType === 'booking')}>I take bookings and appointments</button>
+          <button onClick={() => setBusinessOutcomeType('quote')} style={s.pairBtn(businessOutcomeType === 'quote')}>I discuss, quote, and arrange</button>
+        </div>
+        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>
+          {businessOutcomeType === 'booking'
+            ? 'Your AI will route interested callers to your booking link or offer to get them booked in.'
+            : 'Your AI will take details and arrange for you to call the customer back to discuss.'}
+        </p>
+
         <label style={s.label} data-help="Triage mode controls the pace and style of your AI's conversations. Strict = short and efficient, gets what it needs quickly and closes. Balanced = standard, recommended for most businesses. Open = more relaxed and conversational, good where relationship matters more than speed.">Default triage mode</label>
         <div style={s.segmented}>
           {TRIAGE_MODES.map(mode => (
@@ -633,6 +682,17 @@ const AIBehaviour = ({ onNavigate }) => {
               : 'Your AI politely closes the call and offers a booking link or callback request. Nothing reaches you in real time.'}
           </p>
         </div>
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <label style={s.label} data-help="This tells callers when to expect your call back. Your AI uses this phrase directly in the conversation — so write it as you'd say it. For example: 'within the hour', 'same day', 'by end of business today'.">When can you call back?</label>
+          <input
+            style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+            value={callbackPrefNote}
+            onChange={e => setCallbackPrefNote(e.target.value)}
+            placeholder="e.g. within the hour, same day, after 3pm today"
+          />
+          <p style={s.hint}>Your AI tells callers: "Please allow me to take your details — [your name] will call you back [this]."</p>
+        </div>
       </div>
 
       {/* Call Type Rules */}
@@ -651,6 +711,19 @@ const AIBehaviour = ({ onNavigate }) => {
             onChange={updateRule}
           />
         ))}
+
+        <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+          <label style={s.label} data-help="Anything not covered above. Describe specific situations and how you'd like your AI to handle them. For example: 'If a caller wants to cancel, tell them I will be in contact immediately.' Your AI follows these instructions for anything not covered by the rules above.">Anything else?</label>
+          <p style={{ fontSize: '0.775rem', color: '#aaa', margin: '0 0 0.5rem', lineHeight: 1.5 }}>
+            Specific situations your AI should handle in a particular way. These override default behaviour but never change the tone or core values.
+          </p>
+          <textarea
+            style={{ ...s.textarea, minHeight: '80px' }}
+            value={additionalInstructions}
+            onChange={e => setAdditionalInstructions(e.target.value)}
+            placeholder={'e.g. "If a caller wants to cancel, tell them I will be in contact with them immediately."\ne.g. "If someone asks about parking, tell them there is free parking on Mill Lane."'}
+          />
+        </div>
 
         <div style={{ ...s.saveRow, marginTop: '0.5rem' }}>
           <button style={rulesSaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveRules} disabled={rulesSaving}>
