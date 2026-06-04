@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 
 const steps = [
+  'Your website',
   'Business type',
   'About your business',
   'Your services',
@@ -330,6 +331,123 @@ const Step4Partners = ({ partners, onChange }) => {
   )
 }
 
+// ─── step 0 — website scraping ───────────────────────────────────────────────
+
+const Step0Website = ({ data, update }) => {
+  const [url, setUrl] = useState(data.websiteUrl || '')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null) // { fields, found } or { error }
+
+  const handleScrape = async () => {
+    if (!url.trim()) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/scrape-website', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      })
+      const data_r = await res.json()
+      if (!res.ok) {
+        setResult({ error: data_r.error || 'Could not scan that website.' })
+        return
+      }
+      // Pre-populate all extracted fields
+      const f = data_r.fields || {}
+      if (f.business_name)    update('business_name', f.business_name)
+      if (f.business_phone)   update('business_phone', f.business_phone)
+      if (f.business_email)   update('business_email', f.business_email)
+      if (f.business_address) update('business_address', f.business_address)
+      if (f.opening_hours)    update('opening_hours', f.opening_hours)
+      if (f.lead_contact_name) update('lead_contact_name', f.lead_contact_name)
+      if (f.business_context) update('business_context', f.business_context)
+      if (Array.isArray(f.services) && f.services.length > 0) {
+        update('services', f.services.map(s => ({ service_name: s, price_from: '', price_to: '', price_note: '' })))
+      }
+      update('websiteUrl', url.trim())
+      setResult({ fields: f, found: data_r.found })
+    } catch {
+      setResult({ error: 'Something went wrong. Please fill in your details manually.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const FIELD_LABELS = [
+    ['business_name',     'Business name'],
+    ['business_phone',    'Phone number'],
+    ['business_email',    'Email address'],
+    ['business_address',  'Address'],
+    ['opening_hours',     'Opening hours'],
+    ['lead_contact_name', 'Contact name'],
+    ['business_context',  'About the business'],
+    ['services',          'Services list'],
+  ]
+
+  return (
+    <div>
+      <h2 style={heading}>Let us do the hard work.</h2>
+      <p style={sub}>Enter your website address and we'll fill in your business details automatically.</p>
+
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.625rem' }}>
+        <input
+          type="url"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleScrape()}
+          placeholder="yourwebsite.co.uk"
+          style={{ ...input, flex: 1 }}
+        />
+        <button
+          onClick={handleScrape}
+          disabled={loading || !url.trim()}
+          style={{ padding: '0.625rem 1.25rem', background: loading || !url.trim() ? '#f5d98a' : '#f0a500', color: '#1a0533', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '0.875rem', cursor: loading || !url.trim() ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}
+        >
+          {loading ? 'Scanning…' : 'Fill in my details →'}
+        </button>
+      </div>
+
+      {loading && (
+        <p style={{ ...hint, color: '#5e3b87' }}>We're scanning your website — this takes a few seconds…</p>
+      )}
+
+      {result?.error && (
+        <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', marginBottom: '0.75rem' }}>
+          <p style={{ fontSize: '0.8rem', color: '#b91c1c', margin: 0 }}>{result.error}</p>
+        </div>
+      )}
+
+      {result?.fields && !result.error && (
+        <div style={{ padding: '1rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', marginBottom: '0.75rem' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#15803d', marginBottom: '0.625rem' }}>
+            Found {result.found} field{result.found !== 1 ? 's' : ''} — review them in the next steps.
+          </div>
+          {FIELD_LABELS.filter(([key]) => {
+            const v = result.fields[key]
+            return key === 'services' ? Array.isArray(v) && v.length > 0 : v
+          }).map(([key, label]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.3rem' }}>
+              <span style={{ color: '#22c55e', flexShrink: 0, fontSize: '0.875rem' }}>✓</span>
+              <span style={{ fontSize: '0.8rem', color: '#166534' }}>
+                <span style={{ fontWeight: '500' }}>{label}:</span>{' '}
+                {key === 'services'
+                  ? result.fields.services.slice(0, 4).join(', ') + (result.fields.services.length > 4 ? `… +${result.fields.services.length - 4} more` : '')
+                  : String(result.fields[key]).slice(0, 60) + (String(result.fields[key]).length > 60 ? '…' : '')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+        <p style={{ ...hint, marginBottom: '0.25rem', color: '#888' }}>No website? No problem.</p>
+        <p style={hint}>Leave this blank and fill in your details on the next screen.</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── step 5 — plan selection ──────────────────────────────────────────────────
 
 const PLAN_TIERS = [
@@ -496,6 +614,7 @@ const Onboarding = () => {
     billing_model: 'subscription',
     subscription_tier: 'standard',
     monthly_cost_limit: 20,
+    websiteUrl: '',
   })
 
   const update = (field, value) => setData(prev => ({ ...prev, [field]: value }))
@@ -623,7 +742,8 @@ const Onboarding = () => {
         </div>
 
         {/* Step content */}
-        {step === 0 && (
+        {step === 0 && <Step0Website data={data} update={update} />}
+        {step === 1 && (
           <Step0BusinessType
             selectedCategoryId={data.selectedCategoryId}
             subcategoryId={data.subcategory_id}
@@ -634,25 +754,25 @@ const Onboarding = () => {
             }}
           />
         )}
-        {step === 1 && <Step1BusinessDetails data={data} update={update} />}
-        {step === 2 && (
+        {step === 2 && <Step1BusinessDetails data={data} update={update} />}
+        {step === 3 && (
           <Step2Services
             subcategoryId={data.subcategory_id}
             services={data.services}
             onChange={services => update('services', services)}
           />
         )}
-        {step === 3 && <Step3Boundaries data={data} update={update} />}
-        {step === 4 && (
+        {step === 4 && <Step3Boundaries data={data} update={update} />}
+        {step === 5 && (
           <Step4Partners
             partners={data.partners}
             onChange={partners => update('partners', partners)}
           />
         )}
-        {step === 5 && (
+        {step === 6 && (
           <Step5PlanSelection data={data} update={update} />
         )}
-        {step === 6 && (
+        {step === 7 && (
           <div>
             <h2 style={heading}>You're ready to launch</h2>
             <p style={sub}>Here's what we've set up for you.</p>
