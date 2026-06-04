@@ -302,7 +302,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
             <Owl w={44} h={72} blink={blink} />
           </div>
           <span style={{
-            fontSize: '12px', color: '#f0a500',
+            fontSize: '12px', color: '#5e3b87',
             fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif",
             cursor: 'pointer', userSelect: 'none', textAlign: 'center',
             fontWeight: 500, lineHeight: 1.4,
