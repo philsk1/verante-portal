@@ -377,8 +377,8 @@ const PartnersReferrals = () => {
     const biz = demo.business || {}
     setReferralCode(biz.referral_code || '')
     setCreditMonths(biz.credits_balance || 0)
-    setPartners(demo.partners.map(p => ({ id: p.id, business_name: p.business_name, business_phone: p.phone || '' })))
-    setPartnerSpecialties({})
+    setPartners(demo.partners.map(p => ({ id: p.id, business_name: p.partner_name, business_phone: p.partner_phone || '' })))
+    setPartnerSpecialties(Object.fromEntries(demo.partners.filter(p => p.specialty).map(p => [p.id, p.specialty])))
     setOutboundCount(demo.referrals.length)
     setLoading(false)
   }, [isDemo, demo?.loading])

@@ -458,8 +458,8 @@ const BusinessProfile = () => {
       opening_hours:    biz.opening_hours    || '',
       business_context: biz.business_context || '',
     })
-    setServices(demo.services.map(s => ({ id: s.id, service_name: s.service_name })))
-    setPartnerServices([])
+    setServices(demo.services.filter(s => !s.is_partner_service).map(s => ({ id: s.id, service_name: s.service_name })))
+    setPartnerServices(demo.services.filter(s => s.is_partner_service).map(s => ({ id: s.id, service_name: s.service_name })))
     setClients([])
     setStaff(demo.staff.map(s => ({ id: s.id, name: s.name, role: s.role, specialist_services: s.specialist_services, phone: s.phone, active: s.active })))
     setLoading(false)

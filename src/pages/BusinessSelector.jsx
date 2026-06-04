@@ -60,11 +60,19 @@ const BusinessSelector = () => {
       {/* Content */}
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>Select a demo business</h1>
-          <p style={{ color: '#888', fontSize: '0.875rem', margin: 0, lineHeight: 1.55 }}>
-            Choose a business to explore the portal. You'll be able to select which tier experience to preview on the next step.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2rem', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>Select a demo business</h1>
+            <p style={{ color: '#888', fontSize: '0.875rem', margin: 0, lineHeight: 1.55 }}>
+              Choose a business to explore the portal. You'll be able to select which tier experience to preview on the next step.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/demo/performance')}
+            style={{ flexShrink: 0, padding: '0.55rem 1.1rem', background: 'white', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', color: '#5e3b87', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+          >
+            Platform overview →
+          </button>
         </div>
 
         {loading ? (

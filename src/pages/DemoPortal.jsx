@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DemoProvider, useDemo } from '../context/DemoContext'
+import { supabase } from '../supabase'
 import DemoBanner from '../components/DemoBanner'
 import BusinessProfile from './BusinessProfile'
 import AIBehaviour from './AIBehaviour'
@@ -13,6 +14,17 @@ const DemoPortalInner = ({ businessId }) => {
   const demo = useDemo()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('dashboard')
+
+  // Track this demo session
+  useEffect(() => {
+    const session = JSON.parse(localStorage.getItem('demo_session') || '{}')
+    if (!session.id || !businessId || !demo.tier) return
+    supabase.from('demo_sessions').insert({
+      user_id:     session.id,
+      business_id: businessId,
+      tier:        demo.tier,
+    }).then(() => {})
+  }, [businessId, demo.tier])
 
   const tabs = [
     { id: 'profile',   label: 'Business Profile' },

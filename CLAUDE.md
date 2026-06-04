@@ -153,13 +153,21 @@ api/vapi-sync.js                    — patches Vapi assistant on AI Behaviour s
 api/_build-prompt.js                — system prompt builder (Layer 1–3)
 api/vera-chat.js                    — Vera dialogue (Claude Haiku)
 api/greeting-generator.js           — greeting generator (Claude Haiku)
-verrante-handoff-V9.md              — full product spec, tier detail, AI architecture
+verrante-handoff-V10.md             — full product spec, tier detail, AI architecture
 supabase_rls.sql                    — idempotent RLS script (safe to re-run)
+demo_seed.sql                       — demo data seed (safe to re-run)
+src/context/DemoContext.jsx         — demo data provider (fetches demo_* tables)
+src/pages/DemoLogin.jsx             — demo login (/demo/login)
+src/pages/BusinessSelector.jsx      — 10 business cards (/demo/select)
+src/pages/TierSelector.jsx          — tier selection (/demo/tier/:id)
+src/pages/DemoPortal.jsx            — demo portal shell (/demo/portal/:id/:tier)
+src/pages/SalesPerformance.jsx      — aggregate rep dashboard (/demo/performance)
+src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 ```
 
 ---
 
-## Current Build State (last updated: 2026-06-05)
+## Current Build State (last updated: 2026-06-05, session 3)
 
 ### Done — Section 1
 - [x] All 6 portal tabs — fully built and wired to Supabase
@@ -194,21 +202,17 @@ supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 - [x] demo_users: demo@verrante.app / VERRANTE2026
 - [x] Seed script: `demo_seed.sql` in project root — safe to re-run
 
-### Next — Demo Session 2 (routes and context)
-- Add `/demo` route family to React Router
-- Build `DemoContext.jsx` — wraps portal tabs, supplies demo data, no-ops all saves
-- Build `/demo/login` — email check against demo_users, JWT in localStorage (no Supabase auth)
-- Build `BusinessSelector.jsx` — 10 business cards
-- Build `TierSelector.jsx` — tier cards per business
-- Build `DemoBanner.jsx` — persistent amber strip, never dismissible
-
-### Demo Session 3 — Portal integration (after Session 2)
-- Modify each tab to accept demo data from DemoContext (one hook check per tab)
-- Build `DemoPortal.jsx` wrapper
-- Build tier switcher (below banner, above nav)
-- Build `SalesPerformance.jsx` — rep dashboard
-- Wire demo_sessions tracking
-- Full flow test
+### Done — Demo Sessions 2 + 3 (2026-06-05)
+- [x] `/demo` route family: login → select → tier → portal → performance
+- [x] `DemoContext.jsx` — fetches demo_businesses, demo_call_logs, demo_leads, demo_referral_log, demo_services, demo_staff, demo_partners. Shapes data for all 6 tabs.
+- [x] `DemoLogin.jsx` — checks demo_users table (email + access_code), stores session in localStorage
+- [x] `BusinessSelector.jsx` — 10 business cards with tier badge, minutes, credits, "Platform overview" link
+- [x] `TierSelector.jsx` — 4 tier cards, business's own tier flagged "Demo data", any tier selectable
+- [x] `DemoBanner.jsx` — amber strip with inline Light/Standard/Professional/Enterprise tier switcher
+- [x] `DemoPortal.jsx` — full portal shell, all 6 tabs live with demo data, no-op saves
+- [x] All 6 tabs wired to DemoContext (useDemo() hook, isDemo guard on all saves/mutations)
+- [x] `SalesPerformance.jsx` — aggregate stats across all demo businesses at `/demo/performance`
+- [x] `demo_sessions` tracking — insert on every DemoPortal mount
 
 ### After demo — remaining tasks
 - [ ] Task 4 — Stripe billing (upgrade cards → Checkout, webhook updates tier)
