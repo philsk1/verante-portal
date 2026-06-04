@@ -15,7 +15,18 @@ const Portal = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [checking, setChecking] = useState(true)
   const [businessName, setBusinessName] = useState('')
+  const [tenantId, setTenantId] = useState(null)
   const navigate = useNavigate()
+
+  // Tab → vera context key mapping
+  const TAB_CONTEXT = {
+    dashboard: 'dashboard.first_visit',
+    profile:   'profile.first_visit',
+    ai:        'ai_behaviour.first_visit',
+    analytics: 'analytics.first_visit',
+    referrals: 'referrals.first_visit',
+    account:   'account.first_visit',
+  }
 
   useEffect(() => {
     if (!user) return
@@ -26,6 +37,7 @@ const Portal = () => {
       .maybeSingle()
       .then(async ({ data }) => {
         if (!data) { navigate('/onboarding', { replace: true }); return }
+        setTenantId(data.tenant_id)
         const { data: tenant } = await supabase
           .from('tenants').select('business_name').eq('id', data.tenant_id).maybeSingle()
         setBusinessName(tenant?.business_name || '')
@@ -140,7 +152,12 @@ const Portal = () => {
 
       {/* Content */}
       <div style={{ padding: '2rem', maxWidth: 940, margin: '0 auto', boxSizing: 'border-box' }}>
-        <HelpMascot activeTab={activeTab} businessName={businessName} />
+        <HelpMascot
+          activeTab={activeTab}
+          businessName={businessName}
+          tenantId={tenantId}
+          contextKey={TAB_CONTEXT[activeTab]}
+        />
         {renderTab()}
       </div>
 
