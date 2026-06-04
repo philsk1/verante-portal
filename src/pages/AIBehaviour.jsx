@@ -426,6 +426,27 @@ const CallTypeCard = ({ type, rule, businessEmail, onChange }) => {
   )
 }
 
+// ─── greeting preview helper ──────────────────────────────────────────────────
+
+function previewGreeting(tone, name, owner, outcomeType, bLink, callbackNote) {
+  const n = name || 'your business'
+  const o = owner || 'the owner'
+  if (tone === 'formal') {
+    return `Good morning. You have reached ${n}. ${o} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${o}'s personal attention. How may I assist you?`
+  }
+  let resolution
+  if (outcomeType === 'booking' && bLink) {
+    resolution = "I'll be taking a brief note and sending you a booking link."
+  } else if (outcomeType === 'booking') {
+    resolution = "I'll be taking a brief note to get you booked in."
+  } else if (callbackNote) {
+    resolution = `I'll be taking a brief note, ${o} will call you back ${callbackNote}.`
+  } else {
+    resolution = `I'll be taking a brief note so ${o} can call you back to discuss what you need.`
+  }
+  return `Good morning, ${n}. ${o} is busy — I'm their virtual assistant. ${resolution} How can I help you?`
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const AIBehaviour = ({ onNavigate }) => {
@@ -459,6 +480,19 @@ const AIBehaviour = ({ onNavigate }) => {
   const [callbackPrefNote, setCallbackPrefNote] = useState('')
   const [additionalInstructions, setAdditionalInstructions] = useState('')
 
+  // Urgent callback
+  const [urgentCallbackMins, setUrgentCallbackMins] = useState(60)
+  const [urgentEscalationMethod, setUrgentEscalationMethod] = useState('both')
+
+  // Greeting generator
+  const [businessName, setBusinessName] = useState('')
+  const [ownerName, setOwnerName] = useState('')
+  const [bookingLink, setBookingLink] = useState('')
+  const [greetingModalShown, setGreetingModalShown] = useState(false)
+  const [showProtectedModal, setShowProtectedModal] = useState(false)
+  const [generatorNotes, setGeneratorNotes] = useState('')
+  const [generatingGreeting, setGeneratingGreeting] = useState(false)
+
   // Emergency keywords
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
@@ -476,7 +510,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -492,6 +526,11 @@ const AIBehaviour = ({ onNavigate }) => {
           setBusinessOutcomeType(tenant.business_outcome_type || 'quote')
           setCallbackPrefNote(tenant.callback_preference_note || '')
           setAdditionalInstructions(tenant.additional_instructions || '')
+          setBusinessName(tenant.business_name || '')
+          setOwnerName(tenant.lead_contact_name || '')
+          setBookingLink(tenant.booking_link || '')
+          setUrgentCallbackMins(tenant.urgent_callback_mins ?? 60)
+          setUrgentEscalationMethod(tenant.urgent_escalation_method || 'both')
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
               ? tenant.emergency_keywords
@@ -552,6 +591,8 @@ const AIBehaviour = ({ onNavigate }) => {
       business_outcome_type: businessOutcomeType,
       callback_preference_note: callbackPrefNote.trim() || null,
       additional_instructions: additionalInstructions.trim() || null,
+      urgent_callback_mins: urgentCallbackMins,
+      urgent_escalation_method: urgentEscalationMethod,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -611,6 +652,24 @@ const AIBehaviour = ({ onNavigate }) => {
     await supabase.from('tenants').update({ emergency_keywords: updated.length ? updated : null }).eq('id', tenantId)
   }
 
+  const generateGreeting = async () => {
+    if (!generatorNotes.trim()) return
+    setGeneratingGreeting(true)
+    try {
+      const res = await fetch('/api/greeting-generator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantNotes: generatorNotes, businessName, ownerName }),
+      })
+      const data = await res.json()
+      if (data.greeting) setGreetingMessage(data.greeting)
+    } catch {
+      // silent — user can retry
+    } finally {
+      setGeneratingGreeting(false)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading settings…</div>
   }
@@ -627,26 +686,31 @@ const AIBehaviour = ({ onNavigate }) => {
 
         {/* Tone register */}
         <label style={s.label} data-help="Your assistant's tone. Warm is friendly and natural — right for most businesses. Formal is professional and precise — suits solicitors, accountants, and formal practices. Both versions are professionally crafted.">Assistant tone</label>
+        <p style={{ ...s.hint, marginTop: 0, marginBottom: '0.75rem' }}>Choose your assistant's tone. Both versions are professionally crafted — pick the one that fits your business.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
-          {[
-            { id: 'warm', label: 'Warm', example: '"Good morning, Lumino Wellness. Tracy is busy — I\'m her virtual assistant. I\'ll be taking a brief note of your enquiry. How can I help?"' },
-            { id: 'formal', label: 'Formal', example: '"Good morning. You have reached Lumino Wellness. Tracy is currently unavailable — I am her virtual assistant. I will be taking a brief note of your enquiry. How may I assist you?"' },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setToneRegister(opt.id)} style={{
+          {['warm', 'formal'].map(tone => (
+            <button key={tone} onClick={() => setToneRegister(tone)} style={{
               padding: '0.875rem 1rem',
               borderRadius: '8px',
-              border: toneRegister === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-              background: toneRegister === opt.id ? '#f4effe' : 'white',
+              border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+              background: toneRegister === tone ? '#f4effe' : 'white',
               textAlign: 'left',
               cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
             }}>
-              <div style={{ fontWeight: '600', fontSize: '0.875rem', color: toneRegister === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.4rem' }}>{opt.label}</div>
-              <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.5, fontStyle: 'italic' }}>{opt.example}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: toneRegister === tone ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
+                <div style={{ fontWeight: '600', fontSize: '0.875rem', color: toneRegister === tone ? '#5e3b87' : '#1a1a1a' }}>
+                  {tone === 'warm' ? 'Warm' : 'Formal'}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.6, fontStyle: 'italic' }}>
+                "{previewGreeting(tone, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
+              </div>
             </button>
           ))}
         </div>
-        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>Both greetings include "please allow me" when taking details — this is non-negotiable and protects the quality of every call.</p>
+        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>"Please allow me" appears in every greeting when taking details — this is non-negotiable and protects the quality of every call.</p>
 
         {/* Business outcome type */}
         <label style={s.label} data-help="This tells your AI what a successful call looks like for you. Booking businesses route callers to an appointment. Quote businesses route callers to a callback conversation.">What does a successful call look like?</label>
@@ -684,14 +748,35 @@ const AIBehaviour = ({ onNavigate }) => {
         </div>
 
         <div style={{ marginTop: '1.5rem' }}>
-          <label style={s.label} data-help="This tells callers when to expect your call back. Your AI uses this phrase directly in the conversation — so write it as you'd say it. For example: 'within the hour', 'same day', 'by end of business today'.">When can you call back?</label>
+          <label style={s.label} data-help="If a caller sounds urgent, this is how quickly your AI promises a response. It also controls how you get notified — by text, email, or both.">Urgent call response</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.875rem', color: '#444' }}>If a call is urgent, I can respond within</span>
+            <input
+              type="number"
+              min={1}
+              style={{ width: '64px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+              value={urgentCallbackMins}
+              onChange={e => setUrgentCallbackMins(Math.max(1, parseInt(e.target.value) || 1))}
+            />
+            <span style={{ fontSize: '0.875rem', color: '#444' }}>minutes.</span>
+          </div>
+          <label style={s.label}>How should urgent calls be flagged?</label>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+            {[{ id: 'sms', label: 'Text me' }, { id: 'email', label: 'Email me' }, { id: 'both', label: 'Both' }].map(opt => (
+              <button key={opt.id} onClick={() => setUrgentEscalationMethod(opt.id)} style={s.pairBtn(urgentEscalationMethod === opt.id)}>{opt.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label style={s.label} data-help="Tell your AI about your general availability and when to expect a callback. It uses this phrase directly with callers — write it as you'd say it.">Call return preference</label>
           <input
             style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
             value={callbackPrefNote}
             onChange={e => setCallbackPrefNote(e.target.value)}
-            placeholder="e.g. within the hour, same day, after 3pm today"
+            placeholder="e.g. I return all calls after 3pm same day. Urgent or personal calls should always reach me immediately."
           />
-          <p style={s.hint}>Your AI tells callers: "Please allow me to take your details — [your name] will call you back [this]."</p>
+          <p style={s.hint}>Your AI uses this when closing a call — "Please allow me to take your details — [owner] will call you back [this]."</p>
         </div>
       </div>
 
@@ -715,7 +800,7 @@ const AIBehaviour = ({ onNavigate }) => {
         <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
           <label style={s.label} data-help="Anything not covered above. Describe specific situations and how you'd like your AI to handle them. For example: 'If a caller wants to cancel, tell them I will be in contact immediately.' Your AI follows these instructions for anything not covered by the rules above.">Anything else?</label>
           <p style={{ fontSize: '0.775rem', color: '#aaa', margin: '0 0 0.5rem', lineHeight: 1.5 }}>
-            Specific situations your AI should handle in a particular way. These override default behaviour but never change the tone or core values.
+            It's impossible to anticipate every type of call. If there are specific situations you'd like your AI to handle in a particular way, describe them here.
           </p>
           <textarea
             style={{ ...s.textarea, minHeight: '80px' }}
@@ -758,13 +843,51 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Greeting Message */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Greeting Message</h3>
-        <p style={s.sectionSubtitle}>The first thing your AI says when it answers. Leave blank to use the system default.</p>
-        <textarea style={s.textarea} value={greetingMessage} onChange={e => setGreetingMessage(e.target.value)}
-          placeholder={`e.g. "Hi, you've reached [Business Name]. I'm an AI assistant — how can I help you today?"`} />
-        {greetingMessage && (
-          <button style={s.ghost} onClick={() => setGreetingMessage('')}>Restore system default</button>
+        <h3 style={s.sectionTitle} data-help="Your greeting is the first thing every caller hears. The system default is professionally written and works for any business. Personalise it here if you'd like something more specific to how you sound.">Greeting Message</h3>
+        <p style={s.sectionSubtitle}>Your AI uses the system greeting by default — crafted to work for any business. Personalise it here if you'd like something more specific to how you sound.</p>
+
+        {showProtectedModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1.75rem', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+              <div style={{ fontWeight: 600, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.75rem' }}>Edit with care</div>
+              <p style={{ fontSize: '0.875rem', color: '#444', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                This content directly affects how your AI handles every call. Edit with care — if you change your mind at any time and want to return to the original text click Restore Default.
+              </p>
+              <button onClick={() => setShowProtectedModal(false)} style={{ background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: '8px', padding: '0.6rem 1.25rem', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Got it</button>
+            </div>
+          </div>
         )}
+
+        <textarea
+          style={s.textarea}
+          value={greetingMessage}
+          onFocus={() => { if (!greetingModalShown) { setShowProtectedModal(true); setGreetingModalShown(true) } }}
+          onChange={e => setGreetingMessage(e.target.value)}
+          placeholder="Leave blank to use the system greeting based on your tone and outcome type settings above."
+        />
+        <div style={{ marginTop: '0.5rem' }}>
+          <button style={s.ghost} onClick={() => {
+            if (!greetingMessage || window.confirm('Restore the system default greeting? Your custom greeting will be removed.')) setGreetingMessage('')
+          }}>Restore Default</button>
+        </div>
+
+        <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+          <label style={s.label}>Want to personalise it?</label>
+          <p style={s.hint}>Tell us anything about your business or how you'd like to sound — we'll write it for you.</p>
+          <textarea
+            style={{ ...s.textarea, marginBottom: '0.75rem' }}
+            value={generatorNotes}
+            onChange={e => setGeneratorNotes(e.target.value)}
+            placeholder="e.g. We're a family-run plumbing business, friendly but efficient. Callers are usually homeowners with an urgent job."
+          />
+          <button
+            style={generatingGreeting || !generatorNotes.trim() ? s.saveBtnDisabled : s.saveBtn}
+            onClick={generateGreeting}
+            disabled={generatingGreeting || !generatorNotes.trim()}
+          >
+            {generatingGreeting ? 'Writing…' : 'Write my greeting'}
+          </button>
+        </div>
       </div>
 
       {/* Save main settings */}

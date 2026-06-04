@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 
 // ─── tier config ──────────────────────────────────────────────────────────────
 
-const CLIENT_LIMIT = { light: 20, standard: 50, enterprise: 200, bespoke: 200 }
+const CLIENT_LIMIT = { light: 20, standard: 50, professional: 100, enterprise: 200, bespoke: 200 }
 
 // ─── styles ───────────────────────────────────────────────────────────────────
 
@@ -640,7 +640,8 @@ const BusinessProfile = () => {
 
   // ── computed ────────────────────────────────────────────────────────────────
 
-  const isEnterprise = tier === 'enterprise' || tier === 'bespoke'
+  const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
+  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
   const quotaPct = (clients.length / clientLimit) * 100
 
   if (loading) {
@@ -746,7 +747,7 @@ const BusinessProfile = () => {
           </div>
           {atClientLimit && (
             <div style={s.limitNote}>
-              {tier === 'light' ? 'Upgrade to Standard for 50 clients, Enterprise for 200.' : 'Upgrade to Enterprise for 200 clients.'}
+              {tier === 'light' ? 'Upgrade to Standard for 50 clients, Professional for 100, or Enterprise for 200.' : tier === 'standard' ? 'Upgrade to Professional for 100 clients or Enterprise for 200.' : 'Upgrade to Enterprise for 200 clients.'}
             </div>
           )}
         </div>

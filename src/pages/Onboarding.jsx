@@ -137,6 +137,14 @@ const Step0BusinessType = ({ selectedCategoryId, subcategoryId, onSelect }) => {
                   ))}
                 </div>
               )}
+              {subcategories.find(s => s.id === subcategoryId)?.is_sensitive && (
+                <div style={{ marginTop: '1rem', padding: '0.875rem 1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid #f0a500' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#7a5c1a', marginBottom: '0.25rem' }}>Confidentiality mode</div>
+                  <p style={{ fontSize: '0.8rem', color: '#7a5c1a', margin: 0, lineHeight: 1.5 }}>
+                    Your business type operates under professional confidentiality obligations. Your AI assistant will take caller name, number, and urgency only.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </>
@@ -172,6 +180,24 @@ const Step1BusinessDetails = ({ data, update }) => (
         rows={3}
         style={{ ...input, resize: 'vertical' }}
       />
+    </div>
+    <div style={{ marginBottom: '1.25rem' }}>
+      <label style={label}>What does a successful call look like for your business?</label>
+      <p style={hint}>This shapes how your AI closes every conversation.</p>
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+        {[
+          { value: 'booking', label: 'I take bookings and appointments' },
+          { value: 'quote',   label: 'I discuss, quote, and arrange' },
+        ].map(opt => (
+          <button key={opt.value} onClick={() => update('business_outcome_type', opt.value)} style={{
+            flex: 1, padding: '0.625rem 0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem',
+            fontFamily: "'DM Sans', sans-serif", fontWeight: data.business_outcome_type === opt.value ? 600 : 400,
+            border: data.business_outcome_type === opt.value ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.2)',
+            background: data.business_outcome_type === opt.value ? '#f4effe' : 'white',
+            color: data.business_outcome_type === opt.value ? '#5e3b87' : '#1a1a1a',
+          }}>{opt.label}</button>
+        ))}
+      </div>
     </div>
   </div>
 )
@@ -345,6 +371,7 @@ const Onboarding = () => {
     business_email: '',
     booking_link: '',
     business_context: '',
+    business_outcome_type: 'quote',
     area_covered: '',
     refer_out: '',
     wont_touch: '',
@@ -378,6 +405,7 @@ const Onboarding = () => {
         booking_link: data.booking_link,
         business_context: businessContext,
         subcategory_id: data.subcategory_id || null,
+        business_outcome_type: data.business_outcome_type || 'quote',
         referral_code: referralCode,
         subscription_tier: 'light',
         active: true,

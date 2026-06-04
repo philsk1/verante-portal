@@ -218,8 +218,8 @@ const s = {
 
 // ─── locked card wrapper ──────────────────────────────────────────────────────
 
-const LockedCard = ({ title, desc, previewContent }) => (
-  <div style={s.featureCard}>
+const LockedCard = ({ title, desc, previewContent, helpText }) => (
+  <div style={s.featureCard} data-help={helpText}>
     <div style={s.featureHeader}>
       <div style={s.featureTitle}>{title}</div>
       <div style={s.featureDesc}>{desc}</div>
@@ -300,8 +300,8 @@ const CompetitorPreview = () => (
 
 // ─── live card content (Enterprise) ──────────────────────────────────────────
 
-const LiveCard = ({ title, desc, children }) => (
-  <div style={s.featureCard}>
+const LiveCard = ({ title, desc, children, helpText }) => (
+  <div style={s.featureCard} data-help={helpText}>
     <div style={s.featureHeader}>
       <div style={s.featureTitle}>{title}</div>
       <div style={s.featureDesc}>{desc}</div>
@@ -394,7 +394,7 @@ const DataAnalytics = ({ onNavigate }) => {
   }, [user])
 
   const leadRate = pct(totalLeads, totalCalls)
-  const isEnterprise = tier === 'enterprise' || tier === 'bespoke'
+  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
   // ── recommendation ────────────────────────────────────────────────────────
 
@@ -455,17 +455,17 @@ const DataAnalytics = ({ onNavigate }) => {
 
       {/* Headline numbers */}
       <div style={s.headlineGrid}>
-        <div style={s.headlineCard}>
+        <div style={s.headlineCard} data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated. This is your raw volume — how hard your AI has been working for you.">
           <div style={s.headlineLabel}>Total calls handled</div>
           <div style={s.headlineNumber}>{totalCalls.toLocaleString()}</div>
           <div style={s.headlineSub}>all time</div>
         </div>
-        <div style={s.headlineCard}>
+        <div style={s.headlineCard} data-help="Lead capture rate is the percentage of all calls that resulted in a lead — meaning the caller gave their details or requested follow-up. A healthy rate is 30–50% for most service businesses. If yours is low, check whether your services list is accurate.">
           <div style={s.headlineLabel}>Lead capture rate</div>
           <div style={s.headlineNumber}>{leadRate}%</div>
           <div style={s.headlineSub}>leads / total calls</div>
         </div>
-        <div style={s.headlineCard}>
+        <div style={s.headlineCard} data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam. Very long calls may indicate your AI is over-explaining — both are worth investigating.">
           <div style={s.headlineLabel}>Avg call duration</div>
           <div style={s.headlineNumber}>{fmtDuration(avgDurationSecs)}</div>
           <div style={s.headlineSub}>across handled calls</div>
@@ -491,6 +491,7 @@ const DataAnalytics = ({ onNavigate }) => {
           <LiveCard
             title="Pricing Intelligence"
             desc="Market rates mentioned by callers, cross-referenced with your win rate."
+            helpText="Pricing Intelligence listens for price signals in your call transcripts — when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
           >
             <div style={s.comingSoon}>Data will populate from your call history.</div>
           </LiveCard>
@@ -499,6 +500,7 @@ const DataAnalytics = ({ onNavigate }) => {
             title="Pricing Intelligence"
             desc="Market rates mentioned by callers, cross-referenced with your win rate."
             previewContent={<PricingPreview />}
+            helpText="Pricing Intelligence listens for price signals in your call transcripts — when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
           />
         )}
 
@@ -507,6 +509,7 @@ const DataAnalytics = ({ onNavigate }) => {
           <LiveCard
             title="Call Outcome Breakdown"
             desc="How your calls resolve — leads, bookings, referrals, and filtered calls."
+            helpText="Call Outcome Breakdown shows how your calls are resolving — what percentage became leads, got booked, were referred out, or were filtered as sales calls. Use this to understand where your AI is doing well and where enquiries are being lost."
           >
             {Object.keys(outcomeBreakdown).length === 0 ? (
               <div style={s.comingSoon}>No call data yet.</div>
@@ -537,6 +540,7 @@ const DataAnalytics = ({ onNavigate }) => {
             title="Call Outcome Breakdown"
             desc="How your calls resolve — leads, bookings, referrals, and filtered calls."
             previewContent={<WinRatePreview />}
+            helpText="Call Outcome Breakdown shows how your calls are resolving — what percentage became leads, got booked, were referred out, or were filtered as sales calls. Enterprise only."
           />
         )}
 
@@ -545,6 +549,7 @@ const DataAnalytics = ({ onNavigate }) => {
           <LiveCard
             title="Caller Patterns"
             desc="Which days drive the most call volume — plan your availability around peaks."
+            helpText="Caller Patterns shows which days of the week your call volume peaks. If Monday and Tuesday dominate, you know when to be available for callbacks. If Friday is dead, don't schedule jobs that stop you taking calls on Thursdays. Enterprise only."
           >
             {totalCalls === 0 ? (
               <div style={s.comingSoon}>No call data yet.</div>
@@ -580,6 +585,7 @@ const DataAnalytics = ({ onNavigate }) => {
             title="Caller Patterns"
             desc="Which days and times drive the most call volume — plan your availability around peaks."
             previewContent={<PatternPreview />}
+            helpText="Caller Patterns shows which days of the week your call volume peaks so you can plan availability around them. Enterprise only."
           />
         )}
 
@@ -588,6 +594,7 @@ const DataAnalytics = ({ onNavigate }) => {
           <LiveCard
             title="Competitor Intelligence"
             desc="Businesses mentioned by callers when comparing prices or explaining why they called."
+            helpText="Competitor Intelligence captures when callers name other businesses — 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Useful for pricing and positioning decisions. Enterprise only."
           >
             <div style={s.comingSoon}>Data will populate from your call history.</div>
           </LiveCard>
@@ -596,6 +603,7 @@ const DataAnalytics = ({ onNavigate }) => {
             title="Competitor Intelligence"
             desc="Businesses mentioned by callers when comparing prices or explaining why they called."
             previewContent={<CompetitorPreview />}
+            helpText="Competitor Intelligence captures when callers name other businesses — 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Enterprise only."
           />
         )}
 

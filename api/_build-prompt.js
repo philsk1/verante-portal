@@ -64,13 +64,13 @@ function buildGreeting(tenant) {
 
   let resolution = ''
   if (outcomeType === 'booking' && tenant.booking_link) {
-    resolution = "I'll be taking a brief note of your enquiry and sending you a booking link."
+    resolution = "I'll be taking a brief note and sending you a booking link."
   } else if (outcomeType === 'booking') {
-    resolution = "I'll be taking a brief note of your enquiry to get you booked in."
+    resolution = "I'll be taking a brief note to get you booked in."
   } else if (tenant.callback_preference_note) {
-    resolution = `I'll be taking a brief note of your enquiry, ${owner} will call you back ${tenant.callback_preference_note}.`
+    resolution = `I'll be taking a brief note, ${owner} will call you back ${tenant.callback_preference_note}.`
   } else {
-    resolution = `I'll be taking a brief note of your enquiry so ${owner} can call you back to discuss what you need.`
+    resolution = `I'll be taking a brief note so ${owner} can call you back to discuss what you need.`
   }
 
   if (tone === 'formal') {
@@ -141,6 +141,7 @@ export function buildSystemPrompt(data) {
 
   // ── Sensitive business type override ─────────────────────────────────────
   if (isSensitive) {
+    const owner = tenant.lead_contact_name || tenant.business_name || 'the owner'
     return `${LAYER_1_CORE_VALUES}
 
 ${LAYER_1_JUDGEMENT}
@@ -150,7 +151,7 @@ You represent ${name}.
 ${SENSITIVE_INSTRUCTION}
 
 GREETING:
-"Good morning, ${name}. The owner is unavailable — I'm the AI assistant. Please allow me to take your name and number so they can call you back. For confidentiality reasons I'm not able to take details of your enquiry on this call."
+"Good morning, ${name}. ${owner} is unavailable — I'm the AI assistant. Please allow me to take your name and number so ${owner} can call you back. For confidentiality reasons I'm not able to take details of your enquiry on this call."
 
 OUTCOME:
 Every call ends as: escalated (name + number + urgency taken, owner to call back).`

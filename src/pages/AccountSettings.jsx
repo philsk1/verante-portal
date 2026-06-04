@@ -6,17 +6,25 @@ import { useNavigate } from 'react-router-dom'
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const TIERS = {
-  light:      { label: 'Light',      price: '£29', minutes: 60,  concurrent: 1 },
-  standard:   { label: 'Standard',   price: '£49', minutes: 150, concurrent: 1 },
-  enterprise: { label: 'Enterprise', price: '£99', minutes: 400, concurrent: 3 },
-  bespoke:    { label: 'Bespoke',    price: 'Custom', minutes: null, concurrent: null },
+  light:        { label: 'Light',        price: '£29',    minutes: 60,   concurrent: 1 },
+  standard:     { label: 'Standard',     price: '£49',    minutes: 150,  concurrent: 1 },
+  professional: { label: 'Professional', price: '£69',    minutes: 250,  concurrent: 2 },
+  enterprise:   { label: 'Enterprise',   price: '£249',   minutes: 700,  concurrent: 3 },
+  bespoke:      { label: 'Bespoke',      price: 'Custom', minutes: null, concurrent: null },
 }
 
 const UPGRADE_PATH = {
-  light:      ['standard', 'enterprise'],
-  standard:   ['enterprise'],
-  enterprise: [],
-  bespoke:    [],
+  light:        ['standard', 'professional', 'enterprise'],
+  standard:     ['professional', 'enterprise'],
+  professional: ['enterprise'],
+  enterprise:   [],
+  bespoke:      [],
+}
+
+const UPGRADE_FEATURES = {
+  standard:     'Number blocking',
+  professional: 'Calendar integration · Sensitive data mode',
+  enterprise:   'Full analytics · Staff routing · Priority support',
 }
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -471,6 +479,15 @@ const AccountSettings = ({ onNavigate }) => {
   const [chatWaiting, setChatWaiting] = useState(false)
   const chatEndRef = useRef(null)
 
+  // Holiday mode & cover
+  const [holidayMode, setHolidayMode] = useState(false)
+  const [holidayReturnDate, setHolidayReturnDate] = useState('')
+  const [coverEmail, setCoverEmail] = useState('')
+  const [emailScanMode, setEmailScanMode] = useState(null)
+  const [interventionTimeMins, setInterventionTimeMins] = useState(60)
+  const [holidaySaving, setHolidaySaving] = useState(false)
+  const [holidayToast, setHolidayToast] = useState({ msg: '', type: '' })
+
   // Cancel modal
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
@@ -492,7 +509,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins')
           .eq('id', tid)
           .maybeSingle()
 
@@ -504,6 +521,11 @@ const AccountSettings = ({ onNavigate }) => {
           setNotifyNewLead(tenant.notify_new_lead !== false)
           setNotifyDailySummary(tenant.notify_daily_summary === true)
           setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
+          setHolidayMode(tenant.holiday_mode || false)
+          setHolidayReturnDate(tenant.holiday_return_date || '')
+          setCoverEmail(tenant.cover_email || '')
+          setEmailScanMode(tenant.cover_email ? (tenant.email_scan_mode || null) : null)
+          setInterventionTimeMins(tenant.intervention_time_mins ?? 60)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -545,6 +567,27 @@ const AccountSettings = ({ onNavigate }) => {
     if (!tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
+
+  const showHolidayToast = (msg, type = 'success') => {
+    setHolidayToast({ msg, type })
+    setTimeout(() => setHolidayToast({ msg: '', type: '' }), 3000)
+  }
+
+  const saveHolidaySettings = async () => {
+    if (!tenantId) return
+    setHolidaySaving(true)
+    const { error } = await supabase.from('tenants').update({
+      holiday_mode: holidayMode,
+      holiday_return_date: holidayReturnDate || null,
+      cover_email: coverEmail.trim() || null,
+      email_scan_mode: coverEmail.trim() ? emailScanMode : 'none',
+      intervention_time_mins: interventionTimeMins,
+    }).eq('id', tenantId)
+    setHolidaySaving(false)
+    showHolidayToast(error ? 'Could not save. Please try again.' : 'Availability settings saved.', error ? 'error' : 'success')
+  }
+
+  const holidaySaveDisabled = holidaySaving || (coverEmail.trim().length > 0 && emailScanMode === null)
 
   const sendPasswordReset = async () => {
     await supabase.auth.resetPasswordForEmail(user.email)
@@ -623,8 +666,8 @@ const AccountSettings = ({ onNavigate }) => {
                   <div>
                     <div style={s.upgradeCardTitle}>{info.label} — {info.price}/month</div>
                     <div style={s.upgradeCardMeta}>
-                      {info.minutes} minutes · {info.concurrent}+ concurrent call{info.concurrent > 1 ? 's' : ''}
-                      {t === 'enterprise' ? ' · Full analytics · Priority support' : ' · Number blocking · Staff profiles'}
+                      {info.minutes} minutes · {info.concurrent}{t === 'enterprise' ? '+' : ''} concurrent call{info.concurrent > 1 ? 's' : ''}
+                      {UPGRADE_FEATURES[t] ? ` · ${UPGRADE_FEATURES[t]}` : ''}
                     </div>
                   </div>
                   <button style={s.upgradeBtn}>Upgrade</button>
@@ -641,7 +684,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Account Details */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Account Details</h3>
+        <h3 style={s.sectionTitle} data-help="Account Details lets you update your business name — this is the name your AI uses to introduce itself on calls. Your email address is the login for this account and where all notifications are sent.">Account Details</h3>
         <p style={s.sectionSubtitle}>Your business name and login details.</p>
 
         <div style={s.fieldRow}>
@@ -693,9 +736,95 @@ const AccountSettings = ({ onNavigate }) => {
         ))}
       </div>
 
+      {/* Availability & Cover */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Availability and Cover lets your AI know you're away and sets up a cover inbox monitor. When holiday mode is on your AI still handles calls — but you can also ask it to watch a cover email address for urgent messages while you're away.">Availability &amp; Cover</h3>
+        <p style={s.sectionSubtitle}>Let your AI know when you're away and how to handle cover communications.</p>
+
+        <div style={s.toggleRow(false)}>
+          <div>
+            <div style={s.toggleLabel}>I'm going away</div>
+            <div style={s.toggleDesc}>Your AI continues handling calls. This unlocks cover email monitoring below.</div>
+          </div>
+          <Toggle checked={holidayMode} onChange={v => setHolidayMode(v)} />
+        </div>
+
+        {holidayMode && (
+          <div style={{ marginTop: '1rem' }}>
+            <label style={s.label}>Return date</label>
+            <input
+              type="date"
+              style={{ ...s.input, width: 'auto', marginBottom: '1.25rem' }}
+              value={holidayReturnDate}
+              onChange={e => setHolidayReturnDate(e.target.value)}
+            />
+
+            <label style={s.label}>Cover email address</label>
+            <input
+              type="email"
+              style={{ ...s.input, marginBottom: coverEmail.trim() ? '1.25rem' : 0 }}
+              value={coverEmail}
+              onChange={e => { setCoverEmail(e.target.value); if (!e.target.value.trim()) setEmailScanMode(null) }}
+              placeholder="e.g. cover@yourbusiness.com"
+            />
+
+            {coverEmail.trim() && (
+              <>
+                <label style={{ ...s.label, marginTop: '0.25rem' }}>How would you like us to monitor this inbox?</label>
+                <p style={{ fontSize: '0.775rem', color: '#aaa', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+                  Choose one to enable save.
+                </p>
+                {[
+                  { id: 'subject_only', label: 'Scan subject lines only', desc: 'We check subject lines for urgency signals. Email content is never read. Recommended for client privileged communications.' },
+                  { id: 'full',         label: 'Scan full emails',         desc: 'We read the full email to assess urgency. Recommended for non-sensitive businesses.' },
+                  { id: 'none',         label: 'Don\'t scan emails',       desc: 'We won\'t monitor this inbox.' },
+                ].map(opt => (
+                  <div key={opt.id} onClick={() => setEmailScanMode(opt.id)} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.875rem 1rem',
+                    borderRadius: '8px', marginBottom: '0.5rem', cursor: 'pointer',
+                    border: emailScanMode === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+                    background: emailScanMode === opt.id ? '#f4effe' : 'white',
+                  }}>
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: emailScanMode === opt.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: emailScanMode === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.2rem' }}>{opt.label}</div>
+                      <div style={{ fontSize: '0.775rem', color: '#888', lineHeight: 1.5 }}>{opt.desc}</div>
+                    </div>
+                  </div>
+                ))}
+
+                {(emailScanMode === 'subject_only' || emailScanMode === 'full') && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={s.label}>Intervention timing</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#444' }}>If an urgent email goes unattended, notify me again after</span>
+                      <input
+                        type="number"
+                        min={1}
+                        style={{ width: '64px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+                        value={interventionTimeMins}
+                        onChange={e => setInterventionTimeMins(Math.max(1, parseInt(e.target.value) || 1))}
+                      />
+                      <span style={{ fontSize: '0.875rem', color: '#444' }}>minutes.</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button style={holidaySaveDisabled ? s.saveBtnDisabled : s.saveBtn} onClick={saveHolidaySettings} disabled={holidaySaveDisabled}>
+            {holidaySaving ? 'Saving…' : 'Save availability'}
+          </button>
+          {holidayToast.msg && <span style={s.toast(holidayToast.type)}>{holidayToast.type === 'success' ? '✓' : '!'} {holidayToast.msg}</span>}
+        </div>
+      </div>
+
       {/* Feedback */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Share Your Feedback</h3>
+        <h3 style={s.sectionTitle} data-help="Share Your Feedback unlocks after six weeks of use — long enough to form a real opinion. Your feedback goes directly to the founder and influences what gets built next. It is never used for marketing.">Share Your Feedback</h3>
         <p style={s.sectionSubtitle}>
           {feedbackUnlocked
             ? 'You\'ve been using Verrante for over six weeks. Your honest take helps shape what gets built next.'
@@ -750,7 +879,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Support chat */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Support</h3>
+        <h3 style={s.sectionTitle} data-help="Support gives you a direct line to ask anything about your Verrante account — how a setting works, why your AI said something on a call, how to configure a specific scenario. Ask in plain English and you'll get a plain English answer.">Support</h3>
         <p style={s.sectionSubtitle}>Ask anything about your account, settings, or how your AI works.</p>
 
         <div style={s.chatWrap}>
@@ -785,7 +914,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Cancel */}
       <div style={s.dangerSection}>
-        <h3 style={{ ...s.sectionTitle, marginBottom: '0.3rem' }}>Cancel Subscription</h3>
+        <h3 style={{ ...s.sectionTitle, marginBottom: '0.3rem' }} data-help="Cancelling stops your AI answering calls at the end of your current billing period. Your account data — call logs, leads, partner network — is retained for 90 days before being deleted. You can reactivate within that window without losing anything.">Cancel Subscription</h3>
         <p style={{ ...s.sectionSubtitle, marginBottom: '1rem' }}>
           Your AI will stop taking calls at the end of your billing period. Your data is retained for 90 days.
         </p>

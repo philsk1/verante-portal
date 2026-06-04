@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   // Look up which tenant this assistant belongs to
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id')
+    .select('id, business_name, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id')
     .eq('vapi_assistant_id', assistantId)
     .maybeSingle()
 
@@ -44,6 +44,25 @@ export default async function handler(req, res) {
   }
 
   const tenantId = tenant.id
+  const isUrgent = outcome === 'escalated'
+  const callerName = analysis.structuredData?.caller_name || null
+
+  // Check if tenant's subcategory is sensitive — minimal storage applies
+  let isSensitive = false
+  if (tenant.subcategory_id) {
+    const { data: sub } = await supabase
+      .from('business_type_subcategories')
+      .select('is_sensitive')
+      .eq('id', tenant.subcategory_id)
+      .maybeSingle()
+    isSensitive = sub?.is_sensitive === true
+  }
+
+  const notificationMessage = isUrgent
+    ? `URGENT — ${tenant.urgent_callback_mins ?? 60} minute response time requested\nCaller: ${callerName || 'Unknown'} · ${callerNumber || 'Unknown'}\nNeed: ${summary || 'No summary'}\nResolution: Escalated — ${tenant.urgent_escalation_method === 'sms' ? 'text' : tenant.urgent_escalation_method === 'email' ? 'email' : 'text + email'} sent`
+    : `${tenant.business_name || 'Your business'} — New call\nCaller: ${callerName || 'Unknown'} · ${callerNumber || 'Unknown'}\nNeed: ${summary || 'No summary'}\nResolution: ${outcome || 'Unknown'}`
+
+  console.log('Notification:', notificationMessage)
 
   // Find or create caller record
   let callerId = null
@@ -66,17 +85,17 @@ export default async function handler(req, res) {
     }
   }
 
-  // Write call log
+  // Write call log — sensitive types: no summary or transcript stored
   const { data: callLog, error: logError } = await supabase
     .from('call_logs')
     .insert({
-      tenant_id:       tenantId,
-      caller_id:       callerId,
-      caller_phone:    callerNumber,
+      tenant_id:        tenantId,
+      caller_id:        callerId,
+      caller_phone:     callerNumber,
       duration_seconds: duration,
-      transcript,
-      ai_summary:      summary,
-      call_outcome:    outcome,
+      transcript:       isSensitive ? null : transcript,
+      ai_summary:       isSensitive ? null : summary,
+      call_outcome:     outcome,
     })
     .select()
     .maybeSingle()

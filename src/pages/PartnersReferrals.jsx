@@ -565,7 +565,7 @@ const PartnersReferrals = () => {
 
       {/* Referral code */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>
+        <h3 style={s.sectionTitle} data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Verrante automatically. Give the QR code to tradespeople, leave it on invoices, or post it in local trade groups.">
           Your Referral Code
           <span style={s.allPlans}>All plans</span>
         </h3>
@@ -622,7 +622,7 @@ const PartnersReferrals = () => {
 
       {/* Credits */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>
+        <h3 style={s.sectionTitle} data-help="Credits are earned when someone signs up using your referral code. One signup = one free month of Verrante credited to your account. Credits stack with no expiry and are applied automatically at renewal — no action needed from you.">
           Credits
           <span style={s.allPlans}>All plans</span>
         </h3>
@@ -646,7 +646,7 @@ const PartnersReferrals = () => {
 
       {/* Network activity */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Network Activity</h3>
+        <h3 style={s.sectionTitle} data-help="Network Activity shows the total number of referrals your AI has sent to partner businesses, and an estimate of the value those referrals represent. Every referral you send creates a reciprocal expectation — partners who receive your callers are far more likely to return the favour.">Network Activity</h3>
         <p style={s.sectionSubtitle}>
           Every referral you send builds reciprocal obligation. Partners who receive your callers are motivated to return them.
         </p>
