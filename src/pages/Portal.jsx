@@ -44,10 +44,8 @@ const Portal = () => {
         .from('tenants').select('business_name').eq('id', membership.tenant_id).maybeSingle()
       setBusinessName(tenant?.business_name || '')
 
-      // Check owner flag
-      const { data: profile } = await supabase
-        .from('profiles').select('is_owner').eq('id', user.id).maybeSingle()
-      if (profile?.is_owner) {
+      // Check owner flag via Supabase app_metadata (set in Auth dashboard, admin-only)
+      if (user.app_metadata?.is_owner === true) {
         setIsOwner(true)
         const { data: tenants } = await supabase
           .from('tenants').select('id, business_name').order('business_name')
