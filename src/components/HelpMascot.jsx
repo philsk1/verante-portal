@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
+import VeraDialogue from './VeraDialogue'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -20,10 +21,18 @@ const injectStyles = () => {
       0%   { opacity: 1; transform: translateY(0)   scale(1); }
       100% { opacity: 0; transform: translateY(-8px) scale(0.96); }
     }
-    .vera-idle { animation: veraBob 5s ease-in-out infinite; }
-    .vera-bubble-in  { animation: veraFlyIn  0.18s ease-out forwards; }
-    .vera-bubble-out { animation: veraFlyOut 0.15s ease-in  forwards; }
-    [data-help] { cursor: help; }
+    @keyframes veraTyping {
+      0%, 100% { opacity: 0.4; transform: translateY(0); }
+      50%       { opacity: 1;   transform: translateY(-2px); }
+    }
+    @keyframes veraGlow {
+      0%, 100% { box-shadow: 0 0 8px rgba(240,165,0,0.3);  border-color: rgba(240,165,0,0.4); }
+      50%       { box-shadow: 0 0 16px rgba(240,165,0,0.5); border-color: rgba(240,165,0,0.7); }
+    }
+    .vera-idle      { animation: veraBob    5s ease-in-out infinite; }
+    .vera-bubble-in { animation: veraFlyIn  0.18s ease-out forwards; }
+    .vera-glow-zone { animation: veraGlow   2s ease-in-out infinite; cursor: pointer; }
+    [data-help]     { cursor: help; }
   `
   document.head.appendChild(el)
 }
@@ -65,11 +74,10 @@ const Owl = ({ w = 44, h = 72, blink = false }) => (
   </svg>
 )
 
-// ─── Floating bubble — fixed to viewport near the hovered element ─────────────
+// ─── Floating hover bubble ────────────────────────────────────────────────────
 
 const FloatingBubble = ({ text, rect, visible }) => {
   if (!rect || !text) return null
-
   const BUBBLE_W = 280
   const OWL_W   = 30
   const spaceRight = window.innerWidth - rect.right - 16
@@ -78,31 +86,19 @@ const FloatingBubble = ({ text, rect, visible }) => {
   const left    = goLeft ? rect.left - BUBBLE_W - OWL_W - 16 : rect.right + 12
 
   return (
-    <div
-      className={visible ? 'vera-bubble-in' : 'vera-bubble-out'}
-      style={{
-        position: 'fixed',
-        top,
-        left,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '6px',
-        pointerEvents: 'none',
-      }}
-    >
-      <div style={{ flexShrink: 0, lineHeight: 0 }}>
-        <Owl w={30} h={49} />
-      </div>
+    <div className={visible ? 'vera-bubble-in' : ''} style={{
+      position: 'fixed', top, left, zIndex: 9999,
+      display: 'flex', alignItems: 'flex-start', gap: '6px',
+      pointerEvents: 'none',
+      opacity: visible ? 1 : 0,
+      transition: visible ? 'none' : 'opacity 0.15s ease-in',
+    }}>
+      <div style={{ flexShrink: 0, lineHeight: 0 }}><Owl w={30} h={49} /></div>
       <div style={{
-        position: 'relative',
-        background: 'white',
-        border: '1px solid rgba(94,59,135,0.2)',
-        borderRadius: '10px',
-        padding: '0.6rem 0.85rem',
-        boxShadow: '0 6px 20px rgba(94,59,135,0.15)',
-        width: BUBBLE_W,
-        marginTop: 4,
+        position: 'relative', background: 'white',
+        border: '1px solid rgba(94,59,135,0.2)', borderRadius: '10px',
+        padding: '0.6rem 0.85rem', boxShadow: '0 6px 20px rgba(94,59,135,0.15)',
+        width: BUBBLE_W, marginTop: 4,
       }}>
         <div style={{ position: 'absolute', left: -7, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid rgba(94,59,135,0.2)' }} />
         <div style={{ position: 'absolute', left: -5, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '6px solid white' }} />
@@ -115,11 +111,34 @@ const FloatingBubble = ({ text, rect, visible }) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const TAB_LABELS = {
+  dashboard: 'Dashboard',
+  profile:   'Business Profile',
+  ai:        'AI Behaviour',
+  analytics: 'Analytics',
+  referrals: 'Partners & Referrals',
+  account:   'Account',
+}
+
+let dialogueCounter = 0
+
 const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
-  const [blink, setBlink]       = useState(false)
-  const [floatEl, setFloatEl]   = useState(null)   // { text, rect }
+  const [blink, setBlink]             = useState(false)
+
+  // Vera hover mode
+  const [helpMode, setHelpMode]       = useState(false)
+  const [floatEl, setFloatEl]         = useState(null)
   const [bubbleVisible, setBubbleVisible] = useState(false)
-  const leaveTimer = useRef(null)
+  const leaveTimer                    = useRef(null)
+
+  // Need more help mode
+  const [needHelpMode, setNeedHelpMode] = useState(false)
+  const [zones, setZones]             = useState([])   // { text, rect, el }
+  const [dialogues, setDialogues]     = useState([])   // open dialogue panels
+
+  // Proactive speech
+  const [proactiveSpeech, setProactiveSpeech] = useState(null)
+  const [proactiveVisible, setProactiveVisible] = useState(false)
 
   useEffect(() => { injectStyles() }, [])
 
@@ -133,29 +152,30 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
     return () => clearTimeout(t)
   }, [])
 
-  // Reset on tab change
+  // Reset modes on tab change
   useEffect(() => {
+    setHelpMode(false)
+    setNeedHelpMode(false)
     setFloatEl(null)
     setBubbleVisible(false)
+    setZones([])
+    setDialogues([])
   }, [activeTab])
 
-  // Hover detection — always on, no click required
+  // ── Vera hover mode — always on when helpMode ────────────────────────────
   useEffect(() => {
+    if (!helpMode) return
+
     const handleOver = (e) => {
       const el = e.target.closest('[data-help]')
       if (!el) return
       clearTimeout(leaveTimer.current)
-      const text = el.getAttribute('data-help')
-      const rect = el.getBoundingClientRect()
-      setFloatEl({ text, rect })
+      setFloatEl({ text: el.getAttribute('data-help'), rect: el.getBoundingClientRect() })
       setBubbleVisible(true)
     }
-
     const handleOut = (e) => {
       const el = e.target.closest('[data-help]')
       if (!el) return
-      // Small delay: if mouse moves directly to another data-help element
-      // the over handler fires before this clears, keeping the bubble alive
       leaveTimer.current = setTimeout(() => {
         setBubbleVisible(false)
         setTimeout(() => setFloatEl(null), 180)
@@ -169,91 +189,229 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
       document.removeEventListener('mouseout', handleOut)
       clearTimeout(leaveTimer.current)
     }
+  }, [helpMode])
+
+  // ── Need more help mode — scan data-help zones ───────────────────────────
+  useEffect(() => {
+    if (!needHelpMode) { setZones([]); return }
+
+    // Deactivate hover mode
+    setHelpMode(false)
+    setFloatEl(null)
+    setBubbleVisible(false)
+
+    const scan = () => {
+      const els = Array.from(document.querySelectorAll('[data-help]'))
+      setZones(els.map(el => ({
+        text: el.getAttribute('data-help'),
+        rect: el.getBoundingClientRect(),
+        el,
+      })))
+    }
+
+    scan()
+    window.addEventListener('resize', scan)
+    window.addEventListener('scroll', scan, true)
+    return () => {
+      window.removeEventListener('resize', scan)
+      window.removeEventListener('scroll', scan, true)
+    }
+  }, [needHelpMode])
+
+  const openDialogue = useCallback((zone) => {
+    // Don't duplicate if same zone already open
+    setDialogues(prev => {
+      const exists = prev.find(d => d.zoneText === zone.text)
+      if (exists) return prev
+      dialogueCounter++
+      return [...prev, {
+        id: dialogueCounter,
+        zoneText: zone.text,
+        zoneName: zone.text.split(' ').slice(0, 6).join(' '),
+        rect: zone.rect,
+        tabName: TAB_LABELS[activeTab] || 'Portal',
+      }]
+    })
+  }, [activeTab])
+
+  const closeDialogue = useCallback((id) => {
+    setDialogues(prev => prev.filter(d => d.id !== id))
   }, [])
 
-  // Proactive speech (contextKey → vera_speeches → vera_seen)
-  const [proactiveSpeech, setProactiveSpeech] = useState(null)
-  const [proactiveVisible, setProactiveVisible] = useState(false)
+  const closeAll = () => {
+    setNeedHelpMode(false)
+    setHelpMode(false)
+    setDialogues([])
+    setZones([])
+  }
 
+  // ── Proactive speech ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!contextKey || !tenantId) return
     let cancelled = false
-
     const tryShow = async () => {
-      const { data: seen } = await supabase
-        .from('vera_seen').select('seen_at')
+      const { data: seen } = await supabase.from('vera_seen').select('seen_at')
         .eq('tenant_id', tenantId).eq('speech_key', contextKey).maybeSingle()
       if (seen || cancelled) return
-
-      const { data: s } = await supabase
-        .from('vera_speeches').select('speech_text, audio_url')
+      const { data: s } = await supabase.from('vera_speeches').select('speech_text')
         .eq('context_key', contextKey).maybeSingle()
       if (!s || cancelled) return
-
       setProactiveSpeech(s.speech_text)
       setProactiveVisible(true)
-      setTimeout(() => {
-        setProactiveVisible(false)
-        setTimeout(() => setProactiveSpeech(null), 400)
-      }, 9000)
-
-      await supabase.from('vera_seen')
-        .insert({ tenant_id: tenantId, speech_key: contextKey })
-        .then(() => {}).catch(() => {})
+      setTimeout(() => { setProactiveVisible(false); setTimeout(() => setProactiveSpeech(null), 400) }, 9000)
+      await supabase.from('vera_seen').insert({ tenant_id: tenantId, speech_key: contextKey }).then(() => {}).catch(() => {})
     }
-
     tryShow()
     return () => { cancelled = true }
   }, [contextKey, tenantId])
 
+  const tabLabel = TAB_LABELS[activeTab] || 'Portal'
+  const anyActive = helpMode || needHelpMode
+
   return (
     <>
-      {/* Vera — top left, full size, always present */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
-        <div className="vera-idle" style={{ lineHeight: 0, flexShrink: 0 }}>
-          <Owl w={44} h={72} blink={blink} />
+      {/* ── Vera home — top left ─────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+
+        {/* Owl + label */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
+          <div
+            className="vera-idle"
+            onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
+            style={{ lineHeight: 0, cursor: 'pointer' }}
+          >
+            <Owl w={44} h={72} blink={blink} />
+          </div>
+          <span style={{
+            fontSize: '0.65rem', color: helpMode ? '#f0a500' : '#bbb',
+            fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif",
+            cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+            fontWeight: helpMode ? 500 : 400,
+          }} onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}>
+            {helpMode ? 'Vera · click to close' : 'Vera · click for help'}
+          </span>
         </div>
 
-        <div style={{ paddingTop: 4, flex: 1 }}>
-          {/* Business name */}
+        {/* Business name + proactive speech + need more help button */}
+        <div style={{ flex: 1, paddingTop: 4 }}>
           {businessName && (
-            <p style={{
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 700,
-              fontSize: '1.6rem',
-              color: '#aaa',
-              margin: '0 0 0.25rem',
-              lineHeight: 1.2,
-            }}>
+            <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', margin: '0 0 0.35rem', lineHeight: 1.2 }}>
               {businessName}
             </p>
           )}
 
-          {/* Proactive speech inline below name */}
+          {/* Proactive speech */}
           {proactiveSpeech && (
-            <div
-              className={proactiveVisible ? 'vera-bubble-in' : 'vera-bubble-out'}
-              style={{
-                background: 'white',
-                border: '1px solid rgba(94,59,135,0.15)',
-                borderRadius: '10px',
-                padding: '0.6rem 0.85rem',
-                boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
-                maxWidth: 400,
-                fontSize: '0.8rem',
-                color: '#1a1a1a',
-                lineHeight: 1.6,
-                fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
+            <div style={{
+              background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px',
+              padding: '0.6rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
+              maxWidth: 420, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6,
+              fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem',
+              opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s',
+            }}>
               {proactiveSpeech}
             </div>
+          )}
+
+          {/* Need more help button */}
+          {!needHelpMode ? (
+            <button
+              onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
+              style={{
+                padding: '0.35rem 0.85rem',
+                background: 'white',
+                border: '1px solid rgba(94,59,135,0.25)',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                color: '#5e3b87',
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+              }}
+            >
+              Need more help?
+            </button>
+          ) : (
+            <button
+              onClick={closeAll}
+              style={{
+                padding: '0.35rem 0.85rem',
+                background: '#5e3b87',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                color: 'white',
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+              }}
+            >
+              Close all · done
+            </button>
           )}
         </div>
       </div>
 
-      {/* Floating bubble — follows hovered data-help element */}
-      {floatEl && <FloatingBubble text={floatEl.text} rect={floatEl.rect} visible={bubbleVisible} />}
+      {/* ── Hover bubble (Vera mode) ─────────────────────────────────── */}
+      {floatEl && (
+        <FloatingBubble text={floatEl.text} rect={floatEl.rect} visible={bubbleVisible} />
+      )}
+
+      {/* ── Glowing overlays (Need more help mode) ──────────────────── */}
+      {needHelpMode && zones.map((zone, i) => {
+        const r = zone.rect
+        if (r.width < 4 || r.height < 4) return null
+        return (
+          <div
+            key={i}
+            className="vera-glow-zone"
+            onClick={() => openDialogue(zone)}
+            style={{
+              position: 'fixed',
+              left: r.left - 3,
+              top: r.top - 3,
+              width: r.width + 6,
+              height: r.height + 6,
+              borderRadius: '6px',
+              border: '2px solid rgba(240,165,0,0.5)',
+              background: 'rgba(240,165,0,0.07)',
+              zIndex: 9000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'all',
+            }}
+          >
+            <span style={{
+              background: '#f0a500',
+              color: '#1a0533',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              padding: '0.15rem 0.5rem',
+              borderRadius: '4px',
+              fontFamily: "'DM Sans', sans-serif",
+              letterSpacing: '0.04em',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              pointerEvents: 'none',
+            }}>
+              Click here
+            </span>
+          </div>
+        )
+      })}
+
+      {/* ── Dialogue panels ──────────────────────────────────────────── */}
+      {dialogues.map(d => (
+        <VeraDialogue
+          key={d.id}
+          id={d.id}
+          zoneText={d.zoneText}
+          zoneName={d.zoneName}
+          tabName={d.tabName}
+          initialRect={d.rect}
+          onClose={() => closeDialogue(d.id)}
+        />
+      ))}
     </>
   )
 }
