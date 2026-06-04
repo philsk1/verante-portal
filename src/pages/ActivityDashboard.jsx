@@ -248,7 +248,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   const [loading, setLoading] = useState(true)
   const [businessName, setBusinessName] = useState('')
-  const [includedMinutes, setIncludedMinutes] = useState(150)
+  const [includedMinutes, setIncludedMinutes] = useState(250)
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -287,7 +287,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         if (tenant) {
           setBusinessName(tenant.business_name || '')
-          setIncludedMinutes(tenant.included_minutes || 150)
+          setIncludedMinutes(tenant.included_minutes || 250)
         }
 
         const monthIso = startOfMonth().toISOString()

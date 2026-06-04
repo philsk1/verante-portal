@@ -7,14 +7,16 @@ import { useNavigate } from 'react-router-dom'
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const TIERS = {
-  light:        { label: 'Light',        price: '£29',    minutes: 60,   concurrent: 1 },
-  standard:     { label: 'Standard',     price: '£49',    minutes: 150,  concurrent: 1 },
-  professional: { label: 'Professional', price: '£69',    minutes: 250,  concurrent: 2 },
-  enterprise:   { label: 'Enterprise',   price: '£249',   minutes: 700,  concurrent: 3 },
+  free:         { label: 'Free',         price: '£0',     minutes: null, concurrent: 1 },
+  light:        { label: 'Light',        price: '£29',    minutes: 120,  concurrent: 1 },
+  standard:     { label: 'Standard',     price: '£49',    minutes: 250,  concurrent: 1 },
+  professional: { label: 'Professional', price: '£69',    minutes: 450,  concurrent: 2 },
+  enterprise:   { label: 'Enterprise',   price: '£249',   minutes: 1000, concurrent: 3 },
   bespoke:      { label: 'Bespoke',      price: 'Custom', minutes: null, concurrent: null },
 }
 
 const UPGRADE_PATH = {
+  free:         ['light', 'standard', 'professional', 'enterprise'],
   light:        ['standard', 'professional', 'enterprise'],
   standard:     ['professional', 'enterprise'],
   professional: ['enterprise'],
@@ -23,9 +25,10 @@ const UPGRADE_PATH = {
 }
 
 const UPGRADE_FEATURES = {
-  standard:     'Number blocking',
-  professional: 'Calendar integration · Sensitive data mode',
-  enterprise:   'Full analytics · Staff routing · Priority support',
+  light:        'Premium voice · 120 included minutes',
+  standard:     'Number blocking · 250 included minutes',
+  professional: 'Calendar integration · Sensitive data mode · 450 minutes',
+  enterprise:   'Full analytics · Staff routing · Priority support · 1,000 minutes',
 }
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -715,7 +718,7 @@ const AccountSettings = ({ onNavigate }) => {
           <div style={{ flex: 1 }}>
             <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
             <div style={s.planMeta}>
-              {tierInfo.minutes ? `${tierInfo.minutes} minutes included` : 'Custom allowance'}
+              {tier === 'free' ? 'Pay as you go · 35p/min' : tierInfo.minutes ? `${tierInfo.minutes} Premium minutes included` : 'Custom allowance'}
               {tierInfo.concurrent ? ` · ${tierInfo.concurrent} concurrent call${tierInfo.concurrent > 1 ? 's' : ''}` : ''}
             </div>
           </div>
@@ -730,7 +733,7 @@ const AccountSettings = ({ onNavigate }) => {
                   <div>
                     <div style={s.upgradeCardTitle}>{info.label} — {info.price}/month</div>
                     <div style={s.upgradeCardMeta}>
-                      {info.minutes} minutes · {info.concurrent}{t === 'enterprise' ? '+' : ''} concurrent call{info.concurrent > 1 ? 's' : ''}
+                      {info.minutes ? `${info.minutes} Premium minutes` : 'Pay as you go'} · {info.concurrent}{t === 'enterprise' ? '+' : ''} concurrent call{info.concurrent > 1 ? 's' : ''}
                       {UPGRADE_FEATURES[t] ? ` · ${UPGRADE_FEATURES[t]}` : ''}
                     </div>
                   </div>

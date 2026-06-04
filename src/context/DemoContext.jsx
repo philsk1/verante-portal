@@ -80,7 +80,7 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
     partners,
     // DataAnalytics expects `duration` not `duration_seconds`
     analyticsCallData: calls.map(c => ({ ...c, duration: c.duration_seconds })),
-    includedMinutes: business?.included_minutes || 150,
+    includedMinutes: business?.included_minutes || 250,
   }
 
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>
