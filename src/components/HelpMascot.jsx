@@ -302,12 +302,12 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
             <Owl w={44} h={72} blink={blink} />
           </div>
           <span style={{
-            fontSize: '0.65rem', color: helpMode ? '#f0a500' : '#bbb',
+            fontSize: '12px', color: '#f0a500',
             fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif",
-            cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-            fontWeight: helpMode ? 500 : 400,
+            cursor: 'pointer', userSelect: 'none', textAlign: 'center',
+            fontWeight: 500, lineHeight: 1.4,
           }} onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}>
-            {helpMode ? 'Click to close' : 'Click on Vera the owl for suggestions'}
+            {helpMode ? 'Click to close' : <><span>Click on Vera the owl</span><br /><span>for suggestions</span></>}
           </span>
         </div>
 
