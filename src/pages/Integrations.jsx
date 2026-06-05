@@ -13,19 +13,19 @@ const INTEGRATIONS = [
   {
     id: 'google_calendar',
     name: 'Google Calendar',
-    description: 'Two-way sync. Appointments appear in your Google Calendar and bookings made outside Qerxel flow in automatically.',
+    description: 'One-way sync. Every appointment you create in Qerxel Calendar appears in your Google, Apple, or Outlook calendar automatically.',
     category: 'Calendar',
     priority: 1,
-    status: 'coming_soon',
+    status: 'available',
     icon: '📅',
   },
   {
     id: 'google_business',
     name: 'Google Business Profile',
-    description: 'Automatically request a review after each completed job. Sent at the right moment — not too soon, not too late.',
+    description: 'Automatically request a review after each completed job. One click from the appointment — sent via WhatsApp or email.',
     category: 'Reviews',
     priority: 1,
-    status: 'coming_soon',
+    status: 'available',
     icon: '⭐',
   },
   {
@@ -52,7 +52,7 @@ const INTEGRATIONS = [
     description: 'Lead to draft invoice in one click. For slightly larger businesses that have outgrown spreadsheets.',
     category: 'Accounting',
     priority: 1,
-    status: 'coming_soon',
+    status: 'available',
     icon: '📊',
   },
   // Priority 2
@@ -553,6 +553,62 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
         </div>
       )}
 
+      {/* ── Xero connect form ── */}
+      {isExpanded && id === 'xero' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>
+                Xero is connected{connectedMap.xero?.settings?.org_name ? ` — ${connectedMap.xero.settings.org_name}` : ''}. Leads can be converted to draft invoices in one click from your Dashboard.
+              </p>
+              <button onClick={() => handleDisconnect('xero')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <div style={{ maxWidth: 540 }}>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>Connect your Xero account. You'll be taken to Xero to approve access — then redirected straight back here.</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
+                <button
+                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/xero-auth?tenantId=${tenantId}` }}
+                  disabled={!tenantId || isDemo || isPreview}
+                  style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  Connect Xero →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Google Business Profile connect form ── */}
+      {isExpanded && id === 'google_business' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>Google Business Profile is connected. Open any completed appointment in your Calendar to send a review request.</p>
+              <button onClick={() => handleDisconnect('google_business')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <GoogleBusinessForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+          )}
+        </div>
+      )}
+
+      {/* ── Google Calendar (CalDAV) connect form ── */}
+      {isExpanded && id === 'google_calendar' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>Calendar sync is connected. New appointments created in Qerxel Calendar will appear in your external calendar automatically.</p>
+              <button onClick={() => handleDisconnect('google_calendar')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <CalDAVForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+          )}
+        </div>
+      )}
+
       {/* ── FreeAgent connect form ── */}
       {isExpanded && id === 'freeagent' && (
         <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
@@ -584,3 +640,94 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
   )
 }
 
+function GoogleBusinessForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+  const [reviewUrl, setReviewUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
+  const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.06em' }
+
+  const handleSave = async () => {
+    if (!tenantId || !reviewUrl.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/integrations-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, integrationId: 'google_business', credentials: {}, settings: { google_review_url: reviewUrl.trim() } }),
+      })
+      setConnectedMap(prev => ({ ...prev, google_business: { settings: { google_review_url: reviewUrl.trim() }, connected_at: new Date().toISOString() } }))
+      setExpandedId(null)
+      showToast('Google Business Profile connected.')
+    } catch { showToast('Connection failed. Please try again.', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 540 }}>
+      <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+        Paste your Google review link. Find it in <strong>Google Business Profile → Home → Get more reviews → Share review form</strong>. It starts with <code>g.page/</code> or <code>maps.google.com/</code>.
+      </p>
+      <label style={labelStyle}>Your Google review link</label>
+      <input style={inputStyle} placeholder="https://g.page/r/xxxxxx/review" value={reviewUrl} onChange={e => setReviewUrl(e.target.value)} />
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+        <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+        <button onClick={handleSave} disabled={saving || !reviewUrl.trim() || isDemo || isPreview}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!reviewUrl.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+          {saving ? 'Connecting…' : 'Connect'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+  const [caldavUrl, setCaldavUrl] = useState('')
+  const [username, setUsername] = useState('')
+  const [appPassword, setAppPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
+  const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.06em' }
+
+  const handleSave = async () => {
+    if (!tenantId || !caldavUrl.trim() || !username.trim() || !appPassword.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/integrations-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId, integrationId: 'google_calendar',
+          credentials: { caldav_url: caldavUrl.trim(), username: username.trim(), app_password: appPassword.trim() },
+          settings: { calendar_label: username.trim() },
+        }),
+      })
+      setConnectedMap(prev => ({ ...prev, google_calendar: { settings: { calendar_label: username.trim() }, connected_at: new Date().toISOString() } }))
+      setExpandedId(null)
+      showToast('Calendar sync connected.')
+    } catch { showToast('Connection failed. Please try again.', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 540 }}>
+      <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+        Works with Google Calendar, Apple iCloud, and Outlook. Use an app password — not your regular password.<br />
+        <strong>Google:</strong> myaccount.google.com/apppasswords &nbsp;·&nbsp;
+        <strong>Apple:</strong> appleid.apple.com → Security → App-Specific Passwords
+      </p>
+      <label style={labelStyle}>CalDAV URL</label>
+      <input style={inputStyle} placeholder="e.g. https://apidata.googleusercontent.com/caldav/v2/you@gmail.com/events/" value={caldavUrl} onChange={e => setCaldavUrl(e.target.value)} />
+      <label style={labelStyle}>Username (email)</label>
+      <input style={inputStyle} placeholder="you@gmail.com" value={username} onChange={e => setUsername(e.target.value)} />
+      <label style={labelStyle}>App password</label>
+      <input style={inputStyle} type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value)} />
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+        <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+        <button onClick={handleSave} disabled={saving || !caldavUrl.trim() || !username.trim() || !appPassword.trim() || isDemo || isPreview}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!caldavUrl.trim() || !username.trim() || !appPassword.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+          {saving ? 'Connecting…' : 'Connect calendar'}
+        </button>
+      </div>
+    </div>
+  )
+}

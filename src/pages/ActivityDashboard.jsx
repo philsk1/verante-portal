@@ -491,6 +491,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                       Book
                     </button>
                     <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
+                    <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />
                   </div>
                 </div>
               )
@@ -581,6 +582,45 @@ function FreeAgentInvoiceButton({ leadId, tenantId }) {
       style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: status === 'loading' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', opacity: status === 'loading' ? 0.6 : 1 }}
     >
       {status === 'loading' ? '…' : 'Invoice'}
+    </button>
+  )
+}
+
+// ─── Xero invoice button ──────────────────────────────────────────────────────
+function XeroInvoiceButton({ leadId, tenantId }) {
+  const [status, setStatus] = useState('idle')
+  const [invoiceUrl, setInvoiceUrl] = useState(null)
+
+  if (!leadId || !tenantId) return null
+
+  const handleCreate = async () => {
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/xero-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, leadId }),
+      })
+      const data = await res.json()
+      if (data.invoiceUrl) { setInvoiceUrl(data.invoiceUrl); setStatus('done') }
+      else setStatus('error')
+    } catch { setStatus('error') }
+  }
+
+  if (status === 'done' && invoiceUrl) {
+    return (
+      <a href={invoiceUrl} target="_blank" rel="noopener noreferrer"
+        style={{ padding: '0.25rem 0.65rem', border: '1px solid #3db87a', borderRadius: '5px', background: '#e6f9ef', color: '#1a6640', fontSize: '0.72rem', fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        Xero →
+      </a>
+    )
+  }
+  if (status === 'error') return <span style={{ fontSize: '0.72rem', color: '#e05252' }}>Xero failed</span>
+
+  return (
+    <button onClick={handleCreate} disabled={status === 'loading'}
+      style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: status === 'loading' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', opacity: status === 'loading' ? 0.6 : 1 }}>
+      {status === 'loading' ? '…' : 'Xero'}
     </button>
   )
 }

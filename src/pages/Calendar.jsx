@@ -454,13 +454,24 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
         processing_end_time: form.isSplit && form.processing_end ? new Date(form.processing_end).toISOString() : null,
         created_from: 'manual',
       }
+      let savedId
       if (editing) {
         const { data } = await supabase.from('appointments').update(payload).eq('id', editing.id).select().maybeSingle()
-        if (data) setEvents(prev => prev.map(e => e.id === editing.id ? toEvent(data) : e))
+        if (data) { setEvents(prev => prev.map(e => e.id === editing.id ? toEvent(data) : e)); savedId = editing.id }
       } else {
         const { data } = await supabase.from('appointments').insert(payload).select().maybeSingle()
-        if (data) setEvents(prev => [...prev, toEvent(data)])
+        if (data) { setEvents(prev => [...prev, toEvent(data)]); savedId = data.id }
       }
+
+      // CalDAV sync — fire and forget
+      if (savedId) {
+        fetch('/api/caldav-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId, appointmentId: savedId, action: 'upsert' }),
+        }).catch(() => {})
+      }
+
       setModalOpen(false)
     } catch (err) {
       console.error('Save error:', err)
@@ -476,6 +487,12 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
     try {
       await supabase.from('appointments').delete().eq('id', editing.id)
       setEvents(prev => prev.filter(e => e.id !== editing.id))
+      // CalDAV delete sync — fire and forget
+      fetch('/api/caldav-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, appointmentId: editing.id, action: 'delete' }),
+      }).catch(() => {})
       setModalOpen(false)
     } catch (err) {
       console.error('Delete error:', err)
@@ -655,6 +672,9 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
               {editing && !isDemo && !isPreview && (
                 <button style={s.deleteBtn} onClick={handleDelete} disabled={saving}>Delete</button>
               )}
+              {editing && form.status === 'completed' && !isDemo && !isPreview && (
+                <ReviewRequestButton tenantId={tenantId} appointmentId={editing.id} />
+              )}
               <button style={s.cancelBtn} onClick={() => setModalOpen(false)}>Cancel</button>
               <button
                 style={s.saveBtn(!canSave || isDemo || isPreview)}
@@ -668,5 +688,35 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Review request button (shown when appointment is completed) ──────────────
+function ReviewRequestButton({ tenantId, appointmentId }) {
+  const [status, setStatus] = useState('idle')
+
+  const handleSend = async () => {
+    setStatus('sending')
+    try {
+      const res = await fetch('/api/send-review-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, appointmentId }),
+      })
+      setStatus(res.ok ? 'sent' : 'error')
+    } catch { setStatus('error') }
+  }
+
+  if (status === 'sent') return <span style={{ fontSize: '0.8rem', color: '#3db87a', fontWeight: 500 }}>Review request sent ✓</span>
+  if (status === 'error') return <span style={{ fontSize: '0.8rem', color: '#e05252' }}>Failed — check Google Business integration</span>
+
+  return (
+    <button
+      onClick={handleSend}
+      disabled={status === 'sending'}
+      style={{ padding: '0.5rem 0.9rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '7px', background: 'white', color: '#5e3b87', fontSize: '0.8rem', fontWeight: 500, cursor: status === 'sending' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: status === 'sending' ? 0.6 : 1 }}
+    >
+      {status === 'sending' ? 'Sending…' : '⭐ Request review'}
+    </button>
   )
 }
