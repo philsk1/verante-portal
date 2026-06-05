@@ -164,7 +164,7 @@ const Portal = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em' }}>
-            Verrante
+            Qerxel
           </span>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
         </div>

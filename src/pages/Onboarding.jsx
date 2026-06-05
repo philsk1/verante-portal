@@ -721,7 +721,7 @@ const Onboarding = () => {
 
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.75rem' }}>
-        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', fontSize: '1.25rem', letterSpacing: '-0.01em' }}>Verrante</span>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', fontSize: '1.25rem', letterSpacing: '-0.01em' }}>Qerxel</span>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
       </div>
 

@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const SITE_URL = process.env.SITE_URL || 'https://verante-portal.vercel.app'
+const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 
 export default async function handler(req, res) {
   const { code, state: tenantId, error } = req.query

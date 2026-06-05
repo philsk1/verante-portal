@@ -13,7 +13,7 @@ const INTEGRATIONS = [
   {
     id: 'google_calendar',
     name: 'Google Calendar',
-    description: 'Two-way sync. Appointments appear in your Google Calendar and bookings made outside Verrante flow in automatically.',
+    description: 'Two-way sync. Appointments appear in your Google Calendar and bookings made outside Qerxel flow in automatically.',
     category: 'Calendar',
     priority: 1,
     status: 'coming_soon',
@@ -59,7 +59,7 @@ const INTEGRATIONS = [
   {
     id: 'jobber',
     name: 'Jobber',
-    description: 'Verrante lead becomes a Jobber job automatically. Built for trades — plumbing, electrical, landscaping.',
+    description: 'Qerxel lead becomes a Jobber job automatically. Built for trades — plumbing, electrical, landscaping.',
     category: 'Field Service',
     priority: 2,
     status: 'coming_soon',
@@ -68,7 +68,7 @@ const INTEGRATIONS = [
   {
     id: 'servicem8',
     name: 'ServiceM8',
-    description: 'Same as Jobber — different platform. Wire your Verrante leads straight into your job queue.',
+    description: 'Same as Jobber — different platform. Wire your Qerxel leads straight into your job queue.',
     category: 'Field Service',
     priority: 2,
     status: 'coming_soon',
@@ -113,7 +113,7 @@ const INTEGRATIONS = [
   {
     id: 'acuity',
     name: 'Acuity Scheduling',
-    description: 'Collect deposits at booking. Verrante captures the lead — Acuity closes with a payment.',
+    description: 'Collect deposits at booking. Qerxel captures the lead — Acuity closes with a payment.',
     category: 'Booking',
     priority: 2,
     status: 'coming_soon',
@@ -122,7 +122,7 @@ const INTEGRATIONS = [
   {
     id: 'pipedrive',
     name: 'Pipedrive',
-    description: 'Every Verrante lead lands in your Pipedrive pipeline. For Professional tier tenants managing higher volumes.',
+    description: 'Every Qerxel lead lands in your Pipedrive pipeline. For Professional tier tenants managing higher volumes.',
     category: 'CRM',
     priority: 2,
     status: 'coming_soon',
@@ -150,7 +150,7 @@ const INTEGRATIONS = [
   {
     id: 'zapier',
     name: 'Zapier',
-    description: 'Connect Verrante to anything. If we haven\'t built a direct integration, Zapier has you covered.',
+    description: 'Connect Qerxel to anything. If we haven\'t built a direct integration, Zapier has you covered.',
     category: 'Automation',
     priority: 3,
     status: 'coming_soon',
@@ -408,9 +408,9 @@ export default function Integrations({ onNavigate }) {
 
   return (
     <div style={s.page}>
-      <div style={s.header} data-help="Integrations connect Verrante to the tools you already use — accounting, booking, reviews, payments, CRM. Each integration is self-contained. Connect what you need, ignore what you don't.">
+      <div style={s.header} data-help="Integrations connect Qerxel to the tools you already use — accounting, booking, reviews, payments, CRM. Each integration is self-contained. Connect what you need, ignore what you don't.">
         <h2 style={s.title}>Integrations</h2>
-        <p style={s.subtitle}>Connect Verrante to your existing tools. Built-in integrations are always free.</p>
+        <p style={s.subtitle}>Connect Qerxel to your existing tools. Built-in integrations are always free.</p>
       </div>
 
       {toast.msg && (

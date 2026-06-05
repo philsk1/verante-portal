@@ -1,5 +1,5 @@
 -- ============================================================
--- Verrante RLS — idempotent enable script
+-- Qerxel RLS — idempotent enable script
 -- Safe to run multiple times. Paste into Supabase SQL Editor.
 -- Updated: 2026-06-04 — added vera_speeches, vera_seen,
 --   tenant_credits, minute_usage; made all drops idempotent.

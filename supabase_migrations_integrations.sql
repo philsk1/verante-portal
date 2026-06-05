@@ -1,4 +1,4 @@
--- Verrante — Integrations schema
+-- Qerxel — Integrations schema
 -- Run in Supabase SQL Editor. All statements are idempotent.
 -- Link: supabase_migrations_integrations.sql
 

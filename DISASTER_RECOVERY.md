@@ -1,4 +1,4 @@
-# Verrante — Disaster Recovery Protocols
+# Qerxel — Disaster Recovery Protocols
 
 Simple, plain-English protocols for each failure scenario.
 The rule: every critical platform has a known fallback and a recovery time estimate.
@@ -22,7 +22,7 @@ Last updated: 2026-06-03
 **Recovery:**
 1. Get any Windows machine with internet
 2. Install VSCode, Node.js, Git
-3. Run: `git clone https://github.com/philsk1/verante-portal`
+3. Run: `git clone https://github.com/philsk1/qerxel-portal`
 4. Run: `npm install`
 5. Run: `npm run dev`
 6. Full dev environment restored in under 30 minutes

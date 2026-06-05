@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const WEBHOOK_URL = 'https://verante-portal.vercel.app/api/vapi-webhook'
+const WEBHOOK_URL = 'https://qerxel-portal.vercel.app/api/vapi-webhook'
 
 // Fetch all tenant data needed to build the system prompt
 async function fetchTenantData(tenantId) {
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     assistant: {
-      name: `Verrante — ${data.tenant.business_name}`,
+      name: `Qerxel — ${data.tenant.business_name}`,
       firstMessageMode: 'assistant-speaks-first',
       firstMessage: greeting,
       model: {

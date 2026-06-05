@@ -371,7 +371,7 @@ const PartnersReferrals = () => {
   const [codeCopied, setCodeCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
-  const referralUrl = referralCode ? `verrante.com/join?ref=${referralCode}` : ''
+  const referralUrl = referralCode ? `qerxel.com/join?ref=${referralCode}` : ''
   const fullReferralUrl = `https://${referralUrl}`
 
   // Demo mode: inject data from DemoContext
@@ -586,11 +586,11 @@ const PartnersReferrals = () => {
 
       {/* Referral code */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Verrante automatically. Give the QR code to tradespeople, leave it on invoices, or post it in local trade groups.">
+        <h3 style={s.sectionTitle} data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Qerxel automatically. Give the QR code to tradespeople, leave it on invoices, or post it in local trade groups.">
           Your Referral Code
           <span style={s.allPlans}>All plans</span>
         </h3>
-        <p style={s.sectionSubtitle} data-help="Your Referral Code is unique to you. Share it with any business owner who takes calls — a plumber, a salon, a solicitor, anyone. When they sign up and enter your code, you earn one free month of Verrante automatically. No chasing, no admin.">
+        <p style={s.sectionSubtitle} data-help="Your Referral Code is unique to you. Share it with any business owner who takes calls — a plumber, a salon, a solicitor, anyone. When they sign up and enter your code, you earn one free month of Qerxel automatically. No chasing, no admin.">
           Share this with any business owner. When they sign up, you earn a free month and they start knowing someone vouched for the product.
         </p>
 
@@ -643,7 +643,7 @@ const PartnersReferrals = () => {
 
       {/* Credits */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Credits are earned when someone signs up using your referral code. One signup = one free month of Verrante credited to your account. Credits stack with no expiry and are applied automatically at renewal — no action needed from you.">
+        <h3 style={s.sectionTitle} data-help="Credits are earned when someone signs up using your referral code. One signup = one free month of Qerxel credited to your account. Credits stack with no expiry and are applied automatically at renewal — no action needed from you.">
           Credits
           <span style={s.allPlans}>All plans</span>
         </h3>

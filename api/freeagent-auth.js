@@ -3,7 +3,7 @@
 // After auth, FreeAgent redirects to /api/freeagent-callback.
 // Requires: FREEAGENT_CLIENT_ID in Vercel env vars.
 
-const SITE_URL = process.env.SITE_URL || 'https://verante-portal.vercel.app'
+const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 
 export default async function handler(req, res) {
   const { tenantId } = req.query

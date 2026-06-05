@@ -1,14 +1,14 @@
-# Verrante Portal — Project Brief
+# Qerxel Portal — Project Brief
 
 This file is auto-loaded by Claude Code at the start of every session.
 It is the single source of truth for project context, strategy, and state.
 Update it at the end of every working session.
 
-**Full strategic context:** `VERRANTE-HANDOFF-V11.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
+**Full strategic context:** `QERXEL-HANDOFF-V12.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
 
 ---
 
-## What Verrante Is
+## What Qerxel Is
 
 AI call handling and lead capture SaaS for UK sole traders and micro-businesses. The AI answers missed calls, triages intent, captures leads, refers out-of-scope callers to partners, and routes to booking or callback. The portal is the tenant's control surface.
 
@@ -68,8 +68,8 @@ Dev environment: Windows 11, VSCode, PowerShell. F12 hijacked by ASUS — uses C
 
 **Supabase:** https://kkrsvkxkefijmtbwykzv.supabase.co
 **Anon key (HS256 — use this, NOT sb_publishable_):** in `src/supabase.js`
-**GitHub:** https://github.com/philsk1/verante-portal
-**Live URL:** https://verante-portal.vercel.app
+**GitHub:** https://github.com/philsk1/qerxel-portal
+**Live URL:** https://qerxel-portal.vercel.app
 
 ---
 
@@ -154,12 +154,12 @@ api/vapi-sync.js                    — patches Vapi assistant on AI Behaviour s
 api/_build-prompt.js                — system prompt builder (Layer 1–3)
 api/vera-chat.js                    — Vera dialogue (Claude Haiku)
 api/greeting-generator.js           — greeting generator (Claude Haiku)
-verrante-handoff-V10.md             — full product spec, tier detail, AI architecture
+qerxel-handoff-V10.md             — full product spec, tier detail, AI architecture
 supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 demo_seed.sql                       — demo data seed (safe to re-run)
 src/context/DemoContext.jsx         — demo data provider (fetches demo_* tables)
 src/context/PreviewContext.jsx      — enterPreview/exitPreview/isPreview for owner mode
-src/pages/Calendar.jsx              — Verrante Calendar tab (react-big-calendar, DnD, appointment modal)
+src/pages/Calendar.jsx              — Qerxel Calendar tab (react-big-calendar, DnD, appointment modal)
 src/pages/Integrations.jsx          — Integrations tab (module framework, 19 coming-soon cards)
 supabase_migrations_session4.sql    — all session 4+5 migrations (run before testing Calendar/Stripe)
 src/pages/DemoLogin.jsx             — demo login (/demo/login)
@@ -204,7 +204,7 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] 50 leads — mix of new/contacted/converted/lost, 2-3 actionable per business
 - [x] 40 referral log entries — several today per active business
 - [x] Pricing intelligence + competitor intelligence for Restore Physiotherapy (Enterprise)
-- [x] demo_users: demo@verrante.app / VERRANTE2026
+- [x] demo_users: demo@qerxel.app / QERXEL2026
 - [x] Seed script: `demo_seed.sql` in project root — safe to re-run
 
 ### Done — Demo Sessions 2 + 3 (2026-06-05)
@@ -236,7 +236,7 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] Integrations tab — Integrations.jsx, module framework, 19 coming-soon cards
 - [x] Calendar Session 1 — Calendar.jsx, react-big-calendar, DnD, appointment modal, status colours, slot warning
 - [x] DB migration file — supabase_migrations_session4.sql (all new columns + appointments + staff_availability + tenant_catalogue)
-- [x] VERRANTE-HANDOFF-V11.md and CLAUDE.md updated
+- [x] QERXEL-HANDOFF-V12.md and CLAUDE.md updated
 
 ### Remaining
 - [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor

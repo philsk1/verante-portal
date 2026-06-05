@@ -1,4 +1,4 @@
--- Verrante — Session 4 migrations
+-- Qerxel — Session 4 migrations
 -- Run in Supabase SQL Editor. All statements are idempotent.
 
 -- ─── Stripe ───────────────────────────────────────────────────────────────────

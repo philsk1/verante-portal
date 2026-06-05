@@ -493,7 +493,7 @@ const AccountSettings = ({ onNavigate }) => {
 
   // Support chat
   const [chatMessages, setChatMessages] = useState([
-    { role: 'ai', text: 'Hi — I\'m your Verrante support assistant. I have access to your account context and can help with portal settings, AI behaviour, and billing questions. What can I help you with?' }
+    { role: 'ai', text: 'Hi — I\'m your Qerxel support assistant. I have access to your account context and can help with portal settings, AI behaviour, and billing questions. What can I help you with?' }
   ])
   const [chatInput, setChatInput] = useState('')
   const [chatWaiting, setChatWaiting] = useState(false)
@@ -741,7 +741,7 @@ const AccountSettings = ({ onNavigate }) => {
       const data = await res.json()
       setChatMessages(prev => [...prev, { role: 'ai', text: data.message || 'Something went wrong. Please try again.' }])
     } catch {
-      setChatMessages(prev => [...prev, { role: 'ai', text: 'Could not reach support. Please try again or email support@verrante.com.' }])
+      setChatMessages(prev => [...prev, { role: 'ai', text: 'Could not reach support. Please try again or email support@qerxel.com.' }])
     } finally {
       setChatWaiting(false)
     }
@@ -885,8 +885,8 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Notification Preferences */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Notifications control when Verrante sends you emails. New lead = an immediate alert the moment your AI captures a lead. Daily summary = a brief end-of-day digest. Weekly report = a Monday morning overview. All emails go to your account email address.">Notifications</h3>
-        <p style={s.sectionSubtitle}>Choose when Verrante contacts you. All notifications are sent to your account email.</p>
+        <h3 style={s.sectionTitle} data-help="Notifications control when Qerxel sends you emails. New lead = an immediate alert the moment your AI captures a lead. Daily summary = a brief end-of-day digest. Weekly report = a Monday morning overview. All emails go to your account email address.">Notifications</h3>
+        <p style={s.sectionSubtitle}>Choose when Qerxel contacts you. All notifications are sent to your account email.</p>
 
         {[
           { label: 'New lead captured', desc: 'Immediate email when your AI captures a new lead.', val: notifyNewLead, set: v => { setNotifyNewLead(v); saveNotification('notify_new_lead', v) } },
@@ -991,11 +991,11 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Privacy & Data */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Privacy and Data covers your GDPR rights — how long Verrante keeps your call records and leads, how to request a full export of your data, and how to request account deletion. Sensitive business types (solicitors, medical, therapists etc.) are always capped at 30 days regardless of this setting.">Privacy &amp; Data</h3>
+        <h3 style={s.sectionTitle} data-help="Privacy and Data covers your GDPR rights — how long Qerxel keeps your call records and leads, how to request a full export of your data, and how to request account deletion. Sensitive business types (solicitors, medical, therapists etc.) are always capped at 30 days regardless of this setting.">Privacy &amp; Data</h3>
         <p style={s.sectionSubtitle}>Your data rights under GDPR. Control how long records are kept and request exports or deletion.</p>
 
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={s.label} data-help="How long Verrante retains call logs and lead records before they are automatically deleted. Sensitive business types are always limited to 30 days — this setting is ignored for those.">Data retention period</label>
+          <label style={s.label} data-help="How long Qerxel retains call logs and lead records before they are automatically deleted. Sensitive business types are always limited to 30 days — this setting is ignored for those.">Data retention period</label>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
             Call logs and lead records are deleted after this period. Sensitive business types are always capped at 30 days.
           </p>
@@ -1046,7 +1046,7 @@ const AccountSettings = ({ onNavigate }) => {
         <h3 style={s.sectionTitle} data-help="Share Your Feedback unlocks after six weeks of use — long enough to form a real opinion. Your feedback goes directly to the founder and influences what gets built next. It is never used for marketing.">Share Your Feedback</h3>
         <p style={s.sectionSubtitle}>
           {feedbackUnlocked
-            ? 'You\'ve been using Verrante for over six weeks. Your honest take helps shape what gets built next.'
+            ? 'You\'ve been using Qerxel for over six weeks. Your honest take helps shape what gets built next.'
             : 'Unlocks after six weeks of use — enough time to form a real opinion.'}
         </p>
 
@@ -1056,7 +1056,7 @@ const AccountSettings = ({ onNavigate }) => {
           </div>
         ) : feedbackUnlocked ? (
           <>
-            <div style={s.label}>How would you rate Verrante so far?</div>
+            <div style={s.label}>How would you rate Qerxel so far?</div>
             <div style={s.starRow}>
               {[1, 2, 3, 4, 5].map(n => (
                 <span
@@ -1098,7 +1098,7 @@ const AccountSettings = ({ onNavigate }) => {
 
       {/* Support chat */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Support gives you a direct line to ask anything about your Verrante account — how a setting works, why your AI said something on a call, how to configure a specific scenario. Ask in plain English and you'll get a plain English answer.">Support</h3>
+        <h3 style={s.sectionTitle} data-help="Support gives you a direct line to ask anything about your Qerxel account — how a setting works, why your AI said something on a call, how to configure a specific scenario. Ask in plain English and you'll get a plain English answer.">Support</h3>
         <p style={s.sectionSubtitle}>Ask anything about your account, settings, or how your AI works.</p>
 
         <div style={s.chatWrap}>

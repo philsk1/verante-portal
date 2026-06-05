@@ -1,6 +1,6 @@
 // Resend email helper + all three minute notification templates
 
-const FROM = 'Verrante <hello@verrante.app>' // update when domain verified in Resend
+const FROM = 'Qerxel <hello@qerxel.app>' // update when domain verified in Resend
 
 const NEXT_TIER = {
   free:         { label: 'Light',        minutes: 120,  price: '£29' },
@@ -30,11 +30,11 @@ export async function sendEmail({ to, subject, html }) {
 function wrap(body) {
   return `<!DOCTYPE html><html><body style="font-family:'DM Sans',Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem 1rem;color:#1a1a1a;">
     <div style="margin-bottom:1.5rem;">
-      <span style="font-weight:700;color:#5e3b87;font-size:1.125rem;">Verrante</span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f0a500;margin-left:3px;margin-bottom:8px;"></span>
+      <span style="font-weight:700;color:#5e3b87;font-size:1.125rem;">Qerxel</span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f0a500;margin-left:3px;margin-bottom:8px;"></span>
     </div>
     ${body}
     <hr style="border:none;border-top:1px solid #eee;margin:2rem 0 1rem;">
-    <p style="color:#aaa;font-size:0.8rem;margin:0;">You're receiving this because you have an active Verrante account. Manage your notification preferences in Account settings.</p>
+    <p style="color:#aaa;font-size:0.8rem;margin:0;">You're receiving this because you have an active Qerxel account. Manage your notification preferences in Account settings.</p>
   </body></html>`
 }
 
@@ -97,7 +97,7 @@ export function emailDailyCost({ businessName, callsToday, leadsToday, minutesTo
   const barWidth = Math.min(pct, 100)
   const barColor = pct >= 80 ? '#f0a500' : '#5e3b87'
   return {
-    subject: `Your Verrante daily summary — ${businessName}`,
+    subject: `Your Qerxel daily summary — ${businessName}`,
     html: wrap(`
       <p>Hi ${businessName},</p>
       <p>Here's what your AI handled today.</p>
@@ -138,7 +138,7 @@ export function emailAppointmentReminder({ businessName, appointment, hoursAhead
         <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Time</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${timeStr}</td></tr>
         ${serviceRow}
       </table>
-      <p style="font-size:0.85rem;color:#666;">Log in to Verrante to view or update this appointment.</p>
+      <p style="font-size:0.85rem;color:#666;">Log in to Qerxel to view or update this appointment.</p>
     `),
   }
 }

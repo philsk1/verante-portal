@@ -1,4 +1,4 @@
-# Verrante — Platform Register
+# Qerxel — Platform Register
 
 All platforms used in the build. Login credentials held offline separately.
 Last updated: 2026-06-03
@@ -9,8 +9,8 @@ Last updated: 2026-06-03
 
 | # | Platform | Purpose | URL | Criticality |
 |---|---|---|---|---|
-| 1 | **GitHub** | Source code hosting. All code lives here. Auto-triggers Vercel deploy on push. | github.com/philsk1/verante-portal | Critical |
-| 2 | **Vercel** | Frontend hosting. Serves the portal to users. Connected to GitHub repo. | vercel.com / verante-portal.vercel.app | Critical |
+| 1 | **GitHub** | Source code hosting. All code lives here. Auto-triggers Vercel deploy on push. | github.com/philsk1/qerxel-portal | Critical |
+| 2 | **Vercel** | Frontend hosting. Serves the portal to users. Connected to GitHub repo. | vercel.com / qerxel-portal.vercel.app | Critical |
 | 3 | **Supabase** | Database + user authentication. All tenant data, call logs, leads. | supabase.com / kkrsvkxkefijmtbwykzv.supabase.co | Critical |
 | 4 | **Google Fonts** | Typography. Syne and DM Sans fonts loaded on every page. | fonts.googleapis.com | Low |
 
@@ -42,7 +42,7 @@ Last updated: 2026-06-03
 | Shell | PowerShell |
 | Runtime | Node.js + npm |
 | Dev server | `npm run dev` → http://localhost:5173 |
-| Project path | `C:\Users\philo\verrante-portal` |
+| Project path | `C:\Users\philo\qerxel-portal` |
 
 ---
 
@@ -51,7 +51,7 @@ Last updated: 2026-06-03
 | Item | Value |
 |---|---|
 | Supabase project ref | kkrsvkxkefijmtbwykzv |
-| GitHub repo | philsk1/verante-portal |
-| Live URL | https://verante-portal.vercel.app |
+| GitHub repo | philsk1/qerxel-portal |
+| Live URL | https://qerxel-portal.vercel.app |
 | Supabase anon key | In `src/supabase.js` — safe to be public |
 | Service role key | NOT in codebase — must be stored offline and used only in server-side workers |

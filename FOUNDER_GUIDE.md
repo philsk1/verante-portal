@@ -1,4 +1,4 @@
-# Verrante — Founder's Operating Guide
+# Qerxel — Founder's Operating Guide
 
 **Print this. Keep a copy offline. Read it before every working session.**
 

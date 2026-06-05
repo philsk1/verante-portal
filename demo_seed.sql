@@ -1,27 +1,26 @@
 -- =====================================================================
--- VERRANTE — Demo Data Layer  (Session 1 of 3)
+-- QERXEL — Demo Data Seed  (Strategic Business Set)
 -- =====================================================================
--- Creates all demo_ tables and seeds 10 businesses with realistic data.
+-- Creates all demo_ tables and seeds 10 strategic businesses.
 -- Safe to re-run — truncates demo data before re-inserting.
 -- Run in Supabase SQL Editor.
 --
--- Business IDs use pattern 00000000-0000-0000-0000-00000000000X
--- b01 Bella's Hair Studio     (standard)
--- b02 Fast Flow Plumbing      (professional)
--- b03 Bright Spark Electrical (light)
--- b04 Green Thumb Gardens     (standard)
--- b05 Pawfect Grooming        (light)
--- b06 Peak Performance PT     (standard)
--- b07 Clarity Accounting      (professional)
--- b08 Spotless Cleaning Co    (standard)
--- b09 Fresh Coat Decorating   (light)
--- b10 Restore Physiotherapy   (enterprise)
--- u01 demo@verrante.app       (sales rep)
+-- b01  Hargreaves Plumbing          (standard)
+-- b02  Elegant Hair Design           (light)
+-- b03  Greenfield Landscape          (professional)
+-- b04  Swift Electrical              (standard)
+-- b05  Paws & Claws Dog Grooming     (light)
+-- b06  Premier Mortgage Solutions    (professional)
+-- b07  Valley View B&B               (standard)
+-- b08  Apex Print & Design           (professional)
+-- b09  Nationwide Recruitment        (enterprise)
+-- b10  JB Sports & Fashion           (enterprise)
+-- u99  demo@qerxel.app             (sales rep)
 -- =====================================================================
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 1. CREATE TABLES
+-- 1. CREATE TABLES (idempotent)
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS demo_businesses (
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS demo_businesses (
   tone_register         text default 'warm',
   business_outcome_type text default 'booking',
   greeting_message      text,
-  included_minutes      integer default 150,
+  included_minutes      integer default 250,
   credits_balance       integer default 0,
   referral_code         text,
   created_at            timestamptz default now()
@@ -140,7 +139,7 @@ CREATE TABLE IF NOT EXISTS demo_sessions (
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 2. TRUNCATE — safe re-run
+-- 2. TRUNCATE (safe re-run)
 -- ═══════════════════════════════════════════════════════════════════
 
 TRUNCATE demo_sessions, demo_competitor_intelligence, demo_pricing_intelligence,
@@ -151,7 +150,15 @@ DELETE FROM demo_users;
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 3. DEMO BUSINESSES
+-- 3. DEMO USER
+-- ═══════════════════════════════════════════════════════════════════
+
+INSERT INTO demo_users (id, email, name, role, access_code) VALUES
+('00000000-0000-0000-0000-000000000099', 'demo@qerxel.app', 'Demo User', 'sales_rep', 'QERXEL2026');
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 4. DEMO BUSINESSES
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_businesses (
@@ -162,689 +169,662 @@ INSERT INTO demo_businesses (
   greeting_message, included_minutes, credits_balance, referral_code
 ) VALUES
 
+-- b01 Hargreaves Plumbing — Standard
 ('00000000-0000-0000-0000-000000000001',
- 'Bella''s Hair Studio', 'hair_salon', 'standard',
- 'bella@bellashairstudio.co.uk', '0117 123 4567', 'Bella Marchetti',
- 'https://booksy.com/bellas',
- 'Mon–Sat 9am–6pm, Sun closed',
- 'Award-winning hair salon in Bristol city centre. Specialists in colour, balayage and keratin treatments. 8 years serving the local community.',
- 'balanced', 'warm', 'booking',
- 'Hello, you''ve reached Bella''s Hair Studio! Bella is with a client right now but I can help you book an appointment or answer any questions.',
- 150, 2, 'BELLA-1234'),
-
-('00000000-0000-0000-0000-000000000002',
- 'Fast Flow Plumbing', 'plumber', 'professional',
- 'dave@fastflowplumbing.co.uk', '0117 234 5678', 'Dave Fletcher',
- 'https://calendly.com/fastflow',
- 'Mon–Fri 7am–6pm, Sat 8am–2pm',
- 'Family-run plumbing business covering Bristol and surrounding areas. Emergency call-outs available. Boiler specialists, bathroom installations, central heating.',
+ 'Hargreaves Plumbing', 'plumber', 'standard',
+ 'mike@hargreavesplumbing.co.uk', '0114 234 5678', 'Mike Hargreaves',
+ null,
+ 'Mon–Fri 7am–6pm, Sat 8am–1pm',
+ 'Family-run plumbing business serving Sheffield and South Yorkshire for 14 years. Emergency call-outs 7 days a week. Boiler specialists, bathroom installations, central heating, drain unblocking.',
  'balanced', 'warm', 'callback',
- 'Hi there, you''ve reached Fast Flow Plumbing. Dave''s out on a job but I can take your details and arrange a callback.',
- 250, 4, 'DAVE-5678'),
+ 'Hello, you''ve reached Hargreaves Plumbing. Mike''s out on a job right now — I can take your details and arrange a callback as soon as possible.',
+ 250, 3, 'HRG-1234'),
 
+-- b02 Elegant Hair Design — Light
+('00000000-0000-0000-0000-000000000002',
+ 'Elegant Hair Design', 'hair_salon', 'light',
+ 'tracy@eleganthairdesign.co.uk', '0113 345 6789', 'Tracy Walsh',
+ 'https://booksy.com/eleganthair',
+ 'Tue–Sat 9am–6pm, Sun & Mon closed',
+ 'Boutique hair salon in Leeds city centre. Specialists in colour, balayage, and Olaplex treatments. Tracy and her team have over 20 years of combined experience.',
+ 'balanced', 'warm', 'booking',
+ 'Hello, Elegant Hair Design! Tracy''s with a client right now — I can take a message or help you book an appointment.',
+ 120, 1, 'EHD-5678'),
+
+-- b03 Greenfield Landscape Gardening — Professional
 ('00000000-0000-0000-0000-000000000003',
- 'Bright Spark Electrical', 'electrician', 'light',
- 'enquiries@brightsparkelectrical.co.uk', '0117 345 6789', 'Rob Higgins',
- null,
- 'Mon–Fri 8am–5pm',
- 'NICEIC-registered electrician covering South Bristol. Consumer unit upgrades, EV charger installation, garden lighting, PAT testing.',
- 'strict', 'formal', 'quote',
- 'Thank you for calling Bright Spark Electrical. Rob is on a job at the moment. I can take your details and arrange a quote callback.',
- 60, 1, 'SPARK-9012'),
+ 'Greenfield Landscape Gardening', 'landscape_gardener', 'professional',
+ 'james@greenfieldlandscape.co.uk', '0161 456 7890', 'James Greenfield',
+ 'https://greenfieldlandscape.co.uk/quote',
+ 'Mon–Fri 7am–5pm, Sat 8am–12pm',
+ 'Award-winning landscaping and garden maintenance company in Manchester. Commercial and residential. Garden design, hard landscaping, ongoing maintenance contracts. RHS trained team.',
+ 'open', 'warm', 'quote',
+ 'Hello, you''ve reached Greenfield Landscape Gardening. James and the team are out in the gardens — tell me about your project and we''ll get back to you with a quote.',
+ 450, 5, 'GFL-9012'),
 
+-- b04 Swift Electrical — Standard
 ('00000000-0000-0000-0000-000000000004',
- 'Green Thumb Gardens', 'landscape_gardener', 'standard',
- 'mike@greenthumbgardens.co.uk', '0117 456 7890', 'Mike Thornton',
- 'https://greenthumbgardens.co.uk/book',
- 'Mon–Fri 7am–5pm, Sat 8am–1pm',
- 'Professional garden maintenance and landscaping covering Bristol and North Somerset. Lawn care, hedge trimming, patio laying, garden clearance. Regular contracts welcome.',
- 'balanced', 'warm', 'booking',
- 'Hello, Green Thumb Gardens! Mike''s out in the gardens right now. Tell me what you need and I''ll make sure he gets back to you.',
- 150, 3, 'GREEN-3456'),
-
-('00000000-0000-0000-0000-000000000005',
- 'Pawfect Grooming', 'dog_groomer', 'light',
- 'hello@pawfectgrooming.co.uk', '0117 567 8901', 'Jess Hargreaves',
- 'https://pawfectgrooming.co.uk/book',
- 'Tue–Sat 9am–5pm',
- 'Mobile dog grooming service covering North Bristol. All breeds welcome. Fully equipped van, stress-free approach. New puppy packages available.',
- 'balanced', 'warm', 'booking',
- 'Woof! You''ve reached Pawfect Grooming — Jess is busy with a very fluffy client right now! Leave your details and she''ll call you straight back.',
- 60, 1, 'PAWFCT-7890'),
-
-('00000000-0000-0000-0000-000000000006',
- 'Peak Performance PT', 'personal_trainer', 'standard',
- 'hello@peakperformancept.co.uk', '0117 678 9012', 'Connor Walsh',
- 'https://peakperformancept.co.uk/book',
- 'Mon–Fri 6am–8pm, Sat 7am–3pm',
- 'Personal trainer in Bristol. Weight loss, strength training, sports performance. In-person and online coaching. Block bookings available.',
- 'balanced', 'warm', 'booking',
- 'Hey! You''ve reached Peak Performance PT. Connor''s in a session right now — tell me your fitness goals and I''ll make sure he gets back to you.',
- 150, 2, 'PEAK-2345'),
-
-('00000000-0000-0000-0000-000000000007',
- 'Clarity Accounting', 'accountant', 'professional',
- 'info@clarityaccounting.co.uk', '0117 789 0123', 'Christine Lawson',
+ 'Swift Electrical', 'electrician', 'standard',
+ 'dave@swiftelectrical.co.uk', '0121 567 8901', 'Dave Swift',
  null,
- 'Mon–Fri 9am–5pm',
- 'Chartered accountancy practice in Bristol. Self-assessment, VAT returns, company accounts, bookkeeping, payroll. Serving small businesses and sole traders for 15 years.',
+ 'Mon–Fri 7:30am–5:30pm',
+ 'NICEIC-registered electrical contractor serving Birmingham and the West Midlands. Consumer unit upgrades, EV charger installation, rewiring, commercial installations, PAT testing.',
  'balanced', 'formal', 'quote',
- 'Thank you for calling Clarity Accounting. Our team are with clients at the moment. I can take a message and arrange a callback at your convenience.',
- 250, 5, 'CLRTY-6789'),
+ 'Thank you for calling Swift Electrical. Dave is currently on a job — I can take your details and arrange a quote callback.',
+ 250, 2, 'SWF-3456'),
 
-('00000000-0000-0000-0000-000000000008',
- 'Spotless Cleaning Co', 'cleaning_company', 'standard',
- 'maria@spotlesscleaning.co.uk', '0117 890 1234', 'Maria Santos',
- 'https://spotlesscleaning.co.uk/book',
- 'Mon–Sat 7am–6pm',
- 'Professional cleaning services across Bristol and Bath. Domestic, commercial, end of tenancy and deep cleans. Fully insured, DBS-checked team.',
+-- b05 Paws & Claws Dog Grooming — Light
+('00000000-0000-0000-0000-000000000005',
+ 'Paws & Claws Dog Grooming', 'dog_groomer', 'light',
+ 'sarah@pawsandclaws.co.uk', '0117 678 9012', 'Sarah Chen',
+ 'https://pawsandclaws.co.uk/book',
+ 'Wed–Sun 9am–5pm',
+ 'Mobile and salon dog grooming service in Bristol. All breeds welcome. Full grooms, puppy packages, anxiety-free approach. Sarah is a City & Guilds qualified groomer.',
  'balanced', 'warm', 'booking',
- 'Hi, you''ve reached Spotless Cleaning Co! Maria is out with the team today. I can get you booked in or take a message — what do you need?',
- 150, 3, 'SPTLS-0123'),
+ 'Hi! You''ve reached Paws & Claws Dog Grooming. Sarah''s busy with a gorgeous client right now — leave your details and she''ll call you straight back!',
+ 120, 2, 'PNC-7890'),
 
-('00000000-0000-0000-0000-000000000009',
- 'Fresh Coat Decorating', 'painter_decorator', 'light',
- 'andy@freshcoatdecorating.co.uk', '0117 901 2345', 'Andy Wells',
- null,
- 'Mon–Fri 7am–4pm',
- 'Experienced decorator covering Bristol. Interior and exterior painting, wallpapering, specialist finishes. Free quotes. Fully insured.',
+-- b06 Premier Mortgage Solutions — Professional
+('00000000-0000-0000-0000-000000000006',
+ 'Premier Mortgage Solutions', 'mortgage_broker', 'professional',
+ 'caroline@premiermortgage.co.uk', '029 2034 5678', 'Caroline Hughes',
+ 'https://calendly.com/premiermortgage',
+ 'Mon–Fri 9am–6pm, Sat 10am–2pm',
+ 'Independent whole-of-market mortgage broker based in Cardiff. First time buyers, remortgage, buy to let, equity release. FCA registered. Access to over 90 lenders. No broker fee.',
+ 'open', 'formal', 'callback',
+ 'Thank you for calling Premier Mortgage Solutions. Caroline is with a client — I can arrange a free initial consultation at a time that suits you.',
+ 450, 7, 'PMR-2345'),
+
+-- b07 Valley View B&B — Standard
+('00000000-0000-0000-0000-000000000007',
+ 'Valley View B&B', 'bed_and_breakfast', 'standard',
+ 'hello@valleyviewbnb.co.uk', '01539 456 789', 'Paul & Janet Morris',
+ 'https://valleyviewbnb.co.uk/book',
+ 'Reception open 8am–9pm daily',
+ 'Family-run bed and breakfast in the heart of the Lake District, Ambleside. 6 en-suite rooms, home-cooked breakfasts, stunning fell views. Dog friendly. Walkers and cyclists welcome.',
+ 'balanced', 'warm', 'booking',
+ 'Hello, Valley View B&B! Paul or Janet will be with you shortly — I can take your enquiry or help check availability.',
+ 250, 4, 'VVB-6789'),
+
+-- b08 Apex Print & Design — Professional
+('00000000-0000-0000-0000-000000000008',
+ 'Apex Print & Design', 'print_design', 'professional',
+ 'mark@apexprintdesign.co.uk', '0115 567 8901', 'Mark Dobson',
+ 'https://apexprintdesign.co.uk/quote',
+ 'Mon–Fri 8am–5:30pm',
+ 'Full service print and design studio in Nottingham city centre. Business stationery, marketing materials, large format print, exhibition stands, vehicle graphics. 20 years in print.',
  'balanced', 'warm', 'quote',
- 'Hi, Andy from Fresh Coat here — I''m up a ladder right now! Leave your details and I''ll get back to you with a free quote.',
- 60, 0, 'FRESH-4567'),
+ 'Hello, Apex Print and Design! Mark and the studio team are in production — tell me what you need printing and we''ll get a quote over to you.',
+ 450, 6, 'APX-0123'),
 
+-- b09 Nationwide Recruitment — Enterprise
+('00000000-0000-0000-0000-000000000009',
+ 'Nationwide Recruitment', 'recruitment_agency', 'enterprise',
+ 'enquiries@nationwiderecruitment.co.uk', '0161 678 9012', 'Debbie Walsh',
+ 'https://nationwiderecruitment.co.uk/contact',
+ 'Mon–Fri 8am–6pm',
+ 'Leading UK recruitment agency specialising in professional and executive placements across commercial, finance, HR, and operations. Offices in Manchester, London, and Birmingham. Est. 2008.',
+ 'open', 'formal', 'callback',
+ 'Thank you for calling Nationwide Recruitment. Our team are busy with clients — I can take your details and connect you with the right consultant.',
+ 1000, 9, 'NWR-4567'),
+
+-- b10 JB Sports & Fashion — Enterprise
 ('00000000-0000-0000-0000-000000000010',
- 'Restore Physiotherapy', 'physiotherapist', 'enterprise',
- 'reception@restorephysio.co.uk', '0117 012 3456', 'Dr Sarah Okonkwo',
- 'https://restorephysio.co.uk/book',
- 'Mon–Fri 7am–8pm, Sat 8am–3pm',
- 'Multi-practitioner physiotherapy clinic in Central Bristol. Sports injury, post-operative rehab, Clinical Pilates, remedial massage, acupuncture. GP and consultant referrals welcome.',
- 'open', 'warm', 'booking',
- 'Hello, you''ve reached Restore Physiotherapy. Our reception team are with patients at the moment. I can arrange a booking or take your details for a callback.',
- 700, 7, 'RSTR-8901');
+ 'JB Sports & Fashion', 'retail', 'enterprise',
+ 'headoffice@jbsportsfashion.co.uk', '020 7123 4567', 'Head Office',
+ 'https://jbsportsfashion.co.uk',
+ 'Mon–Sat 9am–6pm, Sun 11am–5pm',
+ 'National sports and fashion retailer with 40 stores across the UK. Head office enquiry line for wholesale, press, and commercial partnerships. Not a customer service line.',
+ 'strict', 'formal', 'callback',
+ 'Thank you for calling JB Sports & Fashion head office. Our team handles wholesale, press, and commercial enquiries — please tell me the nature of your call.',
+ 1000, 12, 'JBS-8901');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 4. SERVICES
+-- 5. SERVICES
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_services (business_id, service_name, is_partner_service) VALUES
--- Bella's Hair Studio
-('00000000-0000-0000-0000-000000000001','Cut & Blow Dry',false),
-('00000000-0000-0000-0000-000000000001','Colour',false),
-('00000000-0000-0000-0000-000000000001','Highlights',false),
-('00000000-0000-0000-0000-000000000001','Balayage',false),
-('00000000-0000-0000-0000-000000000001','Keratin Treatment',false),
-('00000000-0000-0000-0000-000000000001','Hair Extensions',false),
-('00000000-0000-0000-0000-000000000001','Nail technician',true),
-('00000000-0000-0000-0000-000000000001','Beauty therapy',true),
--- Fast Flow Plumbing
-('00000000-0000-0000-0000-000000000002','Emergency plumbing',false),
-('00000000-0000-0000-0000-000000000002','Boiler service & repair',false),
-('00000000-0000-0000-0000-000000000002','Bathroom installation',false),
-('00000000-0000-0000-0000-000000000002','Leak detection & repair',false),
-('00000000-0000-0000-0000-000000000002','Drain clearance',false),
-('00000000-0000-0000-0000-000000000002','Central heating',false),
-('00000000-0000-0000-0000-000000000002','Electrical work',true),
-('00000000-0000-0000-0000-000000000002','Tiling',true),
-('00000000-0000-0000-0000-000000000002','Plastering',true),
--- Bright Spark Electrical
-('00000000-0000-0000-0000-000000000003','Consumer unit upgrade',false),
-('00000000-0000-0000-0000-000000000003','Socket & switch installation',false),
-('00000000-0000-0000-0000-000000000003','Garden lighting',false),
-('00000000-0000-0000-0000-000000000003','EV charger installation',false),
-('00000000-0000-0000-0000-000000000003','PAT testing',false),
-('00000000-0000-0000-0000-000000000003','Plumbing',true),
-('00000000-0000-0000-0000-000000000003','Building & plastering',true),
--- Green Thumb Gardens
-('00000000-0000-0000-0000-000000000004','Lawn mowing',false),
-('00000000-0000-0000-0000-000000000004','Hedge trimming',false),
-('00000000-0000-0000-0000-000000000004','Garden clearance',false),
-('00000000-0000-0000-0000-000000000004','Patio laying',false),
-('00000000-0000-0000-0000-000000000004','Planting & landscaping',false),
-('00000000-0000-0000-0000-000000000004','Tree surgery',true),
-('00000000-0000-0000-0000-000000000004','Fencing & decking',true),
--- Pawfect Grooming
+-- Hargreaves Plumbing
+('00000000-0000-0000-0000-000000000001','Boiler service & repair',false),
+('00000000-0000-0000-0000-000000000001','Emergency call-out',false),
+('00000000-0000-0000-0000-000000000001','Bathroom installation',false),
+('00000000-0000-0000-0000-000000000001','Central heating',false),
+('00000000-0000-0000-0000-000000000001','Drain unblocking',false),
+('00000000-0000-0000-0000-000000000001','Power flush',false),
+('00000000-0000-0000-0000-000000000001','EV charger installation',true),
+('00000000-0000-0000-0000-000000000001','Garden electrical',true),
+
+-- Elegant Hair Design
+('00000000-0000-0000-0000-000000000002','Cut & blow dry',false),
+('00000000-0000-0000-0000-000000000002','Colour & highlights',false),
+('00000000-0000-0000-0000-000000000002','Balayage',false),
+('00000000-0000-0000-0000-000000000002','Keratin treatment',false),
+('00000000-0000-0000-0000-000000000002','Bridal hair',false),
+('00000000-0000-0000-0000-000000000002','Hair extensions',false),
+
+-- Greenfield Landscape
+('00000000-0000-0000-0000-000000000003','Garden design',false),
+('00000000-0000-0000-0000-000000000003','Lawn care & maintenance',false),
+('00000000-0000-0000-0000-000000000003','Hedge trimming',false),
+('00000000-0000-0000-0000-000000000003','Patio & decking',false),
+('00000000-0000-0000-0000-000000000003','Fencing & boundary work',false),
+('00000000-0000-0000-0000-000000000003','Garden clearance',false),
+('00000000-0000-0000-0000-000000000003','Outdoor electrical',true),
+('00000000-0000-0000-0000-000000000003','Outdoor plumbing',true),
+
+-- Swift Electrical
+('00000000-0000-0000-0000-000000000004','Consumer unit upgrade',false),
+('00000000-0000-0000-0000-000000000004','EV charger installation',false),
+('00000000-0000-0000-0000-000000000004','Full rewire',false),
+('00000000-0000-0000-0000-000000000004','Garden & outdoor lighting',false),
+('00000000-0000-0000-0000-000000000004','CCTV & security',false),
+('00000000-0000-0000-0000-000000000004','PAT testing',false),
+('00000000-0000-0000-0000-000000000004','Boiler & heating',true),
+('00000000-0000-0000-0000-000000000004','Bathroom plumbing',true),
+
+-- Paws & Claws
 ('00000000-0000-0000-0000-000000000005','Full groom',false),
 ('00000000-0000-0000-0000-000000000005','Bath & brush',false),
-('00000000-0000-0000-0000-000000000005','Nail clip',false),
 ('00000000-0000-0000-0000-000000000005','Puppy first groom',false),
+('00000000-0000-0000-0000-000000000005','Nail trim & tidy',false),
 ('00000000-0000-0000-0000-000000000005','De-shedding treatment',false),
-('00000000-0000-0000-0000-000000000005','Dog training',true),
-('00000000-0000-0000-0000-000000000005','Veterinary referral',true),
--- Peak Performance PT
-('00000000-0000-0000-0000-000000000006','1-to-1 personal training',false),
-('00000000-0000-0000-0000-000000000006','Nutrition coaching',false),
-('00000000-0000-0000-0000-000000000006','Online coaching',false),
-('00000000-0000-0000-0000-000000000006','Group sessions',false),
-('00000000-0000-0000-0000-000000000006','Sports physiotherapy',true),
-('00000000-0000-0000-0000-000000000006','Sports massage',true),
--- Clarity Accounting
-('00000000-0000-0000-0000-000000000007','Self-assessment tax return',false),
-('00000000-0000-0000-0000-000000000007','VAT returns',false),
-('00000000-0000-0000-0000-000000000007','Bookkeeping',false),
-('00000000-0000-0000-0000-000000000007','Company accounts',false),
-('00000000-0000-0000-0000-000000000007','Payroll',false),
-('00000000-0000-0000-0000-000000000007','Financial planning',true),
-('00000000-0000-0000-0000-000000000007','Legal services',true),
--- Spotless Cleaning Co
-('00000000-0000-0000-0000-000000000008','Regular domestic clean',false),
-('00000000-0000-0000-0000-000000000008','End of tenancy clean',false),
-('00000000-0000-0000-0000-000000000008','Office cleaning',false),
-('00000000-0000-0000-0000-000000000008','Deep clean',false),
-('00000000-0000-0000-0000-000000000008','Post-build clean',false),
-('00000000-0000-0000-0000-000000000008','Window cleaning',true),
-('00000000-0000-0000-0000-000000000008','Carpet cleaning',true),
--- Fresh Coat Decorating
-('00000000-0000-0000-0000-000000000009','Interior painting',false),
-('00000000-0000-0000-0000-000000000009','Exterior painting',false),
-('00000000-0000-0000-0000-000000000009','Wallpaper hanging',false),
-('00000000-0000-0000-0000-000000000009','Coving & cornices',false),
-('00000000-0000-0000-0000-000000000009','Plastering',true),
-('00000000-0000-0000-0000-000000000009','Carpentry',true),
--- Restore Physiotherapy
-('00000000-0000-0000-0000-000000000010','Sports injury physio',false),
-('00000000-0000-0000-0000-000000000010','Remedial massage',false),
-('00000000-0000-0000-0000-000000000010','Acupuncture',false),
-('00000000-0000-0000-0000-000000000010','Clinical Pilates',false),
-('00000000-0000-0000-0000-000000000010','Dry needling',false),
-('00000000-0000-0000-0000-000000000010','Post-operative rehab',false),
-('00000000-0000-0000-0000-000000000010','Podiatry',true),
-('00000000-0000-0000-0000-000000000010','Chiropractic',true);
+
+-- Premier Mortgage
+('00000000-0000-0000-0000-000000000006','First time buyer mortgage',false),
+('00000000-0000-0000-0000-000000000006','Remortgage advice',false),
+('00000000-0000-0000-0000-000000000006','Buy to let mortgage',false),
+('00000000-0000-0000-0000-000000000006','Equity release',false),
+('00000000-0000-0000-0000-000000000006','Protection insurance',false),
+('00000000-0000-0000-0000-000000000006','Bridging finance',false),
+
+-- Valley View B&B
+('00000000-0000-0000-0000-000000000007','Bed & breakfast',false),
+('00000000-0000-0000-0000-000000000007','Self-catering cottage',false),
+('00000000-0000-0000-0000-000000000007','Group bookings',false),
+('00000000-0000-0000-0000-000000000007','Walking & cycling packages',false),
+
+-- Apex Print & Design
+('00000000-0000-0000-0000-000000000008','Business stationery',false),
+('00000000-0000-0000-0000-000000000008','Flyers & leaflets',false),
+('00000000-0000-0000-0000-000000000008','Large format banners',false),
+('00000000-0000-0000-0000-000000000008','Exhibition stands',false),
+('00000000-0000-0000-0000-000000000008','Vehicle wraps',false),
+('00000000-0000-0000-0000-000000000008','Branded merchandise',false),
+
+-- Nationwide Recruitment
+('00000000-0000-0000-0000-000000000009','Permanent placement',false),
+('00000000-0000-0000-0000-000000000009','Temporary staffing',false),
+('00000000-0000-0000-0000-000000000009','Executive search',false),
+('00000000-0000-0000-0000-000000000009','HR consulting',false),
+('00000000-0000-0000-0000-000000000009','Payroll services',false),
+
+-- JB Sports & Fashion
+('00000000-0000-0000-0000-000000000010','Wholesale enquiries',false),
+('00000000-0000-0000-0000-000000000010','Press & media',false),
+('00000000-0000-0000-0000-000000000010','Commercial partnerships',false),
+('00000000-0000-0000-0000-000000000010','Franchise enquiries',false);
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 5. STAFF  (businesses with employees: b01, b02, b04, b07, b08, b10)
+-- 6. STAFF  (Professional and Enterprise only)
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_staff (business_id, name, role, specialist_services, phone, active) VALUES
-('00000000-0000-0000-0000-000000000001','Bella Marchetti','Owner / Senior Stylist','Balayage, Colour, Keratin Treatment','07712 334400',true),
-('00000000-0000-0000-0000-000000000001','Sophie Patel','Junior Stylist','Cut & Blow Dry, Highlights','07823 445500',true),
-('00000000-0000-0000-0000-000000000002','Dave Fletcher','Owner / Lead Plumber','Emergency repairs, Boiler service, Bathroom installation','07611 223300',true),
-('00000000-0000-0000-0000-000000000002','Lee Okafor','Apprentice Plumber','Leak detection, Drain clearance','07724 334400',true),
-('00000000-0000-0000-0000-000000000004','Mike Thornton','Owner / Lead Gardener','Landscaping, Patio laying, Garden design','07700 445500',true),
-('00000000-0000-0000-0000-000000000004','Tom Briggs','Gardener','Lawn care, Hedge trimming, Planting','07811 556600',true),
-('00000000-0000-0000-0000-000000000007','Christine Lawson','Director / Chartered Accountant','Company accounts, VAT returns, Self-assessment','07500 556600',true),
-('00000000-0000-0000-0000-000000000007','Aiden Park','Accounts Manager','Bookkeeping, Payroll','07611 667700',true),
-('00000000-0000-0000-0000-000000000008','Maria Santos','Owner / Lead Cleaner','End of tenancy, Deep clean, Post-build','07700 667700',true),
-('00000000-0000-0000-0000-000000000010','Dr Sarah Okonkwo','Clinic Director / Physiotherapist','Sports injury, Post-operative rehab, Assessment','07500 223300',true),
-('00000000-0000-0000-0000-000000000010','James Hartley','Senior Physiotherapist','Sports physio, Dry needling, Acupuncture','07611 334400',true),
-('00000000-0000-0000-0000-000000000010','Emma Chen','Massage Therapist','Remedial massage, Sports massage','07722 445500',true),
-('00000000-0000-0000-0000-000000000010','Priya Singh','Pilates Instructor','Clinical Pilates, Rehabilitation Pilates','07833 556600',true);
+-- Greenfield Landscape (professional)
+('00000000-0000-0000-0000-000000000003','James Greenfield','Owner & Lead Designer','Garden design, Hard landscaping, Client consultations','07700 123456',true),
+('00000000-0000-0000-0000-000000000003','Pete Walsh','Senior Groundsworker','Patio & decking, Fencing, Heavy clearance','07811 234567',true),
+-- Premier Mortgage (professional)
+('00000000-0000-0000-0000-000000000006','Caroline Hughes','Senior Mortgage Advisor','Residential, First time buyers, Remortgage','07600 345678',true),
+('00000000-0000-0000-0000-000000000006','David Banks','Protection Specialist','Life insurance, Income protection, Critical illness','07711 456789',true),
+-- Apex Print (professional)
+('00000000-0000-0000-0000-000000000008','Mark Dobson','Owner & Print Director','Large format, Vehicle wraps, Production','07500 567890',true),
+('00000000-0000-0000-0000-000000000008','Fiona Chen','Senior Designer','Brand identity, Design, Creative direction','07611 678901',true),
+-- Nationwide Recruitment (enterprise)
+('00000000-0000-0000-0000-000000000009','Debbie Walsh','Managing Director','Executive search, Strategic accounts','07700 789012',true),
+('00000000-0000-0000-0000-000000000009','Sam Taylor','Head of Commercial','Commercial, Finance, Operations placements','07811 890123',true),
+('00000000-0000-0000-0000-000000000009','Andy Jones','Head of Technology','IT, Digital, Engineering placements','07922 901234',true),
+-- JB Sports (enterprise)
+('00000000-0000-0000-0000-000000000010','Head Office Team','Commercial','Wholesale, Partnerships, Press','020 7123 4567',true);
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 6. PARTNERS
+-- 7. PARTNERS
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_partners (business_id, partner_name, partner_phone, specialty) VALUES
-('00000000-0000-0000-0000-000000000001','Nails by Nikki','07712 334455','Nail technician, Gel nails, Nail art'),
-('00000000-0000-0000-0000-000000000001','The Beauty Room','07823 445566','Beauty therapy, Eyebrow threading, Lash extensions'),
-('00000000-0000-0000-0000-000000000002','Sparks Electrical','07611 223344','Domestic and commercial electrical work, EV chargers'),
-('00000000-0000-0000-0000-000000000002','Pro-Tile','07724 556677','Tiling, Bathrooms, Kitchens, Wetrooms'),
-('00000000-0000-0000-0000-000000000002','Perfect Finish Plastering','07835 667788','Plastering, Rendering, Dry lining'),
-('00000000-0000-0000-0000-000000000003','City Plumbing','07500 112233','Plumbing, Boilers, Bathrooms'),
-('00000000-0000-0000-0000-000000000003','R&B Builders','07600 223344','General building, Extensions, Plastering'),
-('00000000-0000-0000-0000-000000000004','Summit Tree Services','07900 445566','Tree surgery, Stump removal, Crown reduction'),
-('00000000-0000-0000-0000-000000000004','Border Fencing','07811 556677','Fencing, Decking, Gates, Pergolas'),
-('00000000-0000-0000-0000-000000000005','Happy Hounds Training','07700 334455','Dog obedience training, Puppy classes, 1-to-1'),
-('00000000-0000-0000-0000-000000000005','Riverdale Vets','07812 445566','Veterinary care, Vaccinations, Health checks'),
-('00000000-0000-0000-0000-000000000006','Summit Physio','07611 667788','Sports physiotherapy, Injury rehabilitation'),
-('00000000-0000-0000-0000-000000000006','City Sports Massage','07722 778899','Sports massage, Deep tissue massage, Stretching'),
-('00000000-0000-0000-0000-000000000007','Bridge Financial Planning','07500 556677','Financial planning, Investments, Mortgages, Pensions'),
-('00000000-0000-0000-0000-000000000007','Lawton Solicitors','07611 667788','Business law, Contracts, Employment, Property'),
-('00000000-0000-0000-0000-000000000008','Crystal Windows','07700 445566','Window cleaning, Conservatory cleaning, Pressure washing'),
-('00000000-0000-0000-0000-000000000008','Premier Carpets','07811 556677','Carpet cleaning, Upholstery cleaning, Stain removal'),
-('00000000-0000-0000-0000-000000000009','Smooth Finish Plastering','07600 334455','Plastering, Rendering, Coving, Artex removal'),
-('00000000-0000-0000-0000-000000000009','Oak Carpentry','07711 445566','Carpentry, Skirting boards, Door fitting, Built-in furniture'),
-('00000000-0000-0000-0000-000000000010','City Podiatry','07500 223344','Podiatry, Orthotics, Biomechanics, Foot health'),
-('00000000-0000-0000-0000-000000000010','Align Chiropractic','07611 334455','Chiropractic, Spinal adjustment, Joint pain, Posture');
+-- Hargreaves Plumbing
+('00000000-0000-0000-0000-000000000001','Swift Electrical','0121 567 8901','Electrical work — consumer units, rewiring, EV chargers'),
+('00000000-0000-0000-0000-000000000001','Greenfield Landscape','0161 456 7890','Garden drainage, outdoor water features'),
+-- Swift Electrical
+('00000000-0000-0000-0000-000000000004','Hargreaves Plumbing','0114 234 5678','All plumbing and heating work'),
+('00000000-0000-0000-0000-000000000004','Greenfield Landscape','0161 456 7890','Garden design when outdoor lighting is installed'),
+-- Greenfield Landscape
+('00000000-0000-0000-0000-000000000003','Hargreaves Plumbing','0114 234 5678','Outdoor water, irrigation, tap installation'),
+('00000000-0000-0000-0000-000000000003','Swift Electrical','0121 567 8901','Garden lighting, outdoor power'),
+-- Elegant Hair Design
+('00000000-0000-0000-0000-000000000002','Paws & Claws Dog Grooming','0117 678 9012','Dog grooming — for clients with pets'),
+-- Paws & Claws
+('00000000-0000-0000-0000-000000000005','Valley View B&B','01539 456 789','Dog-friendly accommodation in the Lakes'),
+('00000000-0000-0000-0000-000000000005','Elegant Hair Design','0113 345 6789','Grooming for the owners too!'),
+-- Valley View B&B
+('00000000-0000-0000-0000-000000000007','Paws & Claws Dog Grooming','0117 678 9012','Dog grooming for guests visiting with dogs'),
+-- Premier Mortgage
+('00000000-0000-0000-0000-000000000006','Nationwide Recruitment','0161 678 9012','Career changes often trigger remortgage needs'),
+-- Nationwide Recruitment
+('00000000-0000-0000-0000-000000000009','Premier Mortgage Solutions','029 2034 5678','Relocating candidates often need mortgage advice'),
+('00000000-0000-0000-0000-000000000009','Apex Print & Design','0115 567 8901','Branded recruitment materials, candidate packs'),
+-- Apex Print & Design
+('00000000-0000-0000-0000-000000000008','Nationwide Recruitment','0161 678 9012','Studio hiring — designers and print managers'),
+('00000000-0000-0000-0000-000000000008','JB Sports & Fashion','020 7123 4567','Branded merchandise and retail display materials');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 7. TODAY'S CALLS  (explicit — ensures dashboard shows activity)
+-- 8. TODAY'S CALLS
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at) VALUES
 
--- Bella's Hair Studio
-('00000000-0000-0000-0000-000000000001','Sarah Johnson','07711 345678',195,'lead_captured','lead_captured','New customer enquiring about balayage. Gave pricing overview and timeline — very interested. Name and number captured for callback.',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000001','Emma Williams','07822 456789',85,'filtered','filtered','Caller asking about walk-in availability today — advised fully booked, offered cancellation list. No follow-up required.',NOW() - interval '45 minutes'),
-('00000000-0000-0000-0000-000000000001','Lucy Davies','07933 567890',240,'booked','booked','Appointment booked for cut and blow dry — Saturday 10am confirmed. Regular client.',NOW() - interval '15 minutes'),
+-- Hargreaves Plumbing (10 calls today)
+('00000000-0000-0000-0000-000000000001','Sharon Whitfield','07711 234567',225,'lead_captured','lead_captured','New bathroom installation enquiry — 3-bed semi in Hillsborough, full suite replacement. Quote callback arranged for Thursday. Lead captured.',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000001','Jim Barker','07822 345678',180,'booked','booked','Annual boiler service — existing customer, same address Broomhill. Tuesday 10am confirmed.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000001','Claire Robinson','07933 456789',300,'escalated','escalated','No heating or hot water — elderly resident, temperature dropping. Escalated as urgent. Mike to call within 20 minutes.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000001','Derek Shaw','07500 567890',90,'referred_out','referred_out','Caller needed CCTV installation — outside scope. Referred to Swift Electrical on 0121 567 8901.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000001','Pat Holland','07611 678901',195,'lead_captured','lead_captured','Power flush enquiry — old radiators not heating through, 1930s terrace. Mike to call Thursday with pricing. Lead captured.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000001','Steven Price','07722 789012',60,'filtered','filtered','Sales call from a boiler manufacturer — declined and closed politely.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000001','Nicola Grant','07833 890123',240,'booked','booked','Leak under kitchen sink — emergency call-out booked for this afternoon. Address captured.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000001','Graham West','07944 901234',175,'lead_captured','lead_captured','Central heating upgrade — moving from back boiler to combi. Site visit to quote next week. Lead captured.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000001','Angela Ford','07555 012345',45,'spam','spam','Automated call detected and filtered.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000001','Robert Marsh','07666 123456',210,'lead_captured','lead_captured','Drain unblocking — commercial kitchen drain, restaurant in town centre. Urgency flagged, callback within 2 hours. Lead captured.',NOW() - interval '8 hours'),
 
--- Fast Flow Plumbing
-('00000000-0000-0000-0000-000000000002','James Fletcher','07611 234567',180,'lead_captured','lead_captured','Emergency boiler breakdown — Clifton address, no heating or hot water. Urgent callback needed. Lead captured, Dave to call within 30 mins.',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000002','Carol Stevens','07722 345678',300,'booked','booked','Full bathroom installation — 3-bed semi in Redland. Site visit booked for Thursday 10am to quote.',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000002','Paul Harrison','07833 456789',210,'escalated','escalated','Burst pipe in kitchen — active water leak. Immediate call-out arranged. Escalated to Dave directly.',NOW() - interval '20 minutes'),
+-- Elegant Hair Design (5 calls today — light tier)
+('00000000-0000-0000-0000-000000000002','Gemma Riley','07700 234567',150,'booked','booked','Cut and colour appointment — Saturday 11am with Tracy. Consultation for brunette to blonde balayage confirmed.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000002','Louise Patel','07811 345678',95,'lead_captured','lead_captured','Bridal hair enquiry — wedding in July, 4 bridesmaids. Trial date discussed. Lead captured for quote.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000002','Carol Jennings','07922 456789',75,'booked','booked','Regular cut and blow dry — Thursday 2pm rebooked.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000002','Michelle Park','07533 567890',45,'filtered','filtered','Caller asking for product stockist — referred to website, no appointment needed.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000002','Rebecca Stone','07644 678901',185,'lead_captured','lead_captured','Keratin treatment enquiry — frizzy hair, first time. Treatment explained, pricing given. Lead captured.',NOW() - interval '5 hours'),
 
--- Bright Spark Electrical
-('00000000-0000-0000-0000-000000000003','Chris Martin','07500 123456',165,'lead_captured','lead_captured','Consumer unit upgrade enquiry — 1970s property in Totterdown. Quote callback scheduled for Friday afternoon.',NOW() - interval '4 hours'),
-('00000000-0000-0000-0000-000000000003','Karen Hughes','07611 234567',90,'referred_out','referred_out','Caller needing boiler repair — outside scope. Referred to City Plumbing on 07500 112233.',NOW() - interval '1 hour'),
+-- Greenfield Landscape (14 calls today — professional)
+('00000000-0000-0000-0000-000000000003','Andrew Palmer','07700 789012',280,'lead_captured','lead_captured','Full garden redesign — large detached property in Altrincham, 80ft rear garden. Design consultation arranged for Saturday morning.',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000003','Susan Morley','07811 890123',195,'booked','booked','Weekly maintenance contract — lawn mow, edging, hedge tidy. Starting Monday, confirmed.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000003','Brian Collins','07922 901234',240,'lead_captured','lead_captured','Patio installation — 40sq metre, Indian stone. Quote visit booked for Wednesday afternoon.',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000003','Wendy Harris','07533 012345',90,'referred_out','referred_out','Outdoor tap installation — referred to Hargreaves Plumbing on 0114 234 5678. Left message with details.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000003','Neil Thompson','07644 123456',315,'lead_captured','lead_captured','Commercial contract enquiry — business park in Salford, 12 units, communal areas. Meeting with James arranged for next Monday.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000003','Diane Walker','07755 234567',175,'booked','booked','Garden clearance — 3 years of growth, large rear garden. Friday 8am, 2-man team confirmed.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000003','Kevin Adams','07866 345678',60,'filtered','filtered','Autodialler detected — filtered before reaching voicemail.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000003','Janet Morrison','07977 456789',220,'lead_captured','lead_captured','Fence replacement — 20m of fence panels and posts blown down in storm. Quote callback tomorrow. Lead captured.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000003','Phil Ward','07588 567890',195,'lead_captured','lead_captured','Annual maintenance contract renewal enquiry — current customer, 2 years. Pricing discussed, James to confirm. Lead captured.',NOW() - interval '4.5 hours'),
+('00000000-0000-0000-0000-000000000003','Carol Shaw','07699 678901',155,'booked','booked','One-off autumn tidy — lawns, hedges, leaf clearing. Thursday afternoon booked.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000003','Tim Barker','07700 789012',45,'spam','spam','Recognised spam number — filtered and blocked.',NOW() - interval '5.5 hours'),
+('00000000-0000-0000-0000-000000000003','Fiona Grant','07811 890123',265,'lead_captured','lead_captured','Decking installation — composite, approx 30sq metres with steps. Quote visit Friday morning. Lead captured.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000003','Mark Robinson','07922 901234',185,'referred_out','referred_out','Garden lighting installation — outside scope. Referred to Swift Electrical on 0121 567 8901.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000003','Helen Price','07533 012345',230,'lead_captured','lead_captured','Japanese garden redesign enquiry — specialist project, Hale Barns. James to call to discuss design approach. Lead captured.',NOW() - interval '8 hours'),
 
--- Green Thumb Gardens
-('00000000-0000-0000-0000-000000000004','David Thompson','07700 234567',225,'booked','booked','Garden clearance booked — large overgrown rear garden in Bishopston. Thursday morning confirmed.',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000004','Helen Morrison','07811 345678',185,'lead_captured','lead_captured','Regular maintenance enquiry — weekly lawn mow and monthly hedges for large Victorian garden. Lead captured.',NOW() - interval '50 minutes'),
+-- Swift Electrical (10 calls today)
+('00000000-0000-0000-0000-000000000004','Paul Freeman','07644 123456',255,'lead_captured','lead_captured','Consumer unit upgrade — 1960s property, old fuse box. Quote arranged for Thursday. Dave to attend. Lead captured.',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000004','Janice Cook','07755 234567',180,'lead_captured','lead_captured','EV charger installation — home charge point, new electric car arriving next week. Survey booked for Wednesday.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000004','Tony Mason','07866 345678',300,'booked','booked','Full rewire — 1930s semi, extension recently added, EICR required. Site visit Monday 9am confirmed.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000004','Sandra Booth','07977 456789',90,'referred_out','referred_out','Boiler fault — not electrical, referred to Hargreaves Plumbing on 0114 234 5678.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000004','Colin Hardy','07588 567890',195,'lead_captured','lead_captured','Commercial PAT testing — 40-desk office, annual requirement. Quote to follow. Lead captured.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000004','Margaret Bell','07699 678901',45,'filtered','filtered','Sales call from cable supplier — filtered and declined.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000004','Wayne Foster','07700 789012',225,'lead_captured','lead_captured','CCTV system — retail unit in city centre, 8 cameras required. Quote visit arranged for Friday afternoon.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000004','Ruth Pearson','07811 890123',175,'booked','booked','Outdoor lighting — front of property, spotlights and PIR sensor. Booked for Saturday morning.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000004','Steve Walsh','07922 901234',60,'spam','spam','Autodialler detected and filtered.',NOW() - interval '7.5 hours'),
+('00000000-0000-0000-0000-000000000004','Dawn Clarke','07533 012345',240,'lead_captured','lead_captured','Extension electrical — new kitchen extension, first fix and second fix required. Dave to quote next week.',NOW() - interval '8 hours'),
 
--- Pawfect Grooming
-('00000000-0000-0000-0000-000000000005','Lisa Walker','07600 345678',150,'booked','booked','Golden retriever — full groom. Saturday 9am slot confirmed.',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000005','Emma Price','07711 456789',110,'lead_captured','lead_captured','New puppy enquiry — Cockapoo, 16 weeks old. Puppy first groom package explained in full. Lead captured.',NOW() - interval '30 minutes'),
+-- Paws & Claws (5 calls today — light tier)
+('00000000-0000-0000-0000-000000000005','Sophie Turner','07644 123456',140,'booked','booked','Full groom for Labrador — Saturday 10am confirmed.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000005','Mark Evans','07755 234567',95,'lead_captured','lead_captured','Puppy enquiry — 14-week Dachshund, first grooming experience. Puppy package explained. Lead captured.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000005','Helen Griffiths','07866 345678',65,'filtered','filtered','Asking about boarding — outside scope, referred to local kennels.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000005','James Bowen','07977 456789',165,'booked','booked','Monthly groom for Bichon — last Friday of every month, standing appointment.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000005','Catherine Ford','07588 567890',120,'lead_captured','lead_captured','De-shedding treatment for German Shepherd — seasonal, shedding heavily. Lead captured.',NOW() - interval '5 hours'),
 
--- Peak Performance PT
-('00000000-0000-0000-0000-000000000006','Tom Bradley','07500 456789',195,'lead_captured','lead_captured','Weight loss goal — wants 3 sessions per week, has tried gyms before with no results. Very motivated. Lead captured, Connor to call back.',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000006','Jake Harrison','07611 567890',240,'booked','booked','Block of 10 sessions booked — Monday, Wednesday, Friday mornings at 7am. Starts next week.',NOW() - interval '40 minutes'),
+-- Premier Mortgage (14 calls today — professional)
+('00000000-0000-0000-0000-000000000006','Richard Owen','07699 678901',380,'lead_captured','lead_captured','First time buyer — 2-bed flat in Cardiff Bay, £220k, 10% deposit. Free consultation booked with Caroline for Thursday.',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000006','Amanda Summers','07700 789012',295,'lead_captured','lead_captured','Remortgage enquiry — fixed rate ending April, want to review options. Whole-of-market comparison offered. Consultation Tuesday.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000006','Gary Patterson','07811 890123',420,'escalated','escalated','Complex buy-to-let scenario — 4 properties, HMO conversion planned. Escalated to Caroline directly, complex case.',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000006','Linda Foster','07922 901234',245,'lead_captured','lead_captured','Equity release — 68 years old, wants to unlock value in family home for retirement income. Callback with David booked.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000006','Chris Bailey','07533 012345',180,'lead_captured','lead_captured','Self-employed mortgage — 2-years trading, SA302s available. Reassured lenders available. Consultation booked.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000006','Susan Moore','07644 123456',90,'filtered','filtered','PPI claims cold call — declined and filtered.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000006','Ian Richards','07755 234567',335,'lead_captured','lead_captured','Mortgage for new build — off-plan purchase, exchange in 6 weeks. Fast-tracked consultation arranged.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000006','Joyce Whitehead','07866 345678',265,'lead_captured','lead_captured','Protection insurance — client bought home 2 years ago, not yet reviewed protection. David to call Thursday.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000006','Peter Hall','07977 456789',195,'lead_captured','lead_captured','Shared ownership scheme — NHS worker, wants to understand options. Caroline to call with overview.',NOW() - interval '4.5 hours'),
+('00000000-0000-0000-0000-000000000006','Donna Wright','07588 567890',45,'spam','spam','Automated marketing call detected and filtered.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000006','Trevor Blake','07699 678901',310,'escalated','escalated','Urgent bridging loan — property chain collapsing, needs bridging within 10 days. Escalated to Caroline immediately.',NOW() - interval '5.5 hours'),
+('00000000-0000-0000-0000-000000000006','Karen Long','07700 789012',220,'lead_captured','lead_captured','Portfolio remortgage — 3 buy-to-lets, all fixed rates expiring same month. Callback with Caroline next week.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000006','Dennis Marsh','07811 890123',155,'referred_out','referred_out','Commercial property finance — outside residential scope. Referred to commercial broker partner.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000006','Frances Cooper','07922 901234',285,'lead_captured','lead_captured','Help to buy equity loan query — wants to understand government scheme before buying. Consultation arranged.',NOW() - interval '8 hours'),
 
--- Clarity Accounting
-('00000000-0000-0000-0000-000000000007','Richard Foster','07700 567890',255,'lead_captured','lead_captured','Self-assessment for first year as sole trader — landscape gardener, unsure about expenses. Quote callback arranged for Tuesday. Lead captured.',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000007','Margaret Holt','07811 678901',195,'lead_captured','lead_captured','VAT registration assistance — small catering business approaching £85k threshold. Callback with Christine arranged for Thursday.',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000007','Steven Black','07922 789012',120,'spam','spam','Cold sales call from software company — politely declined and ended.',NOW() - interval '20 minutes'),
+-- Valley View B&B (10 calls today)
+('00000000-0000-0000-0000-000000000007','Robert Yates','07533 012345',175,'booked','booked','Weekend break — 2 nights, double en-suite, arriving Friday. Booked and deposit confirmed.',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000007','Claire Parson','07644 123456',145,'lead_captured','lead_captured','Walking holiday enquiry — week in August, 2 adults plus dog, want fell walking access. Lead captured, availability to confirm.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000007','Patrick Holt','07755 234567',220,'booked','booked','Group booking — 6 walkers, 3 rooms, October half term. All rooms confirmed.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000007','Barbara Kent','07866 345678',95,'referred_out','referred_out','Caller enquiring about pet boarding during stay — referred to Paws & Claws dog grooming locally.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000007','Frank Gibson','07977 456789',195,'lead_captured','lead_captured','Anniversary stay — special occasion, want something romantic, lake view. Availability checking, lead captured.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000007','Olive Jordan','07588 567890',60,'filtered','filtered','Asking for local taxi number only — no booking intent, details provided and call ended.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000007','Malcolm Price','07699 678901',240,'booked','booked','Self-catering cottage — 5 nights in November, family of 4. Cottage confirmed, deposit taken.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000007','Geraldine Fox','07700 789012',175,'lead_captured','lead_captured','Christmas availability — want to book Christmas week 2025. Enquiry captured, Paul to confirm Christmas tariff.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000007','Colin Marsh','07811 890123',45,'spam','spam','Automated sales call detected and ended.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000007','Alice Lambert','07922 901234',185,'booked','booked','Last minute 2-night booking — arriving tomorrow. Room confirmed, directions sent.',NOW() - interval '8 hours'),
 
--- Spotless Cleaning Co
-('00000000-0000-0000-0000-000000000008','Jennifer Adams','07600 678901',210,'booked','booked','End of tenancy clean — 2-bed flat in Clifton, move-out this Friday. Booked and confirmed.',NOW() - interval '150 minutes'),
-('00000000-0000-0000-0000-000000000008','Mark Thompson','07711 789012',175,'booked','booked','Regular weekly domestic clean — 3 hours, start next Monday morning. Booking confirmed.',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000008','Alison Green','07822 890123',150,'lead_captured','lead_captured','Office cleaning enquiry — 10-desk studio, twice weekly. Quote callback arranged for this week.',NOW() - interval '25 minutes'),
+-- Apex Print & Design (14 calls today)
+('00000000-0000-0000-0000-000000000008','Helen Carter','07533 012345',255,'lead_captured','lead_captured','Exhibition stand enquiry — 3m × 3m shell scheme, national trade show in 6 weeks. Design brief discussed, quote to follow.',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000008','Dave Morgan','07644 123456',195,'lead_captured','lead_captured','Vehicle wrap — van fleet of 4, full wrap with company branding. Site visit for measurements booked.',NOW() - interval '1.5 hours'),
+('00000000-0000-0000-0000-000000000008','Sarah King','07755 234567',145,'booked','booked','Business cards reorder — same artwork, 2000 single-sided, production to start today.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000008','Neil Chambers','07866 345678',225,'lead_captured','lead_captured','Corporate brochure — 16-page A4, quarterly publication, 500 copies. Design and print quoted. Lead captured.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000008','Fay Simmons','07977 456789',90,'filtered','filtered','Cold call from paper supplier — outside scope, declined.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000008','Robert Jennings','07588 567890',310,'lead_captured','lead_captured','Restaurant menu redesign — new seasonal menu, 200 copies, DL and A3 sizes. Fiona to create brief. Lead captured.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000008','Carol Bates','07699 678901',175,'booked','booked','Flyer run — 5000 A5 double-sided, next day production. Order placed.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000008','Ian Stewart','07700 789012',240,'lead_captured','lead_captured','Branded merchandise — 100 mugs, 200 tote bags, company event next month. Sourcing and pricing to follow.',NOW() - interval '5.5 hours'),
+('00000000-0000-0000-0000-000000000008','Wendy Cole','07811 890123',195,'lead_captured','lead_captured','Shop signage — retail unit rebranding, window graphics and interior signage. Mark to attend site.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000008','Gary Hunt','07922 901234',45,'spam','spam','Spam number detected and filtered.',NOW() - interval '6.5 hours'),
+('00000000-0000-0000-0000-000000000008','Paula Grant','07533 012345',275,'lead_captured','lead_captured','Charity annual report — 28-page A4, design and print, 300 copies, trustees meet in 8 weeks. Lead captured.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000008','Martin Cross','07644 123456',165,'booked','booked','PVC banner reorder — same spec, 2m × 1m, 3 copies. In production tomorrow.',NOW() - interval '7.5 hours'),
+('00000000-0000-0000-0000-000000000008','Sandra Peel','07755 234567',220,'lead_captured','lead_captured','Stationery pack — letterheads, compliment slips, business cards. 3 employees. Full brand setup quoted.',NOW() - interval '8 hours'),
+('00000000-0000-0000-0000-000000000008','Philip Stone','07866 345678',185,'referred_out','referred_out','Website design request — outside scope, referred to local agency partner.',NOW() - interval '9 hours'),
 
--- Fresh Coat Decorating
-('00000000-0000-0000-0000-000000000009','Tony Walsh','07500 789012',195,'lead_captured','lead_captured','Interior painting quote — living room, hallway and stairs in Knowle. Site visit arranged for Thursday morning. Lead captured.',NOW() - interval '4 hours'),
-('00000000-0000-0000-0000-000000000009','Sandra Davies','07611 890123',120,'lead_captured','lead_captured','Exterior painting enquiry — 3-bed semi, last done 6 years ago. Andy to quote next week. Lead captured.',NOW() - interval '90 minutes'),
+-- Nationwide Recruitment (18 calls today — enterprise)
+('00000000-0000-0000-0000-000000000009','Katherine Bell','07977 456789',325,'lead_captured','lead_captured','Operations Director vacancy — manufacturing company, £80k role, need someone within 6 weeks. Debbie to call to brief.',NOW() - interval '20 minutes'),
+('00000000-0000-0000-0000-000000000009','Marcus Fields','07588 567890',290,'lead_captured','lead_captured','Candidate registration — senior finance professional, relocating from London. Sam to call for registration interview.',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000009','Joanne Harding','07699 678901',195,'escalated','escalated','Urgent temp cover — receptionist off sick, need someone tomorrow morning. Escalated to Sam immediately.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000009','Derek Lane','07700 789012',245,'lead_captured','lead_captured','HR Manager role — 300-person SME going through growth phase. Debbie to brief and start search. Lead captured.',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000009','Christine Ball','07811 890123',175,'lead_captured','lead_captured','Candidate enquiry — marketing manager, 8 years experience, open to new opportunities. Registration interview with Sam booked.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000009','Kevin Walsh','07922 901234',90,'filtered','filtered','Wrong department call — looking for payroll query on existing placement, redirected.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000009','Lynda Shaw','07533 012345',340,'lead_captured','lead_captured','Technology Director — fast-growth SaaS company, £120k package. Executive search brief. Debbie to call to confirm.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000009','Barry Connell','07644 123456',265,'lead_captured','lead_captured','Batch hire — 12 customer service roles for new contact centre opening. Account management call booked.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000009','Yvonne Park','07755 234567',195,'lead_captured','lead_captured','Candidate registration — procurement specialist, 10 years, seeking director-level. Andy to call.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000009','James Birch','07866 345678',45,'spam','spam','Automated call detected and filtered.',NOW() - interval '4.5 hours'),
+('00000000-0000-0000-0000-000000000009','Gloria Nash','07977 456789',310,'escalated','escalated','CFO search — board level, private equity backed business, retained assignment. Urgent call back from Debbie.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000009','Terry Ford','07588 567890',220,'lead_captured','lead_captured','Temporary logistics staff — warehouse peak season, 20 workers needed in 2 weeks. Sam to call with availability.',NOW() - interval '5.5 hours'),
+('00000000-0000-0000-0000-000000000009','Patricia Webb','07699 678901',185,'lead_captured','lead_captured','Candidate registering — recently made redundant, senior project manager, 15 years experience.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000009','Simon Rhodes','07700 789012',155,'referred_out','referred_out','IT contractor looking for agency — outside permanent scope. Referred to specialist IT contractor partner.',NOW() - interval '6.5 hours'),
+('00000000-0000-0000-0000-000000000009','Hannah Cross','07811 890123',275,'lead_captured','lead_captured','Sales Director vacancy — national account management, £95k. Andy to take initial brief. Lead captured.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000009','Roger Hyde','07922 901234',195,'lead_captured','lead_captured','Graduate scheme intake — 6 commercial trainees, September start, structured programme. Brief with Debbie.',NOW() - interval '7.5 hours'),
+('00000000-0000-0000-0000-000000000009','Stephanie Young','07533 012345',90,'filtered','filtered','Spam marketing call — filtered.',NOW() - interval '8 hours'),
+('00000000-0000-0000-0000-000000000009','Alan Grant','07644 123456',340,'lead_captured','lead_captured','Multi-site manager role — national retailer, 4 locations, P&L responsibility, £65k. Lead captured.',NOW() - interval '9 hours'),
 
--- Restore Physiotherapy
-('00000000-0000-0000-0000-000000000010','Marcus Johnson','07700 890123',420,'booked','booked','Sports knee injury — marathon runner, race in 8 weeks. Assessment with James Hartley booked for Monday 8am.',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000010','Priya Sharma','07811 901234',360,'booked','booked','GP referral for lower back pain — office worker, pain for 3 months. Twice weekly sessions booked with James starting Wednesday.',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000010','Oliver Bennett','07922 012345',480,'booked','booked','Post-operative shoulder rehab — 6 weeks post rotator cuff surgery, consultant referred. Urgent assessment with Dr Okonkwo booked tomorrow.',NOW() - interval '45 minutes'),
-('00000000-0000-0000-0000-000000000010','Fiona Campbell','07533 123456',300,'lead_captured','lead_captured','Clinical Pilates enquiry — lower back issues, GP suggested Pilates. Beginner class explained, interested. Lead captured.',NOW() - interval '10 minutes');
-
-
--- ═══════════════════════════════════════════════════════════════════
--- 8. HISTORICAL CALLS  (generate_series, last 26 days)
--- ═══════════════════════════════════════════════════════════════════
--- Outcome cycle (20 elements) is tuned per business type.
--- Timestamp formula spreads calls evenly from 26 days ago to yesterday.
--- ═══════════════════════════════════════════════════════════════════
-
--- ── Bella's Hair Studio (47 historical calls, avg ~3min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000001',
-  (ARRAY['Rachel Brown','Hannah Wilson','Amy Taylor','Jessica Moore','Olivia Clark','Sophie Lewis','Charlotte Hall','Georgia Young','Mia Walker','Kate Turner'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 123) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[180,240,195,150,120,210,165,90,175,140,200,75,160,220,185,130,250,45,170,155])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'Appointment booked for cut and blow dry — confirmed next week.',
-    'New customer enquiring about balayage. Gave pricing overview. Interested — name and number captured.',
-    'Existing client rescheduling colour appointment — moved to Thursday 2pm.',
-    'Bridal hair enquiry — wedding September 2026. Lead captured, callback to discuss full package.',
-    'Caller asking about nail services — referred to Nails by Nikki on 07712 334455.',
-    'General enquiry about prices and availability. Information provided, considering booking.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (46 - s)::numeric / 47 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 46) s;
-
--- ── Fast Flow Plumbing (65 historical calls, avg ~3.5min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000002',
-  (ARRAY['Kevin Murphy','Gary Thompson','Sharon Kent','Dan Cooper','Steve Rogers','Linda Bailey','Neil Watson','Diane Fletcher','Frank Hughes','Barbara Morton'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 456) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[210,180,300,150,240,195,120,270,165,225,90,315,140,250,175,75,200,185,45,230])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','escalated','escalated','escalated','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','escalated','escalated','escalated','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'Annual boiler service booked — confirmed for next available slot.',
-    'Emergency plumbing enquiry — boiler breakdown. Callback arranged. Lead captured.',
-    'Bathroom installation quote — 3-bed house, full refurb. Dave to call back to discuss spec.',
-    'Tiling enquiry — outside our scope. Referred to Pro-Tile on 07724 556677.',
-    'Leak under kitchen sink — urgent callback requested. Lead escalated to Dave.',
-    'Cold sales call from a supplier — politely ended.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (64 - s)::numeric / 65 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 64) s;
-
--- ── Bright Spark Electrical (20 historical calls, avg ~2.5min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000003',
-  (ARRAY['Tony Evans','Debbie Roberts','Mike Clarke','Anne Turner','Rob Lewis','Fiona King','Pete Davis','Sandra Wright','John Webb','Carla Fox'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 789) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[150,180,120,195,90,210,75,165,130,95,180,60,145,175,110,200,50,140,190,85])[(s % 20) + 1],
-  (ARRAY['booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'PAT testing booked for small office — 12 items, confirmed date next month.',
-    'EV charger installation enquiry — single phase supply confirmed. Quote callback scheduled.',
-    'Consumer unit upgrade quote — older property, fuse board needs replacing. Lead captured.',
-    'Plumbing enquiry — outside scope. Referred to City Plumbing on 07500 112233.',
-    'Socket installation enquiry — information provided, caller considering.',
-    'Unsolicited marketing call — ended promptly.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (19 - s)::numeric / 20 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 19) s;
-
--- ── Green Thumb Gardens (46 historical calls, avg ~3min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000004',
-  (ARRAY['Brian Walsh','Janet Cooper','Alan Richardson','Sue Patterson','Keith Simmons','Diane Fletcher','Ray Thornton','Carol Briggs','Eric Moore','Judith Hawkins'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 234) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[180,220,150,195,130,240,90,170,200,160,110,250,175,145,185,75,195,130,45,165])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'Garden clearance booked — large overgrown plot, confirmed Thursday slot.',
-    'Regular lawn mowing contract discussed — fortnightly visit. Lead captured, Mike to call back.',
-    'Patio laying quote — 30sqm rear garden. Site visit arranged.',
-    'Tree surgery enquiry — outside scope. Referred to Summit Tree Services on 07900 445566.',
-    'One-off hedge trim enquiry — information and pricing provided.',
-    'Cold call from garden supplies company — declined.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (45 - s)::numeric / 46 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 45) s;
-
--- ── Pawfect Grooming (18 historical calls, avg ~2.75min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000005',
-  (ARRAY['Rebecca Jones','Natalie Wood','Gemma Richards','Amy Collins','Kate Harris','Jodie Bell','Nikki Owen','Claire Mason','Vicky Shaw','Tara Burns'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 567) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[165,140,180,120,195,150,210,90,175,130,160,200,75,185,145,170,45,155])[(s % 18) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','spam'])[(s % 18) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','spam'])[(s % 18) + 1],
-  (ARRAY[
-    'Full groom booking confirmed — Labrador, Saturday slot.',
-    'New customer — Cockerpoo enquiry. Puppy package explained. Booked for next week.',
-    'Dog training enquiry — outside scope. Referred to Happy Hounds on 07700 334455.',
-    'Regular client rebooking — de-shedding treatment for Husky confirmed.',
-    'Caller asking about cat grooming — explained dogs only. Advised to search local cat groomers.',
-    'Spam call — ended.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (17 - s)::numeric / 18 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 17) s;
-
--- ── Peak Performance PT (40 historical calls, avg ~3.5min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000006',
-  (ARRAY['Matt Wilson','Chris Davies','Ryan Cooper','Sam Murphy','Luke Evans','Ben Taylor','Jack Roberts','Dan Clark','Liam Foster','Owen Price'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 890) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[210,185,240,150,195,175,120,250,165,225,90,200,140,270,180,60,215,170,45,195])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'Personal training block booked — 10 sessions, starts Monday morning.',
-    'New client enquiry — weight loss goal, 3 sessions/week. Very motivated. Lead captured.',
-    'Sports physio enquiry — outside scope. Referred to Summit Physio on 07611 667788.',
-    'Online coaching enquiry — nutrition plan + weekly check-ins. Interested, lead captured.',
-    'Existing client asking about additional morning slot — Tuesday 6:30am confirmed.',
-    'Supplier cold call — declined.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (39 - s)::numeric / 40 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 39) s;
-
--- ── Clarity Accounting (57 historical calls, avg ~4min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000007',
-  (ARRAY['Patricia Shaw','Andrew Brooks','Julia Hammond','Graham Spencer','Caroline Hill','Derek Watson','Frances Ellis','Howard Marsh','Sylvia Knight','Peter Griffiths'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 345) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[240,210,270,180,300,195,150,255,225,285,120,240,165,195,210,90,270,180,45,230])[(s % 20) + 1],
-  (ARRAY['booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'Consultation booked — company accounts for small Ltd, 2 directors.',
-    'Self-assessment enquiry — first year sole trader. Quote callback arranged. Lead captured.',
-    'VAT return assistance — quarterly filing, behind on submissions. Callback with Christine arranged.',
-    'Financial planning enquiry — outside scope. Referred to Bridge Financial Planning on 07500 556677.',
-    'Payroll enquiry for 4 employees — monthly service. Quote arranged.',
-    'Cold call — software subscription sales. Declined and ended.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (56 - s)::numeric / 57 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 56) s;
-
--- ── Spotless Cleaning Co (49 historical calls, avg ~3min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000008',
-  (ARRAY['Peter Cox','Sandra Hayes','Robert Blake','Janet Morrison','Wayne Fisher','Karen Patel','Brian Thomas','Denise Sharp','Colin Ward','Maria White'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 678) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[175,210,145,190,160,240,120,200,155,220,90,185,170,235,140,75,195,165,45,210])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','filtered','spam','hard_close'])[(s % 20) + 1],
-  (ARRAY[
-    'End of tenancy clean booked — 2-bed flat, confirmed date.',
-    'Regular weekly domestic clean booked — 3 hours, starting next week.',
-    'Deep clean enquiry — 5-bed house pre-sale. Lead captured, Maria to quote.',
-    'Carpet cleaning enquiry — outside scope. Referred to Premier Carpets on 07811 556677.',
-    'Office cleaning quote requested — 8-desk office, twice weekly. Callback arranged.',
-    'Nuisance call — ended.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (48 - s)::numeric / 49 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 48) s;
-
--- ── Fresh Coat Decorating (16 historical calls, avg ~3min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000009',
-  (ARRAY['Keith Robbins','Julie Massey','Ray Hammond','Debbie Turner','Paul Fletcher','Tracy Brown','Alan Cartwright','Sharon King','Cliff Waters','Brenda Nash'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 901) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[180,210,150,195,160,220,90,175,200,130,240,120,185,165,195,75])[(s % 16) + 1],
-  (ARRAY['booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','spam','hard_close'])[(s % 16) + 1],
-  (ARRAY['booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','filtered','filtered','spam','hard_close'])[(s % 16) + 1],
-  (ARRAY[
-    'Wallpaper booking confirmed — feature wall bedroom, Thursday agreed.',
-    'Interior painting quote — living room and kitchen. Andy to visit and quote. Lead captured.',
-    'Exterior painting enquiry — detached house, last done 5 years ago. Lead captured.',
-    'Plastering enquiry — outside scope. Referred to Smooth Finish Plastering on 07600 334455.',
-    'General pricing enquiry — information provided. Will call back.',
-    'Cold call — paint supplier. Declined.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (15 - s)::numeric / 16 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 15) s;
-
--- ── Restore Physiotherapy (76 historical calls, avg ~7.5min) ──
-INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
-SELECT
-  '00000000-0000-0000-0000-000000000010',
-  (ARRAY['Daniel Mitchell','Sophie Reynolds','James Okafor','Laura Armstrong','Tom Richardson','Alice Cooper','Raj Patel','Claire Moss','Nathan Burns','Helen Gray'])[(s % 10) + 1],
-  '07' || lpad(((s * 37 + 12) % 900000000 + 100000000)::text, 9, '0'),
-  (ARRAY[480,360,420,540,300,510,390,450,420,330,480,270,510,360,420,540,300,480,360,450])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','escalated','escalated','escalated','filtered','spam'])[(s % 20) + 1],
-  (ARRAY['booked','booked','booked','booked','booked','booked','booked','lead_captured','lead_captured','lead_captured','lead_captured','lead_captured','referred_out','referred_out','referred_out','escalated','escalated','escalated','filtered','spam'])[(s % 20) + 1],
-  (ARRAY[
-    'Sports injury assessment booked — quad strain, runner. James Hartley confirmed.',
-    'GP referral — chronic lower back pain. Twice weekly sessions booked.',
-    'Remedial massage booking — shoulder tension from desk work. Emma Chen confirmed.',
-    'Post-surgical rehab enquiry — hip replacement, 10 weeks post-op. Lead captured, Sarah to call.',
-    'Podiatry enquiry — outside scope. Referred to City Podiatry on 07500 223344.',
-    'Acute neck pain — urgent escalation. Sarah called back immediately.'
-  ])[(s % 6) + 1],
-  NOW() - interval '1 day' * (75 - s)::numeric / 76 * 26 - interval '1 hour' * (9 + s % 9)
-FROM generate_series(0, 75) s;
+-- JB Sports & Fashion (18 calls today — enterprise)
+('00000000-0000-0000-0000-000000000010','Maria Santos','07755 234567',285,'lead_captured','lead_captured','Wholesale enquiry — independent sports retailer, 12 stores, interested in branded range. Commercial team to follow up.',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000010','James Holloway','07866 345678',195,'lead_captured','lead_captured','Press enquiry — sports journalist, requesting brand statement on new kit range. Press team to respond.',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000010','Chloe Barnes','07977 456789',345,'lead_captured','lead_captured','Partnership proposal — fitness influencer, 280k followers, wants collaboration deal. Commercial to call.',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000010','Daniel West','07588 567890',90,'filtered','filtered','Customer service query — wrong number, redirected to retail line.',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000010','Rebecca Holt','07699 678901',255,'lead_captured','lead_captured','School sports kit tender — academy trust, 800 pupils, annual contract. Commercial team briefed.',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000010','Andrew Marsh','07700 789012',195,'escalated','escalated','National press — Sport Weekly magazine, feature piece deadline today. Escalated to press team.',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000010','Susan Blake','07811 890123',165,'lead_captured','lead_captured','Franchise enquiry — experienced retailer, wants to open JB franchise in Scotland. Franchise pack requested.',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000010','Michael Turner','07922 901234',45,'spam','spam','Automated marketing call detected.',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000010','Patricia Green','07533 012345',290,'lead_captured','lead_captured','Corporate sports kit — FTSE 250 company, team building events, 200 employees. Commercial partnership enquiry.',NOW() - interval '4.5 hours'),
+('00000000-0000-0000-0000-000000000010','Kevin Archer','07644 123456',220,'lead_captured','lead_captured','Supplier enquiry — UK manufacturer looking to supply technical fabrics. Procurement to respond.',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000010','Linda Hatch','07755 234567',175,'filtered','filtered','Complaint call — wrong department, no action from head office line.',NOW() - interval '5.5 hours'),
+('00000000-0000-0000-0000-000000000010','Colin Ramsey','07866 345678',310,'lead_captured','lead_captured','Stadium sponsorship proposal — League One football club, kit and signage deal. Commercial director to review.',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000010','Janet Fox','07977 456789',195,'lead_captured','lead_captured','Charity partnership enquiry — national youth sport charity, fundraising kit deal. Press & community team to respond.',NOW() - interval '6.5 hours'),
+('00000000-0000-0000-0000-000000000010','Steve Moody','07588 567890',90,'filtered','filtered','Wrong department — store customer complaint, redirected to retail support.',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000010','Claire Abbott','07699 678901',265,'lead_captured','lead_captured','International distribution enquiry — UAE sports retailer wants UK branded range. Export team to follow up.',NOW() - interval '7.5 hours'),
+('00000000-0000-0000-0000-000000000010','Darren Fox','07700 789012',45,'spam','spam','Spam call filtered.',NOW() - interval '8 hours'),
+('00000000-0000-0000-0000-000000000010','Michelle Stone','07811 890123',340,'lead_captured','lead_captured','TV production enquiry — reality sport show wants brand partnership, ITV commission. Commercial urgent response.',NOW() - interval '8.5 hours'),
+('00000000-0000-0000-0000-000000000010','Barry Cross','07922 901234',195,'lead_captured','lead_captured','Sports academy enquiry — county cricket academy, equipment supply deal. Commercial team to brief.',NOW() - interval '9 hours');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 9. LEADS
+-- 9. HISTORICAL CALLS  (generate_series — last 26 days)
 -- ═══════════════════════════════════════════════════════════════════
--- Mix: 'new' (actionable, recent) + 'contacted' + 'converted' + 'lost'
--- Each business has 2-3 'new' leads from the last 7 days.
+
+-- Hargreaves Plumbing — 60 historical (standard, callback/emergency focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000001',
+  (ARRAY['Susan Bradley','Mike Collins','Ann Walsh','John Fisher','Diane Harris','Tom Shaw','Paula Grant','Steve Marsh','Carol Price','Dave Sutton'])[(s % 10) + 1],
+  '07' || lpad(((s * 41 + 200) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[195,240,180,300,120,210,165,90,350,140,200,75,280,220,185,130,250,45,170,155])[(s % 20) + 1],
+  (ARRAY['booked','lead_captured','booked','escalated','referred_out','booked','lead_captured','filtered','booked','lead_captured','booked','spam','booked','lead_captured','escalated','booked','referred_out','filtered','booked','lead_captured'])[(s % 20) + 1],
+  (ARRAY['booked','lead_captured','booked','escalated','referred_out','booked','lead_captured','filtered','booked','lead_captured','booked','spam','booked','lead_captured','escalated','booked','referred_out','filtered','booked','lead_captured'])[(s % 20) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '10 hours')
+FROM generate_series(1, 60) AS s;
+
+-- Elegant Hair Design — 35 historical (light, booking focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000002',
+  (ARRAY['Katie Brown','Sophie Wilson','Emma Taylor','Alice Moore','Grace Clark','Chloe Lewis','Beth Hall','Lucy Young','Anna Walker','Mia Turner'])[(s % 10) + 1],
+  '07' || lpad(((s * 37 + 300) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[150,195,120,85,210,165,90,175,240,130,160,75,200,220,145])[(s % 15) + 1],
+  (ARRAY['booked','booked','lead_captured','booked','filtered','booked','booked','lead_captured','booked','spam','booked','booked','filtered','booked','lead_captured'])[(s % 15) + 1],
+  (ARRAY['booked','booked','lead_captured','booked','filtered','booked','booked','lead_captured','booked','spam','booked','booked','filtered','booked','lead_captured'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '18 hours')
+FROM generate_series(1, 35) AS s;
+
+-- Greenfield Landscape — 90 historical (professional, quote focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000003',
+  (ARRAY['Andrew Palmer','Susan Morley','Brian Collins','Wendy Harris','Neil Thompson','Diane Walker','Kevin Adams','Janet Morrison','Phil Ward','Carol Shaw','Tim Barker','Fiona Grant'])[(s % 12) + 1],
+  '07' || lpad(((s * 43 + 400) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[280,195,240,90,315,175,60,220,195,155,45,265,185,230,300])[(s % 15) + 1],
+  (ARRAY['lead_captured','booked','lead_captured','referred_out','lead_captured','booked','filtered','lead_captured','booked','booked','spam','lead_captured','referred_out','lead_captured','booked'])[(s % 15) + 1],
+  (ARRAY['lead_captured','booked','lead_captured','referred_out','lead_captured','booked','filtered','lead_captured','booked','booked','spam','lead_captured','referred_out','lead_captured','booked'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '7 hours')
+FROM generate_series(1, 90) AS s;
+
+-- Swift Electrical — 60 historical (standard, quote focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000004',
+  (ARRAY['Paul Freeman','Janice Cook','Tony Mason','Sandra Booth','Colin Hardy','Margaret Bell','Wayne Foster','Ruth Pearson','Steve Walsh','Dawn Clarke'])[(s % 10) + 1],
+  '07' || lpad(((s * 47 + 500) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[255,180,300,90,195,45,225,175,60,240,195,150,280,120,210])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','booked','referred_out','lead_captured','filtered','lead_captured','booked','spam','lead_captured','booked','lead_captured','lead_captured','filtered','booked'])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','booked','referred_out','lead_captured','filtered','lead_captured','booked','spam','lead_captured','booked','lead_captured','lead_captured','filtered','booked'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '10 hours')
+FROM generate_series(1, 60) AS s;
+
+-- Paws & Claws — 35 historical (light, booking focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000005',
+  (ARRAY['Sophie Turner','Mark Evans','Helen Griffiths','James Bowen','Catherine Ford','Lisa Ward','Emma Price','Tom Bailey','Sally Hunt','Chris Ford'])[(s % 10) + 1],
+  '07' || lpad(((s * 53 + 600) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[140,95,65,165,120,100,75,155,90,135])[(s % 10) + 1],
+  (ARRAY['booked','lead_captured','filtered','booked','lead_captured','booked','filtered','booked','spam','booked'])[(s % 10) + 1],
+  (ARRAY['booked','lead_captured','filtered','booked','lead_captured','booked','filtered','booked','spam','booked'])[(s % 10) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '18 hours')
+FROM generate_series(1, 35) AS s;
+
+-- Premier Mortgage — 90 historical (professional, lead capture focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000006',
+  (ARRAY['Richard Owen','Amanda Summers','Gary Patterson','Linda Foster','Chris Bailey','Susan Moore','Ian Richards','Joyce Whitehead','Peter Hall','Donna Wright','Trevor Blake','Karen Long'])[(s % 12) + 1],
+  '07' || lpad(((s * 59 + 700) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[380,295,420,245,180,90,335,265,195,45,310,220,285,155,310])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','escalated','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','spam','escalated','lead_captured','lead_captured','referred_out','lead_captured'])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','escalated','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','spam','escalated','lead_captured','lead_captured','referred_out','lead_captured'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '7 hours')
+FROM generate_series(1, 90) AS s;
+
+-- Valley View B&B — 60 historical (standard, booking focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000007',
+  (ARRAY['Robert Yates','Claire Parson','Patrick Holt','Barbara Kent','Frank Gibson','Olive Jordan','Malcolm Price','Geraldine Fox','Colin Marsh','Alice Lambert'])[(s % 10) + 1],
+  '07' || lpad(((s * 61 + 800) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[175,145,220,95,195,60,240,175,45,185,200,130,215,165,190])[(s % 15) + 1],
+  (ARRAY['booked','lead_captured','booked','referred_out','lead_captured','filtered','booked','lead_captured','spam','booked','booked','lead_captured','booked','booked','referred_out'])[(s % 15) + 1],
+  (ARRAY['booked','lead_captured','booked','referred_out','lead_captured','filtered','booked','lead_captured','spam','booked','booked','lead_captured','booked','booked','referred_out'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '10 hours')
+FROM generate_series(1, 60) AS s;
+
+-- Apex Print & Design — 90 historical (professional, lead/quote focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000008',
+  (ARRAY['Helen Carter','Dave Morgan','Sarah King','Neil Chambers','Fay Simmons','Robert Jennings','Carol Bates','Ian Stewart','Wendy Cole','Gary Hunt','Paula Grant','Martin Cross'])[(s % 12) + 1],
+  '07' || lpad(((s * 67 + 900) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[255,195,145,225,90,310,175,240,195,45,275,165,220,185,195])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','booked','lead_captured','filtered','lead_captured','booked','lead_captured','lead_captured','spam','lead_captured','booked','lead_captured','referred_out','booked'])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','booked','lead_captured','filtered','lead_captured','booked','lead_captured','lead_captured','spam','lead_captured','booked','lead_captured','referred_out','booked'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '7 hours')
+FROM generate_series(1, 90) AS s;
+
+-- Nationwide Recruitment — 120 historical (enterprise, lead capture / escalation)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000009',
+  (ARRAY['Katherine Bell','Marcus Fields','Joanne Harding','Derek Lane','Christine Ball','Kevin Walsh','Lynda Shaw','Barry Connell','Yvonne Park','James Birch','Gloria Nash','Terry Ford'])[(s % 12) + 1],
+  '07' || lpad(((s * 71 + 1000) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[325,290,195,245,175,90,340,265,195,45,310,220,275,155,185])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','escalated','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','spam','escalated','lead_captured','lead_captured','referred_out','lead_captured'])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','escalated','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','spam','escalated','lead_captured','lead_captured','referred_out','lead_captured'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '5 hours')
+FROM generate_series(1, 120) AS s;
+
+-- JB Sports & Fashion — 120 historical (enterprise, lead capture focus)
+INSERT INTO demo_call_logs (business_id, caller_name, caller_number, duration_seconds, call_outcome, triage_outcome, ai_summary, created_at)
+SELECT '00000000-0000-0000-0000-000000000010',
+  (ARRAY['Maria Santos','James Holloway','Chloe Barnes','Daniel West','Rebecca Holt','Andrew Marsh','Susan Blake','Michael Turner','Patricia Green','Kevin Archer','Linda Hatch','Colin Ramsey'])[(s % 12) + 1],
+  '07' || lpad(((s * 73 + 1100) % 900000000 + 100000000)::text, 9, '0'),
+  (ARRAY[285,195,345,90,255,195,165,45,290,220,175,310,265,195,340])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','lead_captured','filtered','lead_captured','escalated','lead_captured','spam','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','lead_captured'])[(s % 15) + 1],
+  (ARRAY['lead_captured','lead_captured','lead_captured','filtered','lead_captured','escalated','lead_captured','spam','lead_captured','lead_captured','filtered','lead_captured','lead_captured','lead_captured','lead_captured'])[(s % 15) + 1],
+  NULL,
+  NOW() - interval '26 days' + (s * interval '5 hours')
+FROM generate_series(1, 120) AS s;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 10. LEADS
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_leads (business_id, caller_name, caller_number, enquiry_type, notes, status, created_at) VALUES
-
--- Bella's Hair Studio
-('00000000-0000-0000-0000-000000000001','Sarah Johnson','07711 345678','Balayage','Interested in balayage and gloss. Prefers afternoon appointments. Budget around £150.','new',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000001','Sophie Lewis','07733 445566','Bridal hair trial','Wedding in September 2026. Wants a trial 8 weeks before. Flexible budget, wants the full look.','new',NOW() - interval '1 day'),
-('00000000-0000-0000-0000-000000000001','Charlotte Hall','07611 556677','Colour + cut','First-time customer — colour refresh and trim. Mentioned seeing Bella''s Instagram.','contacted',NOW() - interval '3 days'),
-('00000000-0000-0000-0000-000000000001','Georgia Young','07822 667788','Keratin treatment','Wants frizz control. Has had it done before elsewhere. Wants a quote.','converted',NOW() - interval '10 days'),
-('00000000-0000-0000-0000-000000000001','Mia Walker','07933 778899','Extensions','Wants tape-in extensions for a holiday in 6 weeks. Price-checking multiple salons.','lost',NOW() - interval '18 days'),
-
--- Fast Flow Plumbing
-('00000000-0000-0000-0000-000000000002','James Fletcher','07611 234567','Boiler breakdown','No heating or hot water. Combi boiler 12 years old. Wants same-day if possible.','new',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000002','Carol Stevens','07722 345678','Bathroom installation','Full bathroom refurb — 3-bed semi. Budget £8-12k. Wants to start within 2 months.','new',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000002','Sharon Kent','07833 456789','Boiler service','Annual service overdue by 6 months. Worcester Bosch combi. Happy with morning slot.','contacted',NOW() - interval '4 days'),
-('00000000-0000-0000-0000-000000000002','Dan Cooper','07944 567890','Leak repair','Dripping tap in bathroom, small leak under kitchen sink. Not urgent but wants fixing.','converted',NOW() - interval '12 days'),
-('00000000-0000-0000-0000-000000000002','Kevin Murphy','07555 678901','Central heating','Radiators not heating evenly — possibly needs power flush. Large 4-bed house.','converted',NOW() - interval '20 days'),
-
--- Bright Spark Electrical
-('00000000-0000-0000-0000-000000000003','Chris Martin','07500 123456','Consumer unit','1970s fuse box — wants full upgrade to MCB. Also wants a quote for garden sockets.','new',NOW() - interval '4 hours'),
-('00000000-0000-0000-0000-000000000003','Tony Evans','07611 234567','EV charger','Tesla Model 3 arriving next month. Single phase, driveway install. Wants grant info.','new',NOW() - interval '2 days'),
-('00000000-0000-0000-0000-000000000003','Debbie Roberts','07722 345678','Garden lighting','New patio, wants outdoor lights and sockets. Has some idea of layout.','contacted',NOW() - interval '5 days'),
-('00000000-0000-0000-0000-000000000003','Mike Clarke','07833 456789','PAT testing','Dental surgery, 18 items. Needs certificate for insurance renewal.','converted',NOW() - interval '14 days'),
-
--- Green Thumb Gardens
-('00000000-0000-0000-0000-000000000004','David Thompson','07700 234567','Garden clearance','Large overgrown rear garden. Multiple skips worth. Wants clear before putting house on market.','new',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000004','Helen Morrison','07811 345678','Regular maintenance','Weekly lawn and monthly hedges. Large Victorian garden. Can start immediately.','new',NOW() - interval '50 minutes'),
-('00000000-0000-0000-0000-000000000004','Janet Cooper','07922 456789','Patio laying','25sqm rear patio — wants Indian sandstone. Has planning, just needs contractor.','contacted',NOW() - interval '3 days'),
-('00000000-0000-0000-0000-000000000004','Brian Walsh','07533 567890','Landscaping','Full garden redesign — new planting scheme, lawn edging. Budget £3-5k.','converted',NOW() - interval '15 days'),
-('00000000-0000-0000-0000-000000000004','Alan Richardson','07644 678901','Hedge trimming','Long beech hedge boundary — both sides accessible. Annual contract preferred.','converted',NOW() - interval '22 days'),
-
--- Pawfect Grooming
-('00000000-0000-0000-0000-000000000005','Lisa Walker','07600 345678','Full groom','Golden retriever, needs regular grooming. Last groomed 3 months ago, quite matted.','new',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000005','Emma Price','07711 456789','Puppy groom','Cockapoo, 16 weeks. First professional groom — a bit nervous. Wants gentle approach.','new',NOW() - interval '30 minutes'),
-('00000000-0000-0000-0000-000000000005','Rebecca Jones','07822 567890','De-shedding','Siberian Husky shedding heavily. Needs de-shedding treatment and bath.','contacted',NOW() - interval '4 days'),
-('00000000-0000-0000-0000-000000000005','Natalie Wood','07933 678901','Regular grooming','Miniature schnauzer, every 6-8 weeks. Wants reliable slot.','converted',NOW() - interval '16 days'),
-
--- Peak Performance PT
-('00000000-0000-0000-0000-000000000006','Tom Bradley','07500 456789','Weight loss','Wants 3 sessions per week. Has tried gyms before. Needs accountability and structure.','new',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000006','Jake Harrison','07611 567890','Strength training','Wants to build muscle and improve posture. Works desk job. Mornings preferred.','new',NOW() - interval '40 minutes'),
-('00000000-0000-0000-0000-000000000006','Matt Wilson','07722 678901','Sports performance','Club rugby player, wants speed and strength work in off-season.','contacted',NOW() - interval '5 days'),
-('00000000-0000-0000-0000-000000000006','Chris Davies','07833 789012','Online coaching','Relocating out of Bristol next month, wants to continue coaching remotely.','converted',NOW() - interval '18 days'),
-
--- Clarity Accounting
-('00000000-0000-0000-0000-000000000007','Richard Foster','07700 567890','Self-assessment','First year sole trader — landscaper. Unsure about what expenses he can claim.','new',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000007','Margaret Holt','07811 678901','VAT registration','Catering business approaching £85k threshold. Needs help with registration and first return.','new',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000007','Patricia Shaw','07922 789012','Company accounts','Ltd company, 2 directors, second year trading. Looking to switch accountant.','contacted',NOW() - interval '4 days'),
-('00000000-0000-0000-0000-000000000007','Andrew Brooks','07533 890123','Bookkeeping','Retail business, monthly bookkeeping needed. Currently doing it herself but struggling.','converted',NOW() - interval '12 days'),
-('00000000-0000-0000-0000-000000000007','Julia Hammond','07644 901234','Payroll','Took on 3 staff — needs monthly payroll and RTI filings set up properly.','converted',NOW() - interval '21 days'),
-
--- Spotless Cleaning Co
-('00000000-0000-0000-0000-000000000008','Jennifer Adams','07600 678901','End of tenancy','2-bed flat — landlord inspection in 5 days. Needs to be spotless to get deposit back.','new',NOW() - interval '150 minutes'),
-('00000000-0000-0000-0000-000000000008','Mark Thompson','07711 789012','Regular domestic','3-bed house, young family. Wants weekly 3-hour clean starting ASAP.','new',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000008','Alison Green','07822 890123','Office cleaning','10-desk design studio, twice weekly. Needs DBS-checked staff for security reasons.','new',NOW() - interval '25 minutes'),
-('00000000-0000-0000-0000-000000000008','Peter Cox','07933 901234','Deep clean','5-bed house being put on market. Wants full deep clean, 2 teams if needed.','contacted',NOW() - interval '3 days'),
-('00000000-0000-0000-0000-000000000008','Sandra Hayes','07544 012345','Post-build clean','Extension just finished — builder dust everywhere. Wants a thorough clean before moving back.','converted',NOW() - interval '11 days'),
-
--- Fresh Coat Decorating
-('00000000-0000-0000-0000-000000000009','Tony Walsh','07500 789012','Interior painting','Living room, hallway and stairs. Wants neutral tones. Needs done before Christmas.','new',NOW() - interval '4 hours'),
-('00000000-0000-0000-0000-000000000009','Sandra Davies','07611 890123','Exterior painting','3-bed semi, render painted 6 years ago. Fading badly. Wants a quote this week.','new',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000009','Keith Robbins','07722 901234','Wallpaper','Feature wall in master bedroom — has the paper already, just needs hanging.','contacted',NOW() - interval '6 days'),
-('00000000-0000-0000-0000-000000000009','Julie Massey','07833 012345','Interior painting','Full 4-bed house redecoration. Not in a rush but wants a reliable decorator.','converted',NOW() - interval '19 days'),
-
--- Restore Physiotherapy
-('00000000-0000-0000-0000-000000000010','Marcus Johnson','07700 890123','Sports physio','Knee injury — marathon runner. Race in 8 weeks, wants intensive rehab plan.','new',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000010','Priya Sharma','07811 901234','Back pain (GP referral)','GP referred — chronic lower back pain, 3 months. Desk job, sits 9 hours a day.','new',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000010','Fiona Campbell','07922 012345','Clinical Pilates','Lower back issues, GP suggested Pilates. Complete beginner, slightly nervous.','new',NOW() - interval '10 minutes'),
-('00000000-0000-0000-0000-000000000010','Daniel Mitchell','07533 123456','Post-op rehab','Shoulder reconstruction — 6 weeks post-op, consultant discharged. Needs rehab to return to sport.','contacted',NOW() - interval '2 days'),
-('00000000-0000-0000-0000-000000000010','Sophie Reynolds','07644 234567','Remedial massage','Shoulder and neck tension from long-haul driving job. Wants fortnightly sessions.','converted',NOW() - interval '9 days'),
-('00000000-0000-0000-0000-000000000010','James Okafor','07755 345678','Acupuncture','Migraine management — tried medication, wants alternative approach. 2 sessions per month.','converted',NOW() - interval '17 days');
+-- Hargreaves Plumbing
+('00000000-0000-0000-0000-000000000001','Sharon Whitfield','07711 234567','bathroom_installation','3-bed semi Hillsborough, full suite replacement','new',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000001','Pat Holland','07611 678901','power_flush','Old radiators Hillsborough terrace','new',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000001','Graham West','07944 901234','heating_upgrade','Back boiler to combi conversion','new',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000001','Robert Marsh','07666 123456','drain_unblocking','Commercial kitchen, restaurant','contacted',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000001','Karen Hughes','07811 234567','boiler_repair','Annual service overdue, elderly customer','converted',NOW() - interval '5 days'),
+('00000000-0000-0000-0000-000000000001','Ben Sutton','07922 345678','bathroom_installation','En-suite addition, 4-bed detached','converted',NOW() - interval '10 days'),
+-- Elegant Hair Design
+('00000000-0000-0000-0000-000000000002','Louise Patel','07811 345678','bridal_hair','Wedding July, 4 bridesmaids, needs trial','new',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000002','Rebecca Stone','07644 678901','keratin_treatment','First time, frizzy hair','new',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000002','Natalie Ford','07533 456789','balayage','Brunette to blonde, wants consultation','contacted',NOW() - interval '3 days'),
+-- Greenfield Landscape
+('00000000-0000-0000-0000-000000000003','Andrew Palmer','07700 789012','garden_redesign','Large detached Altrincham, 80ft garden','new',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000003','Brian Collins','07922 901234','patio_installation','40sq metre Indian stone','new',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000003','Neil Thompson','07644 123456','commercial_contract','Business park Salford, 12 units','new',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000003','Janet Morrison','07977 456789','fence_replacement','Storm damage, 20m','new',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000003','Fiona Grant','07811 890123','decking','Composite decking, 30sq m with steps','new',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000003','Helen Price','07533 012345','garden_redesign','Japanese garden specialist project','contacted',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000003','Paul Jennings','07644 234567','maintenance_contract','Monthly contract, large Victorian garden','converted',NOW() - interval '8 days'),
+-- Swift Electrical
+('00000000-0000-0000-0000-000000000004','Paul Freeman','07644 123456','consumer_unit','1960s property Edgbaston','new',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000004','Janice Cook','07755 234567','ev_charger','Home charge point, new car next week','new',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000004','Colin Hardy','07866 345678','pat_testing','40-desk office, annual requirement','new',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000004','Wayne Foster','07977 456789','cctv','Retail unit city centre, 8 cameras','new',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000004','Dawn Clarke','07533 012345','rewire','Extension electrical first and second fix','contacted',NOW() - interval '2 days'),
+-- Paws & Claws
+('00000000-0000-0000-0000-000000000005','Mark Evans','07755 234567','puppy_groom','14-week Dachshund, first groom','new',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000005','Catherine Ford','07588 567890','deshedding','German Shepherd, heavy shedding','new',NOW() - interval '5 hours'),
+('00000000-0000-0000-0000-000000000005','Alice Marsh','07699 678901','full_groom','New customer, Cocker Spaniel','contacted',NOW() - interval '4 days'),
+-- Premier Mortgage
+('00000000-0000-0000-0000-000000000006','Richard Owen','07699 678901','first_time_buyer','Cardiff Bay, £220k, 10% deposit','new',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000006','Amanda Summers','07700 789012','remortgage','Fixed rate ending April','new',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000006','Linda Foster','07922 901234','equity_release','68 years old, retirement income','new',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000006','Chris Bailey','07533 012345','self_employed','2 years trading, SA302s available','new',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000006','Ian Richards','07755 234567','new_build','Off-plan, exchange in 6 weeks','new',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000006','Joyce Whitehead','07866 345678','protection_insurance','Bought 2 years ago, no protection','new',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000006','Karen Long','07700 789012','portfolio_remortgage','3 buy-to-lets same expiry month','contacted',NOW() - interval '3 days'),
+('00000000-0000-0000-0000-000000000006','Frances Cooper','07922 901234','help_to_buy','Government scheme enquiry','converted',NOW() - interval '7 days'),
+-- Valley View B&B
+('00000000-0000-0000-0000-000000000007','Claire Parson','07644 123456','walking_holiday','Week August, 2 adults + dog','new',NOW() - interval '1 hour'),
+('00000000-0000-0000-0000-000000000007','Frank Gibson','07977 456789','anniversary_stay','Special occasion, lake view','new',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000007','Geraldine Fox','07700 789012','christmas_booking','Christmas week 2025','new',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000007','Susan Ward','07811 123456','group_booking','Walking group, 8 walkers, 4 rooms','contacted',NOW() - interval '5 days'),
+-- Apex Print & Design
+('00000000-0000-0000-0000-000000000008','Helen Carter','07533 012345','exhibition_stand','3m × 3m, trade show 6 weeks','new',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000008','Dave Morgan','07644 123456','vehicle_wrap','Van fleet of 4, full wrap','new',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000008','Neil Chambers','07866 345678','corporate_brochure','16-page quarterly, 500 copies','new',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000008','Robert Jennings','07977 456789','menu_design','Restaurant seasonal menu, 200 copies','new',NOW() - interval '4 hours'),
+('00000000-0000-0000-0000-000000000008','Ian Stewart','07700 789012','branded_merchandise','Mugs and tote bags, company event','contacted',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000008','Paula Grant','07533 012345','charity_report','28-page annual report, 300 copies','converted',NOW() - interval '6 days'),
+-- Nationwide Recruitment
+('00000000-0000-0000-0000-000000000009','Katherine Bell','07977 456789','client_vacancy','Operations Director, £80k, 6 weeks','new',NOW() - interval '20 minutes'),
+('00000000-0000-0000-0000-000000000009','Marcus Fields','07588 567890','candidate_registration','Senior finance, relocating from London','new',NOW() - interval '45 minutes'),
+('00000000-0000-0000-0000-000000000009','Derek Lane','07700 789012','client_vacancy','HR Manager, 300-person SME','new',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000009','Christine Ball','07811 890123','candidate_registration','Marketing manager, 8 years experience','new',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000009','Lynda Shaw','07533 012345','client_vacancy','Technology Director, £120k SaaS','new',NOW() - interval '3 hours'),
+('00000000-0000-0000-0000-000000000009','Barry Connell','07644 123456','client_vacancy','12 customer service roles, contact centre','new',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000009','Terry Ford','07588 567890','temp_staff','Warehouse peak, 20 workers 2 weeks','contacted',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000009','Hannah Cross','07811 890123','client_vacancy','Sales Director, £95k national accounts','converted',NOW() - interval '5 days'),
+-- JB Sports & Fashion
+('00000000-0000-0000-0000-000000000010','Maria Santos','07755 234567','wholesale_enquiry','Independent retailer, 12 stores','new',NOW() - interval '30 minutes'),
+('00000000-0000-0000-0000-000000000010','Chloe Barnes','07977 456789','partnership','Influencer collaboration, 280k followers','new',NOW() - interval '90 minutes'),
+('00000000-0000-0000-0000-000000000010','Rebecca Holt','07699 678901','tender','School sports kit, academy trust 800 pupils','new',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000010','Susan Blake','07811 890123','franchise_enquiry','Scotland franchise, experienced retailer','new',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000010','Colin Ramsey','07866 345678','sponsorship','League One football club, kit and signage','new',NOW() - interval '6 hours'),
+('00000000-0000-0000-0000-000000000010','Claire Abbott','07699 678901','international','UAE sports retailer, UK branded range','contacted',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000010','Michelle Stone','07811 890123','tv_partnership','Reality sport show ITV, brand partnership','converted',NOW() - interval '4 days');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 10. REFERRAL LOG
--- ═══════════════════════════════════════════════════════════════════
--- Spread over 30 days, with a few entries today for each active business.
+-- 11. REFERRAL LOG
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_referral_log (business_id, partner_name, caller_name, service_requested, created_at) VALUES
-
--- Bella's Hair Studio (today + history)
-('00000000-0000-0000-0000-000000000001','Nails by Nikki','Rachel Brown','Gel nail set',NOW() - interval '3 hours'),
-('00000000-0000-0000-0000-000000000001','The Beauty Room','Hannah Wilson','Eyebrow threading',NOW() - interval '5 days'),
-('00000000-0000-0000-0000-000000000001','Nails by Nikki','Amy Taylor','Acrylic nails',NOW() - interval '9 days'),
-('00000000-0000-0000-0000-000000000001','The Beauty Room','Jessica Moore','Lash extensions',NOW() - interval '15 days'),
-('00000000-0000-0000-0000-000000000001','Nails by Nikki','Olivia Clark','Nail removal and new set',NOW() - interval '22 days'),
-
--- Fast Flow Plumbing (today + history)
-('00000000-0000-0000-0000-000000000002','Sparks Electrical','Gary Thompson','New sockets in kitchen extension',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000002','Pro-Tile','Sharon Kent','New bathroom tiling',NOW() - interval '4 days'),
-('00000000-0000-0000-0000-000000000002','Sparks Electrical','Dan Cooper','Consumer unit upgrade',NOW() - interval '8 days'),
-('00000000-0000-0000-0000-000000000002','Perfect Finish Plastering','Kevin Murphy','Bathroom plasterwork',NOW() - interval '13 days'),
-('00000000-0000-0000-0000-000000000002','Pro-Tile','Neil Watson','Kitchen splashback tiles',NOW() - interval '19 days'),
-('00000000-0000-0000-0000-000000000002','Sparks Electrical','Linda Bailey','Garden lighting install',NOW() - interval '25 days'),
-
--- Bright Spark Electrical (history only)
-('00000000-0000-0000-0000-000000000003','City Plumbing','Anne Turner','Boiler service',NOW() - interval '6 days'),
-('00000000-0000-0000-0000-000000000003','R&B Builders','Fiona King','Extension electrical prep',NOW() - interval '16 days'),
-('00000000-0000-0000-0000-000000000003','City Plumbing','Pete Davis','Bathroom renovation plumbing',NOW() - interval '24 days'),
-
--- Green Thumb Gardens (today + history)
-('00000000-0000-0000-0000-000000000004','Summit Tree Services','David Thompson','Large ash tree removal',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000004','Border Fencing','Janet Cooper','New rear garden fence and gate',NOW() - interval '7 days'),
-('00000000-0000-0000-0000-000000000004','Summit Tree Services','Brian Walsh','Crown reduction on oak',NOW() - interval '14 days'),
-('00000000-0000-0000-0000-000000000004','Border Fencing','Alan Richardson','Decking installation',NOW() - interval '20 days'),
-
--- Pawfect Grooming (history)
-('00000000-0000-0000-0000-000000000005','Happy Hounds Training','Gemma Richards','Puppy obedience classes',NOW() - interval '10 days'),
-('00000000-0000-0000-0000-000000000005','Riverdale Vets','Amy Collins','Annual vaccinations overdue',NOW() - interval '21 days'),
-
--- Peak Performance PT (history)
-('00000000-0000-0000-0000-000000000006','Summit Physio','Chris Davies','Knee pain assessment',NOW() - interval '8 days'),
-('00000000-0000-0000-0000-000000000006','City Sports Massage','Ryan Cooper','Deep tissue post-training',NOW() - interval '17 days'),
-('00000000-0000-0000-0000-000000000006','Summit Physio','Sam Murphy','Shoulder injury rehab',NOW() - interval '25 days'),
-
--- Clarity Accounting (today + history)
-('00000000-0000-0000-0000-000000000007','Bridge Financial Planning','Graham Spencer','Pension review',NOW() - interval '90 minutes'),
-('00000000-0000-0000-0000-000000000007','Lawton Solicitors','Caroline Hill','Business partnership agreement',NOW() - interval '6 days'),
-('00000000-0000-0000-0000-000000000007','Bridge Financial Planning','Derek Watson','Investment review',NOW() - interval '14 days'),
-('00000000-0000-0000-0000-000000000007','Lawton Solicitors','Frances Ellis','Employment contract advice',NOW() - interval '23 days'),
-
--- Spotless Cleaning Co (today + history)
-('00000000-0000-0000-0000-000000000008','Crystal Windows','Robert Blake','External window clean',NOW() - interval '2 hours'),
-('00000000-0000-0000-0000-000000000008','Premier Carpets','Janet Morrison','Living room and stairs carpets',NOW() - interval '5 days'),
-('00000000-0000-0000-0000-000000000008','Crystal Windows','Wayne Fisher','Conservatory roof and windows',NOW() - interval '12 days'),
-('00000000-0000-0000-0000-000000000008','Premier Carpets','Karen Patel','Upholstery cleaning — sofa set',NOW() - interval '20 days'),
-
--- Fresh Coat Decorating (history)
-('00000000-0000-0000-0000-000000000009','Smooth Finish Plastering','Ray Hammond','Hall ceiling skim before painting',NOW() - interval '11 days'),
-('00000000-0000-0000-0000-000000000009','Oak Carpentry','Debbie Turner','New skirting boards before decorating',NOW() - interval '22 days'),
-
--- Restore Physiotherapy (today + history)
-('00000000-0000-0000-0000-000000000010','City Podiatry','Marcus Johnson','Biomechanical assessment — overpronation',NOW() - interval '1 hour'),
-('00000000-0000-0000-0000-000000000010','Align Chiropractic','Laura Armstrong','Lower back — chiropractic opinion',NOW() - interval '4 days'),
-('00000000-0000-0000-0000-000000000010','City Podiatry','Tom Richardson','Orthotics fitting',NOW() - interval '11 days'),
-('00000000-0000-0000-0000-000000000010','Align Chiropractic','Alice Cooper','Neck and shoulder assessment',NOW() - interval '18 days'),
-('00000000-0000-0000-0000-000000000010','City Podiatry','Raj Patel','Plantar fasciitis assessment',NOW() - interval '25 days');
+-- Hargreaves Plumbing referrals out
+('00000000-0000-0000-0000-000000000001','Swift Electrical','Derek Shaw','CCTV installation',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000001','Swift Electrical','Barbara Ford','EV charger installation',NOW() - interval '1 day'),
+('00000000-0000-0000-0000-000000000001','Greenfield Landscape','Andrew Palmer','Garden drainage',NOW() - interval '3 days'),
+('00000000-0000-0000-0000-000000000001','Swift Electrical','Carol Manning','Consumer unit upgrade',NOW() - interval '6 days'),
+-- Swift Electrical referrals out
+('00000000-0000-0000-0000-000000000004','Hargreaves Plumbing','Sandra Booth','Boiler fault repair',NOW() - interval '3.5 hours'),
+('00000000-0000-0000-0000-000000000004','Hargreaves Plumbing','Craig Simmons','Bathroom plumbing',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000004','Greenfield Landscape','Tony Hopkins','Garden design after lighting',NOW() - interval '4 days'),
+-- Greenfield referrals out
+('00000000-0000-0000-0000-000000000003','Hargreaves Plumbing','Wendy Harris','Outdoor tap and irrigation',NOW() - interval '2 hours'),
+('00000000-0000-0000-0000-000000000003','Swift Electrical','Mark Robinson','Garden lighting installation',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000003','Swift Electrical','David Collins','Exterior power points',NOW() - interval '3 days'),
+-- Elegant Hair Design referrals out
+('00000000-0000-0000-0000-000000000002','Paws & Claws Dog Grooming','Sophie Williams','Dog grooming for her Poodle',NOW() - interval '1 day'),
+-- Paws & Claws referrals out
+('00000000-0000-0000-0000-000000000005','Valley View B&B','James Bowen','Dog-friendly Lake District break',NOW() - interval '2 days'),
+('00000000-0000-0000-0000-000000000005','Elegant Hair Design','Lisa Walker','Grooming salon nearby',NOW() - interval '5 days'),
+-- Valley View B&B referrals out
+('00000000-0000-0000-0000-000000000007','Paws & Claws Dog Grooming','Barbara Kent','Dog grooming during Lakes visit',NOW() - interval '2.5 hours'),
+('00000000-0000-0000-0000-000000000007','Paws & Claws Dog Grooming','Philip Watson','Guest dog needed grooming',NOW() - interval '4 days'),
+-- Premier Mortgage referrals out
+('00000000-0000-0000-0000-000000000006','Nationwide Recruitment','Trevor Blake','Career change alongside remortgage',NOW() - interval '5.5 hours'),
+-- Nationwide Recruitment referrals out
+('00000000-0000-0000-0000-000000000009','Premier Mortgage Solutions','Simon Rhodes','Relocating candidate needs mortgage advice',NOW() - interval '6.5 hours'),
+('00000000-0000-0000-0000-000000000009','Apex Print & Design','Barry Connell','Branded candidate packs for contact centre',NOW() - interval '2 days'),
+-- Apex Print referrals out
+('00000000-0000-0000-0000-000000000008','Nationwide Recruitment','Paula Grant','Studio hiring a senior designer',NOW() - interval '7 hours'),
+('00000000-0000-0000-0000-000000000008','Nationwide Recruitment','Sandra Peel','Office admin hire for growing studio',NOW() - interval '3 days');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 11. PRICING INTELLIGENCE  (Restore Physiotherapy — enterprise only)
+-- 12. PRICING INTELLIGENCE  (Enterprise only)
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_pricing_intelligence (business_id, service_name, our_price, market_low, market_high, insight) VALUES
-('00000000-0000-0000-0000-000000000010','Initial assessment',85,65,95,'Priced at mid-market. Callers mention competitor rates of £65–£70. Premium positioning justified by multi-practitioner setup.'),
-('00000000-0000-0000-0000-000000000010','Follow-up session',65,50,75,'Competitive. Three callers mentioned paying £55 elsewhere — our quality reputation supports £65 without pushback.'),
-('00000000-0000-0000-0000-000000000010','Remedial massage (60 min)',60,45,70,'Strong position. Callers expecting £45–£55 from standalone massage studios; clinic setting supports premium.'),
-('00000000-0000-0000-0000-000000000010','Clinical Pilates (class)',18,12,22,'Below market for a clinic setting. Consider moving to £20–22 at next review — caller expectations suggest this is acceptable.'),
-('00000000-0000-0000-0000-000000000010','Sports injury package (6 sessions)',340,280,390,'Good value perception. Callers respond well to the package framing vs. per-session pricing.');
+-- Nationwide Recruitment (enterprise)
+('00000000-0000-0000-0000-000000000009','Permanent placement (commercial)',NULL,12.5,18.5,'Caller mentioned rival agency charging 14% on £40k base. Our rate is 15% — within market but worth reviewing for volume clients.'),
+('00000000-0000-0000-0000-000000000009','Executive search (£80k+)',NULL,20.0,30.0,'Two callers mentioned headhunters quoting 25–28% retained. Our 20% clearly below market for senior roles.'),
+('00000000-0000-0000-0000-000000000009','Temporary staffing (daily rate)',NULL,18.0,26.0,'Agency margin context from caller: previous agency charging 22% uplift. Our 20% competitive.'),
+-- JB Sports & Fashion (enterprise)
+('00000000-0000-0000-0000-000000000010','Wholesale margin (independent)',NULL,35.0,50.0,'Wholesale enquiry caller mentioned competitor offering 38% margin. Standard industry is 40–45%.'),
+('00000000-0000-0000-0000-000000000010','Sponsorship package (tier 1)',NULL,15000.0,80000.0,'League One club enquiry gives benchmark: expect £20–40k for kit and ground signage at that level.');
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 12. COMPETITOR INTELLIGENCE  (Restore Physiotherapy — enterprise only)
+-- 13. COMPETITOR INTELLIGENCE  (Enterprise only)
 -- ═══════════════════════════════════════════════════════════════════
 
 INSERT INTO demo_competitor_intelligence (business_id, competitor_name, mention_count, context) VALUES
-('00000000-0000-0000-0000-000000000010','Bristol Physio & Sports Clinic',8,'Most frequently mentioned. Callers compare wait times — we are consistently faster. Price parity on initial assessments.'),
-('00000000-0000-0000-0000-000000000010','Clifton Physiotherapy',5,'Callers mention Clifton Physio when price-shopping. Our multi-practitioner offer seen as stronger for complex cases.'),
-('00000000-0000-0000-0000-000000000010','The Physio Room',3,'Mentioned mainly by sports injury callers — smaller studio, lower price point. Our post-op rehab capability differentiates strongly.'),
-('00000000-0000-0000-0000-000000000010','NHS Physiotherapy (referral)',6,'Callers citing NHS wait times as reason for seeking private — average 14-week wait mentioned. Reinforce speed-to-treatment messaging.');
-
-
--- ═══════════════════════════════════════════════════════════════════
--- 13. DEMO USERS
--- ═══════════════════════════════════════════════════════════════════
-
-INSERT INTO demo_users (id, email, name, role, access_code) VALUES
-('00000000-0000-0000-0000-000000000099',
- 'demo@verrante.app',
- 'Alex (Sales)',
- 'sales_rep',
- 'VERRANTE2026');
-
-
--- ═══════════════════════════════════════════════════════════════════
--- DONE — verify with:
---   SELECT business_name, tier FROM demo_businesses ORDER BY tier;
---   SELECT business_id, COUNT(*) calls FROM demo_call_logs GROUP BY 1;
---   SELECT business_id, COUNT(*) leads FROM demo_leads GROUP BY 1;
---   SELECT business_id, COUNT(*) refs FROM demo_referral_log GROUP BY 1;
---   SELECT * FROM demo_users;
--- ═══════════════════════════════════════════════════════════════════
+-- Nationwide Recruitment
+('00000000-0000-0000-0000-000000000009','Hays Recruitment',8,'Most frequently mentioned — clients comparing fees and speed. Hays perceived as slower on senior roles.'),
+('00000000-0000-0000-0000-000000000009','Michael Page',5,'Mentioned by 5 candidates as having registered with them. Seen as strong on finance and commercial.'),
+('00000000-0000-0000-0000-000000000009','Reed Recruitment',3,'3 client mentions — primarily for temp and volume hiring comparisons.'),
+('00000000-0000-0000-0000-000000000009','Robert Half',2,'Mentioned by 2 callers for finance director searches specifically.'),
+-- JB Sports & Fashion
+('00000000-0000-0000-0000-000000000010','JD Sports',12,'Most common caller comparison — "I approached JD Sports first." Our pricing and deal terms directly compared.'),
+('00000000-0000-0000-0000-000000000010','Sports Direct',6,'6 mentions — typically wholesale and franchise conversations. Callers use SD as a benchmark on margin.'),
+('00000000-0000-0000-0000-000000000010','Decathlon',4,'Mentioned in school and community sport contexts. Seen as price-competitive on kit.'),
+('00000000-0000-0000-0000-000000000010','Foot Locker',3,'3 influencer partnership callers mentioned Foot Locker deals as context for what they expect.');

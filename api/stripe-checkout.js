@@ -18,7 +18,7 @@ const PRICE_IDS = {
   enterprise:   process.env.STRIPE_PRICE_ENTERPRISE,
 }
 
-const SITE_URL = process.env.SITE_URL || 'https://verante-portal.vercel.app'
+const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })

@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const SITE_URL = process.env.SITE_URL || 'https://verante-portal.vercel.app'
+const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 
 async function refreshToken(tenantId, refreshToken) {
   const res = await fetch('https://api.freeagent.com/v2/token_endpoint', {

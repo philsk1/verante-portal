@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const { zoneText, zoneName, tabName, messages } = req.body
   if (!messages || !zoneText) return res.status(400).json({ error: 'Missing required fields' })
 
-  const systemPrompt = `You are Vera, the AI assistant built into the Verrante portal. Verrante is a call handling and lead capture platform for UK small businesses — hair salons, tradespeople, sole traders. The owner uses this portal to configure how their AI handles every call.
+  const systemPrompt = `You are Vera, the AI assistant built into the Qerxel portal. Qerxel is a call handling and lead capture platform for UK small businesses — hair salons, tradespeople, sole traders. The owner uses this portal to configure how their AI handles every call.
 
 The user is in the ${tabName || 'portal'} section and has clicked on: "${zoneName || 'a feature'}".
 

@@ -27,7 +27,7 @@ const Login = () => {
 
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.75rem' }}>
-        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', fontSize: '1.25rem', letterSpacing: '-0.01em' }}>Verrante</span>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', fontSize: '1.25rem', letterSpacing: '-0.01em' }}>Qerxel</span>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
       </div>
 
@@ -35,7 +35,7 @@ const Login = () => {
       <div style={{ background: 'white', borderRadius: '14px', border: '0.5px solid rgba(94,59,135,0.12)', boxShadow: '0 4px 24px rgba(94,59,135,0.07)', width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
 
         <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', marginBottom: '0.35rem', marginTop: 0 }}>Welcome back</h1>
-        <p style={{ color: '#888', marginBottom: '2rem', fontSize: '0.875rem', marginTop: 0 }}>Sign in to your Verrante account</p>
+        <p style={{ color: '#888', marginBottom: '2rem', fontSize: '0.875rem', marginTop: 0 }}>Sign in to your Qerxel account</p>
 
         {error && (
           <p style={{ color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.875rem', marginBottom: '1.25rem', marginTop: 0 }}>

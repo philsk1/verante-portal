@@ -492,7 +492,7 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
 
   return (
     <div style={s.wrapper}>
-      <div style={s.topBar} data-help="Verrante Calendar — a standalone product. Create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing time so you can book other clients during colour processing gaps.">
+      <div style={s.topBar} data-help="Qerxel Calendar — a standalone product. Create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing time so you can book other clients during colour processing gaps.">
         <h2 style={s.title}>Calendar</h2>
         <div style={s.controls}>
           {hasTeamMode && (

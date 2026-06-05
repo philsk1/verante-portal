@@ -173,7 +173,7 @@ export default async function handler(req, res) {
           || `Hi ${callerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
 
         // Fire and forget — don't block webhook response
-        fetch(`${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/api/whatsapp-send`, {
+        fetch(`${process.env.SITE_URL || 'https://qerxel-portal.vercel.app'}/api/whatsapp-send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tenantId, to: callerPhone, message: template }),

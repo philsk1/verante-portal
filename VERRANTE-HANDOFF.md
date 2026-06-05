@@ -1,9 +1,9 @@
-# VERRANTE — PROJECT HANDOFF DOCUMENT
+# QERXEL — PROJECT HANDOFF DOCUMENT
 Last updated: 2026-06-04
 
 ---
 
-## WHAT VERRANTE IS
+## WHAT QERXEL IS
 
 A multi-tenant AI call handling and lead capture SaaS for UK sole traders and micro-businesses. The AI answers missed calls, triages intent, captures leads, refers out-of-scope callers to partners, and routes to booking or callback. The portal is the tenant's control surface.
 
@@ -49,7 +49,7 @@ Overage: £0.18/min
 
 Enterprise has NO referral network. Enterprise value is entirely from product capability.
 
-Professional tier sell: "You're on a call, another comes in, they hang up. Verrante catches the second call while you're on the first."
+Professional tier sell: "You're on a call, another comes in, they hang up. Qerxel catches the second call while you're on the first."
 
 **Tier checks in code:**
 ```javascript
@@ -94,7 +94,7 @@ RLS currently DISABLED on all tables. Pre-launch decision — re-enable before f
 
 Three layers govern every system prompt.
 
-**Layer 1 — Verrante owned. Injected into every prompt. Never editable or visible to tenant.**
+**Layer 1 — Qerxel owned. Injected into every prompt. Never editable or visible to tenant.**
 
 Core values (verbatim — never change without founder instruction):
 > "You are a warm, professional, and considerate assistant. You speak in human terms at all times — with kindness, willingness, and genuine care for the person you are speaking with. You are never robotic, never bureaucratic, never cold. You do not perform warmth — you express it naturally through the way you phrase things, the pace you set, and the care you take with every caller. Even in your most formal register you remain considerate and human. You never claim to be a person but you always behave like one worth trusting."
@@ -169,9 +169,9 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number text;
 
 ## FRONTEND — CONFIRMED WORKING
 
-- Dev server: `cd C:\Users\philo\verrante-portal` then `npm run dev` (two separate commands)
-- Live: https://verante-portal.vercel.app — auto-deploys on git push to master
-- GitHub: https://github.com/philsk1/verante-portal
+- Dev server: `cd C:\Users\philo\qerxel-portal` then `npm run dev` (two separate commands)
+- Live: https://qerxel-portal.vercel.app — auto-deploys on git push to master
+- GitHub: https://github.com/philsk1/qerxel-portal
 
 Key files:
 ```
@@ -374,7 +374,7 @@ The UI is built in AccountSettings.jsx — a chat interface with a placeholder r
 Create `api/support-chat.js`:
 - POST { tenantId, messages }
 - Fetches tenant: business_name, subscription_tier, call stats (count from call_logs), lead count, active since date
-- System prompt: "You are a helpful support assistant for Verrante, an AI call handling platform. The tenant you are supporting is [business_name] on the [tier] plan, active since [date]. They have handled [N] calls and captured [N] leads. Answer questions about portal settings, AI behaviour, billing, and how Verrante works. Be concise and direct."
+- System prompt: "You are a helpful support assistant for Qerxel, an AI call handling platform. The tenant you are supporting is [business_name] on the [tier] plan, active since [date]. They have handled [N] calls and captured [N] leads. Answer questions about portal settings, AI behaviour, billing, and how Qerxel works. Be concise and direct."
 - Returns Claude Haiku response
 
 Wire the chat UI in AccountSettings.jsx to POST to /api/support-chat.
@@ -395,9 +395,9 @@ Wire the chat UI in AccountSettings.jsx to POST to /api/support-chat.
 - **n8n migration** — at 30 tenants, replace Make.com
 - **Multi-site / franchise** — post revenue
 - **Vera audio** — ElevenLabs pre-renders per speech, currently text only
-- **100 business type seed data** — content doc exists (verrante-100-business-types-v2.md)
+- **100 business type seed data** — content doc exists (qerxel-100-business-types-v2.md)
 - **i18n scaffolding** — before international expansion
-- **Domain** — verrante.com confirmation
+- **Domain** — qerxel.com confirmation
 
 ---
 
@@ -408,5 +408,5 @@ Wire the chat UI in AccountSettings.jsx to POST to /api/support-chat.
 3. Data covenant document — draft with Claude web
 4. Privacy policy template — one page for tenants, draft with Claude web
 5. ElevenLabs voice for Vera — audition mature warm male voices
-6. Domain — verrante.com confirmation
+6. Domain — qerxel.com confirmation
 7. Terms of service — draft with Claude web

@@ -1,14 +1,14 @@
-# VERRANTE — COMPLETE PROJECT HANDOFF DOCUMENT V9
+# QERXEL — COMPLETE PROJECT HANDOFF DOCUMENT V9
 Paste this in full at the start of every new conversation thread.
 Last updated: 2026-06-04
 
 ---
 
-## WHAT VERRANTE IS
+## WHAT QERXEL IS
 
 A multi-tenant AI call handling and lead capture SaaS platform targeting solo operators and micro-service businesses in the UK. Hair salons, tradespeople, local service providers. The core product answers missed calls, triages caller intent, captures lead details, refers out-of-scope callers to partner businesses, and routes the caller to a booking link or callback.
 
-Working name: Verrante. Name not yet legally confirmed.
+Working name: Qerxel. Name not yet legally confirmed.
 
 ---
 
@@ -20,7 +20,7 @@ The product is not a call answering service. It is a CRM that happens to start w
 
 The flywheel: better system → tenant leans on it more → more data → smarter system → more value → more referrals → network density increases → each tenant gets more inbound referrals → leaning increases further.
 
-Referral psychology: a tenant who has sent four referrals out actively demands reciprocation. This creates membership culture not just word of mouth. The referral network is owned entirely by the tenant — Verrante is the infrastructure that makes it visible and reciprocal.
+Referral psychology: a tenant who has sent four referrals out actively demands reciprocation. This creates membership culture not just word of mouth. The referral network is owned entirely by the tenant — Qerxel is the infrastructure that makes it visible and reciprocal.
 
 Core sales framing — LOCKED: "Never miss another lead." The anxiety a busy tradesperson feels about missing a call while they are under a sink — that is the problem this solves.
 
@@ -74,8 +74,8 @@ Project URL: https://kkrsvkxkefijmtbwykzv.supabase.co
 Anon key (legacy HS256 — use this, not the sb_publishable_ format):
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrcnN2a3hrZWZpam10Ynd5a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMTMyNTcsImV4cCI6MjA5NTY4OTI1N30.NbWanJ9UsUKJgDudleI492P4Z0-jL-SKNSqUr4uREeQ
 
-GitHub: https://github.com/philsk1/verante-portal
-Live URL: https://verante-portal.vercel.app
+GitHub: https://github.com/philsk1/qerxel-portal
+Live URL: https://qerxel-portal.vercel.app
 
 ### CRITICAL — RLS STATUS
 
@@ -119,7 +119,7 @@ specialist_services text, phone text, active boolean default true, created_at ti
 
 ## FRONTEND — CONFIRMED WORKING
 
-Dev server: run two commands separately — `cd C:\Users\philo\verrante-portal` then `npm run dev`
+Dev server: run two commands separately — `cd C:\Users\philo\qerxel-portal` then `npm run dev`
 Runs on http://localhost:5173 (may shift to 5174/5175 if ports occupied)
 
 Key files:
@@ -324,7 +324,7 @@ Primary button: #f0a500 bg, #1a0533 text, borderRadius 8px.
 Disabled button: #f5d98a bg, #7a5c1a text.
 Secondary button: white bg, violet border, violet text.
 Locked sections: blur(3px) + opacity 0.45 + absolute white badge.
-Logo: "Verrante" Syne 700 + 7px amber dot (marginLeft 3, marginBottom 8).
+Logo: "Qerxel" Syne 700 + 7px amber dot (marginLeft 3, marginBottom 8).
 
 ---
 
@@ -404,14 +404,14 @@ Guards (both directions): Portal → /onboarding if no membership. Onboarding �
 - n8n migration at 30 tenants
 - Pricing intelligence coaching feature
 - Multi-site and franchise architecture (post revenue)
-- Domain confirmation (verrante.com placeholder)
+- Domain confirmation (qerxel.com placeholder)
 - Terms of service document
 
 ---
 
 ## PRACTICAL NOTES
 
-- Dev server: two separate commands — `cd C:\Users\philo\verrante-portal` then `npm run dev`
+- Dev server: two separate commands — `cd C:\Users\philo\qerxel-portal` then `npm run dev`
 - PowerShell does not support && — always two separate commands or use Bash tool
 - F12 hijacked by ASUS — use Ctrl+Shift+I or right-click Inspect
 - Vercel auto-deploys on git push to master
