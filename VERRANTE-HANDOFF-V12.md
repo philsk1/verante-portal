@@ -1,7 +1,7 @@
 # VERRANTE — COMPLETE PROJECT HANDOFF DOCUMENT V12
 ## Read this at the start of every new conversation thread.
 ## Also read: STRATEGY-ADDENDUM-V2.md (commercial decisions, tier detail, calendar spec)
-## Last updated: 2026-06-05 (session 7)
+## Last updated: 2026-06-05 (session 8)
 
 ---
 
@@ -222,6 +222,12 @@ vercel.json                          — rewrites + cron jobs (notify-daily-cost
 | api/stripe-checkout.js | POST {tenantId, targetTier} → Checkout URL (new) or direct swap (existing sub). |
 | api/stripe-webhook.js | checkout.session.completed, subscription.updated, subscription.deleted. Raw body + sig. |
 | api/remind-appointments.js | Hourly cron. Finds appointments in 24h and 1h windows (reminder_sent_Xh=false), sends Resend email, marks sent. |
+| api/integrations-connect.js | POST {tenantId, integrationId, credentials, settings} — stores credentials (service role) + settings (tenant-readable). |
+| api/integrations-disconnect.js | POST {tenantId, integrationId} — removes integration + credentials. |
+| api/whatsapp-send.js | POST {tenantId, to, message} — sends WhatsApp message via Meta Cloud API using tenant's own credentials. |
+| api/freeagent-auth.js | GET ?tenantId — redirects to FreeAgent OAuth. |
+| api/freeagent-callback.js | GET ?code&state — exchanges OAuth code, stores tokens, redirects to portal. |
+| api/freeagent-invoice.js | POST {tenantId, leadId} — creates draft invoice in FreeAgent from a lead. Handles token refresh. |
 
 ### Environment variables (Vercel + local .env)
 
@@ -238,7 +244,9 @@ vercel.json                          — rewrites + cron jobs (notify-daily-cost
 | STRIPE_PRICE_STANDARD | stripe-checkout, stripe-webhook |
 | STRIPE_PRICE_PROFESSIONAL | stripe-checkout, stripe-webhook |
 | STRIPE_PRICE_ENTERPRISE | stripe-checkout, stripe-webhook |
-| SITE_URL | stripe-checkout (success/cancel redirect base) |
+| SITE_URL | stripe-checkout, freeagent-auth/callback, whatsapp-send (trigger URL) |
+| FREEAGENT_CLIENT_ID | freeagent-auth, freeagent-callback |
+| FREEAGENT_CLIENT_SECRET | freeagent-callback |
 
 ---
 
@@ -416,6 +424,16 @@ Logo: "Verrante" Syne 700 + 7px amber dot.
 - Stripe billing (api/stripe-checkout.js + api/stripe-webhook.js + UI wired)
 - Demo system complete (all 5 routes, DemoContext, session tracking)
 
+### Done — session 8 (2026-06-05) — Priority 1 integrations
+- Integration DB schema: tenant_integrations (settings, RLS for tenants) + tenant_integration_credentials (tokens, service role only). Migration: supabase_migrations_integrations.sql
+- WhatsApp Business: inline connect form (Phone Number ID + access token + template), api/whatsapp-send.js, automatic follow-up fired from vapi-webhook.js on lead_captured
+- FreeAgent: full OAuth flow (api/freeagent-auth → api/freeagent-callback), token refresh, api/freeagent-invoice.js creates draft invoice from any lead
+- Integrations tab: loads connected state from DB, WhatsApp + FreeAgent connect/disconnect UI, returns from OAuth handled
+- ActivityDashboard: "Invoice" button on each lead (fires only when FreeAgent connected), "Book" button already there
+- Portal.jsx: defaults to integrations tab on return from OAuth (?tab=integrations)
+- New Vercel env vars needed: FREEAGENT_CLIENT_ID, FREEAGENT_CLIENT_SECRET (+ existing SITE_URL)
+- New DB migration: run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql)
+
 ### Done — session 7 (2026-06-05)
 - Lead → Appointment: "Book" button on Dashboard leads. Navigates to Calendar tab with prefill (name + notes). Portal.jsx extended: `handleNavigate(tabId, prefillData)`, `calendarPrefill` state, `onPrefillConsumed` callback.
 - Appointment reminders: api/remind-appointments.js, vercel.json hourly cron, 24h + 1h windows. emailAppointmentReminder template added to _emails.js.
@@ -429,8 +447,11 @@ Logo: "Verrante" Syne 700 + 7px amber dot.
 2. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section above)
 
 ### Next build priorities
-1. Integration builds — Priority 1: Google Calendar, WhatsApp Business, FreeAgent, Xero, Google Business Profile
-2. Calendar Session 3 — CalDAV external sync (Google, Apple, Outlook)
+1. Run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql) in Supabase SQL Editor
+2. FreeAgent setup: create app at dev.freeagent.com → add FREEAGENT_CLIENT_ID + FREEAGENT_CLIENT_SECRET to Vercel, set redirect URI to https://verante-portal.vercel.app/api/freeagent-callback
+3. WhatsApp setup: Meta Business Manager → WhatsApp Business API → get Phone Number ID + permanent token
+4. Integration builds — Priority 1 remaining: Xero, Google Calendar, Google Business Profile
+5. Calendar Session 3 — CalDAV external sync (Google, Apple, Outlook)
 3. Calendar Session 4 — Enterprise mode (manager views, permissions)
 4. Calendar Session 5 — customer booking page (public URL, self-book)
 5. Phone line feature — behind VITE_PHONE_LINE_ENABLED=false, waiting on partner contract
