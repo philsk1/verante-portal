@@ -10,6 +10,10 @@
     {
       "path": "/api/notify-daily-cost",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/remind-appointments",
+      "schedule": "0 * * * *"
     }
   ]
 }

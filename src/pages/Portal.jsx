@@ -9,18 +9,29 @@ import ActivityDashboard from './ActivityDashboard'
 import DataAnalytics from './DataAnalytics'
 import PartnersReferrals from './PartnersReferrals'
 import AccountSettings from './AccountSettings'
+import Integrations from './Integrations'
+import CalendarTab from './Calendar'
 import HelpMascot from '../components/HelpMascot'
 
 const Portal = () => {
   const { user } = useAuth()
   const preview = usePreview()
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState(
+    new URLSearchParams(window.location.search).get('upgraded') ? 'account' : 'dashboard'
+  )
   const [checking, setChecking] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [tenantId, setTenantId] = useState(null)
   const [isOwner, setIsOwner] = useState(false)
   const [allTenants, setAllTenants] = useState([])
+  const [calendarPrefill, setCalendarPrefill] = useState(null)
   const navigate = useNavigate()
+
+  const handleNavigate = (tabId, prefillData) => {
+    setActiveTab(tabId)
+    if (tabId === 'calendar' && prefillData) setCalendarPrefill(prefillData)
+    else setCalendarPrefill(null)
+  }
 
   // Tab → vera context key mapping
   const TAB_CONTEXT = {
@@ -28,8 +39,10 @@ const Portal = () => {
     profile:   'profile.first_visit',
     ai:        'ai_behaviour.first_visit',
     analytics: 'analytics.first_visit',
-    referrals: 'referrals.first_visit',
-    account:   'account.first_visit',
+    referrals:    'referrals.first_visit',
+    calendar:     'calendar.first_visit',
+    integrations: 'integrations.first_visit',
+    account:      'account.first_visit',
   }
 
   useEffect(() => {
@@ -80,6 +93,8 @@ const Portal = () => {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'referrals', label: 'Partners & Referrals' },
+    { id: 'calendar', label: 'Calendar' },
+    { id: 'integrations', label: 'Integrations' },
     { id: 'account', label: 'Account' },
   ]
 
@@ -90,11 +105,15 @@ const Portal = () => {
       case 'ai':
         return <AIBehaviour onNavigate={setActiveTab} />
       case 'dashboard':
-        return <ActivityDashboard onNavigate={setActiveTab} />
+        return <ActivityDashboard onNavigate={handleNavigate} />
       case 'analytics':
-        return <DataAnalytics onNavigate={setActiveTab} />
+        return <DataAnalytics onNavigate={handleNavigate} />
       case 'referrals':
         return <PartnersReferrals />
+      case 'calendar':
+        return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
+      case 'integrations':
+        return <Integrations onNavigate={setActiveTab} />
       case 'account':
         return <AccountSettings onNavigate={setActiveTab} />
       default:

@@ -118,6 +118,31 @@ export function emailDailyCost({ businessName, callsToday, leadsToday, minutesTo
   }
 }
 
+// Appointment reminder — 24h or 1h before
+export function emailAppointmentReminder({ businessName, appointment, hoursAhead }) {
+  const start = new Date(appointment.start_time)
+  const timeStr = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  const label = hoursAhead === 24 ? 'tomorrow' : 'in 1 hour'
+  const serviceRow = appointment.appointment_type
+    ? `<tr><td style="padding:0.5rem 0;color:#aaa;font-size:0.8rem;">Service</td><td style="padding:0.5rem 0;font-weight:600;text-align:right;">${appointment.appointment_type}</td></tr>`
+    : ''
+  return {
+    subject: `Appointment reminder — ${appointment.title} ${label}`,
+    html: wrap(`
+      <p>Hi ${businessName},</p>
+      <p>Reminder: you have an appointment <strong>${label}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Client</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${appointment.title}</td></tr>
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Date</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${dateStr}</td></tr>
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Time</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${timeStr}</td></tr>
+        ${serviceRow}
+      </table>
+      <p style="font-size:0.85rem;color:#666;">Log in to Verrante to view or update this appointment.</p>
+    `),
+  }
+}
+
 // Notification 3 — monthly renewal
 export function emailRenewal({ businessName, includedMinutes }) {
   return {

@@ -472,10 +472,21 @@ const ActivityDashboard = ({ onNavigate }) => {
               const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
               return (
                 <div key={lead.id} style={{ ...s.leadRow, borderBottom: isLast ? 'none' : s.leadRow.borderBottom }}>
-                  <div style={s.leadName}>{name}</div>
-                  <div style={s.leadMeta}>
-                    {formatDateLabel(lead.created_at)} · {formatTime(lead.created_at)}
+                  <div style={{ flex: 1 }}>
+                    <div style={s.leadName}>{name}</div>
+                    <div style={s.leadMeta}>
+                      {formatDateLabel(lead.created_at)} · {formatTime(lead.created_at)}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => onNavigate('calendar', {
+                      title: name,
+                      notes: `Lead captured ${formatDateLabel(lead.created_at)}${lead.callers?.phone_number ? ` · ${lead.callers.phone_number}` : ''}`,
+                    })}
+                    style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                  >
+                    Book
+                  </button>
                 </div>
               )
             })

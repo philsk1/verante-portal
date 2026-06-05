@@ -443,7 +443,7 @@ const BusinessProfile = () => {
 
   // Staff profiles
   const [staff, setStaff] = useState([])
-  const [staffDraft, setStaffDraft] = useState({ name: '', role: '', specialist_services: '', phone: '' })
+  const [staffDraft, setStaffDraft] = useState({ name: '', role: '', specialist_services: '', phone: '', direct_line_did: '' })
   const [staffAdding, setStaffAdding] = useState(false)
   const [staffError, setStaffError] = useState(false)
 
@@ -513,7 +513,7 @@ const BusinessProfile = () => {
             .limit(200),
           supabase
             .from('staff_profiles')
-            .select('id, name, role, specialist_services, phone, active')
+            .select('id, name, role, specialist_services, phone, direct_line_did, active')
             .eq('tenant_id', tid)
             .order('created_at'),
         ])
@@ -656,6 +656,7 @@ const BusinessProfile = () => {
         role: staffDraft.role.trim() || null,
         specialist_services: staffDraft.specialist_services.trim() || null,
         phone: staffDraft.phone.trim() || null,
+        direct_line_did: staffDraft.direct_line_did.trim() || null,
         active: true,
       })
       .select().maybeSingle()
@@ -841,6 +842,7 @@ const BusinessProfile = () => {
                       {member.role && <div style={s.staffRole}>{member.role}</div>}
                       {member.specialist_services && <span style={s.staffSpecialty}>{member.specialist_services}</span>}
                       {member.phone && <div style={s.staffPhone}>{member.phone}</div>}
+                      {member.direct_line_did && <div style={{ fontSize: '0.75rem', color: '#5e3b87', marginTop: '0.15rem' }}>DID: {member.direct_line_did}</div>}
                     </div>
                     <button style={s.removeBtn} onClick={() => removeStaff(member.id)} title="Remove">×</button>
                   </div>
@@ -861,7 +863,9 @@ const BusinessProfile = () => {
                   onChange={e => setStaffDraft(d => ({ ...d, specialist_services: e.target.value }))}
                   placeholder="Specialist services — e.g. Gas safe, Commercial only" />
                 <input style={s.addInput} value={staffDraft.phone} onChange={e => setStaffDraft(d => ({ ...d, phone: e.target.value }))}
-                  placeholder="Direct line (optional)" type="tel" />
+                  placeholder="Mobile (optional)" type="tel" />
+                <input style={s.addInput} value={staffDraft.direct_line_did} onChange={e => setStaffDraft(d => ({ ...d, direct_line_did: e.target.value }))}
+                  placeholder="Direct line DID — e.g. 020 7946 0001" type="tel" />
               </div>
               <button
                 style={!staffDraft.name.trim() || staffAdding ? s.addBtnDisabled : s.addBtn}

@@ -106,7 +106,7 @@ const SENSITIVE_INSTRUCTION = `This business operates under professional confide
 // ── Main prompt builder ───────────────────────────────────────────────────────
 
 export function buildSystemPrompt(data) {
-  const { tenant, services, partnerServices, callRules, partners, isSensitive } = data
+  const { tenant, services, partnerServices, callRules, partners, staff, isSensitive } = data
 
   const rulesByType = {}
   for (const r of callRules) rulesByType[r.call_type] = r
@@ -128,6 +128,16 @@ export function buildSystemPrompt(data) {
         return `  • ${p.business_name}${specs ? ` (${specs})` : ''}${p.business_phone ? ` — ${p.business_phone}` : ''}`
       }).join('\n')
     : '  (No partner businesses configured.)'
+
+  const staffBlock = Array.isArray(staff) && staff.length
+    ? staff.filter(s => s.active !== false).map(s => {
+        const parts = [`  • ${s.name}`]
+        if (s.role) parts.push(`(${s.role})`)
+        if (s.specialist_services) parts.push(`— specialist: ${s.specialist_services}`)
+        if (s.direct_line_did) parts.push(`— direct line: ${s.direct_line_did}`)
+        return parts.join(' ')
+      }).join('\n')
+    : null
 
   const keywords = Array.isArray(tenant.emergency_keywords) ? tenant.emergency_keywords : []
 
@@ -177,6 +187,7 @@ ${tenant.business_context ? tenant.business_context : ''}
 SERVICES WE OFFER:
 ${serviceBlock}
 ${tenant.booking_link ? `\nBookings: ${tenant.booking_link}` : ''}
+${staffBlock ? `\n━━━ OUR TEAM ━━━\nIf a caller asks for a specific team member by name, confirm who they are asking for and give their direct line if listed. If no direct line is listed, take a message for that person.\n${staffBlock}` : ''}
 
 ━━━ SERVICES WE REFER TO PARTNERS ━━━
 We do not offer these — we pass callers to trusted partner businesses:

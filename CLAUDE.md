@@ -4,7 +4,7 @@ This file is auto-loaded by Claude Code at the start of every session.
 It is the single source of truth for project context, strategy, and state.
 Update it at the end of every working session.
 
-**Full strategic context:** `verrante-handoff-V10.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
+**Full strategic context:** `VERRANTE-HANDOFF-V11.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
 
 ---
 
@@ -20,17 +20,18 @@ Working name — not legally confirmed yet.
 
 ---
 
-## Tier Structure — LOCKED
+## Tier Structure — UPDATED 2026-06-05
 
 | Tier | Price | Concurrent | Minutes/mo |
 |------|-------|-----------|------------|
-| Light | £29/month | 1 | 60 |
-| Standard | £49/month | 1 | 150 |
-| Professional | £69/month | 2 | 250 |
-| Enterprise | £249/month | 3+ | 700 |
+| Free | £0 (PAYG £0.35/min) | 1 | 0 (PAYG) |
+| Light | £29/month | 1 | 120 |
+| Standard | £49/month | 1 | 250 |
+| Professional | £69/month | 2 | 450 |
+| Enterprise | £249/month | 3+ | 1,000 |
 | Bespoke | Contact us | Custom | Custom |
 
-Overage: £0.18/min. Enterprise has NO referral network.
+Overage (subscription): Premium voice £0.18/min · Standard voice £0.14/min. PAYG: flat £0.35/min. Enterprise has NO referral network cap.
 
 **Tier checks in code — always use this pattern:**
 ```javascript
@@ -157,6 +158,10 @@ verrante-handoff-V10.md             — full product spec, tier detail, AI archi
 supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 demo_seed.sql                       — demo data seed (safe to re-run)
 src/context/DemoContext.jsx         — demo data provider (fetches demo_* tables)
+src/context/PreviewContext.jsx      — enterPreview/exitPreview/isPreview for owner mode
+src/pages/Calendar.jsx              — Verrante Calendar tab (react-big-calendar, DnD, appointment modal)
+src/pages/Integrations.jsx          — Integrations tab (module framework, 19 coming-soon cards)
+supabase_migrations_session4.sql    — all session 4+5 migrations (run before testing Calendar/Stripe)
 src/pages/DemoLogin.jsx             — demo login (/demo/login)
 src/pages/BusinessSelector.jsx      — 10 business cards (/demo/select)
 src/pages/TierSelector.jsx          — tier selection (/demo/tier/:id)
@@ -167,7 +172,7 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 
 ---
 
-## Current Build State (last updated: 2026-06-05, session 3)
+## Current Build State (last updated: 2026-06-05, session 5)
 
 ### Done — Section 1
 - [x] All 6 portal tabs — fully built and wired to Supabase
@@ -214,11 +219,31 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] `SalesPerformance.jsx` — aggregate stats across all demo businesses at `/demo/performance`
 - [x] `demo_sessions` tracking — insert on every DemoPortal mount
 
-### After demo — remaining tasks
-- [ ] Task 4 — Stripe billing (upgrade cards → Checkout, webhook updates tier)
-- [ ] Task 5 — Support chat (wire Account tab chat to Claude API with tenant context)
-- [ ] Task 1 — Staff extension recognition (Enterprise, direct_line_did per staff member)
-- [ ] Owner tier traversal — preview any subscription experience (gated to owner email)
+### Done — Session 4 (2026-06-05)
+- [x] Tier minutes updated: Light 120, Standard 250, Professional 450, Enterprise 1,000
+- [x] Free tier (PAYG £0.35/min) — added throughout portal, onboarding, TierSelector
+- [x] Overage voice preference — Premium (£0.18/min) / Standard (£0.14/min) radio in AI Behaviour
+- [x] Daily PAYG cost report — api/notify-daily-cost.js, Resend email, vercel.json cron 09:00 UTC
+- [x] Website scraping step 0 in onboarding — api/scrape-website.js (Firecrawl + Claude Haiku)
+- [x] Plan selection step 6 in onboarding — subscription or PAYG with cost limit
+- [x] Owner preview mode — PreviewContext.jsx, Portal.jsx dropdown + amber banner, all 6 tabs wired
+- [x] api/owner-tenants.js — service role tenant list, email-gated
+- [x] Task 5 — Support chat: api/support-chat.js (Claude Haiku + live tenant context), AccountSettings.jsx wired
+- NOTE: api/support-chat.js untracked + AccountSettings.jsx unstaged — needs commit
+
+### Done — Session 5 (2026-06-05)
+- [x] Task 4 — Stripe billing: api/stripe-checkout.js + api/stripe-webhook.js + AccountSettings.jsx wired
+- [x] Integrations tab — Integrations.jsx, module framework, 19 coming-soon cards
+- [x] Calendar Session 1 — Calendar.jsx, react-big-calendar, DnD, appointment modal, status colours, slot warning
+- [x] DB migration file — supabase_migrations_session4.sql (all new columns + appointments + staff_availability + tenant_catalogue)
+- [x] VERRANTE-HANDOFF-V11.md and CLAUDE.md updated
+
+### Remaining
+- [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor
+- [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
+- [ ] Calendar Session 2 — split appointments, team mode
+- [ ] Task 1 — Staff extension recognition (Enterprise)
+- [ ] Integration builds — Priority 1 first (Google Calendar, WhatsApp, FreeAgent, Xero, Google Business)
 
 ---
 
@@ -232,4 +257,5 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - **Supabase anon key** safe in frontend. Service role key NEVER in frontend.
 - **`data-help` attributes** on all section headings and key UI elements.
 - **Demo tables** prefixed `demo_`. Never join to production tables.
+- **Save guards** — always `if (isDemo || isPreview || !tenantId) return` on all mutations.
 - **End of session:** Update "Current Build State" above, commit, push.

@@ -1,6 +1,6 @@
 # VERRANTE — COMPLETE PROJECT HANDOFF DOCUMENT V11
 Paste this in full at the start of every new conversation thread.
-Last updated: 2026-06-05
+Last updated: 2026-06-05 (session 5)
 
 ---
 
@@ -38,17 +38,22 @@ Dev environment: Windows 11, VSCode, PowerShell. F12 key hijacked by ASUS — us
 
 ---
 
-## TIER STRUCTURE — LOCKED
+## TIER STRUCTURE — UPDATED 2026-06-05
 
 | Tier | Price | Concurrent calls | Minutes |
 |------|-------|-----------------|---------|
-| Light | £29/month | 1 | 60 |
-| Standard | £49/month | 1 | 150 |
-| Professional | £69/month | 2 | 250 |
-| Enterprise | £249/month | 3+ | 700 |
+| Free | £0/mo (PAYG £0.35/min) | 1 | 0 (pay as you go) |
+| Light | £29/month | 1 | 120 |
+| Standard | £49/month | 1 | 250 |
+| Professional | £69/month | 2 | 450 |
+| Enterprise | £249/month | 3+ | 1,000 |
 | Bespoke | Contact us | Custom | Custom |
 
-Overage: £0.18/min. Enterprise has NO referral network cap.
+Overage (subscription tiers): Premium voice £0.18/min · Standard voice £0.14/min
+PAYG: flat £0.35/min on Standard voice. No included minutes.
+Enterprise has NO referral network cap.
+
+**Voice tiers:** Premium = Cartesia Sonic 3.5 + GPT-4o mini. Standard = Cartesia Sonic 3 + Gemini Flash.
 
 **Tier checks in code — always use this pattern:**
 ```javascript
@@ -71,7 +76,9 @@ const isProfessionalOrAbove = isProfessional || isEnterprise
 | Automation | Make.com → migrating to self-hosted n8n at 30 tenants |
 | Frontend | React/Vite deployed to Vercel |
 | SMS | Twilio Messaging |
-| Vera AI | Claude Haiku (Anthropic API, vera-chat endpoint) |
+| Email | Resend (transactional — daily cost reports) |
+| Website scraping | Firecrawl (onboarding) |
+| Vera AI | Claude Haiku (Anthropic API — vera-chat, greeting-generator, support-chat, scrape-website) |
 
 ---
 
@@ -92,6 +99,7 @@ RLS is ENABLED on all production tables as of 2026-06-04. Script: `supabase_rls.
 HS256 anon key confirmed working with `auth.uid()`. NEVER switch to ES256 `sb_publishable_` key — PostgREST cannot validate ES256 tokens, auth.uid() returns null in all policies.
 
 Vapi webhook uses service_role key — bypasses RLS on inserts. This is correct.
+Owner preview API endpoint (api/owner-tenants.js) uses service_role key — bypasses RLS for tenant list fetch. This is correct.
 
 Demo tables (demo_*) have no RLS — they are public read-only demo data.
 
@@ -100,7 +108,9 @@ Demo tables (demo_*) have no RLS — they are public read-only demo data.
 ## DATABASE — COMPLETE AND DEPLOYED
 
 ### Production tables (all live, RLS enabled):
-business_type_categories, business_type_subcategories, templates, template_services, template_banned_services, tenants, tenant_credits, tenant_feedback, profiles, tenant_memberships, callers, caller_tenant_relationships, services, banned_services, referral_partners, referral_service_map, referral_log, leads, quotes, quote_outcomes, competitor_intelligence, pricing_intelligence, follow_up_messages, follow_up_responses, call_logs, minute_usage, usage_alerts, triage_outcomes, staff_profiles, call_handling_rules, vera_speeches, vera_seen
+business_type_categories, business_type_subcategories, templates, template_services, template_banned_services, tenants, tenant_credits, tenant_feedback, profiles, tenant_memberships, callers, caller_tenant_relationships, services, banned_services, referral_partners, referral_service_map, referral_log, leads, quotes, quote_outcomes, competitor_intelligence, pricing_intelligence, follow_up_messages, follow_up_responses, call_logs, minute_usage, usage_alerts, triage_outcomes, staff_profiles, call_handling_rules, vera_speeches, vera_seen, appointments, staff_availability, tenant_catalogue
+
+**Pending (in supabase_migrations_session4.sql — must be run):** appointments, staff_availability, tenant_catalogue tables + all new tenant columns from session 4/5.
 
 ### Demo tables (all live, no RLS — public read):
 demo_businesses, demo_services, demo_staff, demo_partners, demo_call_logs, demo_leads, demo_referral_log, demo_pricing_intelligence, demo_competitor_intelligence, demo_users, demo_sessions
@@ -110,7 +120,7 @@ Seed script: `demo_seed.sql` in project root. Safe to re-run (truncates before r
 ### KEY TABLE SCHEMAS
 
 **tenants** — key columns:
-business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords (text[]), tone_register, business_outcome_type, callback_preference_note, urgent_callback_mins, additional_instructions, vapi_assistant_id, tier, data_retention_days (integer default 90)
+business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords (text[]), tone_register, business_outcome_type, callback_preference_note, urgent_callback_mins, additional_instructions, vapi_assistant_id, tier, data_retention_days (integer default 90), billing_model (text — 'subscription' or 'payg'), monthly_cost_limit (integer — PAYG tenants only), overage_voice_preference (text default 'premium')
 
 Pending migrations (not yet run):
 ```sql
@@ -137,6 +147,9 @@ call_type values: new_customer, partner_service, sales_call, supplier_delivery, 
 id uuid pk, tenant_id uuid fk→tenants, name text, role text,
 specialist_services text, phone text, active boolean default true, created_at timestamptz
 ```
+
+**profiles** — key columns:
+id (= auth.uid()), email, is_owner (boolean — owner-only flag for preview mode. Set true for finsolsoffice@gmail.com in Supabase Table Editor.)
 
 **vera_speeches:** context_key text (unique), speech_text text
 **vera_seen:** tenant_id uuid, speech_key text, seen_at timestamptz
@@ -189,6 +202,7 @@ Key files:
 src/supabase.js                      — legacy HS256 anon key hardcoded (correct)
 src/context/AuthContext.jsx          — Supabase auth session
 src/context/DemoContext.jsx          — demo data provider; all 6 tabs check useDemo()
+src/context/PreviewContext.jsx       — enterPreview/exitPreview/isPreview for owner mode
 src/pages/Login.jsx, Signup.jsx, Onboarding.jsx, Portal.jsx
 src/pages/BusinessProfile.jsx, AIBehaviour.jsx, ActivityDashboard.jsx
 src/pages/DataAnalytics.jsx, PartnersReferrals.jsx, AccountSettings.jsx
@@ -200,8 +214,11 @@ src/pages/BusinessSelector.jsx       — 10 business cards (/demo/select)
 src/pages/TierSelector.jsx           — tier selection (/demo/tier/:businessId)
 src/pages/DemoPortal.jsx             — demo portal shell (/demo/portal/:businessId/:tier)
 src/pages/SalesPerformance.jsx       — aggregate rep dashboard (/demo/performance)
+src/pages/Calendar.jsx               — Verrante Calendar tab (react-big-calendar, DnD, appointment modal)
+src/pages/Integrations.jsx           — Integrations tab (module framework, coming soon cards)
 demo_seed.sql                        — demo data seed script (run in Supabase SQL Editor)
 supabase_rls.sql                     — idempotent RLS script (safe to re-run)
+supabase_migrations_session4.sql     — session 4+5 migrations (run in Supabase SQL Editor)
 ```
 
 ---
@@ -216,14 +233,30 @@ supabase_rls.sql                     — idempotent RLS script (safe to re-run)
 | api/_build-prompt.js | Shared module — buildSystemPrompt() + buildAnalysisPlan(). Not a serverless function. |
 | api/vera-chat.js | POST {zoneText, zoneName, tabName, messages} → Claude Haiku reply. Uses ANTHROPIC_API_KEY. |
 | api/greeting-generator.js | Generates greeting message via Claude Haiku. |
+| api/support-chat.js | POST {tenantId, messages} → Claude Haiku with live tenant context (plan, calls, leads, partners, settings). Wired to Account tab support chat UI. |
+| api/scrape-website.js | POST {url} → Firecrawl scrape → Claude Haiku extraction of 8 business fields. Returns {fields, found}. Uses FIRECRAWL_API_KEY + ANTHROPIC_API_KEY. |
+| api/notify-daily-cost.js | Daily cron (09:00 UTC via vercel.json). Sends cost report email to PAYG tenants who had calls today. Uses RESEND_API_KEY. |
+| api/_emails.js | Shared email templates — emailDailyCost(). Not a serverless function. |
+| api/owner-tenants.js | POST {email} → returns all tenants for owner preview dropdown. Email-gated server-side. Uses SUPABASE_SERVICE_ROLE_KEY. |
+| api/stripe-checkout.js | POST {tenantId, targetTier} → creates Stripe Checkout session (new subs) or swaps price directly (existing subs). Returns {mode: 'redirect', url} or {mode: 'updated', tier}. |
+| api/stripe-webhook.js | Stripe event handler (raw body, signature verified). Handles checkout.session.completed, subscription.updated, subscription.deleted. Updates tenants.tier + stripe IDs. |
 
 ### Environment vars (Vercel + local .env)
 
 | Var | Used by |
 |-----|---------|
-| SUPABASE_SERVICE_ROLE_KEY | vapi-webhook.js, vapi-sync.js |
+| SUPABASE_SERVICE_ROLE_KEY | vapi-webhook.js, vapi-sync.js, owner-tenants.js |
 | VAPI_PRIVATE_KEY | vapi-sync.js |
-| ANTHROPIC_API_KEY | vera-chat.js, greeting-generator.js |
+| ANTHROPIC_API_KEY | vera-chat.js, greeting-generator.js, support-chat.js, scrape-website.js |
+| FIRECRAWL_API_KEY | scrape-website.js |
+| RESEND_API_KEY | notify-daily-cost.js |
+| STRIPE_SECRET_KEY | stripe-checkout.js, stripe-webhook.js |
+| STRIPE_WEBHOOK_SECRET | stripe-webhook.js |
+| STRIPE_PRICE_LIGHT | stripe-checkout.js, stripe-webhook.js |
+| STRIPE_PRICE_STANDARD | stripe-checkout.js, stripe-webhook.js |
+| STRIPE_PRICE_PROFESSIONAL | stripe-checkout.js, stripe-webhook.js |
+| STRIPE_PRICE_ENTERPRISE | stripe-checkout.js, stripe-webhook.js |
+| SITE_URL | stripe-checkout.js — success/cancel redirect base URL |
 
 ---
 
@@ -259,6 +292,8 @@ Default tab on login: Dashboard
 
 HelpMascot rendered at top of every tab. Receives tenantId + businessName from Portal.jsx via TAB_CONTEXT map.
 
+**Owner preview mode:** is_owner accounts see a tenant dropdown in the portal header. Selecting a tenant enters preview via PreviewContext. Amber "Previewing: [name]" banner when active with Exit button. All 6 tabs use `previewTenantId` for fetches when `isPreview` is true. All save/mutate guards: `if (isDemo || isPreview || !tenantId) return`.
+
 | Tab | File | Status |
 |-----|------|--------|
 | Business Profile | BusinessProfile.jsx | BUILT |
@@ -266,6 +301,8 @@ HelpMascot rendered at top of every tab. Receives tenantId + businessName from P
 | Dashboard | ActivityDashboard.jsx | BUILT, confirmed end-to-end |
 | Analytics | DataAnalytics.jsx | BUILT |
 | Partners & Referrals | PartnersReferrals.jsx | BUILT |
+| Calendar | Calendar.jsx | BUILT — Session 1 complete |
+| Integrations | Integrations.jsx | BUILT — framework + coming soon cards |
 | Account | AccountSettings.jsx | BUILT |
 
 ---
@@ -284,7 +321,7 @@ Five sections:
 ## TAB DETAIL — AI BEHAVIOUR
 
 Six sections:
-1. Call Handling (global) — triage_mode (Strict/Balanced/Open), escalation_preference → tenants
+1. Call Handling (global) — triage_mode (Strict/Balanced/Open), escalation_preference, overage_voice_preference (Premium/Standard radio — paid subscription tiers only) → tenants
 2. Call Type Rules — 5 call type cards. Each: mode selector, booking link/callback/email/goodbye toggles, email address, additional instructions. → call_handling_rules upsert
 3. Emergency Keywords — chip list → tenants.emergency_keywords (text[])
 4. Greeting Message — custom or system default → tenants.greeting_message
@@ -344,13 +381,58 @@ Sections:
 
 ## TAB DETAIL — ACCOUNT
 
-- Plan & Billing — tier badge, upgrade cards (Stripe not wired — placeholder buttons)
+- Plan & Billing — tier badge, billing model (subscription/PAYG), upgrade cards (Stripe not wired — placeholder buttons). PAYG tenants: editable monthly cost limit field.
 - Account Details — business name (editable), email (read-only), password reset
 - Notifications — 3 toggles: new lead, daily summary, weekly report → tenants columns
 - Privacy & Data — retention selector (30d/90d/1yr) → tenants.data_retention_days. Export placeholder. Two-stage delete modal. Policy links.
 - Feedback — time-gated at 42 days from tenant creation → tenant_feedback
-- Support chat — chat UI, placeholder responses (Claude API endpoint pending)
+- Support chat — LIVE. Wired to /api/support-chat (Claude Haiku with live tenant context: plan, calls, leads, partners, settings).
 - Cancel flow — two-stage retention modal showing personalised loss
+
+---
+
+## TAB DETAIL — CALENDAR
+
+**Standalone product** — Calendar.jsx exists independently of AI call handling. Neither depends on the other. Save guards: `if (isDemo || isPreview || !tenantId) return`.
+
+react-big-calendar + date-fns-localizer + DnDCalendar addon. UK locale (Monday week start).
+
+Views: month / week / day. Drag-and-drop reschedule + resize writes to Supabase immediately.
+
+Appointment statuses + colours:
+- provisional → amber (#fef3d9 / #f0a500)
+- confirmed → violet (#ede8f5 / #5e3b87)
+- completed → green (#e6f9ef / #3db87a)
+- cancelled → grey
+- no_show → red
+
+Modal fields: title (required), start/end datetime (required), status, service type, client notes, description.
+Slot-too-small warning fires when selected slot < 30 min — warns, does not block (per spec).
+
+Appointments belong to staff_profiles (staff_profile_id FK) — this is the critical design decision that makes it scale from solo to Enterprise without architectural changes.
+
+**Calendar DB tables:** appointments, staff_availability — RLS enabled, policies in supabase_migrations_session4.sql.
+
+**Upcoming sessions:**
+- Session 2: split appointments (processing_start_time / processing_end_time), team mode multi-column
+- Session 3: CalDAV external sync
+- Session 4: Enterprise manager views + permissions
+- Session 5: customer booking page (public URL)
+
+---
+
+## TAB DETAIL — INTEGRATIONS
+
+Framework only — no live integrations yet. All 19 defined as `status: 'coming_soon'`.
+
+Architecture: each integration is a self-contained object in the INTEGRATIONS array in Integrations.jsx. To activate: set `status: 'available'` and add an `onConnect` handler. No architectural changes needed.
+
+Category filter: All / Calendar / Messaging / Accounting / Reviews / Field Service / Payments / Booking / CRM / Automation.
+
+Priority 1 (build first): Google Calendar, Google Business Profile, WhatsApp Business, FreeAgent, Xero.
+Priority 2: Jobber, ServiceM8, Stripe Payments, SumUp, Checkatrade, Booksy, Acuity Scheduling, Pipedrive, Capsule CRM, GoCardless.
+Priority 3: Zapier, HubSpot, QuickBooks.
+Do not build: Notion, Sage, Slack, Mailchimp.
 
 ---
 
@@ -463,9 +545,17 @@ Logo: "Verrante" Syne 700 + 7px amber dot (marginLeft 3, marginBottom 8).
 
 ## ONBOARDING FLOW
 
-Onboarding.jsx — 6 steps: Business type → About your business → Your services → Your boundaries → Your partners → Review & launch.
+Onboarding.jsx — 8 steps:
+0. Your website — URL input + Firecrawl scan (api/scrape-website.js) → pre-populates business_name, phone, email, address, hours, contact, context, services. "No website? No problem." skip path.
+1. Business type
+2. About your business
+3. Your services
+4. Your boundaries
+5. Your partners
+6. Choose your plan — subscription (tier selector, first month free note) or PAYG (cost limit input, minutes-per-pound calculation)
+7. Review & launch
 
-On submit: creates tenant row, inserts services, inserts referral_partners, creates tenant_memberships.
+On submit: creates tenant row (with billing_model, tier, monthly_cost_limit), inserts services, inserts referral_partners, creates tenant_memberships.
 
 Guards (both directions): Portal → /onboarding if no membership. Onboarding → /portal if membership exists.
 
@@ -495,12 +585,59 @@ Guards (both directions): Portal → /onboarding if no membership. Onboarding �
 - All 6 tabs wired: useDemo() + isDemo guards on all saves
 - demo_sessions tracking on every portal mount
 
-### Next — remaining tasks
-- [ ] Task 4 — Stripe billing (upgrade cards → Checkout, webhook updates tier)
-- [ ] Task 5 — Support chat (wire Account tab chat to Claude API with tenant context)
+### Done — billing model + onboarding enhancements (2026-06-05)
+- Free tier (PAYG £0.35/min) added throughout portal and onboarding
+- Subscription tier minutes updated: Light 120, Standard 250, Professional 450, Enterprise 1,000
+- Overage voice preference control (Premium 18p/Standard 14p) in AI Behaviour — stored in tenants.overage_voice_preference
+- Daily cost report email for PAYG tenants (api/notify-daily-cost.js, Resend, vercel.json cron 09:00 UTC)
+- PAYG cost limit check in vapi-webhook.js after each call
+- Website scraping step 0 in onboarding (Firecrawl + Claude Haiku, api/scrape-website.js)
+- Plan selection step 6 in onboarding (subscription or PAYG with cost limit)
+
+### Done — owner preview + support chat (2026-06-05)
+- Owner preview mode: PreviewContext.jsx, Portal.jsx dropdown + amber banner, all 6 tabs wired, api/owner-tenants.js
+- Support chat: api/support-chat.js (Claude Haiku + live tenant context), AccountSettings.jsx wired
+
+### Done — Stripe billing (2026-06-05)
+- api/stripe-checkout.js — POST {tenantId, targetTier}: Checkout session for new subs, direct price swap for existing subs
+- api/stripe-webhook.js — checkout.session.completed, subscription.updated, subscription.deleted. Raw body + signature verification.
+- AccountSettings.jsx — Upgrade buttons wired, loading state, green success banner, ?upgraded=1 URL detection
+- Portal.jsx — defaults to Account tab on return from Stripe (?upgraded=1)
+- New DB columns: tenants.stripe_customer_id, tenants.stripe_subscription_id
+- Setup required: Stripe products/prices, webhook endpoint in Stripe Dashboard, 7 new Vercel env vars (see Environment vars section)
+
+### Done — Integrations tab (2026-06-05)
+- src/pages/Integrations.jsx — full module framework: category filter, coming-soon cards, connected/available/coming-soon sections
+- 19 integrations defined across Priority 1/2/3 (all currently 'coming_soon')
+- Architecture: each integration is a self-contained object — add status: 'available' + connect handler to activate
+- Wired into Portal.jsx nav
+
+### Done — Verrante Calendar Session 1 (2026-06-05)
+- src/pages/Calendar.jsx — standalone product tab
+- react-big-calendar + date-fns-localizer, DnD addon
+- Day / week / month views with UK locale (Monday start)
+- Manual appointment creation — modal with title, start/end, status, service type, client notes, description
+- Slot-too-small warning (< 30 min) — warns, does not block
+- Status colour coding: provisional (amber), confirmed (violet), completed (green), cancelled (grey), no-show (red)
+- Drag-and-drop reschedule + resize — writes to Supabase on drop
+- Click existing event to edit or delete
+- Demo mode: seeded with 5 sample appointments (no Supabase reads)
+- Owner preview mode: read-only (all save/delete guards honour isPreview)
+- New DB tables: appointments, staff_availability (+ RLS policies in supabase_migrations_session4.sql)
+- Wired into Portal.jsx nav
+
+### DB migrations pending (run supabase_migrations_session4.sql)
+All columns and tables from this session are in `supabase_migrations_session4.sql`. Run in Supabase SQL Editor before testing Stripe or Calendar.
+
+### Remaining
+- [ ] Calendar Session 2 — split appointments (processing time blocks, team mode, multi-column)
+- [ ] Calendar Session 3 — CalDAV external sync (Google, Apple, Outlook)
+- [ ] Calendar Session 4 — Enterprise mode (manager views, permissions)
+- [ ] Calendar Session 5 — customer booking page (public URL, self-book)
 - [ ] Task 1 — Staff extension recognition (Enterprise, direct_line_did per staff member)
-- [ ] Owner tier traversal — preview any subscription experience (gated to owner email)
-- [ ] Pending DB migrations: vapi_phone_number_id + vapi_phone_number columns on tenants
+- [ ] Integration builds — Priority 1: Google Calendar, Google Business Profile, WhatsApp Business, FreeAgent, Xero
+- [ ] Phone line feature — behind VITE_PHONE_LINE_ENABLED=false, waiting on partner contract
+- [ ] Public Playground — Cartesia Sonic 3.5 live generation, 8 languages
 
 ---
 
@@ -515,7 +652,8 @@ Guards (both directions): Portal → /onboarding if no membership. Onboarding �
 - data-help on all section headings and key UI elements (Vera reads these)
 - Supabase anon key safe in frontend. Service role key NEVER in frontend — server only.
 - Demo tables prefixed `demo_`. Never join demo_ tables to production tables.
-- Demo pattern: `const demo = useDemo(); const isDemo = !!demo?.isDemo` at top of every tab. Two useEffects — one for demo injection, one for real fetch, both gated. All saves guard with `if (isDemo || !tenantId) return`.
+- Demo pattern: `const demo = useDemo(); const isDemo = !!demo?.isDemo` at top of every tab. Two useEffects — one for demo injection, one for real fetch, both gated.
+- Save guard pattern (all 6 tabs): `if (isDemo || isPreview || !tenantId) return` — silently no-ops in both demo and owner preview.
 
 ---
 
@@ -555,3 +693,4 @@ Guards (both directions): Portal → /onboarding if no membership. Onboarding �
 - Hot reload active — file saves go straight to browser
 - SQL Editor in Supabase: run, confirm success, close tab
 - demo_seed.sql is safe to re-run — truncates before reseeding
+- vercel.json has daily cron for /api/notify-daily-cost (09:00 UTC) — PAYG cost report emails

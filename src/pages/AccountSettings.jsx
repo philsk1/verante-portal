@@ -512,6 +512,8 @@ const AccountSettings = ({ onNavigate }) => {
   const [billingModel, setBillingModel] = useState('subscription')
   const [monthlyCostLimit, setMonthlyCostLimit] = useState(20)
   const [costLimitSaving, setCostLimitSaving] = useState(false)
+  const [upgradingTier, setUpgradingTier] = useState(null)
+  const [upgradeSuccess, setUpgradeSuccess] = useState(false)
 
   // GDPR & Data
   const [dataRetentionDays, setDataRetentionDays] = useState(90)
@@ -606,6 +608,39 @@ const AccountSettings = ({ onNavigate }) => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('upgraded')) {
+      setUpgradeSuccess(true)
+      window.history.replaceState({}, '', window.location.pathname)
+      setTimeout(() => setUpgradeSuccess(false), 6000)
+    }
+  }, [])
+
+  const handleUpgrade = async (targetTier) => {
+    if (isDemo || isPreview || !tenantId) return
+    setUpgradingTier(targetTier)
+    try {
+      const res = await fetch('/api/stripe-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, targetTier }),
+      })
+      const data = await res.json()
+      if (data.mode === 'redirect') {
+        window.location.href = data.url
+      } else if (data.mode === 'updated') {
+        setTier(data.tier)
+        setUpgradeSuccess(true)
+        setTimeout(() => setUpgradeSuccess(false), 6000)
+      }
+    } catch {
+      // network failure — silent, user can retry
+    } finally {
+      setUpgradingTier(null)
+    }
+  }
+
   const showAccountToast = (msg, type = 'success') => {
     setAccountToast({ msg, type })
     setTimeout(() => setAccountToast({ msg: '', type: '' }), 3000)
@@ -693,16 +728,23 @@ const AccountSettings = ({ onNavigate }) => {
   const sendChatMessage = async () => {
     const text = chatInput.trim()
     if (!text || chatWaiting) return
-    setChatMessages(prev => [...prev, { role: 'user', text }])
+    const newMessages = [...chatMessages, { role: 'user', text }]
+    setChatMessages(newMessages)
     setChatInput('')
     setChatWaiting(true)
-    // AI support endpoint — wired to Claude API + tenant context in a later build phase
-    await new Promise(r => setTimeout(r, 900))
-    setChatMessages(prev => [...prev, {
-      role: 'ai',
-      text: 'Thanks for your message. AI support is being configured with your account context — a team member will respond to this shortly. For urgent issues, email support@verrante.com.'
-    }])
-    setChatWaiting(false)
+    try {
+      const res = await fetch('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, messages: newMessages }),
+      })
+      const data = await res.json()
+      setChatMessages(prev => [...prev, { role: 'ai', text: data.message || 'Something went wrong. Please try again.' }])
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'ai', text: 'Could not reach support. Please try again or email support@verrante.com.' }])
+    } finally {
+      setChatWaiting(false)
+    }
   }
 
   const handleCancelConfirm = async () => {
@@ -733,6 +775,12 @@ const AccountSettings = ({ onNavigate }) => {
       <div style={s.section}>
         <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
         <p style={s.sectionSubtitle}>Your current plan and available upgrades. Billing is managed via Stripe.</p>
+
+        {upgradeSuccess && (
+          <div style={{ padding: '0.75rem 1rem', background: '#e6f9ef', border: '1px solid #3db87a', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#1a6640', fontWeight: 500 }}>
+            Plan upgraded — your AI now has access to the new features.
+          </div>
+        )}
 
         <div style={s.planRow}>
           <span style={s.planBadge(tier)}>{tierInfo.label}</span>
@@ -781,7 +829,15 @@ const AccountSettings = ({ onNavigate }) => {
                       {UPGRADE_FEATURES[t] ? ` · ${UPGRADE_FEATURES[t]}` : ''}
                     </div>
                   </div>
-                  <button style={s.upgradeBtn}>Upgrade</button>
+                  <button
+                    style={upgradingTier === t
+                      ? { ...s.upgradeBtn, opacity: 0.6, cursor: 'wait' }
+                      : s.upgradeBtn}
+                    onClick={() => handleUpgrade(t)}
+                    disabled={!!upgradingTier}
+                  >
+                    {upgradingTier === t ? 'Loading…' : 'Upgrade'}
+                  </button>
                 </div>
               )
             })}
