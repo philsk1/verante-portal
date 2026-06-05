@@ -156,6 +156,30 @@ export default async function handler(req, res) {
       lead_contact_name: analysis.structuredData?.caller_name || null,
       status:            'new',
     })
+
+    // WhatsApp follow-up — fire if tenant has WhatsApp connected + enabled
+    const callerPhone = call?.customer?.number
+    if (callerPhone) {
+      const { data: waIntegration } = await supabase
+        .from('tenant_integrations')
+        .select('enabled, settings')
+        .eq('tenant_id', tenantId)
+        .eq('integration_id', 'whatsapp')
+        .maybeSingle()
+
+      if (waIntegration?.enabled) {
+        const callerName = analysis.structuredData?.caller_name || 'there'
+        const template = waIntegration.settings?.message_template
+          || `Hi ${callerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
+
+        // Fire and forget — don't block webhook response
+        fetch(`${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/api/whatsapp-send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId, to: callerPhone, message: template }),
+        }).catch(err => console.error('WhatsApp follow-up failed:', err.message))
+      }
+    }
   }
 
   // Write referral log if referred out

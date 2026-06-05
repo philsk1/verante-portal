@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
+import { supabase } from '../supabase'
+import { useAuth } from '../context/AuthContext'
 
 // Integration module definitions — each is self-contained
 // status: 'connected' | 'coming_soon' | 'available'
@@ -32,7 +34,7 @@ const INTEGRATIONS = [
     description: 'Automatic follow-up message after every call. 98% open rate. Confirm details, send links, keep the lead warm.',
     category: 'Messaging',
     priority: 1,
-    status: 'coming_soon',
+    status: 'available',
     icon: '💬',
   },
   {
@@ -41,7 +43,7 @@ const INTEGRATIONS = [
     description: 'Convert a captured lead to a draft invoice in one click. The UK sole trader favourite.',
     category: 'Accounting',
     priority: 1,
-    status: 'coming_soon',
+    status: 'available',
     icon: '🧾',
   },
   {
@@ -313,21 +315,96 @@ const s = {
   },
 }
 
+const DEFAULT_WA_TEMPLATE = `Hi {{name}}, thanks for calling {{business}}. {{owner}} will be in touch shortly.`
+
 export default function Integrations({ onNavigate }) {
+  const { user } = useAuth()
   const demo = useDemo()
   const preview = usePreview()
   const isDemo = !!demo?.isDemo
   const isPreview = preview?.isPreview
 
+  const [tenantId, setTenantId] = useState(null)
   const [activeCategory, setActiveCategory] = useState('All')
+  const [connectedMap, setConnectedMap] = useState({}) // { whatsapp: { settings: {} }, ... }
+  const [expandedId, setExpandedId] = useState(null)
+  const [toast, setToast] = useState({ msg: '', type: '' })
+
+  // ── Detect return from OAuth flow ──────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const connected = params.get('connected')
+    const error = params.get('error')
+    if (connected) {
+      showToast(`${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully.`, 'success')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    if (error) {
+      showToast('Connection failed. Please try again.', 'error')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  // ── Load tenant ID ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isDemo || (!user && !isPreview)) return
+    const getTid = async () => {
+      if (isPreview) { setTenantId(preview.previewTenantId); return }
+      const { data } = await supabase
+        .from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
+      if (data) setTenantId(data.tenant_id)
+    }
+    getTid()
+  }, [user, isDemo, isPreview])
+
+  // ── Load connected integrations ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!tenantId) return
+    const load = async () => {
+      const { data } = await supabase
+        .from('tenant_integrations')
+        .select('integration_id, enabled, settings, connected_at')
+        .eq('tenant_id', tenantId)
+      const map = {}
+      for (const row of (data || [])) {
+        if (row.enabled) map[row.integration_id] = { settings: row.settings || {}, connected_at: row.connected_at }
+      }
+      setConnectedMap(map)
+    }
+    load()
+  }, [tenantId])
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast({ msg: '', type: '' }), 4000)
+  }
+
+  const handleDisconnect = async (integrationId) => {
+    if (isDemo || isPreview || !tenantId) return
+    await fetch('/api/integrations-disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId, integrationId }),
+    })
+    setConnectedMap(prev => { const next = { ...prev }; delete next[integrationId]; return next })
+    setExpandedId(null)
+    showToast('Integration disconnected.')
+  }
+
+  const withConnectedStatus = INTEGRATIONS.map(i => ({
+    ...i,
+    isConnected: !!connectedMap[i.id],
+  }))
 
   const filtered = activeCategory === 'All'
-    ? INTEGRATIONS
-    : INTEGRATIONS.filter(i => i.category === activeCategory)
+    ? withConnectedStatus
+    : withConnectedStatus.filter(i => i.category === activeCategory)
 
-  const connected = filtered.filter(i => i.status === 'connected')
-  const available = filtered.filter(i => i.status === 'available')
-  const comingSoon = filtered.filter(i => i.status === 'coming_soon')
+  const connectedList = filtered.filter(i => i.isConnected)
+  const availableList = filtered.filter(i => !i.isConnected && i.status === 'available')
+  const comingSoonList = filtered.filter(i => !i.isConnected && i.status === 'coming_soon')
+
+  const cardProps = { tenantId, isDemo, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }
 
   return (
     <div style={s.page}>
@@ -336,47 +413,41 @@ export default function Integrations({ onNavigate }) {
         <p style={s.subtitle}>Connect Verrante to your existing tools. Built-in integrations are always free.</p>
       </div>
 
+      {toast.msg && (
+        <div style={{ padding: '0.7rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500, background: toast.type === 'error' ? '#fde8e8' : '#e6f9ef', color: toast.type === 'error' ? '#7a1a1a' : '#1a6640', border: `1px solid ${toast.type === 'error' ? '#e05252' : '#3db87a'}` }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div style={s.filterRow}>
         {CATEGORIES.map(cat => (
-          <button
-            key={cat}
-            style={s.filterBtn(activeCategory === cat)}
-            onClick={() => setActiveCategory(cat)}
-          >
-            {cat}
-          </button>
+          <button key={cat} style={s.filterBtn(activeCategory === cat)} onClick={() => setActiveCategory(cat)}>{cat}</button>
         ))}
       </div>
 
-      {connected.length > 0 && (
+      {connectedList.length > 0 && (
         <>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Connected</div>
           <div style={{ ...s.grid, marginBottom: '1.5rem' }}>
-            {connected.map(integration => (
-              <IntegrationCard key={integration.id} integration={integration} isDemo={isDemo} isPreview={isPreview} />
-            ))}
+            {connectedList.map(i => <IntegrationCard key={i.id} integration={i} {...cardProps} />)}
           </div>
         </>
       )}
 
-      {available.length > 0 && (
+      {availableList.length > 0 && (
         <>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Available</div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Available now</div>
           <div style={{ ...s.grid, marginBottom: '1.5rem' }}>
-            {available.map(integration => (
-              <IntegrationCard key={integration.id} integration={integration} isDemo={isDemo} isPreview={isPreview} />
-            ))}
+            {availableList.map(i => <IntegrationCard key={i.id} integration={i} {...cardProps} />)}
           </div>
         </>
       )}
 
-      {comingSoon.length > 0 && (
+      {comingSoonList.length > 0 && (
         <>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Coming soon</div>
           <div style={s.grid}>
-            {comingSoon.map(integration => (
-              <IntegrationCard key={integration.id} integration={integration} isDemo={isDemo} isPreview={isPreview} />
-            ))}
+            {comingSoonList.map(i => <IntegrationCard key={i.id} integration={i} {...cardProps} />)}
           </div>
         </>
       )}
@@ -384,43 +455,131 @@ export default function Integrations({ onNavigate }) {
   )
 }
 
-function IntegrationCard({ integration, isDemo, isPreview }) {
-  const { id, name, description, category, priority, status, icon } = integration
+function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }) {
+  const { id, name, description, category, priority, status, icon, isConnected } = integration
+  const isExpanded = expandedId === id
+  const [saving, setSaving] = useState(false)
+
+  // WhatsApp form state
+  const [waPhoneId, setWaPhoneId] = useState('')
+  const [waToken, setWaToken] = useState('')
+  const [waTemplate, setWaTemplate] = useState(DEFAULT_WA_TEMPLATE)
+
+  const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
+  const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.06em' }
+
+  const handleWhatsAppSave = async () => {
+    if (!tenantId || !waPhoneId.trim() || !waToken.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/integrations-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          integrationId: 'whatsapp',
+          credentials: { phone_number_id: waPhoneId.trim(), access_token: waToken.trim() },
+          settings: { message_template: waTemplate.trim() || DEFAULT_WA_TEMPLATE },
+        }),
+      })
+      setConnectedMap(prev => ({ ...prev, whatsapp: { settings: { message_template: waTemplate }, connected_at: new Date().toISOString() } }))
+      setExpandedId(null)
+      showToast('WhatsApp Business connected.')
+    } catch { showToast('Connection failed. Please try again.', 'error') }
+    finally { setSaving(false) }
+  }
 
   return (
-    <div style={s.card}>
-      <div style={s.cardTop}>
+    <div style={{ ...s.card, ...(isExpanded ? { gridColumn: '1 / -1' } : {}) }}>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
         <div style={s.iconBox}>{icon}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <p style={s.cardName}>{name}</p>
-            {priority === 1 && <span style={s.p1Badge}>New</span>}
+            {priority === 1 && !isConnected && <span style={s.p1Badge}>New</span>}
           </div>
           <p style={s.cardCategory}>{category}</p>
         </div>
+        {/* Action button */}
+        <div style={{ flexShrink: 0 }}>
+          {isConnected ? (
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <span style={s.connectedBadge}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3db87a', display: 'inline-block' }} />Connected</span>
+              <button style={s.connectBtn} onClick={() => setExpandedId(isExpanded ? null : id)}>Manage</button>
+            </div>
+          ) : status === 'available' ? (
+            <button style={s.connectBtn} onClick={() => setExpandedId(isExpanded ? null : id)}>Connect</button>
+          ) : (
+            <button style={s.comingSoonBtn} disabled>Coming soon</button>
+          )}
+        </div>
       </div>
+
       <p style={s.cardDesc}>{description}</p>
-      <div style={s.cardFooter}>
-        {status === 'connected' ? (
-          <>
-            <span style={s.connectedBadge}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3db87a', display: 'inline-block' }} />
-              Connected
-            </span>
-            <button style={s.connectBtn}>Manage</button>
-          </>
-        ) : status === 'available' ? (
-          <>
-            <span />
-            <button style={s.connectBtn} onClick={() => {}}>Connect</button>
-          </>
-        ) : (
-          <>
-            <span style={s.comingSoonBadge}>Coming soon</span>
-            <button style={s.comingSoonBtn} disabled>Connect</button>
-          </>
-        )}
-      </div>
+
+      {/* ── WhatsApp connect form ── */}
+      {isExpanded && id === 'whatsapp' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>WhatsApp Business is connected. To update credentials, disconnect and reconnect.</p>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem' }}>Message template: <em>{connectedMap.whatsapp?.settings?.message_template || DEFAULT_WA_TEMPLATE}</em></p>
+              <button onClick={() => handleDisconnect('whatsapp')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <div style={{ maxWidth: 540 }}>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+                You'll need a Meta Business account with WhatsApp Business API access. Get your Phone Number ID and a permanent access token from <strong>Meta Business Manager → WhatsApp → Phone Numbers</strong>.
+              </p>
+              <label style={labelStyle}>Phone Number ID</label>
+              <input style={inputStyle} placeholder="e.g. 123456789012345" value={waPhoneId} onChange={e => setWaPhoneId(e.target.value)} />
+              <label style={labelStyle}>Access Token</label>
+              <input style={inputStyle} type="password" placeholder="Permanent access token from Meta" value={waToken} onChange={e => setWaToken(e.target.value)} />
+              <label style={labelStyle}>Follow-up message template</label>
+              <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '0.35rem' }}>Use {'{{name}}'}, {'{{business}}'}, {'{{owner}}'} as placeholders.</p>
+              <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 72 }} value={waTemplate} onChange={e => setWaTemplate(e.target.value)} />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
+                <button
+                  onClick={handleWhatsAppSave}
+                  disabled={saving || !waPhoneId.trim() || !waToken.trim() || isDemo || isPreview}
+                  style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!waPhoneId.trim() || !waToken.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  {saving ? 'Connecting…' : 'Connect WhatsApp'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FreeAgent connect form ── */}
+      {isExpanded && id === 'freeagent' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>FreeAgent is connected. Leads can now be converted to draft invoices in one click from your Dashboard.</p>
+              <button onClick={() => handleDisconnect('freeagent')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <div style={{ maxWidth: 540 }}>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+                Connect your FreeAgent account. You'll be taken to FreeAgent to approve access — then redirected straight back here.
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
+                <button
+                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/freeagent-auth?tenantId=${tenantId}` }}
+                  disabled={!tenantId || isDemo || isPreview}
+                  style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  Connect FreeAgent →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -16,9 +16,12 @@ import HelpMascot from '../components/HelpMascot'
 const Portal = () => {
   const { user } = useAuth()
   const preview = usePreview()
-  const [activeTab, setActiveTab] = useState(
-    new URLSearchParams(window.location.search).get('upgraded') ? 'account' : 'dashboard'
-  )
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('upgraded')) return 'account'
+    if (params.get('tab') === 'integrations') return 'integrations'
+    return 'dashboard'
+  })
   const [checking, setChecking] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [tenantId, setTenantId] = useState(null)

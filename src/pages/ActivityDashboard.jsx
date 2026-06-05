@@ -250,6 +250,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const isPreview = !!preview?.isPreview
 
   const [loading, setLoading] = useState(true)
+  const [tenantId, setTenantId] = useState(null)
   const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
 
@@ -282,6 +283,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           if (!membership) return
           tid = membership.tenant_id
         }
+        setTenantId(tid)
 
         const { data: tenant } = await supabase
           .from('tenants')
@@ -478,15 +480,18 @@ const ActivityDashboard = ({ onNavigate }) => {
                       {formatDateLabel(lead.created_at)} · {formatTime(lead.created_at)}
                     </div>
                   </div>
-                  <button
-                    onClick={() => onNavigate('calendar', {
-                      title: name,
-                      notes: `Lead captured ${formatDateLabel(lead.created_at)}${lead.callers?.phone_number ? ` · ${lead.callers.phone_number}` : ''}`,
-                    })}
-                    style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                  >
-                    Book
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+                    <button
+                      onClick={() => onNavigate('calendar', {
+                        title: name,
+                        notes: `Lead captured ${formatDateLabel(lead.created_at)}${lead.callers?.phone_number ? ` · ${lead.callers.phone_number}` : ''}`,
+                      })}
+                      style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                    >
+                      Book
+                    </button>
+                    <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
+                  </div>
                 </div>
               )
             })
@@ -528,3 +533,54 @@ const ActivityDashboard = ({ onNavigate }) => {
 }
 
 export default ActivityDashboard
+
+// ─── FreeAgent invoice button (shown on leads when integration is connected) ───
+function FreeAgentInvoiceButton({ leadId, tenantId }) {
+  const [status, setStatus] = useState('idle') // idle | loading | done | error
+  const [invoiceUrl, setInvoiceUrl] = useState(null)
+
+  if (!leadId || !tenantId) return null
+
+  const handleCreate = async () => {
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/freeagent-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, leadId }),
+      })
+      const data = await res.json()
+      if (data.invoiceUrl) {
+        setInvoiceUrl(data.invoiceUrl)
+        setStatus('done')
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  if (status === 'done' && invoiceUrl) {
+    return (
+      <a href={invoiceUrl} target="_blank" rel="noopener noreferrer"
+        style={{ padding: '0.25rem 0.65rem', border: '1px solid #3db87a', borderRadius: '5px', background: '#e6f9ef', color: '#1a6640', fontSize: '0.72rem', fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        View invoice →
+      </a>
+    )
+  }
+
+  if (status === 'error') {
+    return <span style={{ fontSize: '0.72rem', color: '#e05252' }}>Failed</span>
+  }
+
+  return (
+    <button
+      onClick={handleCreate}
+      disabled={status === 'loading'}
+      style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: status === 'loading' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', opacity: status === 'loading' ? 0.6 : 1 }}
+    >
+      {status === 'loading' ? '…' : 'Invoice'}
+    </button>
+  )
+}
