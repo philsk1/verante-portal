@@ -1,7 +1,8 @@
-// POST { tenantId, appointmentId }
-// Sends a Google Business Profile review request to the appointment's client.
-// Sends via WhatsApp if connected, otherwise email.
-// Review URL stored in tenant_integrations settings.google_review_url.
+// POST { tenantId, appointmentId, integrationId? }
+// Sends a review request to the appointment's client.
+// integrationId: 'google_business' (default) | 'checkatrade' | 'rated_people'
+// Sends via WhatsApp if connected, otherwise email tenant to forward.
+// Review URL stored in tenant_integrations settings.review_url.
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from './_emails.js'
@@ -16,17 +17,25 @@ const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { tenantId, appointmentId } = req.body
+  const { tenantId, appointmentId, integrationId = 'google_business' } = req.body
   if (!tenantId || !appointmentId) return res.status(400).json({ error: 'Missing fields' })
 
-  // Load Google Business integration settings
-  const { data: gbpIntegration } = await supabase
+  const PLATFORM_LABELS = {
+    google_business: 'Google',
+    checkatrade: 'Checkatrade',
+    rated_people: 'Rated People',
+  }
+
+  // Load review platform settings
+  const { data: reviewIntegration } = await supabase
     .from('tenant_integrations')
     .select('settings')
-    .eq('tenant_id', tenantId).eq('integration_id', 'google_business').maybeSingle()
+    .eq('tenant_id', tenantId).eq('integration_id', integrationId).maybeSingle()
 
-  const reviewUrl = gbpIntegration?.settings?.google_review_url
-  if (!reviewUrl) return res.status(400).json({ error: 'Google Business Profile not connected' })
+  const reviewUrl = reviewIntegration?.settings?.review_url || reviewIntegration?.settings?.google_review_url
+  if (!reviewUrl) return res.status(400).json({ error: `${PLATFORM_LABELS[integrationId] || integrationId} not connected` })
+
+  const platformLabel = PLATFORM_LABELS[integrationId] || integrationId
 
   // Load appointment + caller details
   const { data: appt } = await supabase
@@ -46,7 +55,7 @@ export default async function handler(req, res) {
   const ownerName = tenant?.lead_contact_name || businessName
   const clientName = appt.title.split(' — ')[0] || appt.title
 
-  const message = `Hi ${clientName}, thank you for choosing ${businessName}. If you enjoyed your experience, we'd really appreciate a quick review — it helps other people find us. Here's the link: ${reviewUrl}\n\nThanks, ${ownerName}`
+  const message = `Hi ${clientName}, thank you for choosing ${businessName}. If you have a moment, we'd really appreciate a ${platformLabel} review — it helps other people find us. Here's the link: ${reviewUrl}\n\nThanks, ${ownerName}`
 
   // Try WhatsApp first if integration is connected and we have a caller
   let sent = false
@@ -76,7 +85,7 @@ export default async function handler(req, res) {
   if (!sent && tenant?.business_email) {
     await sendEmail({
       to: tenant.business_email,
-      subject: `Review request ready to send — ${appt.title}`,
+      subject: `${platformLabel} review request ready — ${appt.title}`,
       html: `<p>Hi ${ownerName},</p>
 <p>Here's a review request for <strong>${appt.title}</strong> — ready to copy and send:</p>
 <blockquote style="border-left:3px solid #5e3b87;padding:0.75rem 1rem;background:#f8f7fa;border-radius:4px;margin:1rem 0;">

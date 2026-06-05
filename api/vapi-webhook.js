@@ -180,6 +180,21 @@ export default async function handler(req, res) {
         }).catch(err => console.error('WhatsApp follow-up failed:', err.message))
       }
     }
+
+    // Zapier webhook — fire and forget
+    fetch(`${process.env.SITE_URL || 'https://qerxel-portal.vercel.app'}/api/zapier-webhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenantId,
+        event: 'lead_captured',
+        payload: {
+          caller_phone: call?.customer?.number || null,
+          caller_name: analysis.structuredData?.caller_name || null,
+          call_outcome: outcome,
+        },
+      }),
+    }).catch(() => {})
   }
 
   // Write referral log if referred out

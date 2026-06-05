@@ -673,7 +673,11 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
                 <button style={s.deleteBtn} onClick={handleDelete} disabled={saving}>Delete</button>
               )}
               {editing && form.status === 'completed' && !isDemo && !isPreview && (
-                <ReviewRequestButton tenantId={tenantId} appointmentId={editing.id} />
+                <>
+                  <ReviewRequestButton tenantId={tenantId} appointmentId={editing.id} integrationId="google_business" label="Google" />
+                  <ReviewRequestButton tenantId={tenantId} appointmentId={editing.id} integrationId="checkatrade" label="Checkatrade" />
+                  <ReviewRequestButton tenantId={tenantId} appointmentId={editing.id} integrationId="rated_people" label="Rated People" />
+                </>
               )}
               <button style={s.cancelBtn} onClick={() => setModalOpen(false)}>Cancel</button>
               <button
@@ -692,7 +696,7 @@ export default function CalendarTab({ onNavigate, prefill, onPrefillConsumed }) 
 }
 
 // ─── Review request button (shown when appointment is completed) ──────────────
-function ReviewRequestButton({ tenantId, appointmentId }) {
+function ReviewRequestButton({ tenantId, appointmentId, integrationId = 'google_business', label = '⭐ Review' }) {
   const [status, setStatus] = useState('idle')
 
   const handleSend = async () => {
@@ -701,22 +705,22 @@ function ReviewRequestButton({ tenantId, appointmentId }) {
       const res = await fetch('/api/send-review-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, appointmentId }),
+        body: JSON.stringify({ tenantId, appointmentId, integrationId }),
       })
       setStatus(res.ok ? 'sent' : 'error')
     } catch { setStatus('error') }
   }
 
-  if (status === 'sent') return <span style={{ fontSize: '0.8rem', color: '#3db87a', fontWeight: 500 }}>Review request sent ✓</span>
-  if (status === 'error') return <span style={{ fontSize: '0.8rem', color: '#e05252' }}>Failed — check Google Business integration</span>
+  if (status === 'sent') return <span style={{ fontSize: '0.75rem', color: '#3db87a', fontWeight: 500 }}>{label} ✓</span>
+  if (status === 'error') return null // Not connected — silently hide
 
   return (
     <button
       onClick={handleSend}
       disabled={status === 'sending'}
-      style={{ padding: '0.5rem 0.9rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '7px', background: 'white', color: '#5e3b87', fontSize: '0.8rem', fontWeight: 500, cursor: status === 'sending' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: status === 'sending' ? 0.6 : 1 }}
+      style={{ padding: '0.4rem 0.8rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '7px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', fontWeight: 500, cursor: status === 'sending' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: status === 'sending' ? 0.6 : 1 }}
     >
-      {status === 'sending' ? 'Sending…' : '⭐ Request review'}
+      {status === 'sending' ? '…' : `⭐ ${label}`}
     </button>
   )
 }

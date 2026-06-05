@@ -77,10 +77,10 @@ const INTEGRATIONS = [
   {
     id: 'stripe_payments',
     name: 'Stripe Payments',
-    description: 'Send a payment link from a captured lead. Collect deposits or full payment before the job starts.',
+    description: 'Create a payment link from any captured lead. Set the amount, share the link — payment lands in your Stripe account.',
     category: 'Payments',
     priority: 2,
-    status: 'coming_soon',
+    status: 'available',
     icon: '💳',
   },
   {
@@ -98,8 +98,17 @@ const INTEGRATIONS = [
     description: 'Automated review request after a job is marked complete. Builds your Checkatrade profile while you work.',
     category: 'Reviews',
     priority: 2,
-    status: 'coming_soon',
+    status: 'available',
     icon: '✅',
+  },
+  {
+    id: 'rated_people',
+    name: 'Rated People',
+    description: 'Automated review request after a job is marked complete. Same pattern as Checkatrade — different platform.',
+    category: 'Reviews',
+    priority: 2,
+    status: 'available',
+    icon: '⭐',
   },
   {
     id: 'booksy',
@@ -150,10 +159,10 @@ const INTEGRATIONS = [
   {
     id: 'zapier',
     name: 'Zapier',
-    description: 'Connect Qerxel to anything. If we haven\'t built a direct integration, Zapier has you covered.',
+    description: 'Connect Qerxel to anything. Paste your Zap webhook URL — lead captured and appointment events fire automatically.',
     category: 'Automation',
     priority: 3,
-    status: 'coming_soon',
+    status: 'available',
     icon: '⚡',
   },
   {
@@ -636,6 +645,39 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
           )}
         </div>
       )}
+
+      {/* ── Stripe Payments info panel ── */}
+      {isExpanded && id === 'stripe_payments' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          <p style={{ fontSize: '0.8rem', color: '#666', lineHeight: 1.55, marginBottom: 0 }}>
+            No setup needed — uses your existing Stripe connection. Go to your Dashboard, find any lead, and click <strong>£ Pay</strong> to create a payment link on the spot. Set the amount and description, copy the link, and share it with your client.
+          </p>
+        </div>
+      )}
+
+      {/* ── Checkatrade connect form ── */}
+      {isExpanded && id === 'checkatrade' && (
+        <ReviewUrlForm tenantId={tenantId} integrationId="checkatrade" platform="Checkatrade" placeholder="https://www.checkatrade.com/trades/YourBusiness/reviews" isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
+      )}
+
+      {/* ── Rated People connect form ── */}
+      {isExpanded && id === 'rated_people' && (
+        <ReviewUrlForm tenantId={tenantId} integrationId="rated_people" platform="Rated People" placeholder="https://www.ratedpeople.com/profile/YourBusiness" isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
+      )}
+
+      {/* ── Zapier connect form ── */}
+      {isExpanded && id === 'zapier' && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+          {isConnected ? (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>Zapier is connected. Events fire to your webhook URL when leads are captured and appointments change status.</p>
+              <button onClick={() => handleDisconnect('zapier')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+            </div>
+          ) : (
+            <ZapierForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -726,6 +768,94 @@ function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
         <button onClick={handleSave} disabled={saving || !caldavUrl.trim() || !username.trim() || !appPassword.trim() || isDemo || isPreview}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!caldavUrl.trim() || !username.trim() || !appPassword.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Connecting…' : 'Connect calendar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Shared review URL form (Checkatrade, Rated People, etc.) ─────────────────
+function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, isDemo, isPreview, setExpandedId, setConnectedMap, showToast, isConnected, handleDisconnect, connectedMap }) {
+  const [url, setUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
+
+  const handleSave = async () => {
+    if (!tenantId || !url.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/integrations-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, integrationId, credentials: {}, settings: { review_url: url.trim() } }),
+      })
+      setConnectedMap(prev => ({ ...prev, [integrationId]: { settings: { review_url: url.trim() }, connected_at: new Date().toISOString() } }))
+      setExpandedId(null)
+      showToast(`${platform} connected.`)
+    } catch { showToast('Connection failed. Please try again.', 'error') }
+    finally { setSaving(false) }
+  }
+
+  if (isConnected) {
+    return (
+      <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+        <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>{platform} is connected. Open any completed appointment in your Calendar to send a review request.</p>
+        <button onClick={() => handleDisconnect(integrationId)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1rem', marginTop: '0.5rem', maxWidth: 540 }}>
+      <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+        Paste your {platform} profile URL. Find it on your {platform} dashboard — it's the public-facing page your customers can leave a review on.
+      </p>
+      <input style={inputStyle} placeholder={placeholder} value={url} onChange={e => setUrl(e.target.value)} />
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+        <button onClick={handleSave} disabled={saving || !url.trim() || isDemo || isPreview}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!url.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+          {saving ? 'Connecting…' : `Connect ${platform}`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Zapier webhook URL form ──────────────────────────────────────────────────
+function ZapierForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
+
+  const handleSave = async () => {
+    if (!tenantId || !webhookUrl.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/integrations-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, integrationId: 'zapier', credentials: {}, settings: { webhook_url: webhookUrl.trim() } }),
+      })
+      setConnectedMap(prev => ({ ...prev, zapier: { settings: { webhook_url: webhookUrl.trim() }, connected_at: new Date().toISOString() } }))
+      setExpandedId(null)
+      showToast('Zapier connected.')
+    } catch { showToast('Connection failed. Please try again.', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 540 }}>
+      <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', lineHeight: 1.55 }}>
+        In Zapier, create a new Zap → Trigger: <strong>Webhooks by Zapier → Catch Hook</strong>. Copy the webhook URL and paste it here.
+        Qerxel will fire events to it when a lead is captured or an appointment changes status.
+      </p>
+      <input style={inputStyle} placeholder="https://hooks.zapier.com/hooks/catch/..." value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} />
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+        <button onClick={handleSave} disabled={saving || !webhookUrl.trim() || isDemo || isPreview}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!webhookUrl.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+          {saving ? 'Connecting…' : 'Connect Zapier'}
         </button>
       </div>
     </div>

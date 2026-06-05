@@ -492,6 +492,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                     </button>
                     <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
                     <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />
+                    <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />
                   </div>
                 </div>
               )
@@ -622,5 +623,71 @@ function XeroInvoiceButton({ leadId, tenantId }) {
       style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: status === 'loading' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', opacity: status === 'loading' ? 0.6 : 1 }}>
       {status === 'loading' ? '…' : 'Xero'}
     </button>
+  )
+}
+
+// ─── Stripe payment link button ───────────────────────────────────────────────
+function StripePaymentButton({ tenantId, leadId, leadName }) {
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [desc, setDesc] = useState(leadName || '')
+  const [status, setStatus] = useState('idle')
+  const [payUrl, setPayUrl] = useState(null)
+
+  if (!tenantId) return null
+
+  const handleCreate = async () => {
+    if (!amount || parseFloat(amount) <= 0) return
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/stripe-payment-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, leadId, amountPounds: amount, description: desc }),
+      })
+      const data = await res.json()
+      if (data.checkoutUrl) { setPayUrl(data.checkoutUrl); setStatus('done') }
+      else setStatus('error')
+    } catch { setStatus('error') }
+  }
+
+  if (status === 'done' && payUrl) {
+    return (
+      <a href={payUrl} target="_blank" rel="noopener noreferrer"
+        style={{ padding: '0.25rem 0.65rem', border: '1px solid #3db87a', borderRadius: '5px', background: '#e6f9ef', color: '#1a6640', fontSize: '0.72rem', fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        Payment link →
+      </a>
+    )
+  }
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)}
+        style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+        £ Pay
+      </button>
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}
+          onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: 360, boxSizing: 'border-box' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '1rem' }}>Create payment link</div>
+            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Amount (£)</label>
+            <input type="number" min="1" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 150.00" autoFocus
+              style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, boxSizing: 'border-box', outline: 'none', marginBottom: '0.75rem' }} />
+            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Description</label>
+            <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Services — call out fee"
+              style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.85rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '1rem' }} />
+            {status === 'error' && <p style={{ fontSize: '0.8rem', color: '#e05252', marginBottom: '0.75rem' }}>Failed — check Stripe is configured.</p>}
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setOpen(false)} style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+              <button onClick={handleCreate} disabled={status === 'loading' || !amount}
+                style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!amount || status === 'loading') ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                {status === 'loading' ? 'Creating…' : 'Create link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
