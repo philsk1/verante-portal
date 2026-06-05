@@ -1,7 +1,7 @@
 # QERXEL — COMPLETE PROJECT HANDOFF DOCUMENT V12
 ## Read this at the start of every new conversation thread.
 ## Also read: STRATEGY-ADDENDUM-V2.md (commercial decisions, tier detail, calendar spec)
-## Last updated: 2026-06-05 (session 9)
+## Last updated: 2026-06-05 (session 10)
 
 ---
 
@@ -228,6 +228,13 @@ vercel.json                          — rewrites + cron jobs (notify-daily-cost
 | api/freeagent-auth.js | GET ?tenantId — redirects to FreeAgent OAuth. |
 | api/freeagent-callback.js | GET ?code&state — exchanges OAuth code, stores tokens, redirects to portal. |
 | api/freeagent-invoice.js | POST {tenantId, leadId} — creates draft invoice in FreeAgent from a lead. Handles token refresh. |
+| api/xero-auth.js | GET ?tenantId — redirects to Xero OAuth. |
+| api/xero-callback.js | GET ?code&state — exchanges code, fetches org ID, stores tokens, redirects to portal. |
+| api/xero-invoice.js | POST {tenantId, leadId} — creates ACCREC draft invoice in Xero. Handles token refresh. |
+| api/caldav-sync.js | POST {tenantId, appointmentId, action} — pushes Qerxel appointment to CalDAV (Google/Apple/Outlook). Called on every Calendar save/delete. |
+| api/send-review-request.js | POST {tenantId, appointmentId, integrationId} — sends review request via WhatsApp or email. Supports google_business, checkatrade, rated_people. |
+| api/stripe-payment-link.js | POST {tenantId, leadId, amountPounds, description} — creates ad-hoc Stripe Checkout (one-time payment) from any lead. |
+| api/zapier-webhook.js | POST {tenantId, event, payload} — fires outbound webhook to tenant's Zapier URL. Called by vapi-webhook on lead_captured. |
 
 ### Environment variables (Vercel + local .env)
 
@@ -247,6 +254,8 @@ vercel.json                          — rewrites + cron jobs (notify-daily-cost
 | SITE_URL | stripe-checkout, freeagent-auth/callback, whatsapp-send (trigger URL) |
 | FREEAGENT_CLIENT_ID | freeagent-auth, freeagent-callback |
 | FREEAGENT_CLIENT_SECRET | freeagent-callback |
+| XERO_CLIENT_ID | xero-auth, xero-callback, xero-invoice |
+| XERO_CLIENT_SECRET | xero-callback, xero-invoice |
 
 ---
 
@@ -439,27 +448,34 @@ Logo: "Qerxel" Syne 700 + 7px amber dot.
 - Appointment reminders: api/remind-appointments.js, vercel.json hourly cron, 24h + 1h windows. emailAppointmentReminder template added to _emails.js.
 - Staff extension recognition (Enterprise): `direct_line_did` column on staff_profiles (in migration file). BusinessProfile.jsx: DID input in add form, DID shown in staff row. vapi-sync.js: fetches staff including direct_line_did. _build-prompt.js: OUR TEAM block injected when staff exist — includes direct line numbers.
 
-### Not yet committed (all changes in working tree)
-→ **Commit and push before next session.**
-
-### Pending actions before features work
-1. **Run `supabase_migrations_session4.sql`** in Supabase SQL Editor (Calendar + Stripe + DID columns)
-2. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section above)
-
 ### Done — session 9 (2026-06-05) — Priority 1 integrations complete + rebrand
 - Full rebrand Verrante → Qerxel across all 40+ files. QERXEL-HANDOFF-V12.md is the canonical handover.
 - Xero: api/xero-auth.js + xero-callback.js + xero-invoice.js, OAuth flow, auto-refresh, draft invoice creation
 - Google Business Profile: api/send-review-request.js, paste-review-URL connect form, review button on completed appointments in Calendar
 - Google Calendar: api/caldav-sync.js, CalDAV one-way push, connect form (URL + email + app password), syncs on every appointment save/delete
-- All 5 Priority 1 integrations now available in Integrations tab: WhatsApp, FreeAgent, Xero, Google Calendar, Google Business Profile
+- All 5 Priority 1 integrations now available: WhatsApp, FreeAgent, Xero, Google Calendar, Google Business Profile
+
+### Done — session 10 (2026-06-05) — Priority 2 integrations
+- Stripe Payments: api/stripe-payment-link.js creates ad-hoc Checkout session from any lead. ActivityDashboard: "£ Pay" button opens amount + description modal.
+- Checkatrade + Rated People: paste-review-URL connect forms. send-review-request.js generalised for all platforms. Calendar: review buttons shown for all connected platforms when appointment = completed; silently hidden if not connected.
+- Zapier: api/zapier-webhook.js fires outbound webhook; vapi-webhook.js triggers it on lead_captured. Integrations tab: paste-webhook-URL form with setup instructions.
+- Integrations tab: 9 integrations now available (Priority 1 × 5 + Stripe, Checkatrade, Rated People, Zapier)
+- ActivityDashboard lead buttons: Book · Invoice (FreeAgent) · Xero · £ Pay
+
+### Pending actions before features work
+1. **Run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql)** in Supabase SQL Editor
+2. **Run [supabase_migrations_session4.sql](supabase_migrations_session4.sql)** in Supabase SQL Editor (Calendar + Stripe + DID columns)
+3. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section)
+4. **FreeAgent + Xero** — create dev apps at dev.freeagent.com + developer.xero.com, add CLIENT_ID/SECRET to Vercel, set redirect URIs to https://qerxel-portal.vercel.app/api/{freeagent|xero}-callback
+5. **WhatsApp** — Meta Business Manager → get Phone Number ID + permanent token
+6. **Vercel env var** — update `SITE_URL` to https://qerxel-portal.vercel.app after renaming the project
+7. **GitHub + Vercel rename** — rename repo and project from verante-portal to qerxel-portal
 
 ### Next build priorities
-1. Run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql) in Supabase SQL Editor
-2. FreeAgent + Xero: create dev apps, add CLIENT_ID/SECRET to Vercel, set redirect URIs to https://qerxel-portal.vercel.app/api/{freeagent|xero}-callback
-3. WhatsApp: Meta Business Manager → get Phone Number ID + permanent token
-4. Calendar Session 3 — CalDAV two-way pull (read external events into Qerxel Calendar)
-3. Calendar Session 4 — Enterprise mode (manager views, permissions)
-4. Calendar Session 5 — customer booking page (public URL, self-book)
+1. Calendar Session 3 — CalDAV two-way pull (read external events into Qerxel Calendar)
+2. Calendar Session 4 — Enterprise mode (manager views, permissions)
+3. Calendar Session 5 — customer booking page (public URL, self-book)
+4. Priority 2 remaining: Pipedrive, Capsule CRM, GoCardless, Jobber, ServiceM8
 5. Phone line feature — behind VITE_PHONE_LINE_ENABLED=false, waiting on partner contract
 6. Public Playground — Cartesia Sonic 3.5 live, 8 languages × 5 dialects
 
