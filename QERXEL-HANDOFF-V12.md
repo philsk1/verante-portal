@@ -1,7 +1,7 @@
 # QERXEL — COMPLETE PROJECT HANDOFF DOCUMENT V12
 ## Read this at the start of every new conversation thread.
 ## Also read: STRATEGY-ADDENDUM-V2.md (commercial decisions, tier detail, calendar spec)
-## Last updated: 2026-06-05 (session 8)
+## Last updated: 2026-06-05 (session 9)
 
 ---
 
@@ -446,12 +446,18 @@ Logo: "Qerxel" Syne 700 + 7px amber dot.
 1. **Run `supabase_migrations_session4.sql`** in Supabase SQL Editor (Calendar + Stripe + DID columns)
 2. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section above)
 
+### Done — session 9 (2026-06-05) — Priority 1 integrations complete + rebrand
+- Full rebrand Verrante → Qerxel across all 40+ files. QERXEL-HANDOFF-V12.md is the canonical handover.
+- Xero: api/xero-auth.js + xero-callback.js + xero-invoice.js, OAuth flow, auto-refresh, draft invoice creation
+- Google Business Profile: api/send-review-request.js, paste-review-URL connect form, review button on completed appointments in Calendar
+- Google Calendar: api/caldav-sync.js, CalDAV one-way push, connect form (URL + email + app password), syncs on every appointment save/delete
+- All 5 Priority 1 integrations now available in Integrations tab: WhatsApp, FreeAgent, Xero, Google Calendar, Google Business Profile
+
 ### Next build priorities
 1. Run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql) in Supabase SQL Editor
-2. FreeAgent setup: create app at dev.freeagent.com → add FREEAGENT_CLIENT_ID + FREEAGENT_CLIENT_SECRET to Vercel, set redirect URI to https://qerxel-portal.vercel.app/api/freeagent-callback
-3. WhatsApp setup: Meta Business Manager → WhatsApp Business API → get Phone Number ID + permanent token
-4. Integration builds — Priority 1 remaining: Xero, Google Calendar, Google Business Profile
-5. Calendar Session 3 — CalDAV external sync (Google, Apple, Outlook)
+2. FreeAgent + Xero: create dev apps, add CLIENT_ID/SECRET to Vercel, set redirect URIs to https://qerxel-portal.vercel.app/api/{freeagent|xero}-callback
+3. WhatsApp: Meta Business Manager → get Phone Number ID + permanent token
+4. Calendar Session 3 — CalDAV two-way pull (read external events into Qerxel Calendar)
 3. Calendar Session 4 — Enterprise mode (manager views, permissions)
 4. Calendar Session 5 — customer booking page (public URL, self-book)
 5. Phone line feature — behind VITE_PHONE_LINE_ENABLED=false, waiting on partner contract
