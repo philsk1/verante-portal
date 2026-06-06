@@ -501,6 +501,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [selectedLead, setSelectedLead] = useState(null)
   const [leadNotes, setLeadNotes] = useState('')
   const [leadNotesSaving, setLeadNotesSaving] = useState(false)
+  const [connectedIntegrations, setConnectedIntegrations] = useState(new Set())
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -582,6 +583,17 @@ const ActivityDashboard = ({ onNavigate }) => {
         setCalls(callRes.data || [])
         setLeads(leadRes.data || [])
         setReferrals(refRes.data || [])
+
+        try {
+          const { data: integrations } = await supabase
+            .from('tenant_integrations')
+            .select('integration_id')
+            .eq('tenant_id', tid)
+            .eq('status', 'connected')
+          if (integrations) setConnectedIntegrations(new Set(integrations.map(i => i.integration_id)))
+        } catch {
+          // table may not exist yet — leave as empty Set
+        }
       } catch (err) {
         console.error('Dashboard load error:', err)
         setError('Could not load your dashboard data.')
@@ -743,7 +755,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         const voiceLabel = tier === 'free' ? 'Standard voice' : voicePref === 'standard' ? 'Standard voice' : 'Premium voice'
         const voiceColor = (tier === 'free' || voicePref === 'standard') ? { color: '#64748b', bg: '#f8fafc' } : { color: '#5e3b87', bg: '#f0ebf8' }
 
-        const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
+        const triageLabels = { strict: 'Selective', balanced: 'Balanced', open: 'Open' }
         const triageColors = {
           strict:   { color: '#1d4ed8', bg: '#eff6ff' },
           balanced: { color: '#5e3b87', bg: '#f0ebf8' },
@@ -762,6 +774,11 @@ const ActivityDashboard = ({ onNavigate }) => {
             <div style={{ padding: '1.25rem 1.75rem', flexShrink: 0 }}>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: '#5e3b87', lineHeight: 1 }}><CountUp to={callsToday} /></div>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6, fontFamily: "'DM Sans', sans-serif" }}>calls today</div>
+              {callsThisMonth > 0 && (
+                <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 6, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  {callsThisMonth} handled this month while you were on a job
+                </div>
+              )}
             </div>
 
             {vDiv}
@@ -791,7 +808,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
             {/* Triage mode */}
             <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>Triage mode</div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>Call filter</div>
               <span style={{ display: 'inline-block', padding: '0.25rem 0.7rem', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 600, background: triage.bg, color: triage.color, fontFamily: "'DM Sans', sans-serif" }}>
                 {triage.label}
               </span>
@@ -808,15 +825,17 @@ const ActivityDashboard = ({ onNavigate }) => {
 
             <div style={{ flex: 1 }} />
 
-            {/* Configure */}
-            <div style={{ padding: '1.25rem 1.5rem', flexShrink: 0 }}>
-              <button
-                onClick={() => onNavigate && onNavigate('ai')}
-                style={{ padding: '0.45rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-              >
-                Configure →
-              </button>
-            </div>
+            {/* Configure — desktop only */}
+            {!isMobile && (
+              <div style={{ padding: '1.25rem 1.5rem', flexShrink: 0 }}>
+                <button
+                  onClick={() => onNavigate && onNavigate('ai')}
+                  style={{ padding: '0.45rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                >
+                  Configure →
+                </button>
+              </div>
+            )}
           </div>
         )
       })()}
@@ -940,13 +959,13 @@ const ActivityDashboard = ({ onNavigate }) => {
             {/* 3-chart grid */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
 
-              {/* Lead capture rate — donut */}
+              {/* Calls turned into leads — donut */}
               <div style={{ ...s.section, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-                <div style={{ ...s.sectionTitle, alignSelf: 'flex-start', marginBottom: '0.5rem' }}>Lead capture</div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
-                  <CountUp to={captureRate} suffix="%" />
+                <div style={{ ...s.sectionTitle, alignSelf: 'flex-start', marginBottom: '0.5rem' }}>Calls turned into leads</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#3db87a', lineHeight: 1, marginBottom: 4 }}>
+                  <CountUp to={capturedCount} /> <span style={{ fontSize: '1.1rem', color: '#aaaaaa', fontWeight: 400 }}>of <CountUp to={callsThisMonth} /></span>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>of calls this month</div>
+                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>calls this month</div>
                 <ReactApexChart options={donutOptions} series={donutSeries} type="donut" height={110} width="100%" />
               </div>
 
@@ -1213,9 +1232,16 @@ const ActivityDashboard = ({ onNavigate }) => {
                   style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Book appointment
                 </button>
-                <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
-                <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />
-                <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />
+                {connectedIntegrations.has('freeagent') && <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />}
+                {connectedIntegrations.has('xero') && <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />}
+                {connectedIntegrations.has('stripe') && <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />}
+                {connectedIntegrations.size === 0 && (
+                  <button
+                    onClick={() => { setSelectedLead(null); onNavigate && onNavigate('integrations') }}
+                    style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, background: 'white', color: '#aaaaaa', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Connect invoicing →
+                  </button>
+                )}
                 <button onClick={() => setSelectedLead(null)}
                   style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                   Close
