@@ -484,11 +484,11 @@ const DataAnalytics = ({ onNavigate }) => {
   // ── enterprise: outcome breakdown ─────────────────────────────────────────
 
   const OUTCOME_META = {
-    booked:        { label: 'Booked',       color: '#3db87a' },
-    lead_captured: { label: 'Lead',         color: '#5e3b87' },
-    referred_out:  { label: 'Referred out', color: '#f0a500' },
+    booked:        { label: 'Booked',       color: '#5e3b87' },
+    lead_captured: { label: 'Lead captured', color: '#3db87a' },
+    referred_out:  { label: 'Referred out', color: '#1d4ed8' },
     filtered:      { label: 'Filtered',     color: '#d1d5db' },
-    escalated:     { label: 'Escalated',    color: '#5e3b87' },
+    escalated:     { label: 'Escalated',    color: '#ef4444' },
     hard_close:    { label: 'Closed',       color: '#d1d5db' },
     spam:          { label: 'Spam',         color: '#d1d5db' },
     unknown:       { label: 'Other',        color: '#e5e7eb' },
@@ -502,23 +502,36 @@ const DataAnalytics = ({ onNavigate }) => {
     <div>
 
       {/* Headline numbers */}
-      <div style={s.headlineGrid}>
-        <div style={s.headlineCard} data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated. This is your raw volume — how hard your AI has been working for you.">
-          <div style={s.headlineLabel}>Total calls handled</div>
-          <div style={s.headlineNumber}>{totalCalls.toLocaleString()}</div>
-          <div style={s.headlineSub}>all time</div>
-        </div>
-        <div style={s.headlineCard} data-help="Lead capture rate is the percentage of all calls that resulted in a lead — meaning the caller gave their details or requested follow-up. A healthy rate is 30–50% for most service businesses. If yours is low, check whether your services list is accurate.">
-          <div style={s.headlineLabel}>Lead capture rate</div>
-          <div style={s.headlineNumber}>{leadRate}%</div>
-          <div style={s.headlineSub}>leads / total calls</div>
-        </div>
-        <div style={s.headlineCard} data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam. Very long calls may indicate your AI is over-explaining — both are worth investigating.">
-          <div style={s.headlineLabel}>Avg call duration</div>
-          <div style={s.headlineNumber}>{fmtDuration(avgDurationSecs)}</div>
-          <div style={s.headlineSub}>across handled calls</div>
-        </div>
-      </div>
+      {(() => {
+        const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
+        const rateBg    = leadRate >= 35 ? '#f0faf5' : leadRate >= 15 ? '#fef9ec' : '#fdecea'
+        const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
+        return (
+          <div style={s.headlineGrid}>
+            {/* Volume — violet */}
+            <div style={{ ...s.headlineCard, background: '#faf8ff', borderLeft: '4px solid #5e3b87' }}
+              data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated. This is your raw volume — how hard your AI has been working for you.">
+              <div style={s.headlineLabel}>Total calls handled</div>
+              <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
+              <div style={s.headlineSub}>all time</div>
+            </div>
+            {/* Lead capture rate — semantic colour */}
+            <div style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}` }}
+              data-help="Lead capture rate is the percentage of all calls that resulted in a lead — meaning the caller gave their details or requested follow-up. A healthy rate is 30–50% for most service businesses. If yours is low, check whether your services list is accurate.">
+              <div style={s.headlineLabel}>Lead capture rate</div>
+              <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
+              <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+            </div>
+            {/* Avg duration — blue (informational) */}
+            <div style={{ ...s.headlineCard, background: '#f5f8ff', borderLeft: '4px solid #1d4ed8' }}
+              data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam. Very long calls may indicate your AI is over-explaining — both are worth investigating.">
+              <div style={s.headlineLabel}>Avg call duration</div>
+              <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
+              <div style={s.headlineSub}>across handled calls</div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Recommendation */}
       <div style={s.recoCard}>
