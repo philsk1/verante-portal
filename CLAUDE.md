@@ -172,7 +172,7 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 
 ---
 
-## Current Build State (last updated: 2026-06-05, session 5)
+## Current Build State (last updated: 2026-06-06, session 11)
 
 ### Done — Section 1
 - [x] All 6 portal tabs — fully built and wired to Supabase
@@ -238,12 +238,36 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] DB migration file — supabase_migrations_session4.sql (all new columns + appointments + staff_availability + tenant_catalogue)
 - [x] QERXEL-HANDOFF-V12.md and CLAUDE.md updated
 
+### Done — Session 11 (2026-06-06) — Portal redesign sprint
+
+**Portal structure:**
+- [x] maxWidth constraint removed from Portal.jsx; index.css #root fixed (Vite boilerplate stripped)
+- [x] Left sidebar built: 260px violet, collapsible 60px, Vera owl trigger, Amber active border, smooth 0.22s transition
+- [x] Mobile: sidebar hidden, fixed bottom nav (5 items: Home, Calendar, AI, Analytics, Account)
+
+**Dashboard (ActivityDashboard.jsx) — full redesign Tasks A–J:**
+- [x] Task A — Three-zone layout with labelled dividers ("Today's Activity", "Patterns")
+- [x] Task B — Zone 1 AI status bar: live status, voice badge, arc gauge (SVG), triage pill, north star count, Configure→
+- [x] Task C — CallCard component: hover lift, urgent red border, filtered opacity, click-to-modal
+- [x] Task D — LeadCard component: urgent pulsing dot, time-since ("2h ago"), call back + view
+- [x] Task E — Full lead modal: 4 sections (AI summary, details, notes, history), sticky header+footer, auto-save notes on blur
+- [x] Task F — Zone 3 ApexCharts: donut (lead capture rate), spark bar (7-day volume), area line (30-day minutes)
+- [x] Task G — Animation pass: fadeInUp stagger, count-up on north star + Zone 3, modalIn entrance, urgentPulse dot
+- [x] Task H — Mobile responsive: Zone 1 scrolls, Zone 2+3 single column, modals = bottom drawers
+- [x] Task I — Skeleton loading (shimmer), EmptyState components, error + retry
+- [x] Task J — Quality check passed; prefers-reduced-motion added; market research critique delivered to ClWeb
+
+**New packages installed:**
+- react-apexcharts + apexcharts
+
 ### Remaining
 - [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor
+- [ ] leads table: add `notes` column (alter table leads add column if not exists notes text) — needed for lead modal auto-save
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
 - [ ] Calendar Session 2 — split appointments, team mode
 - [ ] Task 1 — Staff extension recognition (Enterprise)
 - [ ] Integration builds — Priority 1 first (Google Calendar, WhatsApp, FreeAgent, Xero, Google Business)
+- [ ] ClWeb market research critique response — await instructions before further dashboard changes
 
 ---
 
