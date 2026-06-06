@@ -386,12 +386,19 @@ const pulseStyle = `
   50% { opacity: 0.4; transform: scale(1.5); }
 }
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 @keyframes shimmer {
   from { background-position: -400px 0; }
@@ -836,7 +843,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {recentCalls.map((call, i) => (
-                <div key={call.id} style={{ animation: 'fadeInUp 0.35s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both' }}>
+                <div key={call.id} style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16,1,0.3,1)', animationDelay: `${i * 0.05}s`, animationFillMode: 'both' }}>
                   <CallCard call={call} onClick={() => setSelectedCall(call)} />
                 </div>
               ))}
@@ -862,7 +869,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {actionableLeads.slice(0, 6).map((lead, i) => (
-                <div key={lead.id} style={{ animation: 'fadeInUp 0.35s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both' }}>
+                <div key={lead.id} style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16,1,0.3,1)', animationDelay: `${i * 0.05}s`, animationFillMode: 'both' }}>
                   <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
                 </div>
               ))}
