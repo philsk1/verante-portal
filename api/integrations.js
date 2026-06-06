@@ -1,7 +1,5 @@
-// POST { tenantId, integrationId, credentials, settings }
-// Stores credentials (service role, never exposed to frontend) and
-// settings (tenant-readable). Used for credential-based integrations
-// like WhatsApp that don't use OAuth.
+// POST { action: 'connect'|'disconnect', tenantId, integrationId, credentials?, settings? }
+// Consolidates integrations-connect and integrations-disconnect.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -13,11 +11,21 @@ const supabase = createClient(
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { tenantId, integrationId, credentials, settings } = req.body
+  const { action, tenantId, integrationId, credentials, settings } = req.body
   if (!tenantId || !integrationId) return res.status(400).json({ error: 'Missing fields' })
 
   try {
-    // Upsert public settings (tenant can read enabled/settings)
+    if (action === 'disconnect') {
+      await Promise.all([
+        supabase.from('tenant_integrations')
+          .delete().eq('tenant_id', tenantId).eq('integration_id', integrationId),
+        supabase.from('tenant_integration_credentials')
+          .delete().eq('tenant_id', tenantId).eq('integration_id', integrationId),
+      ])
+      return res.status(200).json({ disconnected: true })
+    }
+
+    // default: connect
     await supabase.from('tenant_integrations').upsert({
       tenant_id: tenantId,
       integration_id: integrationId,
@@ -26,7 +34,6 @@ export default async function handler(req, res) {
       connected_at: new Date().toISOString(),
     }, { onConflict: 'tenant_id,integration_id' })
 
-    // Upsert credentials (service role only — never readable by frontend)
     if (credentials && Object.keys(credentials).length > 0) {
       await supabase.from('tenant_integration_credentials').upsert({
         tenant_id: tenantId,
@@ -38,7 +45,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ connected: true })
   } catch (err) {
-    console.error('integrations-connect error:', err.message)
-    return res.status(500).json({ error: 'Failed to save integration' })
+    console.error('integrations error:', err.message)
+    return res.status(500).json({ error: 'Integration operation failed' })
   }
 }

@@ -181,7 +181,7 @@ const Portal = () => {
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
         try {
-          const res = await fetch('/api/owner-tenants', {
+          const res = await fetch('/api/admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userEmail: user.email }),

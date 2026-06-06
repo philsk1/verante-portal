@@ -1,10 +1,16 @@
-// POST { url }
-// Scrapes a website via Firecrawl and extracts business details via Claude Haiku
-// Returns { fields: { business_name, business_phone, business_email, ... } }
+// Consolidates owner-tenants and scrape-website.
+// POST { userEmail }       → return all tenants (owner only)
+// POST { url }             → scrape website and extract business fields
 
+import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const supabase = createClient(
+  'https://kkrsvkxkefijmtbwykzv.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+const OWNER_EMAIL = 'finsolsoffice@gmail.com'
 
 const EXTRACTION_PROMPT = `You are extracting business information from a UK business website.
 
@@ -30,17 +36,30 @@ Rules:
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { url } = req.body
+  const { userEmail, url } = req.body
+
+  // ── owner-tenants ──────────────────────────────────────────────────────────
+  if (userEmail !== undefined) {
+    if (userEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, business_name, subscription_tier')
+      .order('business_name')
+
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ tenants: data || [] })
+  }
+
+  // ── scrape-website ─────────────────────────────────────────────────────────
   if (!url) return res.status(400).json({ error: 'URL required' })
 
   const firecrawlKey = process.env.FIRECRAWL_API_KEY
   if (!firecrawlKey) return res.status(503).json({ error: 'Scraping not configured' })
 
-  // Normalise URL
   const targetUrl = url.startsWith('http') ? url : `https://${url}`
 
   try {
-    // Step 1 — scrape with Firecrawl
     const scrapeRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
@@ -65,17 +84,13 @@ export default async function handler(req, res) {
       return res.status(422).json({ error: 'Not enough content found on that page. Try your homepage URL.' })
     }
 
-    // Trim to 8,000 chars to stay within token limits
     const content = markdown.slice(0, 8000)
 
-    // Step 2 — extract fields via Claude Haiku
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `${EXTRACTION_PROMPT}\n\nWebsite content:\n\n${content}`,
-      }],
+      messages: [{ role: 'user', content: `${EXTRACTION_PROMPT}\n\nWebsite content:\n\n${content}` }],
     })
 
     const raw = response.content[0]?.text?.trim() || '{}'
@@ -88,7 +103,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Could not parse website data. Please fill in manually.' })
     }
 
-    // Count non-null, non-empty fields found
     const found = Object.entries(fields).filter(([k, v]) => {
       if (k === 'services') return Array.isArray(v) && v.length > 0
       return v !== null && v !== ''
@@ -96,7 +110,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ fields, found })
   } catch (err) {
-    console.error('scrape-website error:', err.message)
+    console.error('admin/scrape error:', err.message)
     return res.status(500).json({ error: 'Something went wrong. Please fill in your details manually.' })
   }
 }

@@ -343,7 +343,7 @@ const Step0Website = ({ data, update }) => {
     setLoading(true)
     setResult(null)
     try {
-      const res = await fetch('/api/scrape-website', {
+      const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() }),

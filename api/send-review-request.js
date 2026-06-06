@@ -12,7 +12,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const SITE_URL = process.env.SITE_URL || 'https://qerxel-portal.vercel.app'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -57,29 +56,7 @@ export default async function handler(req, res) {
 
   const message = `Hi ${clientName}, thank you for choosing ${businessName}. If you have a moment, we'd really appreciate a ${platformLabel} review — it helps other people find us. Here's the link: ${reviewUrl}\n\nThanks, ${ownerName}`
 
-  // Try WhatsApp first if integration is connected and we have a caller
   let sent = false
-  if (appt.caller_id) {
-    const { data: caller } = await supabase
-      .from('callers').select('phone_number').eq('id', appt.caller_id).maybeSingle()
-
-    if (caller?.phone_number) {
-      const { data: waIntegration } = await supabase
-        .from('tenant_integrations')
-        .select('enabled').eq('tenant_id', tenantId).eq('integration_id', 'whatsapp').maybeSingle()
-
-      if (waIntegration?.enabled) {
-        try {
-          await fetch(`${SITE_URL}/api/whatsapp-send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tenantId, to: caller.phone_number, message }),
-          })
-          sent = true
-        } catch { /* fall through to email */ }
-      }
-    }
-  }
 
   // Fallback: email the tenant with the review request to forward
   if (!sent && tenant?.business_email) {

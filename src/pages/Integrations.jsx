@@ -390,10 +390,10 @@ export default function Integrations({ onNavigate }) {
 
   const handleDisconnect = async (integrationId) => {
     if (isDemo || isPreview || !tenantId) return
-    await fetch('/api/integrations-disconnect', {
+    await fetch('/api/integrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId, integrationId }),
+      body: JSON.stringify({ action: 'disconnect', tenantId, integrationId }),
     })
     setConnectedMap(prev => { const next = { ...prev }; delete next[integrationId]; return next })
     setExpandedId(null)
@@ -481,10 +481,11 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
     if (!tenantId || !waPhoneId.trim() || !waToken.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/integrations-connect', {
+      await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'connect',
           tenantId,
           integrationId: 'whatsapp',
           credentials: { phone_number_id: waPhoneId.trim(), access_token: waToken.trim() },
@@ -634,7 +635,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
-                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/freeagent-auth?tenantId=${tenantId}` }}
+                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/freeagent-oauth?tenantId=${tenantId}` }}
                   disabled={!tenantId || isDemo || isPreview}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >
@@ -692,10 +693,10 @@ function GoogleBusinessForm({ tenantId, isDemo, isPreview, setExpandedId, setCon
     if (!tenantId || !reviewUrl.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/integrations-connect', {
+      await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, integrationId: 'google_business', credentials: {}, settings: { google_review_url: reviewUrl.trim() } }),
+        body: JSON.stringify({ action: 'connect', tenantId, integrationId: 'google_business', credentials: {}, settings: { google_review_url: reviewUrl.trim() } }),
       })
       setConnectedMap(prev => ({ ...prev, google_business: { settings: { google_review_url: reviewUrl.trim() }, connected_at: new Date().toISOString() } }))
       setExpandedId(null)
@@ -734,10 +735,11 @@ function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
     if (!tenantId || !caldavUrl.trim() || !username.trim() || !appPassword.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/integrations-connect', {
+      await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'connect',
           tenantId, integrationId: 'google_calendar',
           credentials: { caldav_url: caldavUrl.trim(), username: username.trim(), app_password: appPassword.trim() },
           settings: { calendar_label: username.trim() },
@@ -784,10 +786,10 @@ function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, isDemo,
     if (!tenantId || !url.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/integrations-connect', {
+      await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, integrationId, credentials: {}, settings: { review_url: url.trim() } }),
+        body: JSON.stringify({ action: 'connect', tenantId, integrationId, credentials: {}, settings: { review_url: url.trim() } }),
       })
       setConnectedMap(prev => ({ ...prev, [integrationId]: { settings: { review_url: url.trim() }, connected_at: new Date().toISOString() } }))
       setExpandedId(null)
@@ -832,10 +834,10 @@ function ZapierForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
     if (!tenantId || !webhookUrl.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/integrations-connect', {
+      await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, integrationId: 'zapier', credentials: {}, settings: { webhook_url: webhookUrl.trim() } }),
+        body: JSON.stringify({ action: 'connect', tenantId, integrationId: 'zapier', credentials: {}, settings: { webhook_url: webhookUrl.trim() } }),
       })
       setConnectedMap(prev => ({ ...prev, zapier: { settings: { webhook_url: webhookUrl.trim() }, connected_at: new Date().toISOString() } }))
       setExpandedId(null)
