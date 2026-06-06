@@ -504,6 +504,8 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [leadNotesSaving, setLeadNotesSaving] = useState(false)
   const [connectedIntegrations, setConnectedIntegrations] = useState(new Set())
   const [notesSaved, setNotesSaved] = useState(false)
+  const [tileStates, setTileStates] = useState({ status: 'half', calls: 'half', leads: 'half', charts: 'icon' })
+  const setTile = (id, state) => setTileStates(prev => ({ ...prev, [id]: state }))
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -755,6 +757,297 @@ const ActivityDashboard = ({ onNavigate }) => {
       </div>
     )
   }
+
+  // ── Mobile tile render ────────────────────────────────────────────────────────
+  if (isMobile) {
+    const aiStatus = minutesPct >= 100
+      ? { label: 'Paused', color: '#b91c1c', dot: '#ef4444' }
+      : minutesPct >= 80
+      ? { label: 'Near limit', color: '#b07a00', dot: '#f0a500' }
+      : { label: 'Active', color: '#1e7a4a', dot: '#3db87a' }
+    const triageColors = { strict: { color: '#1d4ed8', bg: '#eff6ff' }, balanced: { color: '#5e3b87', bg: '#f0ebf8' }, open: { color: '#1e7a4a', bg: '#e6f5ee' } }
+    const triageLabels = { strict: 'Selective', balanced: 'Balanced', open: 'Open' }
+    const triage = { label: triageLabels[triageMode] || 'Balanced', ...(triageColors[triageMode] || triageColors.balanced) }
+    const week7 = getDayBuckets(7, calls)
+    const capturedCountM = calls.filter(c => c.call_outcome === 'lead_captured' || c.call_outcome === 'booked').length
+    const weekCountsM = week7.map(d => d.count)
+    const weekLabelsM = week7.map(d => d.label)
+    const busiestIdxM = weekCountsM.indexOf(Math.max(...weekCountsM))
+    const busiestLabelM = weekCountsM[busiestIdxM] > 0 ? weekLabelsM[busiestIdxM] : null
+
+    const iconTiles = Object.entries(tileStates).filter(([, s]) => s === 'icon')
+    const fullTileId = Object.entries(tileStates).find(([, s]) => s === 'full')?.[0] ?? null
+    const TILE_ORDER = ['status', 'calls', 'leads', 'charts']
+
+    const TILE_META = {
+      status: { label: 'AI Status', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg> },
+      calls:  { label: 'Calls',     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
+      leads:  { label: 'Leads',     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+      charts: { label: 'Analytics', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg> },
+    }
+
+    const IcoChevUp   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+    const IcoChevDown = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+
+    // Top-left expand/contract — 44px touch target, 32px white rounded-square
+    const ExpandBtn = ({ id, isFull }) => (
+      <button
+        onClick={e => { e.stopPropagation(); setTile(id, isFull ? 'half' : 'full') }}
+        style={{ position: 'absolute', top: 0, left: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
+        aria-label={isFull ? 'Collapse' : 'Expand'}
+      >
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(94,59,135,0.18)' }}>
+          {isFull ? <IcoChevDown /> : <IcoChevUp />}
+        </div>
+      </button>
+    )
+
+    // Top-right dismiss — 44px touch target (half state only, not status tile)
+    const DismissBtn = ({ id }) => (
+      <button
+        onClick={e => { e.stopPropagation(); setTile(id, 'icon') }}
+        style={{ position: 'absolute', top: 0, right: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
+        aria-label="Dismiss"
+      >
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ color: '#888', fontSize: '1.1rem', lineHeight: 1, fontFamily: 'system-ui' }}>×</span>
+        </div>
+      </button>
+    )
+
+    const tileContent = {
+      status: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 44, color: '#5e3b87', lineHeight: 1 }}><CountUp to={callsToday} /></div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4, fontFamily: "'DM Sans', sans-serif" }}>calls today</div>
+              {callsThisMonth > 0 && <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 6, fontWeight: 500 }}>{callsThisMonth} this month</div>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: aiStatus.dot, flexShrink: 0 }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: aiStatus.color }}>{aiStatus.label}</span>
+              </div>
+              <ArcGauge pct={minutesPct} />
+              <div style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{minutesUsed} / {includedMinutes} min</div>
+              <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, background: triage.bg, color: triage.color, fontFamily: "'DM Sans', sans-serif" }}>{triage.label}</span>
+            </div>
+          </div>
+          {reco && (
+            <div style={{ background: '#f0ebf8', borderRadius: 12, padding: '0.85rem 1rem', borderLeft: '4px solid #5e3b87' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', marginBottom: 4 }}>{reco.title}</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', lineHeight: 1.5 }}>{reco.body}</div>
+            </div>
+          )}
+        </div>
+      ),
+
+      calls: (
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Recent calls</div>
+          {recentCalls.length === 0
+            ? <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month." />
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {recentCalls.map((call, i) => (
+                  <motion.div key={call.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.04 }}>
+                    <CallCard call={call} onClick={() => setSelectedCall(call)} />
+                  </motion.div>
+                ))}
+              </div>
+          }
+        </div>
+      ),
+
+      leads: (
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+            Leads requiring action
+            {actionableLeads.length > 0 && <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: 10, padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>{actionableLeads.length}</span>}
+          </div>
+          {actionableLeads.length === 0
+            ? <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up." />
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {actionableLeads.slice(0, 6).map((lead, i) => (
+                  <motion.div key={lead.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.04 }}>
+                    <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
+                  </motion.div>
+                ))}
+              </div>
+          }
+        </div>
+      ),
+
+      charts: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={s.section}>
+            <div style={s.sectionTitle}>Calls turned into leads</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.75rem', color: '#3db87a', lineHeight: 1, marginBottom: 4 }}>{capturedCountM} <span style={{ fontSize: '1rem', color: '#aaa', fontWeight: 400 }}>of {callsThisMonth}</span></div>
+            <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>calls this month</div>
+          </div>
+          <div style={s.section}>
+            <div style={s.sectionTitle}>7-day volume</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.75rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>{weekCountsM.reduce((a, b) => a + b, 0)}</div>
+            {busiestLabelM && <div style={{ fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>Busiest: {busiestLabelM}</div>}
+          </div>
+          <div style={s.section}>
+            <div style={s.sectionTitle}>Minutes used</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.75rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>{minutesUsed} <span style={{ fontSize: '1rem', color: '#aaa', fontWeight: 400 }}>/ {includedMinutes}</span></div>
+            <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>this month</div>
+          </div>
+          {referralsToday.length > 0 && (
+            <div style={s.section}>
+              <div style={s.sectionTitle}>Referrals today</div>
+              {referralsToday.map((ref, i) => (
+                <div key={ref.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", padding: '0.4rem 0', borderBottom: i < referralsToday.length - 1 ? '1px solid rgba(94,59,135,0.06)' : 'none', color: '#1a1a1a' }}>
+                  <span>{ref.referral_partners?.business_name || 'Partner'}</span>
+                  <span style={{ color: '#aaa' }}>{formatTime(ref.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    }
+
+    return (
+      <div style={{ position: 'relative', paddingBottom: iconTiles.length > 0 ? 80 : 8 }}>
+        <style>{pulseStyle}</style>
+
+        {/* Full-screen tile */}
+        <AnimatePresence>
+          {fullTileId && (
+            <motion.div key={`full-${fullTileId}`} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <ExpandBtn id={fullTileId} isFull />
+              <div style={{ flex: 1, overflowY: 'auto', padding: '52px 1rem 1.5rem 1rem', WebkitOverflowScrolling: 'touch' }}>
+                {tileContent[fullTileId]}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Half-screen tiles */}
+        {TILE_ORDER.filter(id => tileStates[id] === 'half').map(id => (
+          <div key={id} style={{ position: 'relative', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', marginBottom: '0.75rem', height: '50vh', minHeight: 240, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <ExpandBtn id={id} isFull={false} />
+            {id !== 'status' && <DismissBtn id={id} />}
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '52px 1rem 1rem 1rem', WebkitOverflowScrolling: 'touch' }}>
+              {tileContent[id]}
+            </div>
+          </div>
+        ))}
+
+        {/* Bottom icon row — tiles dismissed to icon state */}
+        <AnimatePresence>
+          {iconTiles.length > 0 && (
+            <motion.div key="icon-bar" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ duration: 0.22 }}
+              style={{ position: 'fixed', bottom: 58, left: 0, right: 0, background: 'white', borderTop: '1px solid rgba(94,59,135,0.1)', display: 'flex', zIndex: 150, boxShadow: '0 -2px 12px rgba(94,59,135,0.06)' }}>
+              {iconTiles.map(([id]) => (
+                <button key={id} onClick={() => setTile(id, 'half')}
+                  style={{ flex: 1, height: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, border: 'none', background: 'transparent', cursor: 'pointer', color: '#5e3b87', WebkitTapHighlightColor: 'transparent' }}
+                  aria-label={`Show ${TILE_META[id].label}`}>
+                  {TILE_META[id].icon}
+                  <span style={{ fontSize: '0.6rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{TILE_META[id].label}</span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Modals shared with desktop */}
+        <AnimatePresence>
+          {selectedCall && (() => {
+            const call = selectedCall
+            const badge = outcomeBadge(call.call_outcome)
+            const phone = call.callers?.phone_number || call.caller_phone
+            return (
+              <motion.div key="call-modal-m" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1300 }}
+                onClick={e => { if (e.target === e.currentTarget) setSelectedCall(null) }}>
+                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+                  <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                      <div>
+                        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 6 }}>{callerLabel(call)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 600, background: badge.bg, color: badge.color, fontFamily: "'DM Sans', sans-serif" }}>{badge.label}</span>
+                          <span style={{ fontSize: '0.8rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>{formatDateLabel(call.created_at)} · {formatTime(call.created_at)}{call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ''}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedCall(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaaaaa', fontSize: '1.25rem', lineHeight: 1, padding: '0.15rem 0.25rem', flexShrink: 0 }}>×</button>
+                    </div>
+                  </div>
+                  <div style={{ padding: '1.5rem 1.75rem' }}>
+                    {call.ai_summary && <div style={{ marginBottom: '1.25rem' }}><div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div><div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>{call.ai_summary}</div></div>}
+                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      {phone && <a href={`tel:${phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>Call back</a>}
+                      <button onClick={() => setSelectedCall(null)} style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Close</button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })()}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {selectedLead && (() => {
+            const lead = selectedLead
+            const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
+            const phone = lead.callers?.phone_number
+            const urgent = isUrgentLead(lead.created_at)
+            const STATUS_LABELS = { new: 'New', contacted: 'Contacted', converted: 'Converted', lost: 'Lost' }
+            const STATUS_COLORS = { new: { bg: '#e6f5ee', color: '#1e7a4a' }, contacted: { bg: '#eff6ff', color: '#1d4ed8' }, converted: { bg: '#f0ebf8', color: '#5e3b87' }, lost: { bg: '#f8fafc', color: '#64748b' } }
+            const statusStyle = STATUS_COLORS[lead.status] || STATUS_COLORS.new
+            return (
+              <motion.div key="lead-modal-m" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1300 }}
+                onClick={e => { if (e.target === e.currentTarget) setSelectedLead(null) }}>
+                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+                  <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, minHeight: 64, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', width: '100%' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, fontFamily: "'DM Sans', sans-serif" }}>{STATUS_LABELS[lead.status] || 'New'}</span>
+                          {urgent && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.18rem 0.55rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: '#fef3d9', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', animation: 'urgentPulse 1.6s ease-in-out infinite' }} />New — act fast</span>}
+                          <span style={{ fontSize: '0.78rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>{timeSince(lead.created_at)}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedLead(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaaaaa', fontSize: '1.5rem', lineHeight: 1, padding: '0 0.2rem', flexShrink: 0 }}>×</button>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {lead.ai_summary && <div><div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div><div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", background: '#f0ebf8', borderRadius: 10, padding: '0.75rem 0.9rem' }}>{lead.ai_summary}</div></div>}
+                    {phone && <div><div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Phone</div><a href={`tel:${phone}`} style={{ fontSize: '0.875rem', color: '#5e3b87', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>{phone}</a></div>}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif" }}>Notes</div>
+                        {notesSaved && <span style={{ fontSize: '0.65rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>Saved</span>}
+                      </div>
+                      <textarea value={leadNotes} onChange={e => setLeadNotes(e.target.value)} onBlur={e => saveLeadNotes(e.target.value)} placeholder="Add notes — auto-saves" rows={3}
+                        style={{ width: '100%', padding: '0.65rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                  <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {(!lead.status || lead.status === 'new') && <button onClick={() => markContacted(lead)} style={{ padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Mark as Contacted</button>}
+                    {phone && <a href={`tel:${phone}`} style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Call back</a>}
+                    <button onClick={() => setSelectedLead(null)} style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Dismiss</button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })()}
+        </AnimatePresence>
+
+      </div>
+    )
+  }
+
+  // ── Desktop render ────────────────────────────────────────────────────────────
 
   return (
     <div>
