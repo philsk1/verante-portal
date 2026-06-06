@@ -5,6 +5,16 @@ import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return isMobile
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 const startOfToday = () => {
@@ -446,6 +456,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const isDemo = !!demo?.isDemo
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const isMobile = useIsMobile()
 
   const [loading, setLoading] = useState(true)
   const [tenantId, setTenantId] = useState(null)
@@ -654,7 +665,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         return (
           <div
             data-help="Your AI status panel — live status, voice tier, minutes used, triage mode, and quick access to AI configuration."
-            style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', overflow: 'hidden' }}
+            style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', overflowX: isMobile ? 'auto' : 'hidden', overflowY: 'hidden' }}
           >
             {/* North star */}
             <div style={{ padding: '1.25rem 1.75rem', flexShrink: 0 }}>
@@ -726,7 +737,7 @@ const ActivityDashboard = ({ onNavigate }) => {
       </div>
 
       {/* ── ZONE 2 — LIVE FEED ────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
 
         {/* LEFT — Recent calls */}
         <div>
@@ -832,7 +843,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           <div>
 
             {/* 3-chart grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
 
               {/* Lead capture rate — donut */}
               <div style={{ ...s.section, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
@@ -918,10 +929,10 @@ const ActivityDashboard = ({ onNavigate }) => {
         const phone = call.callers?.phone_number || call.caller_phone
         return (
           <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? 0 : '1rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedCall(null) }}
           >
-            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
+            <div style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
               {/* Header */}
               <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
@@ -995,10 +1006,10 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         return (
           <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1.5rem' }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? 0 : '1.5rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedLead(null) }}
           >
-            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
+            <div style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 560, maxHeight: isMobile ? '92vh' : '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
 
               {/* Sticky header */}
               <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
