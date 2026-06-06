@@ -3,358 +3,77 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
-import { Copy, Check, ExternalLink } from 'lucide-react'
+import { Copy, Check, ExternalLink, Share2 } from 'lucide-react'
 
-// ─── styles ───────────────────────────────────────────────────────────────────
+// ─── specialty → colour system ────────────────────────────────────────────────
 
-const s = {
-  section: {
-    background: 'white',
-    borderRadius: '16px',
-    padding: '1.75rem',
-    border: '0.5px solid rgba(94,59,135,0.06)',
-    marginBottom: '1.25rem',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
-  },
-  sectionTitle: {
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    fontFamily: "'DM Sans', sans-serif",
-    color: '#aaaaaa',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    margin: '0 0 0.2rem',
-  },
-  sectionSubtitle: {
-    fontSize: '0.8rem',
-    color: '#888',
-    marginBottom: '1.25rem',
-    lineHeight: 1.55,
-  },
-  label: {
-    display: 'block',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    fontFamily: "'DM Sans', sans-serif",
-    color: '#aaaaaa',
-    marginBottom: '0.5rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-  },
-  allPlans: {
-    display: 'inline-block',
-    background: '#e6f5ee',
-    color: '#1e7a4a',
-    borderRadius: '999px',
-    padding: '0.15rem 0.6rem',
-    fontSize: '0.65rem',
-    fontWeight: '600',
-    letterSpacing: '0.04em',
-    marginLeft: '0.6rem',
-    verticalAlign: 'middle',
-  },
-  // Partner count bar
-  partnerCountRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '0.5rem',
-    marginBottom: '1rem',
-  },
-  partnerCount: {
-    fontFamily: "'Syne', sans-serif",
-    fontSize: '1.5rem',
-    fontWeight: 700,
-    color: '#5e3b87',
-  },
-  partnerCountLabel: {
-    fontSize: '0.8rem',
-    color: '#888',
-  },
-  partnerStrength: {
-    fontSize: '0.775rem',
-    color: '#f0a500',
-    fontWeight: '500',
-  },
-  // Partner cards
-  partnerGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '0.75rem',
-    marginBottom: '1.25rem',
-  },
-  partnerCard: {
-    border: '0.5px solid rgba(94,59,135,0.10)',
-    borderRadius: '12px',
-    padding: '0.85rem 1rem',
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: '0.5rem',
-    transition: 'border-color 0.15s, box-shadow 0.15s',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-  },
-  partnerName: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: '#5e3b87',
-    marginBottom: '0.15rem',
-  },
-  partnerPhone: {
-    fontSize: '0.775rem',
-    color: '#999',
-    marginBottom: '0.1rem',
-  },
-  partnerSpecialty: {
-    display: 'inline-block',
-    background: '#fef3d9',
-    color: '#b07a00',
-    borderRadius: '999px',
-    padding: '0.15rem 0.6rem',
-    fontSize: '0.68rem',
-    fontWeight: '600',
-    marginTop: '0.3rem',
-  },
-  removeBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: '#ddd',
-    fontSize: '1.1rem',
-    lineHeight: 1,
-    padding: '0 0 2px',
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-  },
-  // Add partner form
-  addSection: {
-    borderTop: '1px solid rgba(94,59,135,0.07)',
-    paddingTop: '1.25rem',
-  },
-  addRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '0.5rem',
-    marginBottom: '0.5rem',
-  },
-  addRowFull: {
-    display: 'grid',
-    gridTemplateColumns: '1fr auto',
-    gap: '0.5rem',
-  },
-  input: {
-    width: '100%',
-    padding: '0.55rem 0.75rem',
-    border: '1px solid rgba(94,59,135,0.2)',
-    borderRadius: '8px',
-    fontSize: '0.875rem',
-    color: '#1a1a1a',
-    outline: 'none',
-    fontFamily: "'DM Sans', sans-serif",
-    boxSizing: 'border-box',
-    background: 'white',
-  },
-  addBtn: {
-    padding: '0.55rem 1.1rem',
-    background: '#5e3b87',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '0.8125rem',
-    color: 'white',
-    cursor: 'pointer',
-    fontWeight: '500',
-    whiteSpace: 'nowrap',
-    fontFamily: "'DM Sans', sans-serif",
-    alignSelf: 'center',
-  },
-  addBtnDisabled: {
-    padding: '0.55rem 1.1rem',
-    background: '#d1c4e9',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '0.8125rem',
-    color: 'white',
-    cursor: 'not-allowed',
-    fontWeight: '500',
-    whiteSpace: 'nowrap',
-    fontFamily: "'DM Sans', sans-serif",
-    alignSelf: 'center',
-  },
-  emptyPartners: {
-    fontSize: '0.8rem',
-    color: '#ccc',
-    padding: '0.5rem 0 1.25rem',
-    fontStyle: 'italic',
-  },
-  // Referral code
-  codeBlock: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    marginBottom: '1rem',
-  },
-  codeDisplay: {
-    fontFamily: "'Syne', sans-serif",
-    fontSize: '1.75rem',
-    fontWeight: 700,
-    color: '#5e3b87',
-    letterSpacing: '0.08em',
-    background: '#f8f7fb',
-    borderRadius: '12px',
-    padding: '0.6rem 1.25rem',
-    flex: 1,
-    textAlign: 'center',
-    border: '0.5px solid rgba(94,59,135,0.08)',
-  },
-  copyBtn: (copied) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    padding: '0.55rem 1rem',
-    background: copied ? '#e6f5ee' : 'white',
-    border: `1px solid ${copied ? '#a7e8c2' : 'rgba(94,59,135,0.22)'}`,
-    borderRadius: '8px',
-    fontSize: '0.8125rem',
-    color: copied ? '#1e7a4a' : '#5e3b87',
-    cursor: 'pointer',
-    fontFamily: "'DM Sans', sans-serif",
-    fontWeight: '500',
-    transition: 'all 0.2s',
-    flexShrink: 0,
-  }),
-  referralLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    fontSize: '0.8rem',
-    color: '#888',
-    marginBottom: '1.25rem',
-    wordBreak: 'break-all',
-  },
-  qrRow: {
-    display: 'flex',
-    gap: '1.5rem',
-    alignItems: 'flex-start',
-  },
-  qrBox: {
-    border: '0.5px solid rgba(94,59,135,0.08)',
-    borderRadius: '12px',
-    padding: '8px',
-    background: 'white',
-    flexShrink: 0,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-  },
-  codeInfoTitle: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: '0.4rem',
-  },
-  codeInfoText: {
-    fontSize: '0.8rem',
-    color: '#888',
-    lineHeight: 1.6,
-    marginBottom: '0.4rem',
-  },
-  // Credits
-  creditDisplay: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '0.4rem',
-    marginBottom: '0.75rem',
-  },
-  creditNumber: {
-    fontFamily: "'Syne', sans-serif",
-    fontSize: '2.5rem',
-    fontWeight: 700,
-    color: '#5e3b87',
-    lineHeight: 1,
-  },
-  creditUnit: {
-    fontSize: '1rem',
-    color: '#888',
-  },
-  creditNote: {
-    fontSize: '0.8rem',
-    color: '#888',
-    lineHeight: 1.6,
-  },
-  creditBadge: {
-    display: 'inline-block',
-    background: '#fef3d9',
-    color: '#b07a00',
-    borderRadius: '999px',
-    padding: '0.2rem 0.65rem',
-    fontSize: '0.72rem',
-    fontWeight: '600',
-    marginBottom: '0.75rem',
-  },
-  // Network stats
-  networkGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '1rem',
-    marginBottom: '1.25rem',
-  },
-  networkStat: {
-    background: '#f8f7fb',
-    borderRadius: '12px',
-    padding: '1rem 1.25rem',
-    textAlign: 'center',
-    border: '0.5px solid rgba(94,59,135,0.06)',
-  },
-  networkStatNum: {
-    fontFamily: "'Syne', sans-serif",
-    fontSize: '1.75rem',
-    fontWeight: 700,
-    color: '#5e3b87',
-    marginBottom: '0.2rem',
-  },
-  networkStatLabel: {
-    fontSize: '0.775rem',
-    color: '#888',
-  },
-  anchorCard: {
-    background: 'linear-gradient(135deg, #5e3b87 0%, #3a2057 100%)',
-    borderRadius: '16px',
-    padding: '1.25rem 1.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-  },
-  anchorIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: '10px',
-    background: 'rgba(255,255,255,0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  anchorTitle: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: '0.25rem',
-  },
-  anchorText: {
-    fontSize: '0.8rem',
-    color: 'rgba(255,255,255,0.7)',
-    lineHeight: 1.55,
-  },
+const specialtyColour = (spec) => {
+  if (!spec) return { bar: '#5e3b87', ab: '#f0ebf8', at: '#5e3b87', cb: '#f0ebf8', ct: '#5e3b87' }
+  const t = spec.toLowerCase()
+  if (/plumb|electr|build|roof|carpet|floor|paint|decorat|gas|heat|air.?con|window|door|fenc|garden|lands|clean|waste|skip|pest|lock|glaz|tile|brick|concret|drain|guttr|joiner|carpent|handyman|damp|roofer|scaffold/.test(t))
+    return { bar: '#f0a500', ab: '#fef3d0', at: '#92610a', cb: '#fef3d0', ct: '#92610a' }
+  if (/physio|dental|dentist|doctor|osteo|chiro|optici|optom|mental|counsel|therap|health|medic|nurse|pharmac|beauty|hair|salon|spa|massage|nutrition|diet|gym|fitness|yoga|pilates|sport|care|wellbeing/.test(t))
+    return { bar: '#3db87a', ab: '#e6f5ee', at: '#1e7a4a', cb: '#e6f5ee', ct: '#1e7a4a' }
+  if (/solicit|account|legal|law|financ|ifa|mortgage|insur|consult|audit|tax|architect|engineer|recruit|market|design|tech|web|software|media|print|photog|video/.test(t))
+    return { bar: '#1d4ed8', ab: '#eff6ff', at: '#1d4ed8', cb: '#eff6ff', ct: '#1d4ed8' }
+  return { bar: '#5e3b87', ab: '#f0ebf8', at: '#5e3b87', cb: '#f0ebf8', ct: '#5e3b87' }
 }
 
-// ─── partner strength label ───────────────────────────────────────────────────
+const initials = (name) => name ? name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?'
 
 const networkStrength = (n) => {
   if (n === 0) return null
-  if (n < 3) return 'Getting started'
-  if (n < 6) return 'Building momentum'
-  if (n < 10) return 'Strong network'
-  if (n < 20) return 'Excellent coverage'
-  return 'Market-leading network'
+  if (n < 3)  return { label: 'Getting started', color: '#f0a500', bg: '#fef3d0' }
+  if (n < 6)  return { label: 'Building momentum', color: '#3db87a', bg: '#e6f5ee' }
+  if (n < 10) return { label: 'Strong network', color: '#1d4ed8', bg: '#eff6ff' }
+  if (n < 20) return { label: 'Excellent coverage', color: '#5e3b87', bg: '#f0ebf8' }
+  return       { label: 'Market-leading', color: '#1e7a4a', bg: '#dcfce7' }
 }
+
+// ─── shared primitives ────────────────────────────────────────────────────────
+
+const Row = ({ children, style }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...style }}>{children}</div>
+)
+
+const Badge = ({ children, bg = '#f0ebf8', color = '#5e3b87' }) => (
+  <span style={{
+    display: 'inline-flex', alignItems: 'center',
+    background: bg, color,
+    borderRadius: '999px', padding: '0.18rem 0.65rem',
+    fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.05em',
+    fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+  }}>{children}</span>
+)
+
+const SectionLabel = ({ children }) => (
+  <div style={{
+    fontSize: '0.6875rem', fontWeight: 600,
+    fontFamily: "'DM Sans', sans-serif",
+    color: '#aaaaaa', textTransform: 'uppercase',
+    letterSpacing: '0.08em', marginBottom: '0.1rem',
+  }}>{children}</div>
+)
+
+const Card = ({ children, style }) => (
+  <div style={{
+    background: 'white', borderRadius: '16px', padding: '1.5rem',
+    border: '0.5px solid rgba(94,59,135,0.08)', marginBottom: '1rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
+    ...style,
+  }}>{children}</div>
+)
+
+const Input = ({ style, ...props }) => (
+  <input style={{
+    width: '100%', padding: '0.6rem 0.8rem',
+    border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: '10px',
+    fontSize: '0.875rem', color: '#1a1a1a', outline: 'none',
+    fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
+    background: 'white', transition: 'border-color 0.15s',
+    ...style,
+  }} {...props} />
+)
 
 // ─── main component ───────────────────────────────────────────────────────────
 
@@ -365,25 +84,22 @@ const PartnersReferrals = () => {
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
 
-  const [loading, setLoading] = useState(true)
-  const [tenantId, setTenantId] = useState(null)
-  const [referralCode, setReferralCode] = useState('')
-  const [creditMonths, setCreditMonths] = useState(0)
-
-  const [partners, setPartners] = useState([])
+  const [loading, setLoading]               = useState(true)
+  const [tenantId, setTenantId]             = useState(null)
+  const [referralCode, setReferralCode]     = useState('')
+  const [creditMonths, setCreditMonths]     = useState(0)
+  const [partners, setPartners]             = useState([])
   const [partnerSpecialties, setPartnerSpecialties] = useState({})
-  const [outboundCount, setOutboundCount] = useState(0)
+  const [outboundCount, setOutboundCount]   = useState(0)
+  const [draft, setDraft]                   = useState({ name: '', phone: '', specialty: '' })
+  const [adding, setAdding]                 = useState(false)
+  const [codeCopied, setCodeCopied]         = useState(false)
+  const [linkCopied, setLinkCopied]         = useState(false)
 
-  const [draft, setDraft] = useState({ name: '', phone: '', specialty: '' })
-  const [adding, setAdding] = useState(false)
-
-  const [codeCopied, setCodeCopied] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
-
-  const referralUrl = referralCode ? `qerxel.com/join?ref=${referralCode}` : ''
+  const referralUrl     = referralCode ? `qerxel.com/join?ref=${referralCode}` : ''
   const fullReferralUrl = `https://${referralUrl}`
+  const estimatedValue  = Math.round(outboundCount * 75)
 
-  // Demo mode: inject data from DemoContext
   useEffect(() => {
     if (!isDemo || demo?.loading) return
     const biz = demo.business || {}
@@ -410,43 +126,24 @@ const PartnersReferrals = () => {
           tid = membership.tenant_id
         }
         setTenantId(tid)
-
-        const { data: tenant } = await supabase
-          .from('tenants')
-          .select('referral_code, credit_balance_months')
-          .eq('id', tid)
-          .maybeSingle()
-
+        const { data: tenant } = await supabase.from('tenants').select('referral_code, credit_balance_months').eq('id', tid).maybeSingle()
         if (tenant) {
           setReferralCode(tenant.referral_code || '')
           setCreditMonths(tenant.credit_balance_months || 0)
         }
-
-        const partnerRes = await supabase
-          .from('referral_partners')
-          .select('id, business_name, business_phone')
-          .eq('tenant_id', tid)
-          .order('created_at', { ascending: true })
-
+        const partnerRes = await supabase.from('referral_partners').select('id, business_name, business_phone').eq('tenant_id', tid).order('created_at', { ascending: true })
         const loaded = partnerRes.data || []
         setPartners(loaded)
-
         const partnerIds = loaded.map(p => p.id)
-
         const [specialtyRes, logRes] = await Promise.all([
           partnerIds.length > 0
             ? supabase.from('referral_service_map').select('partner_id, service_name').in('partner_id', partnerIds)
             : Promise.resolve({ data: [] }),
           supabase.from('referral_log').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
         ])
-
-        // Build specialty map: partner_id → first service_name
         const specMap = {}
-        ;(specialtyRes.data || []).forEach(row => {
-          if (!specMap[row.partner_id]) specMap[row.partner_id] = row.service_name
-        })
+        ;(specialtyRes.data || []).forEach(row => { if (!specMap[row.partner_id]) specMap[row.partner_id] = row.service_name })
         setPartnerSpecialties(specMap)
-
         setOutboundCount(logRes.count || 0)
       } catch (err) {
         console.error('Partners load error:', err)
@@ -462,25 +159,15 @@ const PartnersReferrals = () => {
     const name = draft.name.trim()
     if (!name || !tenantId) return
     setAdding(true)
-    const { data: newPartner, error } = await supabase
-      .from('referral_partners')
+    const { data: newPartner, error } = await supabase.from('referral_partners')
       .insert({ tenant_id: tenantId, business_name: name, business_phone: draft.phone.trim() || null })
-      .select()
-      .maybeSingle()
-
+      .select().maybeSingle()
     if (!error && newPartner) {
       setPartners(prev => [...prev, newPartner])
-
       if (draft.specialty.trim()) {
-        const { error: specError } = await supabase
-          .from('referral_service_map')
-          .insert({ partner_id: newPartner.id, service_name: draft.specialty.trim() })
-
-        if (!specError) {
-          setPartnerSpecialties(prev => ({ ...prev, [newPartner.id]: draft.specialty.trim() }))
-        }
+        const { error: specError } = await supabase.from('referral_service_map').insert({ partner_id: newPartner.id, service_name: draft.specialty.trim() })
+        if (!specError) setPartnerSpecialties(prev => ({ ...prev, [newPartner.id]: draft.specialty.trim() }))
       }
-
       setDraft({ name: '', phone: '', specialty: '' })
     }
     setAdding(false)
@@ -494,238 +181,345 @@ const PartnersReferrals = () => {
     setPartnerSpecialties(prev => { const n = { ...prev }; delete n[id]; return n })
   }
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(referralCode).then(() => {
-      setCodeCopied(true)
-      setTimeout(() => setCodeCopied(false), 2000)
-    })
-  }
+  const copyCode = () => navigator.clipboard.writeText(referralCode).then(() => { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000) })
+  const copyLink = () => navigator.clipboard.writeText(fullReferralUrl).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) })
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(fullReferralUrl).then(() => {
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    })
-  }
+  if (loading) return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading partners…</div>
 
   const strength = networkStrength(partners.length)
-  const estimatedValue = Math.round(outboundCount * 75)
 
-  if (loading) {
-    return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading partners…</div>
+  // ── speciality legend (unique colors in use) ──────────────────────────────
+  const legendColors = [...new Set(partners.map(p => specialtyColour(partnerSpecialties[p.id]).bar))]
+  const colorLabels = {
+    '#f0a500': 'Trades',
+    '#3db87a': 'Health & Wellness',
+    '#1d4ed8': 'Professional',
+    '#5e3b87': 'Other',
   }
 
   return (
     <div>
 
-      {/* Partner network */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your Partner Network is the list of businesses your AI can refer callers to when they ask for something you don't do. Every referral builds reciprocal obligation — partners who receive your callers are far more likely to send their callers to you.">
-          Your Partner Network
-          <span style={s.allPlans}>All plans · unlimited</span>
-        </h3>
+      {/* ── 1. PARTNER NETWORK ────────────────────────────────────────── */}
+      <Card>
+        <Row style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.6rem' }}>
+          <SectionLabel>Your Partner Network</SectionLabel>
+          <Badge bg="#e6f5ee" color="#1e7a4a">All plans · unlimited</Badge>
+          {strength && <Badge bg={strength.bg} color={strength.color}>{strength.label}</Badge>}
+          {partners.length > 0 && (
+            <span style={{ marginLeft: 'auto', fontFamily: "'Syne', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '#5e3b87' }}>
+              {partners.length}
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8rem', fontWeight: 400, color: '#aaa', marginLeft: '0.3rem' }}>
+                {partners.length === 1 ? 'partner' : 'partners'}
+              </span>
+            </span>
+          )}
+        </Row>
 
-        <p style={s.sectionSubtitle}>
-          When your AI cannot help a caller, it refers them to one of these businesses. Every referral you send builds an expectation of reciprocation. There is no limit to how many partners you can add.
-        </p>
-
-        {partners.length > 0 && (
-          <div style={s.partnerCountRow}>
-            <span style={s.partnerCount}>{partners.length}</span>
-            <span style={s.partnerCountLabel}>{partners.length === 1 ? 'partner' : 'partners'}</span>
-            {strength && <span style={s.partnerStrength}>· {strength}</span>}
-          </div>
-        )}
-
-        {partners.length === 0 ? (
-          <div style={s.emptyPartners}>No partners added yet. Add your first below.</div>
-        ) : (
-          <div style={s.partnerGrid}>
-            {partners.map(p => (
-              <div key={p.id} style={s.partnerCard}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={s.partnerName}>{p.business_name}</div>
-                  {p.business_phone && <div style={s.partnerPhone}>{p.business_phone}</div>}
-                  {partnerSpecialties[p.id] && (
-                    <span style={s.partnerSpecialty}>{partnerSpecialties[p.id]}</span>
-                  )}
-                </div>
-                <button style={s.removeBtn} onClick={() => removePartner(p.id)} title="Remove partner">×</button>
-              </div>
+        {/* legend */}
+        {legendColors.length > 1 && (
+          <Row style={{ marginBottom: '1rem', gap: '0.9rem', flexWrap: 'wrap' }}>
+            {legendColors.map(c => (
+              <span key={c} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: c, display: 'inline-block' }} />
+                {colorLabels[c] || 'Other'}
+              </span>
             ))}
+          </Row>
+        )}
+
+        {/* partner grid */}
+        {partners.length === 0 ? (
+          <div style={{ borderRadius: '14px', border: '1.5px dashed rgba(94,59,135,0.15)', padding: '2rem 1.5rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🤝</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.9rem', color: '#5e3b87', marginBottom: '0.35rem' }}>No partners yet</div>
+            <div style={{ fontSize: '0.8rem', color: '#aaa', lineHeight: 1.55 }}>
+              When your AI can't help a caller, it refers them here.<br />Every referral creates a reciprocal obligation.
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem', marginBottom: '1.25rem' }}>
+            {partners.map(p => {
+              const spec = partnerSpecialties[p.id]
+              const { bar, ab, at, cb, ct } = specialtyColour(spec)
+              return (
+                <div key={p.id} style={{
+                  background: 'white', borderRadius: '12px',
+                  border: '0.5px solid rgba(94,59,135,0.08)',
+                  borderLeft: `4px solid ${bar}`,
+                  padding: '0.8rem 0.8rem 0.8rem 0.85rem',
+                  display: 'flex', alignItems: 'flex-start', gap: '0.65rem',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '9px',
+                    background: ab, color: at,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.8rem',
+                    flexShrink: 0,
+                  }}>
+                    {initials(p.business_name)}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', marginBottom: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.business_name}
+                    </div>
+                    {p.business_phone && (
+                      <div style={{ fontSize: '0.75rem', color: '#999', marginBottom: '0.2rem' }}>{p.business_phone}</div>
+                    )}
+                    {spec && (
+                      <span style={{ display: 'inline-block', background: cb, color: ct, borderRadius: '999px', padding: '0.12rem 0.55rem', fontSize: '0.66rem', fontWeight: 700 }}>
+                        {spec}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removePartner(p.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ddd', fontSize: '1.1rem', lineHeight: 1, padding: '0', flexShrink: 0 }}
+                    title="Remove"
+                  >×</button>
+                </div>
+              )
+            })}
           </div>
         )}
 
-        <div style={s.addSection}>
-          <div style={s.label}>Add a partner</div>
-          <div style={s.addRow}>
-            <input
-              style={s.input}
-              value={draft.name}
-              onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') addPartner() }}
-              placeholder="Business name"
-            />
-            <input
-              style={s.input}
-              value={draft.phone}
-              onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
-              placeholder="Phone (optional)"
-              type="tel"
-            />
+        {/* add form */}
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)', paddingTop: '1.25rem' }}>
+          <SectionLabel>Add a partner</SectionLabel>
+          <div style={{ marginBottom: '0.5rem' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <Input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') addPartner() }} placeholder="Business name" />
+            <Input value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} placeholder="Phone (optional)" type="tel" />
           </div>
-          <div style={s.addRowFull}>
-            <input
-              style={s.input}
-              value={draft.specialty}
-              onChange={e => setDraft(d => ({ ...d, specialty: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') addPartner() }}
-              placeholder="What do they specialise in? (e.g. Electrical work, Commercial cleaning…)"
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem' }}>
+            <Input value={draft.specialty} onChange={e => setDraft(d => ({ ...d, specialty: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') addPartner() }} placeholder="What do they specialise in? (e.g. Electrical work, Commercial cleaning…)" />
             <button
-              style={!draft.name.trim() || adding ? s.addBtnDisabled : s.addBtn}
               onClick={addPartner}
               disabled={!draft.name.trim() || adding}
+              style={{
+                padding: '0.6rem 1.25rem', borderRadius: '10px', border: 'none',
+                background: !draft.name.trim() || adding ? '#f5d98a' : '#f0a500',
+                color: !draft.name.trim() || adding ? '#7a5c1a' : '#1a0533',
+                fontSize: '0.8125rem', fontWeight: 700, cursor: !draft.name.trim() || adding ? 'not-allowed' : 'pointer',
+                fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', alignSelf: 'center',
+              }}
             >
               {adding ? 'Adding…' : '+ Add partner'}
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* Referral code */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Qerxel automatically. Give the QR code to tradespeople, leave it on invoices, or post it in local trade groups.">
-          Your Referral Code
-          <span style={s.allPlans}>All plans</span>
-        </h3>
-        <p style={s.sectionSubtitle} data-help="Your Referral Code is unique to you. Share it with any business owner who takes calls — a plumber, a salon, a solicitor, anyone. When they sign up and enter your code, you earn one free month of Qerxel automatically. No chasing, no admin.">
-          Share this with any business owner. When they sign up, you earn a free month and they start knowing someone vouched for the product.
-        </p>
+      {/* ── 2. REFERRAL CODE — feature card ──────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #4a2d6e 0%, #3a2057 60%, #2d1a45 100%)',
+        borderRadius: '20px', padding: '2rem', marginBottom: '1rem',
+        boxShadow: '0 8px 32px rgba(94,59,135,0.35)',
+        position: 'relative', overflow: 'hidden',
+      }}
+        data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Qerxel automatically."
+      >
+        {/* decorative rings */}
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
 
-        {!referralCode ? (
-          <div style={{ fontSize: '0.85rem', color: '#aaa' }}>Your referral code will appear here once your account is activated.</div>
-        ) : (
-          <>
-            <div style={s.codeBlock}>
-              <div style={s.codeDisplay}>{referralCode}</div>
-              <button style={s.copyBtn(codeCopied)} onClick={copyCode}>
-                {codeCopied ? <Check size={14} /> : <Copy size={14} />}
-                {codeCopied ? 'Copied' : 'Copy code'}
-              </button>
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+          {/* left: code + actions */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.75rem' }}>
+              Your Referral Code
             </div>
 
-            <div style={s.referralLink}>
-              <ExternalLink size={13} color="#bbb" />
-              <span>{referralUrl}</span>
-              <button
-                onClick={copyLink}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? '#1e7a4a' : '#5e3b87', fontSize: '0.775rem', padding: '0 0.25rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}
-              >
-                {linkCopied ? 'Copied' : 'Copy link'}
-              </button>
-            </div>
+            {!referralCode ? (
+              <div style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.5)' }}>Code appears once your account is activated.</div>
+            ) : (
+              <>
+                <div style={{
+                  fontFamily: "'Syne', sans-serif", fontSize: '3rem', fontWeight: 700,
+                  color: '#f0a500', letterSpacing: '0.12em', lineHeight: 1,
+                  marginBottom: '1.25rem',
+                  textShadow: '0 0 40px rgba(240,165,0,0.4)',
+                }}>
+                  {referralCode}
+                </div>
 
-            <div style={s.qrRow}>
-              <div style={s.qrBox}>
+                <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                  <button onClick={copyCode} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.55rem 1.1rem', borderRadius: '8px', border: 'none',
+                    background: codeCopied ? '#3db87a' : '#f0a500',
+                    color: codeCopied ? 'white' : '#1a0533',
+                    fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s',
+                  }}>
+                    {codeCopied ? <Check size={13} /> : <Copy size={13} />}
+                    {codeCopied ? 'Copied!' : 'Copy code'}
+                  </button>
+                  <button onClick={copyLink} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.55rem 1rem', borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
+                    color: 'rgba(255,255,255,0.8)', fontSize: '0.8125rem', fontWeight: 500,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                    <ExternalLink size={13} />
+                    {linkCopied ? 'Copied!' : 'Copy link'}
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif", marginBottom: '1.25rem' }}>
+                  {referralUrl}
+                </div>
+
+                {/* stats strip */}
+                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: '#3db87a' }}>{outboundCount}</span>
+                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>referrals sent</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: '#f0a500' }}>£{estimatedValue.toLocaleString()}</span>
+                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>est. value generated</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* right: QR code */}
+          {referralCode && (
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ background: 'white', borderRadius: '14px', padding: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(fullReferralUrl)}&size=140x140&margin=4`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(fullReferralUrl)}&size=130x130&margin=4`}
                   alt="Referral QR code"
-                  width={140}
-                  height={140}
-                  style={{ display: 'block', borderRadius: 4 }}
+                  width={130} height={130}
+                  style={{ display: 'block', borderRadius: 6 }}
                 />
               </div>
-              <div>
-                <div style={s.codeInfoTitle}>How to use your code</div>
-                <p style={s.codeInfoText}>
-                  Give this code or link to any local business owner who takes calls. When they sign up, your code is recorded automatically — no follow-up needed.
-                </p>
-                <p style={s.codeInfoText}>
-                  Print the QR code and leave it with trade contacts, on invoices, or in your van. One scan starts the chain.
-                </p>
+              <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.67rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>
+                Scan to sign up
               </div>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Credits */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Credits are earned when someone signs up using your referral code. One signup = one free month of Qerxel credited to your account. Credits stack with no expiry and are applied automatically at renewal — no action needed from you.">
-          Credits
-          <span style={s.allPlans}>All plans</span>
-        </h3>
-        <p style={s.sectionSubtitle}>
-          Earned through referrals. Applied to your subscription automatically. They stack with no expiry.
-        </p>
-
-        <div style={s.creditDisplay}>
-          <span style={{ ...s.creditNumber, ...(creditMonths === 0 ? { color: '#d1d5db' } : {}) }}>
-            {creditMonths}
-          </span>
-          <span style={s.creditUnit}>{creditMonths === 1 ? 'month' : 'months'} credit</span>
-        </div>
-
-        {creditMonths > 0 && <div style={s.creditBadge}>Applied automatically at renewal</div>}
-
-        <div style={s.creditNote}>
-          One referral signup = one free month. Three referrals = three months. There is no cap. A tenant who has referred ten businesses has effectively earned almost a year free — and has ten partners who feel reciprocal obligation.
+          )}
         </div>
       </div>
 
-      {/* Network activity */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Network Activity shows the total number of referrals your AI has sent to partner businesses, and an estimate of the value those referrals represent. Every referral you send creates a reciprocal expectation — partners who receive your callers are far more likely to return the favour.">Network Activity</h3>
-        <p style={s.sectionSubtitle}>
-          Every referral you send builds reciprocal obligation. Partners who receive your callers are motivated to return them.
-        </p>
-
-        <div style={s.networkGrid}>
-          <div style={s.networkStat}>
-            <div style={s.networkStatNum}>{outboundCount}</div>
-            <div style={s.networkStatLabel}>Referrals sent</div>
+      {/* ── 3. CREDITS ────────────────────────────────────────────────── */}
+      {creditMonths > 0 ? (
+        <div style={{
+          background: 'linear-gradient(135deg, #f0a500 0%, #d4860a 100%)',
+          borderRadius: '16px', padding: '1.5rem', marginBottom: '1rem',
+          boxShadow: '0 4px 20px rgba(240,165,0,0.3)',
+          display: 'flex', alignItems: 'center', gap: '1.5rem',
+        }}
+          data-help="Credits are earned when someone signs up using your referral code. Applied automatically at renewal."
+        >
+          <div>
+            <div style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.35rem' }}>
+              Credits Earned
+            </div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '3.5rem', fontWeight: 700, color: 'white', lineHeight: 1 }}>
+              {creditMonths}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif", marginTop: '0.25rem' }}>
+              {creditMonths === 1 ? 'month free' : 'months free'}
+            </div>
           </div>
-          <div style={s.networkStat}>
-            <div style={s.networkStatNum}>£{estimatedValue.toLocaleString()}</div>
-            <div style={s.networkStatLabel}>Est. network value generated</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'white', marginBottom: '0.25rem' }}>Applied automatically at renewal</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+                One referral signup = one free month. They stack with no expiry.
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <Card data-help="Credits are earned when someone signs up using your referral code. One signup = one free month, automatically applied.">
+          <Row style={{ marginBottom: '0.75rem' }}>
+            <SectionLabel>Credits</SectionLabel>
+            <Badge bg="#fef3d0" color="#92610a">All plans</Badge>
+          </Row>
+          <Row style={{ gap: '1rem' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.5rem', fontWeight: 700, color: '#d1d5db', lineHeight: 1 }}>0</div>
+            <div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>No credits yet</div>
+              <div style={{ fontSize: '0.8rem', color: '#888', lineHeight: 1.5 }}>Share your code above. One signup = one free month, no cap, no expiry.</div>
+            </div>
+          </Row>
+        </Card>
+      )}
+
+      {/* ── 4. NETWORK ACTIVITY ───────────────────────────────────────── */}
+      <Card data-help="Network Activity shows the total referrals your AI has sent and the estimated value to partner businesses. Every referral creates reciprocal obligation.">
+        <Row style={{ marginBottom: '1.25rem' }}>
+          <SectionLabel>Network Activity</SectionLabel>
+        </Row>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          {/* referrals sent — green */}
+          <div style={{
+            background: '#e6f5ee', borderRadius: '14px', padding: '1.25rem 1rem',
+            border: '1px solid rgba(61,184,122,0.2)', textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.25rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.3rem' }}>
+              {outboundCount}
+            </div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
+              Referrals sent
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
+              Partners obligated
+            </div>
+          </div>
+
+          {/* estimated value — amber */}
+          <div style={{
+            background: '#fef3d0', borderRadius: '14px', padding: '1.25rem 1rem',
+            border: '1px solid rgba(240,165,0,0.25)', textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.25rem', fontWeight: 700, color: '#92610a', lineHeight: 1, marginBottom: '0.3rem' }}>
+              £{estimatedValue.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
+              Est. value generated
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
+              At £75 per referred caller
+            </div>
           </div>
         </div>
 
-        <div style={{ fontSize: '0.775rem', color: '#bbb', marginBottom: '1.25rem' }}>
-          Estimated at £75 per referred caller. Inbound reciprocal referrals populate as your network partners grow.
-        </div>
-
-        <div style={s.anchorCard}>
-          <div style={s.anchorIcon}>
-            <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        {/* anchor bar */}
+        <div style={{
+          background: 'linear-gradient(135deg, #5e3b87 0%, #3a2057 100%)',
+          borderRadius: '12px', padding: '1rem 1.25rem',
+          display: 'flex', alignItems: 'center', gap: '0.85rem',
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={s.anchorTitle}>
-              {partners.length >= 10
-                ? `${partners.length} partners — your network is a competitive advantage`
-                : partners.length >= 4
-                  ? `${partners.length} partners — reciprocal obligation is building`
-                  : partners.length > 0
-                    ? `${partners.length} partner${partners.length > 1 ? 's' : ''} — keep building`
-                    : 'Your referral network starts with your first partner'}
+            <div style={{ fontSize: '0.8375rem', fontWeight: 600, color: 'white', marginBottom: '0.2rem' }}>
+              {partners.length >= 10 ? `${partners.length} partners — your network is a competitive advantage`
+                : partners.length >= 4 ? `${partners.length} partners — reciprocal obligation is building`
+                : partners.length > 0 ? `${partners.length} partner${partners.length > 1 ? 's' : ''} — keep building`
+                : 'Your referral network starts with your first partner'}
             </div>
-            <div style={s.anchorText}>
-              {outboundCount >= 4
-                ? 'At this volume, partners feel genuine reciprocal obligation. Your inbound leads from the network will compound over time.'
-                : outboundCount > 0
-                  ? 'Keep building. Partners who receive multiple referrals from you become reliable sources of inbound leads.'
-                  : 'Add your first partner above. When your AI refers a caller to them, the reciprocal expectation begins.'}
+            <div style={{ fontSize: '0.775rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+              {outboundCount >= 4 ? 'At this volume, partners feel genuine reciprocal obligation. Inbound leads from the network compound over time.'
+                : outboundCount > 0 ? 'Keep building. Partners who receive multiple referrals from you become reliable sources of inbound leads.'
+                : 'Add your first partner above. When your AI refers a caller to them, the reciprocal expectation begins.'}
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
     </div>
   )
