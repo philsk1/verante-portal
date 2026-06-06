@@ -8,6 +8,19 @@ import { usePreview } from '../context/PreviewContext'
 
 const CLIENT_LIMIT = { light: 20, standard: 50, professional: 100, enterprise: 200, bespoke: 200 }
 
+// ─── avatar colour — consistent per name, cycles through palette ──────────────
+
+const AVATAR_PALETTE = [
+  { bg: '#f0ebf8', text: '#5e3b87' },
+  { bg: '#e6f5ee', text: '#1e7a4a' },
+  { bg: '#eff6ff', text: '#1d4ed8' },
+  { bg: '#fef3d0', text: '#92610a' },
+  { bg: '#dcfce7', text: '#166534' },
+  { bg: '#fce7f3', text: '#9d174d' },
+]
+const avatarColour = (name = '') => AVATAR_PALETTE[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_PALETTE.length]
+const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
+
 // ─── styles ───────────────────────────────────────────────────────────────────
 
 const s = {
@@ -835,23 +848,31 @@ const BusinessProfile = () => {
           <>
             {staff.length > 0 && (
               <div style={{ marginBottom: '1rem' }}>
-                {staff.map(member => (
-                  <div key={member.id} style={s.staffCard}>
-                    <span
-                      style={s.activeDot(member.active)}
-                      onClick={() => toggleStaffActive(member.id, member.active)}
-                      title={member.active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={s.staffName}>{member.name}</div>
-                      {member.role && <div style={s.staffRole}>{member.role}</div>}
-                      {member.specialist_services && <span style={s.staffSpecialty}>{member.specialist_services}</span>}
-                      {member.phone && <div style={s.staffPhone}>{member.phone}</div>}
-                      {member.direct_line_did && <div style={{ fontSize: '0.75rem', color: '#5e3b87', marginTop: '0.15rem' }}>DID: {member.direct_line_did}</div>}
+                {staff.map(member => {
+                  const av = avatarColour(member.name)
+                  return (
+                    <div key={member.id} style={{ ...s.staffCard, borderLeft: `4px solid ${av.text}`, opacity: member.active === false ? 0.55 : 1 }}>
+                      {/* Avatar circle */}
+                      <div style={{ width: 38, height: 38, borderRadius: '10px', background: av.bg, color: av.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', flexShrink: 0, position: 'relative' }}>
+                        {initials(member.name)}
+                        {/* Active status dot */}
+                        <span
+                          style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: member.active === false ? '#d1d5db' : '#3db87a', border: '2px solid white', cursor: 'pointer' }}
+                          onClick={() => toggleStaffActive(member.id, member.active)}
+                          title={member.active === false ? 'Inactive — click to activate' : 'Active — click to deactivate'}
+                        />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={s.staffName}>{member.name}</div>
+                        {member.role && <div style={s.staffRole}>{member.role}</div>}
+                        {member.specialist_services && <span style={{ ...s.staffSpecialty, background: av.bg, color: av.text }}>{member.specialist_services}</span>}
+                        {member.phone && <div style={s.staffPhone}>{member.phone}</div>}
+                        {member.direct_line_did && <div style={{ fontSize: '0.75rem', color: '#5e3b87', marginTop: '0.15rem' }}>DID: {member.direct_line_did}</div>}
+                      </div>
+                      <button style={s.removeBtn} onClick={() => removeStaff(member.id)} title="Remove">×</button>
                     </div>
-                    <button style={s.removeBtn} onClick={() => removeStaff(member.id)} title="Remove">×</button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
