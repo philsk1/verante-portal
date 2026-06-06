@@ -234,7 +234,7 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   cardTop: {
     display: 'flex',

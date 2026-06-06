@@ -63,7 +63,7 @@ const s = {
     padding: '1.75rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
     marginBottom: '1.25rem',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   sectionTitle: {
     fontSize: '0.6875rem',

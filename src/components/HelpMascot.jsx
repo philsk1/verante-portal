@@ -289,89 +289,43 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
 
   return (
     <>
-      {/* ── Vera home — top left ─────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+      {/* ── Vera strip — compact, non-intrusive ──────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.5rem' }}>
 
-        {/* Owl + label */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
-          <div
-            id="vera-trigger-btn"
-            className="vera-idle"
-            onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
-            style={{ lineHeight: 0, cursor: 'pointer' }}
+        {/* Tiny owl — click trigger */}
+        <div
+          id="vera-trigger-btn"
+          className="vera-idle"
+          onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
+          style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0, opacity: helpMode ? 1 : 0.7, transition: 'opacity 0.15s' }}
+          title={helpMode ? 'Close Vera' : 'Ask Vera for help'}
+        >
+          <Owl w={28} h={46} blink={blink} />
+        </div>
+
+        {/* Need more help button */}
+        {!needHelpMode ? (
+          <button
+            onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
+            style={{ padding: '0.25rem 0.65rem', background: 'white', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '999px', fontSize: '0.72rem', color: '#5e3b87', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flexShrink: 0 }}
           >
-            <Owl w={44} h={72} blink={blink} />
+            Ask Vera
+          </button>
+        ) : (
+          <button
+            onClick={closeAll}
+            style={{ padding: '0.25rem 0.65rem', background: '#5e3b87', border: 'none', borderRadius: '999px', fontSize: '0.72rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flexShrink: 0 }}
+          >
+            Done
+          </button>
+        )}
+
+        {/* Proactive speech — inline, fades in/out */}
+        {proactiveSpeech && (
+          <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
+            {proactiveSpeech}
           </div>
-          <span style={{
-            fontSize: '12px', color: '#5e3b87',
-            fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif",
-            cursor: 'pointer', userSelect: 'none', textAlign: 'center',
-            fontWeight: 500, lineHeight: 1.4,
-          }} onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}>
-            {helpMode ? 'Click to close' : <><span>Click on Vera the owl</span><br /><span>for suggestions</span></>}
-          </span>
-        </div>
-
-        {/* Need more help button — right of Vera with extra margin */}
-        <div style={{ paddingTop: '1.1rem', flexShrink: 0, marginLeft: '1.25rem' }}>
-          {!needHelpMode ? (
-            <button
-              onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
-              style={{
-                padding: '0.35rem 0.85rem',
-                background: 'white',
-                border: '1px solid rgba(94,59,135,0.25)',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                color: '#3a2057',
-                cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 600,
-              }}
-            >
-              Need more help?
-            </button>
-          ) : (
-            <button
-              onClick={closeAll}
-              style={{
-                padding: '0.35rem 0.85rem',
-                background: '#5e3b87',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                color: 'white',
-                cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 500,
-              }}
-            >
-              Close all · done
-            </button>
-          )}
-        </div>
-
-        {/* Business name + proactive speech */}
-        <div style={{ flex: 1, paddingTop: 4 }}>
-          {businessName && (
-            <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.6rem', color: '#aaa', margin: '0 0 0.35rem', lineHeight: 1.2 }}>
-              {businessName}
-            </p>
-          )}
-
-          {/* Proactive speech */}
-          {proactiveSpeech && (
-            <div style={{
-              background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px',
-              padding: '0.6rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)',
-              maxWidth: 420, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6,
-              fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem',
-              opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s',
-            }}>
-              {proactiveSpeech}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* ── Hover bubble (Vera mode) ─────────────────────────────────── */}

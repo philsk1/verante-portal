@@ -113,7 +113,7 @@ const s = {
     borderRadius: '12px',
     padding: '1.25rem 1.25rem 1.1rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   statLabel: {
     fontSize: '0.6875rem',

@@ -29,7 +29,7 @@ const s = {
     borderRadius: '16px',
     padding: '1.5rem 1.5rem 1.25rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   headlineLabel: {
     fontSize: '0.6875rem',
@@ -62,7 +62,7 @@ const s = {
     alignItems: 'center',
     gap: '1rem',
     marginBottom: '1.25rem',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   recoTitle: {
     fontSize: '0.875rem',
@@ -99,7 +99,7 @@ const s = {
     border: '0.5px solid rgba(94,59,135,0.06)',
     overflow: 'hidden',
     position: 'relative',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   featureHeader: {
     padding: '1.25rem 1.25rem 0',
