@@ -48,14 +48,30 @@ const formatDuration = (secs) => {
 const callerLabel = (call) =>
   call.callers?.full_name || call.callers?.phone_number || call.caller_phone || 'Unknown caller'
 
+const timeSince = (iso) => {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+const isUrgentLead = (iso) => {
+  const diff = Date.now() - new Date(iso).getTime()
+  return diff < 2 * 60 * 60 * 1000 // less than 2 hours old
+}
+
 const OUTCOME_BADGES = {
-  booked:         { label: 'Booked',       bg: '#e6f5ee', color: '#1e7a4a' },
-  lead_captured:  { label: 'Lead',         bg: '#ede8f5', color: '#5e3b87' },
-  referred_out:   { label: 'Referred out', bg: '#fef3d9', color: '#b07a00' },
-  filtered:       { label: 'Filtered',     bg: '#f0f0f0', color: '#888'    },
-  escalated:      { label: 'Escalated',    bg: '#ede8f5', color: '#5e3b87' },
-  hard_close:     { label: 'Closed',       bg: '#f0f0f0', color: '#888'    },
-  spam:           { label: 'Spam',         bg: '#f0f0f0', color: '#888'    },
+  booked:         { label: 'Booked',       bg: '#f0ebf8', color: '#5e3b87' },
+  lead_captured:  { label: 'Lead',         bg: '#e6f5ee', color: '#1e7a4a' },
+  referred_out:   { label: 'Referred out', bg: '#eff6ff', color: '#1d4ed8' },
+  filtered:       { label: 'Filtered',     bg: '#f8fafc', color: '#64748b' },
+  escalated:      { label: 'Escalated',    bg: '#fdecea', color: '#b91c1c' },
+  hard_close:     { label: 'Closed',       bg: '#f8fafc', color: '#64748b' },
+  spam:           { label: 'Spam',         bg: '#f8fafc', color: '#64748b' },
 }
 
 const outcomeBadge = (outcome) =>
@@ -66,9 +82,10 @@ const outcomeBadge = (outcome) =>
 const s = {
   section: {
     background: 'white',
-    borderRadius: '10px',
+    borderRadius: '16px',
     padding: '1.5rem',
-    border: '0.5px solid rgba(94,59,135,0.1)',
+    border: '0.5px solid rgba(94,59,135,0.08)',
+    boxShadow: '0 2px 12px rgba(94,59,135,0.06)',
   },
   sectionTitle: {
     fontSize: '0.8125rem',
@@ -106,11 +123,10 @@ const s = {
     fontWeight: '500',
   },
   recoCard: {
-    background: 'white',
-    borderRadius: '10px',
+    background: '#f0ebf8',
+    borderRadius: '16px',
     padding: '1.25rem 1.5rem',
-    border: '0.5px solid rgba(94,59,135,0.1)',
-    borderLeft: '3px solid #f0a500',
+    borderLeft: '4px solid #5e3b87',
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
@@ -240,6 +256,137 @@ const RecoCard = ({ title, body, actionLabel, onAction }) => (
   </div>
 )
 
+// ─── arc gauge ────────────────────────────────────────────────────────────────
+
+const ArcGauge = ({ pct }) => {
+  const clamped = Math.min(Math.max(pct, 0), 100)
+  const totalLen = 106.8  // π × r (r = 34)
+  const dashLen = (clamped / 100) * totalLen
+  const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f0a500' : '#5e3b87'
+  return (
+    <div style={{ position: 'relative', width: 80, height: 50, flexShrink: 0 }}>
+      <svg width="80" height="50" viewBox="0 0 80 50" style={{ display: 'block' }}>
+        <path d="M 6 44 A 34 34 0 0 1 74 44" fill="none" stroke="#f0ebf8" strokeWidth="7" strokeLinecap="round" />
+        <path d="M 6 44 A 34 34 0 0 1 74 44" fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${dashLen} ${totalLen}`} />
+      </svg>
+      <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.8125rem', color, lineHeight: 1 }}>
+        {pct}%
+      </div>
+    </div>
+  )
+}
+
+// ─── call card ────────────────────────────────────────────────────────────────
+
+const CallCard = ({ call, onClick }) => {
+  const [hovered, setHovered] = useState(false)
+  const badge = outcomeBadge(call.call_outcome)
+  const isUrgent = call.call_outcome === 'escalated'
+  const isFiltered = ['filtered', 'spam', 'hard_close'].includes(call.call_outcome)
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: isUrgent ? '#fdecea' : isFiltered ? '#f8fafc' : 'white',
+        borderRadius: 16,
+        border: isUrgent ? '1px solid #ef4444' : '0.5px solid rgba(94,59,135,0.08)',
+        borderLeft: isUrgent ? '3px solid #ef4444' : hovered && !isFiltered ? '3px solid #5e3b87' : '3px solid transparent',
+        boxShadow: hovered && !isUrgent ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 12px rgba(94,59,135,0.06)',
+        padding: '14px 18px',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+        transform: hovered && !isUrgent ? 'translateY(-2px)' : 'translateY(0)',
+        opacity: isFiltered ? 0.6 : 1,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: call.ai_summary ? 8 : 0 }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          {callerLabel(call)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: '0.75rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            {formatTime(call.created_at)}{call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ''}
+          </span>
+          <span style={{ display: 'inline-block', padding: '0.18rem 0.5rem', borderRadius: 4, fontSize: '0.6875rem', fontWeight: 600, background: badge.bg, color: badge.color, whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
+            {badge.label}
+          </span>
+        </div>
+      </div>
+      {call.ai_summary && (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', color: '#666666', lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          {call.ai_summary}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── lead card ────────────────────────────────────────────────────────────────
+
+const pulseStyle = `
+@keyframes urgentPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.5); }
+}
+`
+
+const LeadCard = ({ lead, onClick }) => {
+  const [hovered, setHovered] = useState(false)
+  const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
+  const urgent = isUrgentLead(lead.created_at)
+  const phone = lead.callers?.phone_number
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: urgent ? '#fef9ec' : 'white',
+        borderRadius: 16,
+        border: urgent ? '1px solid rgba(240,165,0,0.35)' : '0.5px solid rgba(94,59,135,0.08)',
+        borderLeft: urgent ? '3px solid #f0a500' : hovered ? '3px solid #5e3b87' : '3px solid transparent',
+        boxShadow: hovered ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 12px rgba(94,59,135,0.06)',
+        padding: '14px 18px',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {urgent && (
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f0a500', flexShrink: 0, animation: 'urgentPulse 1.6s ease-in-out infinite' }} />
+          )}
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            {name}
+          </div>
+        </div>
+        <span style={{ fontSize: '0.75rem', color: urgent ? '#b07a00' : '#aaaaaa', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', fontWeight: urgent ? 600 : 400, flexShrink: 0 }}>
+          {timeSince(lead.created_at)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}
+        onClick={e => e.stopPropagation()}>
+        {phone && (
+          <a href={`tel:${phone}`}
+            style={{ display: 'inline-block', padding: '0.22rem 0.65rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 5, background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            Call back
+          </a>
+        )}
+        <button onClick={onClick}
+          style={{ padding: '0.22rem 0.65rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 5, background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+          View →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const ActivityDashboard = ({ onNavigate }) => {
@@ -253,6 +400,13 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [tenantId, setTenantId] = useState(null)
   const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
+  const [tier, setTier] = useState('standard')
+  const [triageMode, setTriageMode] = useState('balanced')
+  const [voicePref, setVoicePref] = useState('premium')
+  const [selectedCall, setSelectedCall] = useState(null)
+  const [selectedLead, setSelectedLead] = useState(null)
+  const [leadNotes, setLeadNotes] = useState('')
+  const [leadNotesSaving, setLeadNotesSaving] = useState(false)
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -266,6 +420,9 @@ const ActivityDashboard = ({ onNavigate }) => {
     setReferrals(demo.referrals)
     setBusinessName(demo.business?.business_name || '')
     setIncludedMinutes(demo.includedMinutes)
+    setTier(demo.business?.tier || 'standard')
+    setTriageMode(demo.business?.triage_mode || 'balanced')
+    setVoicePref('premium')
     setLoading(false)
   }, [isDemo, demo?.loading])
 
@@ -287,13 +444,16 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes')
+          .select('business_name, included_minutes, tier, triage_mode, overage_voice_preference')
           .eq('id', tid)
           .maybeSingle()
 
         if (tenant) {
           setBusinessName(tenant.business_name || '')
           setIncludedMinutes(tenant.included_minutes || 250)
+          setTier(tenant.tier || 'standard')
+          setTriageMode(tenant.triage_mode || 'balanced')
+          setVoicePref(tenant.overage_voice_preference || 'premium')
         }
 
         const monthIso = startOfMonth().toISOString()
@@ -309,7 +469,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
           supabase
             .from('leads')
-            .select('id, created_at, status, lead_contact_name, callers(phone_number)')
+            .select('id, created_at, status, lead_contact_name, notes, ai_summary, callers(phone_number)')
             .eq('tenant_id', tid)
             .gte('created_at', startOfDaysAgo(30).toISOString())
             .order('created_at', { ascending: false })
@@ -335,6 +495,29 @@ const ActivityDashboard = ({ onNavigate }) => {
     }
     load()
   }, [user, isDemo, isPreview])
+
+  // ESC to close modals
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') { setSelectedCall(null); setSelectedLead(null) } }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
+
+  // Sync notes when lead modal opens
+  useEffect(() => {
+    setLeadNotes(selectedLead?.notes || '')
+  }, [selectedLead?.id])
+
+  const saveLeadNotes = async (value) => {
+    if (isDemo || isPreview || !selectedLead?.id) return
+    setLeadNotesSaving(true)
+    try {
+      await supabase.from('leads').update({ notes: value }).eq('id', selectedLead.id)
+      setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: value } : l))
+    } finally {
+      setLeadNotesSaving(false)
+    }
+  }
 
   // ── computed stats ──────────────────────────────────────────────────────────
 
@@ -396,113 +579,167 @@ const ActivityDashboard = ({ onNavigate }) => {
   return (
     <div>
 
-      {/* Greeting */}
+      {/* ── ZONE 1 — ENGINE AND CONTROL ───────────────────────────────────── */}
+      {(() => {
+        const aiStatus = minutesPct >= 100
+          ? { label: 'Paused', color: '#b91c1c', bg: '#fdecea', dot: '#ef4444' }
+          : minutesPct >= 80
+          ? { label: 'Near limit', color: '#b07a00', bg: '#fef3d9', dot: '#f0a500' }
+          : { label: 'Active', color: '#1e7a4a', bg: '#e6f5ee', dot: '#3db87a' }
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
-        <div data-help="Calls today shows how many conversations your AI has had so far today. The smaller number below is the total for the whole month.">
-          <StatCard label="Calls today" value={callsToday} trend={callsThisMonth > 0 ? `${callsThisMonth} this month` : null} />
-        </div>
-        <div data-help="New leads are people your AI spoke to in the last 7 days who expressed genuine interest — they gave their details or asked to be followed up. These are warm prospects.">
-          <StatCard label="New leads" value={leadsThisWeek} trend="last 7 days" />
-        </div>
-        <div data-help="Referrals sent is how many callers your AI passed to a partner business this week because they needed something outside your scope. Every referral builds goodwill.">
-          <StatCard label="Referrals sent" value={referralsThisWeek} trend="last 7 days" />
-        </div>
-        <div data-help="Minutes used shows how much of your monthly call allowance has been used. When this reaches 100%, your AI stops answering calls until the next billing cycle — so keep an eye on it.">
-          <StatCard label="Minutes used" value={minutesUsed} trend={`of ${includedMinutes} this month`} />
-        </div>
-      </div>
+        const voiceLabel = tier === 'free' ? 'Standard voice' : voicePref === 'standard' ? 'Standard voice' : 'Premium voice'
+        const voiceColor = (tier === 'free' || voicePref === 'standard') ? { color: '#64748b', bg: '#f8fafc' } : { color: '#5e3b87', bg: '#f0ebf8' }
 
-      {/* Recommendation */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <RecoCard
-          title={reco.title}
-          body={reco.body}
-          actionLabel={reco.actionLabel}
-          onAction={reco.onAction}
-        />
-      </div>
+        const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
+        const triageColors = {
+          strict:   { color: '#1d4ed8', bg: '#eff6ff' },
+          balanced: { color: '#5e3b87', bg: '#f0ebf8' },
+          open:     { color: '#1e7a4a', bg: '#e6f5ee' },
+        }
+        const triage = { label: triageLabels[triageMode] || 'Balanced', ...((triageColors[triageMode]) || triageColors.balanced) }
 
-      {/* Recent calls */}
-      <div style={{ ...s.section, marginBottom: '1.25rem' }}>
-        <div style={s.sectionTitle} data-help="Recent calls is a log of the last 8 conversations your AI handled. The coloured dot shows the outcome — green means booked, purple means a lead was captured, grey means the call was closed or filtered. The italicised text is the summary your AI wrote after the call.">Recent calls</div>
-        {recentCalls.length === 0 ? (
-          <div style={s.emptyState}>No calls recorded yet.</div>
-        ) : (
-          recentCalls.map((call, i) => {
-            const badge = outcomeBadge(call.call_outcome)
-            const isLast = i === recentCalls.length - 1
-            return (
-              <div key={call.id} style={{ ...s.callRow, borderBottom: isLast ? 'none' : s.callRow.borderBottom }}>
-                <span style={s.callDot(call.call_outcome)} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={s.callCaller}>{callerLabel(call)}</div>
-                  <div style={s.callMeta}>
-                    {formatDateLabel(call.created_at)} · {formatTime(call.created_at)}
-                    {call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ''}
-                  </div>
-                  {call.ai_summary && (
-                    <div style={s.callNotes}>"{call.ai_summary}"</div>
-                  )}
-                </div>
-                <span style={s.badge(badge.bg, badge.color)}>{badge.label}</span>
+        const vDiv = <div style={{ width: 1, alignSelf: 'stretch', margin: '1rem 0', background: '#e0d8ed', flexShrink: 0 }} />
+
+        return (
+          <div
+            data-help="Your AI status panel — live status, voice tier, minutes used, triage mode, and quick access to AI configuration."
+            style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', overflow: 'hidden' }}
+          >
+            {/* North star */}
+            <div style={{ padding: '1.25rem 1.75rem', flexShrink: 0 }}>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: '#5e3b87', lineHeight: 1 }}>{callsToday}</div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6, fontFamily: "'DM Sans', sans-serif" }}>calls today</div>
+            </div>
+
+            {vDiv}
+
+            {/* AI status + voice tier */}
+            <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>AI Status</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: aiStatus.dot, flexShrink: 0 }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: aiStatus.color }}>{aiStatus.label}</span>
               </div>
-            )
-          })
-        )}
+              <span style={{ display: 'inline-block', padding: '0.15rem 0.55rem', borderRadius: 4, fontSize: '0.6875rem', fontWeight: 600, background: voiceColor.bg, color: voiceColor.color, fontFamily: "'DM Sans', sans-serif" }}>
+                {voiceLabel}
+              </span>
+            </div>
+
+            {vDiv}
+
+            {/* Arc gauge */}
+            <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'DM Sans', sans-serif" }}>Minutes</div>
+              <ArcGauge pct={minutesPct} />
+              <div style={{ fontSize: '0.72rem', color: '#aaaaaa', marginTop: 4, fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}>{minutesUsed} / {includedMinutes}</div>
+            </div>
+
+            {vDiv}
+
+            {/* Triage mode */}
+            <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>Triage mode</div>
+              <span style={{ display: 'inline-block', padding: '0.25rem 0.7rem', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 600, background: triage.bg, color: triage.color, fontFamily: "'DM Sans', sans-serif" }}>
+                {triage.label}
+              </span>
+            </div>
+
+            {vDiv}
+
+            {/* This month */}
+            <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>This month</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', lineHeight: 1 }}>{callsThisMonth}</div>
+              <div style={{ fontSize: '0.72rem', color: '#aaaaaa', marginTop: 4, fontFamily: "'DM Sans', sans-serif" }}>total calls</div>
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Configure */}
+            <div style={{ padding: '1.25rem 1.5rem', flexShrink: 0 }}>
+              <button
+                onClick={() => onNavigate && onNavigate('ai')}
+                style={{ padding: '0.45rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                Configure →
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── DIVIDER: Today's Activity ──────────────────────────────────────── */}
+      <div style={{ margin: '1.75rem 0 1.25rem' }}>
+        <span style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Today's Activity</span>
+        <div style={{ height: 1, background: '#e0d8ed' }} />
       </div>
 
-      {/* Leads + Referrals */}
+      {/* ── ZONE 2 — LIVE FEED ────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
 
-        {/* Leads requiring action */}
-        <div style={s.section}>
-          <div style={s.sectionTitle}>
+        {/* LEFT — Recent calls */}
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}
+            data-help="Recent calls is a log of the last 8 conversations your AI handled. The coloured badge shows the outcome — what the AI did with the call.">
+            Recent calls
+          </div>
+          {recentCalls.length === 0 ? (
+            <div style={{ ...s.section, ...s.emptyState }}>No calls recorded yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {recentCalls.map((call) => (
+                <CallCard key={call.id} call={call} onClick={() => setSelectedCall(call)} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — Leads requiring action */}
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}
+            data-help="Leads requiring action are people who called in and need a follow-up from you. The quicker you respond, the higher the conversion rate.">
             Leads requiring action
             {actionableLeads.length > 0 && (
-              <span style={{ marginLeft: '0.5rem', background: '#ede8f5', color: '#5e3b87', borderRadius: '10px', padding: '0.1rem 0.5rem', fontSize: '0.7rem', fontWeight: 600 }}>
+              <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: '10px', padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
                 {actionableLeads.length}
               </span>
             )}
           </div>
           {actionableLeads.length === 0 ? (
-            <div style={s.emptyState}>No leads waiting for follow-up.</div>
+            <div style={{ ...s.section, ...s.emptyState }}>No leads waiting for follow-up.</div>
           ) : (
-            actionableLeads.slice(0, 6).map((lead, i) => {
-              const isLast = i === Math.min(actionableLeads.length, 6) - 1
-              const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
-              return (
-                <div key={lead.id} style={{ ...s.leadRow, borderBottom: isLast ? 'none' : s.leadRow.borderBottom }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={s.leadName}>{name}</div>
-                    <div style={s.leadMeta}>
-                      {formatDateLabel(lead.created_at)} · {formatTime(lead.created_at)}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
-                    <button
-                      onClick={() => onNavigate('calendar', {
-                        title: name,
-                        notes: `Lead captured ${formatDateLabel(lead.created_at)}${lead.callers?.phone_number ? ` · ${lead.callers.phone_number}` : ''}`,
-                      })}
-                      style={{ padding: '0.25rem 0.65rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '5px', background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                    >
-                      Book
-                    </button>
-                    <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
-                    <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />
-                    <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {actionableLeads.slice(0, 6).map((lead) => (
+                <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} />
+              ))}
+              {actionableLeads.length > 6 && (
+                <div style={{ fontSize: '0.775rem', color: '#bbb', paddingLeft: '0.25rem' }}>
+                  +{actionableLeads.length - 6} more
                 </div>
-              )
-            })
-          )}
-          {actionableLeads.length > 6 && (
-            <div style={{ fontSize: '0.775rem', color: '#bbb', marginTop: '0.5rem' }}>
-              +{actionableLeads.length - 6} more
+              )}
             </div>
           )}
+        </div>
+
+      </div>
+
+      {/* ── DIVIDER: Patterns ─────────────────────────────────────────────── */}
+      <div style={{ margin: '1.75rem 0 1.25rem' }}>
+        <span style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Patterns</span>
+        <div style={{ height: 1, background: '#e0d8ed' }} />
+      </div>
+
+      {/* ── ZONE 3 — HISTORICAL SNAPSHOT ──────────────────────────────────── */}
+      <div>
+
+        {/* Recommendation */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <RecoCard
+            title={reco.title}
+            body={reco.body}
+            actionLabel={reco.actionLabel}
+            onAction={reco.onAction}
+          />
         </div>
 
         {/* Referrals sent today */}
@@ -530,6 +767,220 @@ const ActivityDashboard = ({ onNavigate }) => {
         </div>
 
       </div>
+
+      {/* Pulse keyframe */}
+      <style>{pulseStyle}</style>
+
+      {/* ── CALL DETAIL MODAL ─────────────────────────────────────────────── */}
+      {selectedCall && (() => {
+        const call = selectedCall
+        const badge = outcomeBadge(call.call_outcome)
+        const phone = call.callers?.phone_number || call.caller_phone
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}
+            onClick={e => { if (e.target === e.currentTarget) setSelectedCall(null) }}
+          >
+            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                  <div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 6 }}>{callerLabel(call)}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 600, background: badge.bg, color: badge.color, fontFamily: "'DM Sans', sans-serif" }}>{badge.label}</span>
+                      <span style={{ fontSize: '0.8rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>
+                        {formatDateLabel(call.created_at)} · {formatTime(call.created_at)}
+                        {call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedCall(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaaaaa', fontSize: '1.25rem', lineHeight: 1, padding: '0.15rem 0.25rem', flexShrink: 0 }}>×</button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '1.5rem 1.75rem' }}>
+                {call.ai_summary && (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div>
+                    <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>{call.ai_summary}</div>
+                  </div>
+                )}
+
+                {/* Action row */}
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  {phone && (
+                    <a
+                      href={`tel:${phone}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      Call back
+                    </a>
+                  )}
+                  <button
+                    onClick={() => { setSelectedCall(null); onNavigate && onNavigate('calendar') }}
+                    style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Book appointment
+                  </button>
+                  <button
+                    onClick={() => setSelectedCall(null)}
+                    style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── LEAD DETAIL MODAL ─────────────────────────────────────────────── */}
+      {selectedLead && (() => {
+        const lead = selectedLead
+        const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
+        const phone = lead.callers?.phone_number
+        const urgent = isUrgentLead(lead.created_at)
+
+        const STATUS_LABELS = { new: 'New', contacted: 'Contacted', converted: 'Converted', lost: 'Lost' }
+        const STATUS_COLORS = {
+          new:       { bg: '#e6f5ee', color: '#1e7a4a' },
+          contacted: { bg: '#eff6ff', color: '#1d4ed8' },
+          converted: { bg: '#f0ebf8', color: '#5e3b87' },
+          lost:      { bg: '#f8fafc', color: '#64748b' },
+        }
+        const statusStyle = STATUS_COLORS[lead.status] || STATUS_COLORS.new
+
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1.5rem' }}
+            onClick={e => { if (e.target === e.currentTarget) setSelectedLead(null) }}
+          >
+            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+
+              {/* Sticky header */}
+              <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, fontFamily: "'DM Sans', sans-serif" }}>
+                        {STATUS_LABELS[lead.status] || 'New'}
+                      </span>
+                      {urgent && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0.18rem 0.55rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: '#fef3d9', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', animation: 'urgentPulse 1.6s ease-in-out infinite' }} />
+                          New — act fast
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.78rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>
+                        {timeSince(lead.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedLead(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaaaaa', fontSize: '1.5rem', lineHeight: 1, padding: '0 0.2rem', flexShrink: 0 }}>×</button>
+                </div>
+              </div>
+
+              {/* Scrollable body */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                {/* Section 1 — Summary */}
+                {lead.ai_summary && (
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div>
+                    <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", background: '#f7f6f9', borderRadius: 10, padding: '0.85rem 1rem' }}>
+                      {lead.ai_summary}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 2 — Details */}
+                <div>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>Details</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {phone && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
+                        <span style={{ color: '#aaaaaa' }}>Phone</span>
+                        <a href={`tel:${phone}`} style={{ color: '#5e3b87', fontWeight: 500, textDecoration: 'none' }}>{phone}</a>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ color: '#aaaaaa' }}>Captured</span>
+                      <span style={{ color: '#1a1a1a' }}>{formatDateLabel(lead.created_at)} at {formatTime(lead.created_at)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ color: '#aaaaaa' }}>Status</span>
+                      <span style={{ color: statusStyle.color, fontWeight: 600 }}>{STATUS_LABELS[lead.status] || 'New'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3 — Notes */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.6rem' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif" }}>Notes</div>
+                    {leadNotesSaving && <span style={{ fontSize: '0.65rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>Saving…</span>}
+                  </div>
+                  <textarea
+                    value={leadNotes}
+                    onChange={e => setLeadNotes(e.target.value)}
+                    onBlur={e => saveLeadNotes(e.target.value)}
+                    placeholder="Add notes about this lead — auto-saves when you click away"
+                    rows={4}
+                    style={{ width: '100%', padding: '0.75rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box', background: 'white' }}
+                  />
+                </div>
+
+                {/* Section 4 — History */}
+                <div>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>History</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif" }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e6f5ee', border: '2px solid #3db87a', flexShrink: 0 }} />
+                      <span style={{ color: '#666' }}>Lead captured by AI</span>
+                      <span style={{ color: '#aaaaaa', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatDateLabel(lead.created_at)} · {formatTime(lead.created_at)}</span>
+                    </div>
+                    {lead.status && lead.status !== 'new' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif" }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusStyle.bg, border: `2px solid ${statusStyle.color}`, flexShrink: 0 }} />
+                        <span style={{ color: '#666' }}>Status: {STATUS_LABELS[lead.status]}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Sticky footer */}
+              <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {phone && (
+                  <a href={`tel:${phone}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Call back
+                  </a>
+                )}
+                <button
+                  onClick={() => { setSelectedLead(null); onNavigate && onNavigate('calendar', { title: name, notes: phone ? `Lead · ${phone}` : 'Lead captured' }) }}
+                  style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                  Book appointment
+                </button>
+                <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />
+                <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />
+                <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />
+                <button onClick={() => setSelectedLead(null)}
+                  style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Close
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )
+      })()}
+
     </div>
   )
 }
