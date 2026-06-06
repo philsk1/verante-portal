@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactApexChart from 'react-apexcharts'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
@@ -271,17 +272,17 @@ const RecoCard = ({ title, body, actionLabel, onAction }) => (
 
 const ArcGauge = ({ pct }) => {
   const clamped = Math.min(Math.max(pct, 0), 100)
-  const totalLen = 106.8  // π × r (r = 34)
+  const totalLen = 62.8  // π × r (r = 20)
   const dashLen = (clamped / 100) * totalLen
   const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f0a500' : '#5e3b87'
   return (
-    <div style={{ position: 'relative', width: 80, height: 50, flexShrink: 0 }}>
-      <svg width="80" height="50" viewBox="0 0 80 50" style={{ display: 'block' }}>
-        <path d="M 6 44 A 34 34 0 0 1 74 44" fill="none" stroke="#f0ebf8" strokeWidth="7" strokeLinecap="round" />
-        <path d="M 6 44 A 34 34 0 0 1 74 44" fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+    <div style={{ position: 'relative', width: 48, height: 30, flexShrink: 0 }}>
+      <svg width="48" height="30" viewBox="0 0 48 30" style={{ display: 'block' }}>
+        <path d="M 4 26 A 20 20 0 0 1 44 26" fill="none" stroke="#f0ebf8" strokeWidth="5" strokeLinecap="round" />
+        <path d="M 4 26 A 20 20 0 0 1 44 26" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={`${dashLen} ${totalLen}`} />
       </svg>
-      <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.8125rem', color, lineHeight: 1 }}>
+      <div style={{ position: 'absolute', bottom: 2, left: 0, right: 0, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.625rem', color, lineHeight: 1 }}>
         {pct}%
       </div>
     </div>
@@ -502,6 +503,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [leadNotes, setLeadNotes] = useState('')
   const [leadNotesSaving, setLeadNotesSaving] = useState(false)
   const [connectedIntegrations, setConnectedIntegrations] = useState(new Set())
+  const [notesSaved, setNotesSaved] = useState(false)
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -622,8 +624,21 @@ const ActivityDashboard = ({ onNavigate }) => {
     try {
       await supabase.from('leads').update({ notes: value }).eq('id', selectedLead.id)
       setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: value } : l))
+      setNotesSaved(true)
+      setTimeout(() => setNotesSaved(false), 2000)
     } finally {
       setLeadNotesSaving(false)
+    }
+  }
+
+  const markContacted = async (lead) => {
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'contacted' } : l))
+    setSelectedLead(null)
+    if (isDemo || isPreview) return
+    try {
+      await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id)
+    } catch {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'new' } : l))
     }
   }
 
@@ -824,18 +839,6 @@ const ActivityDashboard = ({ onNavigate }) => {
             </div>
 
             <div style={{ flex: 1 }} />
-
-            {/* Configure — desktop only */}
-            {!isMobile && (
-              <div style={{ padding: '1.25rem 1.5rem', flexShrink: 0 }}>
-                <button
-                  onClick={() => onNavigate && onNavigate('ai')}
-                  style={{ padding: '0.45rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                >
-                  Configure →
-                </button>
-              </div>
-            )}
           </div>
         )
       })()}
@@ -862,9 +865,13 @@ const ActivityDashboard = ({ onNavigate }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {recentCalls.map((call, i) => (
-                <div key={call.id} style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16,1,0.3,1)', animationDelay: `${i * 0.05}s`, animationFillMode: 'both' }}>
+                <motion.div key={call.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+                >
                   <CallCard call={call} onClick={() => setSelectedCall(call)} />
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -888,9 +895,13 @@ const ActivityDashboard = ({ onNavigate }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {actionableLeads.slice(0, 6).map((lead, i) => (
-                <div key={lead.id} style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16,1,0.3,1)', animationDelay: `${i * 0.05}s`, animationFillMode: 'both' }}>
+                <motion.div key={lead.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+                >
                   <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
-                </div>
+                </motion.div>
               ))}
               {actionableLeads.length > 6 && (
                 <div style={{ fontSize: '0.775rem', color: '#bbb', paddingLeft: '0.25rem' }}>
@@ -934,9 +945,12 @@ const ActivityDashboard = ({ onNavigate }) => {
         }
         const donutSeries = callsThisMonth > 0 ? [capturedCount, Math.max(0, callsThisMonth - capturedCount)] : [0, 1]
 
+        const busiestIdx = weekCounts.indexOf(Math.max(...weekCounts))
+        const busiestLabel = weekCounts[busiestIdx] > 0 ? weekLabels[busiestIdx] : null
+
         const sparkBarOptions = {
           chart: { type: 'bar', sparkline: { enabled: true }, animations: { enabled: true } },
-          colors: ['#5e3b87'],
+          colors: [({ dataPointIndex }) => dataPointIndex === week7.length - 1 ? '#5e3b87' : '#e0d8ed'],
           plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
           tooltip: { enabled: true, x: { show: true }, y: { formatter: v => `${v} call${v !== 1 ? 's' : ''}` } },
           xaxis: { categories: weekLabels },
@@ -975,23 +989,41 @@ const ActivityDashboard = ({ onNavigate }) => {
                 <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
                   <CountUp to={weekCounts.reduce((a, b) => a + b, 0)} />
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 'auto' }}>calls this week</div>
-                <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>calls this week</div>
+                {busiestLabel && (
+                  <div style={{ fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>
+                    Busiest: {busiestLabel}
+                  </div>
+                )}
+                <div style={{ marginTop: 'auto', paddingTop: 16 }}>
                   <ReactApexChart options={sparkBarOptions} series={sparkBarSeries} type="bar" height={70} />
                 </div>
               </div>
 
               {/* 30-day minutes — line chart */}
-              <div style={{ ...s.section, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ ...s.sectionTitle, marginBottom: '0.5rem' }}>30-day minutes</div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
-                  <CountUp to={minutesUsed} />
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 'auto' }}>minutes used</div>
-                <div style={{ marginTop: 16 }}>
-                  <ReactApexChart options={lineOptions} series={lineSeries} type="area" height={70} />
-                </div>
-              </div>
+              {(() => {
+                const dayOfMonth = new Date().getDate()
+                const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
+                const projectedMinutes = dayOfMonth > 0 ? Math.round((minutesUsed / dayOfMonth) * daysInMonth) : 0
+                const projColor = projectedMinutes > includedMinutes ? '#ef4444' : projectedMinutes > includedMinutes * 0.8 ? '#f0a500' : '#3db87a'
+                return (
+                  <div style={{ ...s.section, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ ...s.sectionTitle, marginBottom: '0.5rem' }}>30-day minutes</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
+                      <CountUp to={minutesUsed} />
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>minutes used</div>
+                    {projectedMinutes > 0 && (
+                      <div style={{ fontSize: '0.72rem', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500, color: projColor }}>
+                        ~{projectedMinutes} projected this month
+                      </div>
+                    )}
+                    <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+                      <ReactApexChart options={lineOptions} series={lineSeries} type="area" height={70} />
+                    </div>
+                  </div>
+                )
+              })()}
 
             </div>
 
@@ -1037,16 +1069,28 @@ const ActivityDashboard = ({ onNavigate }) => {
       <style>{pulseStyle}</style>
 
       {/* ── CALL DETAIL MODAL ─────────────────────────────────────────────── */}
+      <AnimatePresence>
       {selectedCall && (() => {
         const call = selectedCall
         const badge = outcomeBadge(call.call_outcome)
         const phone = call.callers?.phone_number || call.caller_phone
         return (
-          <div
+          <motion.div
+            key="call-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? 0 : '1rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedCall(null) }}
           >
-            <div style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
+            <motion.div
+              initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+              animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+              exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}
+            >
               {/* Header */}
               <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
@@ -1097,12 +1141,14 @@ const ActivityDashboard = ({ onNavigate }) => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )
       })()}
+      </AnimatePresence>
 
       {/* ── LEAD DETAIL MODAL ─────────────────────────────────────────────── */}
+      <AnimatePresence>
       {selectedLead && (() => {
         const lead = selectedLead
         const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
@@ -1119,17 +1165,28 @@ const ActivityDashboard = ({ onNavigate }) => {
         const statusStyle = STATUS_COLORS[lead.status] || STATUS_COLORS.new
 
         return (
-          <div
+          <motion.div
+            key="lead-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? 0 : '1.5rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedLead(null) }}
           >
-            <div style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 560, maxHeight: isMobile ? '92vh' : '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
+            <motion.div
+              initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+              animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+              exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isMobile ? '100%' : 680, maxHeight: isMobile ? '92vh' : '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}
+            >
 
               {/* Sticky header */}
-              <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, minHeight: 64, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', width: '100%' }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, fontFamily: "'DM Sans', sans-serif" }}>
                         {STATUS_LABELS[lead.status] || 'New'}
@@ -1156,7 +1213,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                 {lead.ai_summary && (
                   <div>
                     <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div>
-                    <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", background: '#f7f6f9', borderRadius: 10, padding: '0.85rem 1rem' }}>
+                    <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", background: '#f0ebf8', borderRadius: 10, padding: '0.85rem 1rem' }}>
                       {lead.ai_summary}
                     </div>
                   </div>
@@ -1165,20 +1222,20 @@ const ActivityDashboard = ({ onNavigate }) => {
                 {/* Section 2 — Details */}
                 <div>
                   <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>Details</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem 1.5rem' }}>
                     {phone && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
-                        <span style={{ color: '#aaaaaa' }}>Phone</span>
-                        <a href={`tel:${phone}`} style={{ color: '#5e3b87', fontWeight: 500, textDecoration: 'none' }}>{phone}</a>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.06em' }}>Phone</span>
+                        <a href={`tel:${phone}`} style={{ fontSize: '0.875rem', color: '#5e3b87', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>{phone}</a>
                       </div>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
-                      <span style={{ color: '#aaaaaa' }}>Captured</span>
-                      <span style={{ color: '#1a1a1a' }}>{formatDateLabel(lead.created_at)} at {formatTime(lead.created_at)}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.06em' }}>Captured</span>
+                      <span style={{ fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{formatDateLabel(lead.created_at)} at {formatTime(lead.created_at)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
-                      <span style={{ color: '#aaaaaa' }}>Status</span>
-                      <span style={{ color: statusStyle.color, fontWeight: 600 }}>{STATUS_LABELS[lead.status] || 'New'}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</span>
+                      <span style={{ fontSize: '0.875rem', color: statusStyle.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{STATUS_LABELS[lead.status] || 'New'}</span>
                     </div>
                   </div>
                 </div>
@@ -1188,6 +1245,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.6rem' }}>
                     <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif" }}>Notes</div>
                     {leadNotesSaving && <span style={{ fontSize: '0.65rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>Saving…</span>}
+                    {notesSaved && !leadNotesSaving && <span style={{ fontSize: '0.65rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>Saved</span>}
                   </div>
                   <textarea
                     value={leadNotes}
@@ -1221,9 +1279,16 @@ const ActivityDashboard = ({ onNavigate }) => {
 
               {/* Sticky footer */}
               <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {(!lead.status || lead.status === 'new') && (
+                  <button
+                    onClick={() => markContacted(lead)}
+                    style={{ padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Mark as Contacted
+                  </button>
+                )}
                 {phone && (
                   <a href={`tel:${phone}`}
-                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                     Call back
                   </a>
                 )}
@@ -1244,14 +1309,15 @@ const ActivityDashboard = ({ onNavigate }) => {
                 )}
                 <button onClick={() => setSelectedLead(null)}
                   style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Close
+                  Dismiss
                 </button>
               </div>
 
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )
       })()}
+      </AnimatePresence>
 
     </div>
   )

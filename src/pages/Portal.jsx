@@ -218,6 +218,8 @@ const Portal = () => {
     { id: 'account',      label: 'Account',              icon: <IcoAccount /> },
   ]
 
+  const sidebarTabs = tabs.filter(t => t.id !== 'profile')
+
   const renderTab = () => {
     switch (activeTab) {
       case 'profile':      return <BusinessProfile />
@@ -255,6 +257,7 @@ const Portal = () => {
 
       {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
       <aside style={{
+        position: 'relative',
         width: isMobile ? 0 : sidebarCollapsed ? 60 : 260,
         background: '#5e3b87',
         display: 'flex',
@@ -291,43 +294,48 @@ const Portal = () => {
 
         {/* Nav items */}
         <nav style={{ flex: 1, paddingTop: '0.5rem', overflowY: 'auto', overflowX: 'hidden' }}>
-          {tabs.map(tab => {
+          {sidebarTabs.map(tab => {
             const isActive = activeTab === tab.id
             const isHovered = hoveredNav === tab.id
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                onMouseEnter={() => setHoveredNav(tab.id)}
-                onMouseLeave={() => setHoveredNav(null)}
-                title={sidebarCollapsed ? tab.label : undefined}
-                style={{
-                  width: '100%',
-                  height: 42,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                  gap: '0.7rem',
-                  padding: sidebarCollapsed ? 0 : '0 1.25rem',
-                  border: 'none',
-                  borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
-                  background: isActive ? 'rgba(255,255,255,0.1)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-                  color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
-                  cursor: 'pointer',
-                  transition: 'background 0.12s, color 0.12s',
-                  boxSizing: 'border-box',
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '0.8125rem',
-                  fontWeight: isActive ? 500 : 400,
-                }}
-              >
-                {tab.icon}
-                {!sidebarCollapsed && (
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {tab.label}
-                  </span>
+              <div key={tab.id}>
+                {tab.id === 'integrations' && (
+                  <div style={{ height: 1, margin: '0.3rem 0.75rem', background: 'rgba(255,255,255,0.1)' }} />
                 )}
-              </button>
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  onMouseEnter={() => setHoveredNav(tab.id)}
+                  onMouseLeave={() => setHoveredNav(null)}
+                  title={sidebarCollapsed ? tab.label : undefined}
+                  style={{
+                    width: '100%',
+                    height: 42,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                    gap: '0.7rem',
+                    padding: sidebarCollapsed ? 0 : '0 1.25rem',
+                    border: 'none',
+                    borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
+                    marginLeft: isActive ? -3 : 0,
+                    background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+                    color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s, color 0.12s',
+                    boxSizing: 'border-box',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '0.8125rem',
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                >
+                  {tab.icon}
+                  {!sidebarCollapsed && (
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {tab.label}
+                    </span>
+                  )}
+                </button>
+              </div>
             )
           })}
         </nav>
@@ -357,20 +365,31 @@ const Portal = () => {
             </div>
           )}
 
-          {/* User + sign out */}
+          {/* Business name + sign out */}
           {!sidebarCollapsed && (
             <div style={{ padding: '0.75rem 1.25rem' }}>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user?.email}
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500, marginBottom: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
+                {displayName || user?.email}
               </div>
               <button
                 onClick={handleSignOut}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
               >
                 <IcoSignOut />
                 Sign out
               </button>
             </div>
+          )}
+
+          {/* Sign out icon only when collapsed */}
+          {sidebarCollapsed && (
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              style={{ width: '100%', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}
+            >
+              <IcoSignOut />
+            </button>
           )}
 
           {/* Vera help trigger */}
@@ -388,6 +407,7 @@ const Portal = () => {
               gap: '0.7rem',
               padding: sidebarCollapsed ? 0 : '0 1.25rem',
               border: 'none',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
               background: hoveredNav === 'vera' ? 'rgba(255,255,255,0.07)' : 'transparent',
               color: 'rgba(255,255,255,0.6)',
               cursor: 'pointer',
@@ -400,36 +420,36 @@ const Portal = () => {
             <IcoVera />
             {!sidebarCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Ask Vera</span>}
           </button>
+        </div>
 
-          {/* Collapse toggle */}
+        {/* Collapse toggle — right edge, vertically centred */}
+        {!isMobile && (
           <button
             onClick={() => setSidebarCollapsed(c => !c)}
-            onMouseEnter={() => setHoveredNav('collapse')}
-            onMouseLeave={() => setHoveredNav(null)}
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             style={{
-              width: '100%',
-              height: 34,
+              position: 'absolute',
+              right: -12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: 'white',
+              border: '1px solid rgba(94,59,135,0.15)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-              gap: '0.5rem',
-              padding: sidebarCollapsed ? 0 : '0 1.25rem',
-              border: 'none',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              background: 'transparent',
-              color: 'rgba(255,255,255,0.3)',
+              justifyContent: 'center',
               cursor: 'pointer',
-              transition: 'color 0.12s',
-              boxSizing: 'border-box',
-              fontSize: '0.72rem',
-              fontFamily: "'DM Sans', sans-serif",
+              zIndex: 20,
+              boxShadow: '0 2px 8px rgba(94,59,135,0.15)',
+              color: '#5e3b87',
+              padding: 0,
             }}
           >
             {sidebarCollapsed ? <IcoChevronRight /> : <IcoChevronLeft />}
-            {!sidebarCollapsed && <span>Collapse</span>}
           </button>
-        </div>
+        )}
 
       </aside>
 
