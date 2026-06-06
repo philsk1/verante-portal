@@ -260,14 +260,18 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 **New packages installed:**
 - react-apexcharts + apexcharts
 
-### Remaining
+### Done — Session 12 (2026-06-06) — Audit + cleanup
+
+- [x] Task 1 — Staff extension recognition (Enterprise): confirmed complete. `_build-prompt.js` already injects OUR TEAM block with direct line DIDs. `BusinessProfile.jsx` and `vapi-sync.js` already complete.
+- [x] Calendar Session 2 — split appointments, team mode: confirmed already built in `Calendar.jsx`
+- [x] Integration builds — all Priority 1 complete: Google Calendar (CalDAV), WhatsApp, FreeAgent (OAuth), Xero (OAuth), Google Business Profile. All API endpoints exist and are wired. FreeAgent/Xero/Stripe invoice buttons in lead modal. Review request trigger in Calendar on appointment completion.
+- [x] ClWeb market research critique changes — confirmed applied in session 11
+
+### Remaining (user actions required)
 - [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor
-- [ ] leads table: add `notes` column (alter table leads add column if not exists notes text) — needed for lead modal auto-save
+- [ ] leads table: add `notes` column — `ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes text;`
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
-- [ ] Calendar Session 2 — split appointments, team mode
-- [ ] Task 1 — Staff extension recognition (Enterprise)
-- [ ] Integration builds — Priority 1 first (Google Calendar, WhatsApp, FreeAgent, Xero, Google Business)
-- [ ] ClWeb market research critique response — await instructions before further dashboard changes
+- [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
 
 ---
 
