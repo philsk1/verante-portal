@@ -69,27 +69,42 @@ const s = {
     letterSpacing: '0.08em',
   },
   // Plan
-  planRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-    padding: '1rem',
-    background: '#f8f7fb',
-    borderRadius: '12px',
-    marginBottom: '1.25rem',
-    border: '0.5px solid rgba(94,59,135,0.06)',
+  planRow: (tier) => {
+    const bgs = { free: '#f8fafc', light: '#f5f8ff', standard: '#f4fbf7', professional: '#faf8ff', enterprise: '#fef9ec', bespoke: '#fef9ec' }
+    const borders = { free: 'rgba(100,116,139,0.15)', light: 'rgba(29,78,216,0.15)', standard: 'rgba(61,184,122,0.2)', professional: 'rgba(94,59,135,0.15)', enterprise: 'rgba(240,165,0,0.25)', bespoke: 'rgba(240,165,0,0.25)' }
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '1rem',
+      padding: '1rem',
+      background: bgs[tier] || '#f8f7fb',
+      borderRadius: '12px',
+      marginBottom: '1.25rem',
+      border: `1px solid ${borders[tier] || 'rgba(94,59,135,0.06)'}`,
+    }
   },
-  planBadge: (tier) => ({
-    display: 'inline-block',
-    padding: '0.3rem 0.75rem',
-    borderRadius: '999px',
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    fontFamily: "'DM Sans', sans-serif",
-    background: tier === 'enterprise' || tier === 'bespoke' ? '#5e3b87' : '#ede8f5',
-    color: tier === 'enterprise' || tier === 'bespoke' ? 'white' : '#5e3b87',
-    flexShrink: 0,
-  }),
+  planBadge: (tier) => {
+    const map = {
+      free:         { bg: '#f8fafc', color: '#64748b' },
+      light:        { bg: '#eff6ff', color: '#1d4ed8' },
+      standard:     { bg: '#e6f5ee', color: '#1e7a4a' },
+      professional: { bg: '#f0ebf8', color: '#5e3b87' },
+      enterprise:   { bg: '#fef3d0', color: '#92610a' },
+      bespoke:      { bg: '#fef3d0', color: '#92610a' },
+    }
+    const t = map[tier] || map.professional
+    return {
+      display: 'inline-block',
+      padding: '0.3rem 0.85rem',
+      borderRadius: '999px',
+      fontSize: '0.75rem',
+      fontWeight: '700',
+      fontFamily: "'DM Sans', sans-serif",
+      background: t.bg,
+      color: t.color,
+      flexShrink: 0,
+    }
+  },
   planPrice: {
     fontFamily: "'Syne', sans-serif",
     fontSize: '1.25rem',
@@ -789,7 +804,7 @@ const AccountSettings = ({ onNavigate }) => {
           </div>
         )}
 
-        <div style={s.planRow}>
+        <div style={s.planRow(tier)}>
           <span style={s.planBadge(tier)}>{tierInfo.label}</span>
           <div style={{ flex: 1 }}>
             <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
