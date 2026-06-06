@@ -393,7 +393,30 @@ const pulseStyle = `
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);   }
 }
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: calc(400px + 100%) 0; }
+}
 `
+
+const shimmerStyle = {
+  background: 'linear-gradient(90deg, #f0ebf8 25%, #e4d9f0 50%, #f0ebf8 75%)',
+  backgroundSize: '400px 100%',
+  animation: 'shimmer 1.5s infinite linear',
+  borderRadius: 8,
+}
+
+const Skel = ({ h = 16, w = '100%', mb = 0, radius = 8 }) => (
+  <div style={{ ...shimmerStyle, height: h, width: w, marginBottom: mb, borderRadius: radius, flexShrink: 0 }} />
+)
+
+const EmptyState = ({ icon, title, body }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem', textAlign: 'center' }}>
+    <div style={{ fontSize: '2rem', marginBottom: 8, opacity: 0.25 }}>{icon}</div>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#aaaaaa', marginBottom: 4 }}>{title}</div>
+    {body && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#cccccc', lineHeight: 1.5 }}>{body}</div>}
+  </div>
+)
 
 const LeadCard = ({ lead, onClick }) => {
   const [hovered, setHovered] = useState(false)
@@ -459,6 +482,8 @@ const ActivityDashboard = ({ onNavigate }) => {
   const isMobile = useIsMobile()
 
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [tenantId, setTenantId] = useState(null)
   const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
@@ -492,6 +517,7 @@ const ActivityDashboard = ({ onNavigate }) => {
     if (isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
+      setError(null)
       try {
         let tid
         if (isPreview) {
@@ -551,12 +577,13 @@ const ActivityDashboard = ({ onNavigate }) => {
         setReferrals(refRes.data || [])
       } catch (err) {
         console.error('Dashboard load error:', err)
+        setError('Could not load your dashboard data.')
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isDemo, isPreview, retryKey])
 
   // ESC to close modals
   useEffect(() => {
@@ -635,7 +662,64 @@ const ActivityDashboard = ({ onNavigate }) => {
   // ── render ──────────────────────────────────────────────────────────────────
 
   if (loading) {
-    return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading dashboard…</div>
+    return (
+      <div>
+        <style>{pulseStyle}</style>
+        {/* Zone 1 skeleton */}
+        <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', padding: '1.25rem 1.75rem', display: 'flex', gap: '2rem', alignItems: 'center', marginBottom: '1.75rem' }}>
+          <div style={{ flexShrink: 0 }}><Skel h={48} w={48} radius={6} /></div>
+          <Skel h={12} w={80} />
+          <Skel h={10} w={60} />
+          <Skel h={50} w={80} radius={25} />
+          <Skel h={10} w={70} />
+          <Skel h={24} w={50} />
+        </div>
+        {/* Zone 2 skeleton */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem', marginBottom: '1.75rem' }}>
+          {[0, 1].map(col => (
+            <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <Skel h={10} w={100} mb={4} />
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', padding: '14px 18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Skel h={12} w="55%" />
+                    <Skel h={12} w="28%" />
+                  </div>
+                  <Skel h={10} w="80%" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        {/* Zone 3 skeleton */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '1.25rem' }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', padding: '1.5rem' }}>
+              <Skel h={10} w={80} mb={8} />
+              <Skel h={32} w={60} mb={4} radius={6} />
+              <Skel h={10} w={100} mb={16} />
+              <Skel h={70} w="100%" radius={6} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: 12, opacity: 0.3 }}>⚠</div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: 6 }}>Something went wrong</div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', color: '#aaaaaa', marginBottom: 20 }}>{error}</div>
+        <button
+          onClick={() => setRetryKey(k => k + 1)}
+          style={{ padding: '0.5rem 1.25rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+        >
+          Try again
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -746,7 +830,9 @@ const ActivityDashboard = ({ onNavigate }) => {
             Recent calls
           </div>
           {recentCalls.length === 0 ? (
-            <div style={{ ...s.section, ...s.emptyState }}>No calls recorded yet.</div>
+            <div style={s.section}>
+              <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month. Share it with customers to start capturing leads." />
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {recentCalls.map((call, i) => (
@@ -770,7 +856,9 @@ const ActivityDashboard = ({ onNavigate }) => {
             )}
           </div>
           {actionableLeads.length === 0 ? (
-            <div style={{ ...s.section, ...s.emptyState }}>No leads waiting for follow-up.</div>
+            <div style={s.section}>
+              <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear here as soon as your AI captures them." />
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {actionableLeads.slice(0, 6).map((lead, i) => (
