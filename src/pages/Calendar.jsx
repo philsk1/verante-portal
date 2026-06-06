@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar'
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
+import _withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
+const withDragAndDrop = _withDragAndDrop.default || _withDragAndDrop
 import { format, parse, startOfWeek, getDay, addHours, startOfHour } from 'date-fns'
 import { enGB } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'

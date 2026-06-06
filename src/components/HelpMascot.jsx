@@ -295,6 +295,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
         {/* Owl + label */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
           <div
+            id="vera-trigger-btn"
             className="vera-idle"
             onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
             style={{ lineHeight: 0, cursor: 'pointer' }}
