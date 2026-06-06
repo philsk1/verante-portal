@@ -723,7 +723,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               setPanelEvent(null)
               setPanelMode('create')
             }}
-            style={{ padding: '0.5rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif' }}>
+            style={{ padding: '0.5rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             + New
           </button>
         </div>
