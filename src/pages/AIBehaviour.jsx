@@ -131,7 +131,7 @@ const s = {
     padding: '0.5rem 1.1rem',
     borderRadius: '8px',
     border: `1.5px solid ${active ? '#5e3b87' : 'rgba(94,59,135,0.18)'}`,
-    background: active ? 'rgba(94,59,135,0.07)' : 'white',
+    background: active ? '#f0ebf8' : 'white',
     color: active ? '#5e3b87' : '#777',
     fontSize: '0.8125rem',
     fontWeight: active ? 600 : 400,
@@ -757,7 +757,7 @@ const AIBehaviour = ({ onNavigate }) => {
               padding: '0.875rem 1rem',
               borderRadius: '8px',
               border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-              background: toneRegister === tone ? '#f4effe' : 'white',
+              background: toneRegister === tone ? '#f0ebf8' : 'white',
               textAlign: 'left',
               cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
@@ -789,14 +789,29 @@ const AIBehaviour = ({ onNavigate }) => {
         </p>
 
         <label style={s.label} data-help="Triage mode controls the pace and style of your AI's conversations. Strict = short and efficient, gets what it needs quickly and closes. Balanced = standard, recommended for most businesses. Open = more relaxed and conversational, good where relationship matters more than speed.">Default triage mode</label>
-        <div style={s.segmented}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '0.5rem' }}>
           {TRIAGE_MODES.map(mode => (
-            <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={s.segBtn(triageMode === mode.id)}>
-              {mode.label}
+            <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
+              padding: '0.875rem 1rem',
+              borderRadius: '8px',
+              border: triageMode === mode.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+              background: triageMode === mode.id ? '#f0ebf8' : 'white',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: triageMode === mode.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
+                <div style={{ fontWeight: 600, fontSize: '0.875rem', color: triageMode === mode.id ? '#5e3b87' : '#1a1a1a' }}>
+                  {mode.label}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.73rem', color: '#777', lineHeight: 1.5 }}>
+                {mode.desc}
+              </div>
             </button>
           ))}
         </div>
-        {currentMode && <p style={s.hint}>{currentMode.desc}</p>}
 
         <div style={{ marginTop: '1.5rem' }}>
           <label style={s.label} data-help="This controls what happens when your AI genuinely can't help a caller. 'Escalate to me' means it tries to transfer the call to you live — if you don't answer, it takes a callback. 'Hard close' means it wraps up politely without trying to reach you, and offers a callback request instead.">When the AI cannot resolve a call</label>
@@ -872,7 +887,7 @@ const AIBehaviour = ({ onNavigate }) => {
                   marginBottom: '0.5rem',
                   borderRadius: '8px',
                   border: overageVoicePref === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                  background: overageVoicePref === opt.id ? '#f4effe' : 'white',
+                  background: overageVoicePref === opt.id ? '#f0ebf8' : 'white',
                   cursor: 'pointer',
                   textAlign: 'left',
                   fontFamily: "'DM Sans', sans-serif",

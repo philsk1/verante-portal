@@ -195,7 +195,7 @@ const Step1BusinessDetails = ({ data, update }) => (
             flex: 1, padding: '0.625rem 0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem',
             fontFamily: "'DM Sans', sans-serif", fontWeight: data.business_outcome_type === opt.value ? 600 : 400,
             border: data.business_outcome_type === opt.value ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.2)',
-            background: data.business_outcome_type === opt.value ? '#f4effe' : 'white',
+            background: data.business_outcome_type === opt.value ? '#f0ebf8' : 'white',
             color: data.business_outcome_type === opt.value ? '#5e3b87' : '#1a1a1a',
           }}>{opt.label}</button>
         ))}
@@ -470,7 +470,7 @@ const Step5PlanSelection = ({ data, update }) => {
         padding: '1.125rem 1.25rem',
         borderRadius: '10px',
         border: billingModel === id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-        background: billingModel === id ? '#f4effe' : 'white',
+        background: billingModel === id ? '#f0ebf8' : 'white',
         textAlign: 'left',
         cursor: 'pointer',
         fontFamily: "'DM Sans', sans-serif",
@@ -517,7 +517,7 @@ const Step5PlanSelection = ({ data, update }) => {
                 marginBottom: '0.4rem',
                 borderRadius: '8px',
                 border: selectedTier === t.id ? '2px solid #5e3b87' : '1px solid rgba(94,59,135,0.12)',
-                background: selectedTier === t.id ? '#f4effe' : 'white',
+                background: selectedTier === t.id ? '#f0ebf8' : 'white',
                 cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
                 textAlign: 'left',

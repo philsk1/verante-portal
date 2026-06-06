@@ -957,7 +957,7 @@ const AccountSettings = ({ onNavigate }) => {
                     display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.875rem 1rem',
                     borderRadius: '8px', marginBottom: '0.5rem', cursor: 'pointer',
                     border: emailScanMode === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                    background: emailScanMode === opt.id ? '#f4effe' : 'white',
+                    background: emailScanMode === opt.id ? '#f0ebf8' : 'white',
                   }}>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', border: emailScanMode === opt.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
                     <div>
