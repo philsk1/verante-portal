@@ -292,6 +292,18 @@ const ArcGauge = ({ pct }) => {
   )
 }
 
+// ─── outcome → accent colour map ─────────────────────────────────────────────
+
+const OUTCOME_ACCENT = {
+  booked:        { border: '#5e3b87', bg: '#faf8ff' },
+  lead_captured: { border: '#3db87a', bg: '#f4fbf7' },
+  referred_out:  { border: '#1d4ed8', bg: '#f5f8ff' },
+  escalated:     { border: '#ef4444', bg: '#fdecea' },
+  filtered:      { border: '#d1d5db', bg: '#f8fafc' },
+  spam:          { border: '#d1d5db', bg: '#f8fafc' },
+  hard_close:    { border: '#d1d5db', bg: '#f8fafc' },
+}
+
 // ─── call card ────────────────────────────────────────────────────────────────
 
 const CallCard = ({ call, onClick }) => {
@@ -299,6 +311,7 @@ const CallCard = ({ call, onClick }) => {
   const badge = outcomeBadge(call.call_outcome)
   const isUrgent = call.call_outcome === 'escalated'
   const isFiltered = ['filtered', 'spam', 'hard_close'].includes(call.call_outcome)
+  const accent = OUTCOME_ACCENT[call.call_outcome] || { border: '#5e3b87', bg: 'white' }
 
   return (
     <div
@@ -306,16 +319,16 @@ const CallCard = ({ call, onClick }) => {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: isUrgent ? '#fdecea' : isFiltered ? '#f8fafc' : 'white',
+        background: accent.bg,
         borderRadius: 16,
-        border: isUrgent ? '1px solid #ef4444' : '0.5px solid rgba(94,59,135,0.08)',
-        borderLeft: isUrgent ? '3px solid #ef4444' : hovered && !isFiltered ? '3px solid #5e3b87' : '3px solid transparent',
-        boxShadow: hovered && !isUrgent ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 12px rgba(94,59,135,0.06)',
-        padding: '14px 18px',
+        border: '0.5px solid rgba(94,59,135,0.07)',
+        borderLeft: `4px solid ${accent.border}`,
+        boxShadow: hovered ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 8px rgba(0,0,0,0.06)',
+        padding: '13px 16px 13px 14px',
         cursor: 'pointer',
         transition: 'box-shadow 0.2s ease, transform 0.2s ease',
-        transform: hovered && !isUrgent ? 'translateY(-2px)' : 'translateY(0)',
-        opacity: isFiltered ? 0.6 : 1,
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        opacity: isFiltered ? 0.55 : 1,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: call.ai_summary ? 8 : 0 }}>
@@ -429,11 +442,21 @@ const EmptyState = ({ icon, title, body }) => (
   </div>
 )
 
+const LEAD_STATUS_ACCENT = {
+  new:       { border: '#3db87a', bg: '#f4fbf7' },  // green — fresh opportunity
+  contacted: { border: '#1d4ed8', bg: '#f5f8ff' },  // blue — in motion
+  converted: { border: '#5e3b87', bg: '#faf8ff' },  // violet — won
+  lost:      { border: '#d1d5db', bg: '#f8fafc' },  // grey — dead
+}
+
 const LeadCard = ({ lead, onClick }) => {
   const [hovered, setHovered] = useState(false)
   const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
-  const urgent = isUrgentLead(lead.created_at)
+  const urgent = isUrgentLead(lead.created_at) && (!lead.status || lead.status === 'new')
   const phone = lead.callers?.phone_number
+  const accent = urgent
+    ? { border: '#f0a500', bg: '#fef9ec' }
+    : LEAD_STATUS_ACCENT[lead.status] || LEAD_STATUS_ACCENT.new
 
   return (
     <div
@@ -441,12 +464,12 @@ const LeadCard = ({ lead, onClick }) => {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: urgent ? '#fef9ec' : 'white',
+        background: accent.bg,
         borderRadius: 16,
-        border: urgent ? '1px solid rgba(240,165,0,0.35)' : '0.5px solid rgba(94,59,135,0.08)',
-        borderLeft: urgent ? '3px solid #f0a500' : hovered ? '3px solid #5e3b87' : '3px solid transparent',
-        boxShadow: hovered ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 12px rgba(94,59,135,0.06)',
-        padding: '14px 18px',
+        border: '0.5px solid rgba(94,59,135,0.07)',
+        borderLeft: `4px solid ${accent.border}`,
+        boxShadow: hovered ? '0 8px 24px rgba(94,59,135,0.12)' : '0 2px 8px rgba(0,0,0,0.06)',
+        padding: '13px 16px 13px 14px',
         cursor: 'pointer',
         transition: 'box-shadow 0.2s ease, transform 0.2s ease',
         transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
@@ -1083,7 +1106,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           >
             {/* North star */}
             <div style={{ padding: '1.25rem 1.75rem', flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: '#5e3b87', lineHeight: 1 }}><CountUp to={callsToday} /></div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: callsToday === 0 ? '#d1d5db' : '#3db87a', lineHeight: 1 }}><CountUp to={callsToday} /></div>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6, fontFamily: "'DM Sans', sans-serif" }}>calls today</div>
               {callsThisMonth > 0 && (
                 <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 6, fontWeight: 500, whiteSpace: 'nowrap' }}>
@@ -1130,7 +1153,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             {/* This month */}
             <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0 }}>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>This month</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', lineHeight: 1 }}>{callsThisMonth}</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: callsThisMonth === 0 ? '#d1d5db' : '#5e3b87', lineHeight: 1 }}>{callsThisMonth}</div>
               <div style={{ fontSize: '0.72rem', color: '#aaaaaa', marginTop: 4, fontFamily: "'DM Sans', sans-serif" }}>total calls</div>
             </div>
 
@@ -1282,7 +1305,7 @@ const ActivityDashboard = ({ onNavigate }) => {
               {/* 7-day call volume — spark bar */}
               <div style={{ ...s.section, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...s.sectionTitle, marginBottom: '0.5rem' }}>7-day volume</div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#f0a500', lineHeight: 1, marginBottom: 4 }}>
                   <CountUp to={weekCounts.reduce((a, b) => a + b, 0)} />
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>calls this week</div>
@@ -1335,25 +1358,35 @@ const ActivityDashboard = ({ onNavigate }) => {
 
             {/* Referrals sent today */}
             <div style={s.section}>
-              <div style={s.sectionTitle}>Referrals sent today</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                <div style={s.sectionTitle}>Referrals sent today</div>
+                {referralsThisWeek > 0 && (
+                  <span style={{ display: 'inline-block', background: '#fef3d0', color: '#92610a', borderRadius: '999px', padding: '0.15rem 0.6rem', fontSize: '0.65rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>
+                    {referralsThisWeek} this week
+                  </span>
+                )}
+              </div>
               {referralsToday.length === 0 ? (
-                <div style={s.emptyState}>No referrals sent today yet.</div>
+                <div style={{ fontSize: '0.8rem', color: '#ccc', padding: '0.5rem 0' }}>No referrals sent today yet.</div>
               ) : (
                 referralsToday.map((ref, i) => {
                   const isLast = i === referralsToday.length - 1
                   const partnerName = ref.referral_partners?.business_name || 'Partner'
                   return (
-                    <div key={ref.id} style={{ ...s.refRow, borderBottom: isLast ? 'none' : s.refRow.borderBottom }}>
-                      <span>{partnerName}</span>
-                      <span style={s.refTime}>{formatTime(ref.created_at)}</span>
+                    <div key={ref.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0.6rem 0.75rem', marginBottom: isLast ? 0 : '0.35rem',
+                      background: '#fef9ec', borderRadius: 10,
+                      borderLeft: '3px solid #f0a500',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.8375rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{partnerName}</span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{formatTime(ref.created_at)}</span>
                     </div>
                   )
                 })
-              )}
-              {referralsThisWeek > 0 && (
-                <div style={{ fontSize: '0.775rem', color: '#aaa', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
-                  {referralsThisWeek} referral{referralsThisWeek !== 1 ? 's' : ''} sent this week
-                </div>
               )}
             </div>
 
