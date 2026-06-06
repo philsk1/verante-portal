@@ -228,12 +228,13 @@ const s = {
   },
   card: {
     background: 'white',
-    borderRadius: '10px',
-    border: '0.5px solid rgba(94,59,135,0.1)',
+    borderRadius: '16px',
+    border: '0.5px solid rgba(94,59,135,0.06)',
     padding: '1.25rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
   },
   cardTop: {
     display: 'flex',
@@ -314,8 +315,8 @@ const s = {
   },
   p1Badge: {
     display: 'inline-block',
-    padding: '0.15rem 0.45rem',
-    borderRadius: '4px',
+    padding: '0.15rem 0.5rem',
+    borderRadius: '999px',
     background: '#fef3d9',
     color: '#b07a00',
     fontSize: '0.68rem',

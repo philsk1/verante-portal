@@ -59,15 +59,19 @@ const DEFAULT_RULES = {
 const s = {
   section: {
     background: 'white',
-    borderRadius: '10px',
+    borderRadius: '16px',
     padding: '1.75rem',
-    border: '0.5px solid rgba(94,59,135,0.1)',
+    border: '0.5px solid rgba(94,59,135,0.06)',
     marginBottom: '1.25rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
   },
   sectionTitle: {
-    fontSize: '0.9375rem',
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    fontFamily: "'DM Sans', sans-serif",
+    color: '#aaaaaa',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
     margin: '0 0 0.2rem',
   },
   sectionSubtitle: {
@@ -148,8 +152,9 @@ const s = {
   toggleDesc:  { fontSize: '0.775rem', color: '#999', lineHeight: 1.5 },
   chip: {
     display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-    padding: '0.3rem 0.65rem', background: '#ede8f5', borderRadius: '20px',
-    fontSize: '0.8rem', color: '#5e3b87', marginRight: '0.45rem', marginBottom: '0.45rem',
+    padding: '0.3rem 0.65rem', background: '#ede8f5', borderRadius: '999px',
+    fontSize: '0.78rem', color: '#5e3b87', marginRight: '0.45rem', marginBottom: '0.45rem',
+    fontWeight: 500,
   },
   chipRemove: {
     background: 'none', border: 'none', cursor: 'pointer', color: '#9b87b8',
