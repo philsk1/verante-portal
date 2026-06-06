@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import ReactApexChart from 'react-apexcharts'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
@@ -323,6 +324,48 @@ const CallCard = ({ call, onClick }) => {
       )}
     </div>
   )
+}
+
+// ─── count-up ────────────────────────────────────────────────────────────────
+
+const CountUp = ({ to, duration = 900, suffix = '' }) => {
+  const [val, setVal] = useState(0)
+  const prev = useRef(0)
+  useEffect(() => {
+    if (to === prev.current) return
+    const from = prev.current
+    prev.current = to
+    let start = null
+    const step = (ts) => {
+      if (!start) start = ts
+      const p = Math.min((ts - start) / duration, 1)
+      setVal(Math.round(from + (to - from) * p))
+      if (p < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [to])
+  return `${val}${suffix}`
+}
+
+// ─── chart helpers ────────────────────────────────────────────────────────────
+
+const getDayBuckets = (n, items) => {
+  const now = new Date()
+  return Array.from({ length: n }, (_, i) => {
+    const day = new Date(now)
+    day.setDate(now.getDate() - (n - 1 - i))
+    day.setHours(0, 0, 0, 0)
+    const next = new Date(day); next.setDate(day.getDate() + 1)
+    const dayItems = items.filter(it => {
+      const d = new Date(it.created_at)
+      return d >= day && d < next
+    })
+    return {
+      label: day.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      count: dayItems.length,
+      minutes: Math.round(dayItems.reduce((s, it) => s + (it.duration_seconds || 0), 0) / 60),
+    }
+  })
 }
 
 // ─── lead card ────────────────────────────────────────────────────────────────
@@ -730,43 +773,128 @@ const ActivityDashboard = ({ onNavigate }) => {
       </div>
 
       {/* ── ZONE 3 — HISTORICAL SNAPSHOT ──────────────────────────────────── */}
-      <div>
+      {(() => {
+        const week7 = getDayBuckets(7, calls)
+        const days30 = getDayBuckets(30, calls)
 
-        {/* Recommendation */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <RecoCard
-            title={reco.title}
-            body={reco.body}
-            actionLabel={reco.actionLabel}
-            onAction={reco.onAction}
-          />
-        </div>
+        const capturedCount = calls.filter(c => c.call_outcome === 'lead_captured' || c.call_outcome === 'booked').length
+        const captureRate = callsThisMonth > 0 ? Math.round((capturedCount / callsThisMonth) * 100) : 0
 
-        {/* Referrals sent today */}
-        <div style={s.section}>
-          <div style={s.sectionTitle}>Referrals sent today</div>
-          {referralsToday.length === 0 ? (
-            <div style={s.emptyState}>No referrals sent today yet.</div>
-          ) : (
-            referralsToday.map((ref, i) => {
-              const isLast = i === referralsToday.length - 1
-              const partnerName = ref.referral_partners?.business_name || 'Partner'
-              return (
-                <div key={ref.id} style={{ ...s.refRow, borderBottom: isLast ? 'none' : s.refRow.borderBottom }}>
-                  <span>{partnerName}</span>
-                  <span style={s.refTime}>{formatTime(ref.created_at)}</span>
+        const weekCounts = week7.map(d => d.count)
+        const weekLabels = week7.map(d => d.label)
+        const monthMinutes = days30.map(d => d.minutes)
+        const monthLabels = days30.map(d => d.label)
+
+        const donutOptions = {
+          chart: { type: 'donut', toolbar: { show: false }, animations: { enabled: true } },
+          colors: ['#5e3b87', '#f0ebf8'],
+          labels: ['Captured', 'Other'],
+          legend: { show: false },
+          dataLabels: { enabled: false },
+          stroke: { width: 0 },
+          plotOptions: { pie: { donut: { size: '72%', labels: { show: false } } } },
+          tooltip: { enabled: false },
+        }
+        const donutSeries = callsThisMonth > 0 ? [capturedCount, Math.max(0, callsThisMonth - capturedCount)] : [0, 1]
+
+        const sparkBarOptions = {
+          chart: { type: 'bar', sparkline: { enabled: true }, animations: { enabled: true } },
+          colors: ['#5e3b87'],
+          plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
+          tooltip: { enabled: true, x: { show: true }, y: { formatter: v => `${v} call${v !== 1 ? 's' : ''}` } },
+          xaxis: { categories: weekLabels },
+        }
+        const sparkBarSeries = [{ name: 'Calls', data: weekCounts }]
+
+        const lineOptions = {
+          chart: { type: 'area', sparkline: { enabled: true }, animations: { enabled: true } },
+          colors: ['#5e3b87'],
+          stroke: { curve: 'smooth', width: 2 },
+          fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.02, stops: [0, 100] } },
+          tooltip: { enabled: true, x: { show: true }, y: { formatter: v => `${v} min` } },
+          xaxis: { categories: monthLabels },
+        }
+        const lineSeries = [{ name: 'Minutes', data: monthMinutes }]
+
+        return (
+          <div>
+
+            {/* 3-chart grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+
+              {/* Lead capture rate — donut */}
+              <div style={{ ...s.section, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+                <div style={{ ...s.sectionTitle, alignSelf: 'flex-start', marginBottom: '0.5rem' }}>Lead capture</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
+                  <CountUp to={captureRate} suffix="%" />
                 </div>
-              )
-            })
-          )}
-          {referralsThisWeek > 0 && (
-            <div style={{ fontSize: '0.775rem', color: '#aaa', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
-              {referralsThisWeek} referral{referralsThisWeek !== 1 ? 's' : ''} sent this week
-            </div>
-          )}
-        </div>
+                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>of calls this month</div>
+                <ReactApexChart options={donutOptions} series={donutSeries} type="donut" height={110} width="100%" />
+              </div>
 
-      </div>
+              {/* 7-day call volume — spark bar */}
+              <div style={{ ...s.section, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ ...s.sectionTitle, marginBottom: '0.5rem' }}>7-day volume</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
+                  <CountUp to={weekCounts.reduce((a, b) => a + b, 0)} />
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 'auto' }}>calls this week</div>
+                <div style={{ marginTop: 16 }}>
+                  <ReactApexChart options={sparkBarOptions} series={sparkBarSeries} type="bar" height={70} />
+                </div>
+              </div>
+
+              {/* 30-day minutes — line chart */}
+              <div style={{ ...s.section, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ ...s.sectionTitle, marginBottom: '0.5rem' }}>30-day minutes</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '2rem', color: '#5e3b87', lineHeight: 1, marginBottom: 4 }}>
+                  <CountUp to={minutesUsed} />
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif", marginBottom: 'auto' }}>minutes used</div>
+                <div style={{ marginTop: 16 }}>
+                  <ReactApexChart options={lineOptions} series={lineSeries} type="area" height={70} />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Recommendation */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <RecoCard
+                title={reco.title}
+                body={reco.body}
+                actionLabel={reco.actionLabel}
+                onAction={reco.onAction}
+              />
+            </div>
+
+            {/* Referrals sent today */}
+            <div style={s.section}>
+              <div style={s.sectionTitle}>Referrals sent today</div>
+              {referralsToday.length === 0 ? (
+                <div style={s.emptyState}>No referrals sent today yet.</div>
+              ) : (
+                referralsToday.map((ref, i) => {
+                  const isLast = i === referralsToday.length - 1
+                  const partnerName = ref.referral_partners?.business_name || 'Partner'
+                  return (
+                    <div key={ref.id} style={{ ...s.refRow, borderBottom: isLast ? 'none' : s.refRow.borderBottom }}>
+                      <span>{partnerName}</span>
+                      <span style={s.refTime}>{formatTime(ref.created_at)}</span>
+                    </div>
+                  )
+                })
+              )}
+              {referralsThisWeek > 0 && (
+                <div style={{ fontSize: '0.775rem', color: '#aaa', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+                  {referralsThisWeek} referral{referralsThisWeek !== 1 ? 's' : ''} sent this week
+                </div>
+              )}
+            </div>
+
+          </div>
+        )
+      })()}
 
       {/* Pulse keyframe */}
       <style>{pulseStyle}</style>
