@@ -1,7 +1,7 @@
 # QERXEL — COMPLETE PROJECT HANDOFF DOCUMENT V12
 ## Read this at the start of every new conversation thread.
 ## Also read: STRATEGY-ADDENDUM-V2.md (commercial decisions, tier detail, calendar spec)
-## Last updated: 2026-06-05 (session 10)
+## Last updated: 2026-06-06 (session 13)
 
 ---
 
@@ -261,17 +261,24 @@ vercel.json                          — rewrites + cron jobs (notify-daily-cost
 
 ## PORTAL STRUCTURE — 8 TABS
 
-Shell: 64px violet header (`#5e3b87`) → 44px dark violet nav (`#4a2d6e`, amber underline on active) → `#f7f6f9` content, maxWidth 940px, padding 2rem. Default tab: Dashboard.
+**Shell (redesigned session 11):**
+- 64px violet header (`#5e3b87`) — logo + owner preview dropdown
+- **Left sidebar** — 260px violet, collapsible to 60px icon-only. Right-edge circular toggle (24px white). Business name at bottom (hidden when collapsed). Vera owl trigger above collapse. Active tab: amber left border + white bg tint. Smooth 0.22s transition.
+- Business Profile tab NOT in sidebar — accessible only via Onboarding or direct nav.
+- Divider line above Integrations tab.
+- **Mobile** — sidebar hidden; fixed bottom nav 5 items (Dashboard, Calendar, AI Behaviour, Analytics, Account).
+- Content area: full-width (no maxWidth constraint), `#f7f6f9` bg, 2rem padding.
+- Default tab: Dashboard.
 
 | Tab | File | Status |
 |-----|------|--------|
-| Business Profile | BusinessProfile.jsx | Built |
+| Business Profile | BusinessProfile.jsx | Built (not in sidebar) |
 | AI Behaviour | AIBehaviour.jsx | Built + Vapi sync |
-| Dashboard | ActivityDashboard.jsx | Built, end-to-end confirmed |
+| Dashboard | ActivityDashboard.jsx | Built — full redesign session 11 |
 | Analytics | DataAnalytics.jsx | Built |
 | Partners & Referrals | PartnersReferrals.jsx | Built |
-| Calendar | Calendar.jsx | Built — Sessions 1 + 2 |
-| Integrations | Integrations.jsx | Built — framework only |
+| Calendar | Calendar.jsx | Built — Sessions 1 + 2 + full redesign session 13 |
+| Integrations | Integrations.jsx | Built — framework + 9 live integrations |
 | Account | AccountSettings.jsx | Built |
 
 **Owner preview mode:** is_owner accounts (profiles.is_owner = true) see a tenant dropdown in the header. Selecting a tenant enters preview via PreviewContext — amber banner, all tabs use previewTenantId, all saves blocked. api/owner-tenants.js provides the tenant list (service role, email-gated).
@@ -300,6 +307,10 @@ Shell: 64px violet header (`#5e3b87`) → 44px dark violet nav (`#4a2d6e`, amber
 - Appointments belong to staff_profile_id (FK to staff_profiles) — critical design decision for scaling solo → Enterprise.
 - **Solo / Team mode toggle** — shown when staff_profiles exist. Team mode = resource view with one column per staff member.
 - **Split appointments** — checkbox in modal. Processing start/end inputs appear. Custom SplitEventComponent renders event as three sections: active (full colour) → processing (lighter dashed) → finish (full colour). Proportional heights.
+- **Right panel** (session 13 redesign) — replaces modal. 320px panel slides in from right (AnimatePresence, x: 32→0). Modes: view / edit / create. Desktop: flex layout calendar+panel side by side. Mobile: fixed bottom drawer.
+- **Custom toolbar** — nav arrows, Today, Syne date label, pill view switcher, + New button.
+- **AppointmentCard** — 4px left colour strip (status colour), client name (DM Sans 600), service type below.
+- `handleMarkCompleted()` — optimistic status update for completed button in view panel.
 - Demo mode: 5 seeded events across 2 demo staff members, including one split appointment showing the colour processing feature.
 
 **Integrations (framework only):**
@@ -462,14 +473,47 @@ Logo: "Qerxel" Syne 700 + 7px amber dot.
 - Integrations tab: 9 integrations now available (Priority 1 × 5 + Stripe, Checkatrade, Rated People, Zapier)
 - ActivityDashboard lead buttons: Book · Invoice (FreeAgent) · Xero · £ Pay
 
+### Done — sessions 11–13 (2026-06-06) — Portal redesign sprint
+
+**Portal shell:**
+- Left sidebar (260px violet, collapsible 60px). Right-edge circular collapse toggle. Business name at bottom. Vera owl trigger above toggle. Amber left-border active state. 0.22s smooth transition.
+- Business Profile removed from sidebar (still accessible via nav).
+- Divider above Integrations. Mobile: sidebar hidden, fixed bottom nav 5 items.
+- maxWidth constraint removed from content area.
+
+**ActivityDashboard — full redesign:**
+- framer-motion throughout: fadeInUp card stagger, modalIn entrance (scale desktop / slide-up mobile), urgentPulse dot animation.
+- Zone 1 — AI status bar: live status dot, voice badge, ArcGauge SVG (48px), triage pill, north star call count with CountUp.
+- Zone 2 — CallCard (hover lift, urgent red border, click→modal) + LeadCard (pulsing urgent dot, time-since, call back + view).
+- Lead modal: 680px, 4 sections (AI summary / details / notes / history), sticky header+footer, Mark as Contacted (optimistic), auto-save notes on blur, Saved indicator.
+- Call modal: AnimatePresence + motion.div, scale desktop / slide-up mobile.
+- Zone 3 — ApexCharts: donut (lead capture rate with CountUp), spark bar (7-day, busiest day highlighted violet), area line (30-day minutes with projected month-end in green/amber/red).
+- Skeleton shimmer loading + EmptyState components. prefers-reduced-motion respected.
+- markContacted: optimistic UI, DB write async, reverts on catch.
+- **Mobile tile system:** 4 tiles (status, calls, leads, charts) × 3 states (half / full / icon).
+  - ExpandBtn top-left only — 44px touch target, 32px white rounded-square, ChevronUp/Down. Nothing else expands a tile.
+  - DismissBtn top-right only — 44px touch target (not shown on status tile).
+  - Full: position fixed inset 0 zIndex 800, slide-up AnimatePresence.
+  - Half: height 50vh, inner overflowY scroll with WebkitOverflowScrolling touch. Tile body has zero click handlers.
+  - Icon bar: fixed bottom 58px above mobile bottom nav. Tap to raise to half.
+  - charts tile starts in icon state.
+
+**Calendar — full redesign:**
+- Right panel (320px) replaces modal. Modes: view / edit / create. Slides in from right (x:32→0 AnimatePresence). Mobile: bottom drawer.
+- Custom CalendarToolbar: nav arrows, Today, Syne date label, pill view switcher, + New button.
+- AppointmentCard: 4px left colour strip, client name (DM Sans 600), service type below.
+- handleMarkCompleted() optimistic update.
+- Calendar range: 07:00–20:00.
+
 ### Pending actions before features work
 1. **Run [supabase_migrations_integrations.sql](supabase_migrations_integrations.sql)** in Supabase SQL Editor
 2. **Run [supabase_migrations_session4.sql](supabase_migrations_session4.sql)** in Supabase SQL Editor (Calendar + Stripe + DID columns)
-3. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section)
-4. **FreeAgent + Xero** — create dev apps at dev.freeagent.com + developer.xero.com, add CLIENT_ID/SECRET to Vercel, set redirect URIs to https://qerxel-portal.vercel.app/api/{freeagent|xero}-callback
-5. **WhatsApp** — Meta Business Manager → get Phone Number ID + permanent token
-6. **Vercel env var** — update `SITE_URL` to https://qerxel-portal.vercel.app after renaming the project
-7. **GitHub + Vercel rename** — rename repo and project from verante-portal to qerxel-portal
+3. **`ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes text;`** — required for lead note auto-save
+4. **Stripe setup** — products, webhook, 7 Vercel env vars (see Stripe section)
+5. **FreeAgent + Xero** — create dev apps at dev.freeagent.com + developer.xero.com, add CLIENT_ID/SECRET to Vercel, set redirect URIs to https://qerxel-portal.vercel.app/api/{freeagent|xero}-callback
+6. **WhatsApp** — Meta Business Manager → get Phone Number ID + permanent token
+7. **Vercel env var** — update `SITE_URL` to https://qerxel-portal.vercel.app after renaming the project
+8. **GitHub + Vercel rename** — rename repo and project from verante-portal to qerxel-portal
 
 ### Next build priorities
 1. Calendar Session 3 — CalDAV two-way pull (read external events into Qerxel Calendar)
