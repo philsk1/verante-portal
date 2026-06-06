@@ -295,13 +295,13 @@ const ArcGauge = ({ pct }) => {
 // ─── outcome → accent colour map ─────────────────────────────────────────────
 
 const OUTCOME_ACCENT = {
-  booked:        { border: '#5e3b87', bg: '#faf8ff' },
-  lead_captured: { border: '#3db87a', bg: '#f4fbf7' },
-  referred_out:  { border: '#1d4ed8', bg: '#f5f8ff' },
-  escalated:     { border: '#ef4444', bg: '#fdecea' },
-  filtered:      { border: '#d1d5db', bg: '#f8fafc' },
-  spam:          { border: '#d1d5db', bg: '#f8fafc' },
-  hard_close:    { border: '#d1d5db', bg: '#f8fafc' },
+  booked:        { border: '#5e3b87', bg: '#ede8f8' },
+  lead_captured: { border: '#3db87a', bg: '#d1f5e4' },
+  referred_out:  { border: '#1d4ed8', bg: '#dbeafe' },
+  escalated:     { border: '#ef4444', bg: '#fee2e2' },
+  filtered:      { border: '#cbd5e1', bg: '#f8fafc' },
+  spam:          { border: '#cbd5e1', bg: '#f8fafc' },
+  hard_close:    { border: '#cbd5e1', bg: '#f8fafc' },
 }
 
 // ─── call card ────────────────────────────────────────────────────────────────
@@ -443,10 +443,10 @@ const EmptyState = ({ icon, title, body }) => (
 )
 
 const LEAD_STATUS_ACCENT = {
-  new:       { border: '#3db87a', bg: '#f4fbf7' },  // green — fresh opportunity
-  contacted: { border: '#1d4ed8', bg: '#f5f8ff' },  // blue — in motion
-  converted: { border: '#5e3b87', bg: '#faf8ff' },  // violet — won
-  lost:      { border: '#d1d5db', bg: '#f8fafc' },  // grey — dead
+  new:       { border: '#3db87a', bg: '#d1f5e4' },
+  contacted: { border: '#1d4ed8', bg: '#dbeafe' },
+  converted: { border: '#5e3b87', bg: '#ede8f8' },
+  lost:      { border: '#cbd5e1', bg: '#f8fafc' },
 }
 
 const LeadCard = ({ lead, onClick }) => {
@@ -455,7 +455,7 @@ const LeadCard = ({ lead, onClick }) => {
   const urgent = isUrgentLead(lead.created_at) && (!lead.status || lead.status === 'new')
   const phone = lead.callers?.phone_number
   const accent = urgent
-    ? { border: '#f0a500', bg: '#fef9ec' }
+    ? { border: '#f0a500', bg: '#fef3d0' }
     : LEAD_STATUS_ACCENT[lead.status] || LEAD_STATUS_ACCENT.new
 
   return (
@@ -686,7 +686,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const minutesPct = includedMinutes > 0 ? Math.round((minutesUsed / includedMinutes) * 100) : 0
 
   const actionableLeads = leads.filter(l => !l.status || l.status === 'new')
-  const recentCalls = calls.slice(0, 8)
+  const recentCalls = calls.slice(0, 5)
 
   // ── recommendation ──────────────────────────────────────────────────────────
 
@@ -1169,25 +1169,25 @@ const ActivityDashboard = ({ onNavigate }) => {
       </div>
 
       {/* ── ZONE 2 — LIVE FEED ────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '1rem' }}>
 
-        {/* LEFT — Recent calls */}
+        {/* COL 1 — Recent calls */}
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}
-            data-help="Recent calls is a log of the last 8 conversations your AI handled. The coloured badge shows the outcome — what the AI did with the call.">
+            data-help="Recent calls is a log of the last 5 conversations your AI handled. The coloured border shows the outcome.">
             Recent calls
           </div>
           {recentCalls.length === 0 ? (
             <div style={s.section}>
-              <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month. Share it with customers to start capturing leads." />
+              <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month." />
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
               {recentCalls.map((call, i) => (
                 <motion.div key={call.id}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
                 >
                   <CallCard call={call} onClick={() => setSelectedCall(call)} />
                 </motion.div>
@@ -1196,37 +1196,81 @@ const ActivityDashboard = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* RIGHT — Leads requiring action */}
+        {/* COL 2 — Leads requiring action */}
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}
-            data-help="Leads requiring action are people who called in and need a follow-up from you. The quicker you respond, the higher the conversion rate.">
+            data-help="Leads requiring action are people who called in and need a follow-up. The quicker you respond, the higher the conversion rate.">
             Leads requiring action
             {actionableLeads.length > 0 && (
-              <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: '10px', padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
+              <span style={{ background: '#d1f5e4', color: '#1e7a4a', borderRadius: '10px', padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
                 {actionableLeads.length}
               </span>
             )}
           </div>
           {actionableLeads.length === 0 ? (
             <div style={s.section}>
-              <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear here as soon as your AI captures them." />
+              <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear as soon as your AI captures them." />
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {actionableLeads.slice(0, 6).map((lead, i) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              {actionableLeads.slice(0, 5).map((lead, i) => (
                 <motion.div key={lead.id}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
                 >
                   <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
                 </motion.div>
               ))}
-              {actionableLeads.length > 6 && (
-                <div style={{ fontSize: '0.775rem', color: '#bbb', paddingLeft: '0.25rem' }}>
-                  +{actionableLeads.length - 6} more
+              {actionableLeads.length > 5 && (
+                <div style={{ fontSize: '0.75rem', color: '#bbb', paddingLeft: '0.25rem' }}>
+                  +{actionableLeads.length - 5} more
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* COL 3 — Referrals today */}
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}
+            data-help="Referrals sent today shows every caller your AI forwarded to a partner in your network today.">
+            Referrals today
+            {referralsThisWeek > 0 && (
+              <span style={{ background: '#fef3d0', color: '#92610a', borderRadius: '10px', padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
+                {referralsThisWeek} this wk
+              </span>
+            )}
+          </div>
+          {referralsToday.length === 0 ? (
+            <div style={{ ...s.section, textAlign: 'center', padding: '2rem 1rem' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🤝</div>
+              <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>No referrals sent today yet</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              {referralsToday.map((ref, i) => {
+                const partnerName = ref.referral_partners?.business_name || 'Partner'
+                return (
+                  <motion.div key={ref.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0.55rem 0.75rem',
+                      background: '#fef3d0', borderRadius: 10,
+                      borderLeft: '3px solid #f0a500',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{partnerName}</span>
+                    </div>
+                    <span style={{ fontSize: '0.73rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{formatTime(ref.created_at)}</span>
+                  </motion.div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -1354,40 +1398,6 @@ const ActivityDashboard = ({ onNavigate }) => {
                 actionLabel={reco.actionLabel}
                 onAction={reco.onAction}
               />
-            </div>
-
-            {/* Referrals sent today */}
-            <div style={s.section}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                <div style={s.sectionTitle}>Referrals sent today</div>
-                {referralsThisWeek > 0 && (
-                  <span style={{ display: 'inline-block', background: '#fef3d0', color: '#92610a', borderRadius: '999px', padding: '0.15rem 0.6rem', fontSize: '0.65rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>
-                    {referralsThisWeek} this week
-                  </span>
-                )}
-              </div>
-              {referralsToday.length === 0 ? (
-                <div style={{ fontSize: '0.8rem', color: '#ccc', padding: '0.5rem 0' }}>No referrals sent today yet.</div>
-              ) : (
-                referralsToday.map((ref, i) => {
-                  const isLast = i === referralsToday.length - 1
-                  const partnerName = ref.referral_partners?.business_name || 'Partner'
-                  return (
-                    <div key={ref.id} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '0.6rem 0.75rem', marginBottom: isLast ? 0 : '0.35rem',
-                      background: '#fef9ec', borderRadius: 10,
-                      borderLeft: '3px solid #f0a500',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontSize: '0.8375rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{partnerName}</span>
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{formatTime(ref.created_at)}</span>
-                    </div>
-                  )
-                })
-              )}
             </div>
 
           </div>

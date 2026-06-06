@@ -200,7 +200,30 @@ const PartnersReferrals = () => {
   return (
     <div>
 
-      {/* ── 1. PARTNER NETWORK ────────────────────────────────────────── */}
+      {/* ── KPI TILES ─────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}
+        data-help="At a glance: referrals sent by your AI, estimated value those referrals created, and free months earned from your referral code.">
+        <div style={{ background: '#d1f5e4', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(61,184,122,0.2)', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.25rem' }}>{outboundCount}</div>
+          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referrals sent</div>
+          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>Partners obligated</div>
+        </div>
+        <div style={{ background: '#fef3d0', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(240,165,0,0.25)', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#92610a', lineHeight: 1, marginBottom: '0.25rem' }}>£{estimatedValue.toLocaleString()}</div>
+          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Est. value generated</div>
+          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>At £75 per caller</div>
+        </div>
+        <div style={{ background: creditMonths > 0 ? '#ede8f8' : '#f8fafc', borderRadius: '14px', padding: '1.1rem 1rem', border: creditMonths > 0 ? '1px solid rgba(94,59,135,0.2)' : '1px solid rgba(203,213,225,0.4)', textAlign: 'center' }}
+          data-help="Credits are earned when someone signs up using your referral code. One signup = one free month, applied automatically at renewal.">
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: creditMonths > 0 ? '#5e3b87' : '#d1d5db', lineHeight: 1, marginBottom: '0.25rem' }}>{creditMonths}</div>
+          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: creditMonths > 0 ? '#5e3b87' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Credits earned</div>
+          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>
+            {creditMonths === 1 ? '1 month free' : creditMonths > 1 ? `${creditMonths} months free` : 'Share your code below'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── PARTNER NETWORK ───────────────────────────────────────────── */}
       <Card>
         <Row style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.6rem' }}>
           <SectionLabel>Your Partner Network</SectionLabel>
@@ -312,188 +335,11 @@ const PartnersReferrals = () => {
         </div>
       </Card>
 
-      {/* ── 2. REFERRAL CODE — feature card ──────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #4a2d6e 0%, #3a2057 60%, #2d1a45 100%)',
-        borderRadius: '20px', padding: '2rem', marginBottom: '1rem',
-        boxShadow: '0 8px 32px rgba(94,59,135,0.35)',
-        position: 'relative', overflow: 'hidden',
-      }}
-        data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Qerxel automatically."
-      >
-        {/* decorative rings */}
-        <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
-          {/* left: code + actions */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.75rem' }}>
-              Your Referral Code
-            </div>
-
-            {!referralCode ? (
-              <div style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.5)' }}>Code appears once your account is activated.</div>
-            ) : (
-              <>
-                <div style={{
-                  fontFamily: "'Syne', sans-serif", fontSize: '3rem', fontWeight: 700,
-                  color: '#f0a500', letterSpacing: '0.12em', lineHeight: 1,
-                  marginBottom: '1.25rem',
-                  textShadow: '0 0 40px rgba(240,165,0,0.4)',
-                }}>
-                  {referralCode}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-                  <button onClick={copyCode} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.55rem 1.1rem', borderRadius: '8px', border: 'none',
-                    background: codeCopied ? '#3db87a' : '#f0a500',
-                    color: codeCopied ? 'white' : '#1a0533',
-                    fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s',
-                  }}>
-                    {codeCopied ? <Check size={13} /> : <Copy size={13} />}
-                    {codeCopied ? 'Copied!' : 'Copy code'}
-                  </button>
-                  <button onClick={copyLink} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.55rem 1rem', borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
-                    color: 'rgba(255,255,255,0.8)', fontSize: '0.8125rem', fontWeight: 500,
-                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                  }}>
-                    <ExternalLink size={13} />
-                    {linkCopied ? 'Copied!' : 'Copy link'}
-                  </button>
-                </div>
-
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif", marginBottom: '1.25rem' }}>
-                  {referralUrl}
-                </div>
-
-                {/* stats strip */}
-                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                    <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: '#3db87a' }}>{outboundCount}</span>
-                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>referrals sent</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                    <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: '#f0a500' }}>£{estimatedValue.toLocaleString()}</span>
-                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>est. value generated</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* right: QR code */}
-          {referralCode && (
-            <div style={{ flexShrink: 0 }}>
-              <div style={{ background: 'white', borderRadius: '14px', padding: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(fullReferralUrl)}&size=130x130&margin=4`}
-                  alt="Referral QR code"
-                  width={130} height={130}
-                  style={{ display: 'block', borderRadius: 6 }}
-                />
-              </div>
-              <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.67rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>
-                Scan to sign up
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── 3. CREDITS ────────────────────────────────────────────────── */}
-      {creditMonths > 0 ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #f0a500 0%, #d4860a 100%)',
-          borderRadius: '16px', padding: '1.5rem', marginBottom: '1rem',
-          boxShadow: '0 4px 20px rgba(240,165,0,0.3)',
-          display: 'flex', alignItems: 'center', gap: '1.5rem',
-        }}
-          data-help="Credits are earned when someone signs up using your referral code. Applied automatically at renewal."
-        >
-          <div>
-            <div style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.35rem' }}>
-              Credits Earned
-            </div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '3.5rem', fontWeight: 700, color: 'white', lineHeight: 1 }}>
-              {creditMonths}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif", marginTop: '0.25rem' }}>
-              {creditMonths === 1 ? 'month free' : 'months free'}
-            </div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '0.85rem 1rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'white', marginBottom: '0.25rem' }}>Applied automatically at renewal</div>
-              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
-                One referral signup = one free month. They stack with no expiry.
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <Card data-help="Credits are earned when someone signs up using your referral code. One signup = one free month, automatically applied.">
-          <Row style={{ marginBottom: '0.75rem' }}>
-            <SectionLabel>Credits</SectionLabel>
-            <Badge bg="#fef3d0" color="#92610a">All plans</Badge>
-          </Row>
-          <Row style={{ gap: '1rem' }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.5rem', fontWeight: 700, color: '#d1d5db', lineHeight: 1 }}>0</div>
-            <div>
-              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>No credits yet</div>
-              <div style={{ fontSize: '0.8rem', color: '#888', lineHeight: 1.5 }}>Share your code above. One signup = one free month, no cap, no expiry.</div>
-            </div>
-          </Row>
-        </Card>
-      )}
-
-      {/* ── 4. NETWORK ACTIVITY ───────────────────────────────────────── */}
-      <Card data-help="Network Activity shows the total referrals your AI has sent and the estimated value to partner businesses. Every referral creates reciprocal obligation.">
-        <Row style={{ marginBottom: '1.25rem' }}>
+      {/* ── NETWORK ACTIVITY ──────────────────────────────────────────── */}
+      <Card data-help="Network Activity shows how your referral network is performing. Every referral your AI sends creates reciprocal obligation.">
+        <Row style={{ marginBottom: '1rem' }}>
           <SectionLabel>Network Activity</SectionLabel>
         </Row>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          {/* referrals sent — green */}
-          <div style={{
-            background: '#e6f5ee', borderRadius: '14px', padding: '1.25rem 1rem',
-            border: '1px solid rgba(61,184,122,0.2)', textAlign: 'center',
-          }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.25rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.3rem' }}>
-              {outboundCount}
-            </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
-              Referrals sent
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
-              Partners obligated
-            </div>
-          </div>
-
-          {/* estimated value — amber */}
-          <div style={{
-            background: '#fef3d0', borderRadius: '14px', padding: '1.25rem 1rem',
-            border: '1px solid rgba(240,165,0,0.25)', textAlign: 'center',
-          }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2.25rem', fontWeight: 700, color: '#92610a', lineHeight: 1, marginBottom: '0.3rem' }}>
-              £{estimatedValue.toLocaleString()}
-            </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
-              Est. value generated
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
-              At £75 per referred caller
-            </div>
-          </div>
-        </div>
-
-        {/* anchor bar */}
         <div style={{
           background: 'linear-gradient(135deg, #5e3b87 0%, #3a2057 100%)',
           borderRadius: '12px', padding: '1rem 1.25rem',
@@ -520,6 +366,81 @@ const PartnersReferrals = () => {
           </div>
         </div>
       </Card>
+
+      {/* ── REFERRAL CODE — feature card (bottom) ─────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #4a2d6e 0%, #3a2057 60%, #2d1a45 100%)',
+        borderRadius: '20px', padding: '2rem', marginBottom: '1rem',
+        boxShadow: '0 8px 32px rgba(94,59,135,0.35)',
+        position: 'relative', overflow: 'hidden',
+      }}
+        data-help="Your Referral Code is the quickest way to grow your partner network. When another business owner signs up using your code or link, you earn one free month of Qerxel automatically."
+      >
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.75rem' }}>
+              Your Referral Code
+            </div>
+            {!referralCode ? (
+              <div style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.5)' }}>Code appears once your account is activated.</div>
+            ) : (
+              <>
+                <div style={{
+                  fontFamily: "'Syne', sans-serif", fontSize: '3rem', fontWeight: 700,
+                  color: '#f0a500', letterSpacing: '0.12em', lineHeight: 1,
+                  marginBottom: '1.25rem', textShadow: '0 0 40px rgba(240,165,0,0.4)',
+                }}>
+                  {referralCode}
+                </div>
+                <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                  <button onClick={copyCode} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.55rem 1.1rem', borderRadius: '8px', border: 'none',
+                    background: codeCopied ? '#3db87a' : '#f0a500',
+                    color: codeCopied ? 'white' : '#1a0533',
+                    fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s',
+                  }}>
+                    {codeCopied ? <Check size={13} /> : <Copy size={13} />}
+                    {codeCopied ? 'Copied!' : 'Copy code'}
+                  </button>
+                  <button onClick={copyLink} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.55rem 1rem', borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
+                    color: 'rgba(255,255,255,0.8)', fontSize: '0.8125rem', fontWeight: 500,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                    <ExternalLink size={13} />
+                    {linkCopied ? 'Copied!' : 'Copy link'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>
+                  {referralUrl}
+                </div>
+              </>
+            )}
+          </div>
+          {referralCode && (
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ background: 'white', borderRadius: '14px', padding: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(fullReferralUrl)}&size=130x130&margin=4`}
+                  alt="Referral QR code"
+                  width={130} height={130}
+                  style={{ display: 'block', borderRadius: 6 }}
+                />
+              </div>
+              <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.67rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>
+                Scan to sign up
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
     </div>
   )
