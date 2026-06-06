@@ -375,6 +375,14 @@ const pulseStyle = `
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(1.5); }
 }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
 `
 
 const LeadCard = ({ lead, onClick }) => {
@@ -650,7 +658,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           >
             {/* North star */}
             <div style={{ padding: '1.25rem 1.75rem', flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: '#5e3b87', lineHeight: 1 }}>{callsToday}</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 48, color: '#5e3b87', lineHeight: 1 }}><CountUp to={callsToday} /></div>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 6, fontFamily: "'DM Sans', sans-serif" }}>calls today</div>
             </div>
 
@@ -730,8 +738,10 @@ const ActivityDashboard = ({ onNavigate }) => {
             <div style={{ ...s.section, ...s.emptyState }}>No calls recorded yet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {recentCalls.map((call) => (
-                <CallCard key={call.id} call={call} onClick={() => setSelectedCall(call)} />
+              {recentCalls.map((call, i) => (
+                <div key={call.id} style={{ animation: 'fadeInUp 0.35s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both' }}>
+                  <CallCard call={call} onClick={() => setSelectedCall(call)} />
+                </div>
               ))}
             </div>
           )}
@@ -752,8 +762,10 @@ const ActivityDashboard = ({ onNavigate }) => {
             <div style={{ ...s.section, ...s.emptyState }}>No leads waiting for follow-up.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {actionableLeads.slice(0, 6).map((lead) => (
-                <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} />
+              {actionableLeads.slice(0, 6).map((lead, i) => (
+                <div key={lead.id} style={{ animation: 'fadeInUp 0.35s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both' }}>
+                  <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
+                </div>
               ))}
               {actionableLeads.length > 6 && (
                 <div style={{ fontSize: '0.775rem', color: '#bbb', paddingLeft: '0.25rem' }}>
@@ -909,7 +921,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedCall(null) }}
           >
-            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
               {/* Header */}
               <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
@@ -986,7 +998,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1.5rem' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedLead(null) }}
           >
-            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}>
+            <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden', animation: 'modalIn 0.18s ease' }}>
 
               {/* Sticky header */}
               <div style={{ padding: '1.5rem 1.75rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
