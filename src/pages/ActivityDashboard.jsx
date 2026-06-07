@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -509,7 +510,8 @@ const LeadCard = ({ lead, onClick }) => {
 const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -520,7 +522,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
   const [tier, setTier] = useState('standard')
-  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
+  useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
   const [triageMode, setTriageMode] = useState('balanced')
   const [voicePref, setVoicePref] = useState('premium')
   const [selectedCall, setSelectedCall] = useState(null)
@@ -536,7 +538,22 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
 
+  // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
+    if (!demo?.isDemo || !demo.business) return
+    const biz = demo.business
+    setTier(demo.tier || 'standard')
+    setBusinessName(biz.business_name || '')
+    setIncludedMinutes(biz.included_minutes || 250)
+    setTriageMode(biz.triage_mode || 'balanced')
+    setCalls(demo.calls || [])
+    setLeads(demo.leads || [])
+    setReferrals(demo.referrals || [])
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)

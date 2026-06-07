@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 import { Copy, Check, ExternalLink, Share2 } from 'lucide-react'
 
 // ─── specialty → colour system ────────────────────────────────────────────────
@@ -79,7 +80,8 @@ const Input = ({ style, ...props }) => (
 const PartnersReferrals = () => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [loading, setLoading]               = useState(true)
@@ -98,7 +100,27 @@ const PartnersReferrals = () => {
   const fullReferralUrl = `https://${referralUrl}`
   const estimatedValue  = Math.round(outboundCount * 75)
 
+  // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
+    if (!demo?.isDemo || !demo.business) return
+    setReferralCode(demo.business.referral_code || 'DEMO2026')
+    setCreditMonths(0)
+    // Map demo_partners columns to what the UI expects
+    const mapped = (demo.partners || []).map(p => ({
+      id: p.id,
+      business_name: p.partner_name,
+      business_phone: p.partner_phone || '',
+    }))
+    setPartners(mapped)
+    const specMap = {}
+    ;(demo.partners || []).forEach(p => { if (p.specialty) specMap[p.id] = p.specialty })
+    setPartnerSpecialties(specMap)
+    setOutboundCount(demo.referrals?.length || 0)
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)

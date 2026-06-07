@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 
 const useIsMobile = () => {
   const [m, setM] = useState(window.innerWidth <= 768)
@@ -333,13 +334,14 @@ const LiveCard = ({ title, desc, children, helpText }) => (
 const DataAnalytics = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
   const [loading, setLoading] = useState(true)
   const [tier, setTier] = useState('light')
-  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
+  useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
 
   const [totalCalls, setTotalCalls] = useState(0)
   const [totalLeads, setTotalLeads] = useState(0)
@@ -347,7 +349,27 @@ const DataAnalytics = ({ onNavigate }) => {
   const [outcomeBreakdown, setOutcomeBreakdown] = useState({})
   const [callsByDay, setCallsByDay] = useState([0, 0, 0, 0, 0, 0, 0])
 
+  // ── Demo mode: compute analytics from DemoContext ─────────────────────────────
   useEffect(() => {
+    if (!demo?.isDemo) return
+    setTier(demo.tier || 'light')
+    const calls = demo.analyticsCallData || []
+    const leads = demo.leads || []
+    setTotalCalls(calls.length)
+    setTotalLeads(leads.length)
+    const withDur = calls.filter(c => c.duration > 0)
+    setAvgDurationSecs(withDur.length ? Math.round(withDur.reduce((s, c) => s + c.duration, 0) / withDur.length) : 0)
+    const outcomes = {}
+    calls.forEach(c => { const k = c.call_outcome || c.triage_outcome || 'unknown'; outcomes[k] = (outcomes[k] || 0) + 1 })
+    setOutcomeBreakdown(outcomes)
+    const byDay = [0, 0, 0, 0, 0, 0, 0]
+    calls.forEach(c => { byDay[new Date(c.created_at).getDay()]++ })
+    setCallsByDay(byDay)
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
