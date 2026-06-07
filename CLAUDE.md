@@ -280,11 +280,32 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] Catalogue feature: `catalogue_items` table migrated, Services & Products section in Business Profile. Manual entry + CSV upload. Split appointment support (duration_minutes + processing_minutes). Foundation for Qerxel Assist.
 - [x] Qerxel Assist strategy confirmed — see BRIEF.md strategy notes
 
+### Done — Session 14 (2026-06-07) — Pick-and-mix + visual quality
+
+- [x] `PlanSelector.jsx` — three-product pick-and-mix configurator. Answer/Listen/Calendar columns, four named quick packages (Solo/Professional/Team/Enterprise), live price footer, Listen locks if PAYG Answer. Route `/plans`. Wired into AccountSettings Plan & Billing as "Build your Qerxel" CTA overlay.
+- [x] AIBehaviour: dark gradient status hero at top of page — shows live/mode/tone/outcome state as visual badges. Transforms settings form into live status surface.
+- [x] BusinessProfile: profile summary bar — stat pills for services/staff/clients/catalogue counts, completeness progress bar.
+- [x] PlanSelector: Listen-lock state mutation moved to useEffect (render-time side effect fix).
+- [x] DB migration needed: `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text default 'none'; ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text default 'entry';`
+
+**Strategic decisions from ClWeb session (not yet implemented):**
+- Three products confirmed: Answer / Listen / Schedule (Calendar rename pending Philip confirmation)
+- Listen is Answer add-on only — Schedule + Listen alone parked until phone line product live
+- Staff specialities must become structured tags (not free text) before Listen layer is built — skills currently `text[]` in staff_profiles, will need enum/tag from catalogue_items
+- Mobile tile canvas spec confirmed — scrollable vertical canvas, half/full/icon states, top-left expand button, X dismiss. Build after desktop complete. See ClWeb thread for full spec.
+- New tier structure proposed (not yet confirmed/implemented): Starter £19 / Essential £39 / Professional £65 / Business £99 / Enterprise £199. Listen Standard included from Essential upward.
+- Component architecture instruction: build every component as a self-contained unit with clearly defined props. No hardcoded layout relationships between siblings. Wrapping not rebuilding for future tile system.
+
 ### Remaining (user actions required)
 - [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor
+- [ ] Run `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text default 'none'; ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text default 'entry';`
 - [ ] leads table: add `notes` column — `ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes text;`
+- [ ] Run `supabase_calendar_booking_engine.sql` in Supabase SQL Editor
+- [ ] Run `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_outcome_text text;`
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
 - [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
+- [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
+- [ ] Confirm new tier pricing when ready to update portal
 
 ---
 
