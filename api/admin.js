@@ -228,27 +228,18 @@ function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + mi
 
 function generateCalls(tenantId, biz) {
   const phones = ['07712 334 451','07823 661 290','07934 772 001','07651 229 882','07788 441 763','07900 112 445','07543 871 229','07612 990 334']
-  const rows = []
-  for (let day = 29; day >= 0; day--) {
-    const count = rnd(
-      biz.tier === 'enterprise' ? 5 : biz.tier === 'professional' ? 3 : 2,
-      biz.tier === 'enterprise' ? 10 : biz.tier === 'professional' ? 7 : 5,
-    )
-    for (let i = 0; i < count; i++) {
-      const d = daysAgo(day)
-      d.setHours(rnd(8, 17), rnd(0, 59), 0, 0)
-      const si = Math.floor(Math.random() * biz.callSummaries.length)
-      const oi = Math.floor(Math.random() * biz.callOutcomes.length)
-      rows.push({ tenant_id: tenantId, created_at: d.toISOString(), duration_seconds: rnd(45, 280), call_outcome: biz.callOutcomes[oi], ai_summary: biz.callSummaries[si], caller_phone: phones[Math.floor(Math.random() * phones.length)] })
-    }
-  }
-  return rows
+  const count = biz.tier === 'enterprise' ? 20 : biz.tier === 'professional' ? 16 : 12
+  return Array.from({ length: count }, (_, i) => {
+    const d = daysAgo(rnd(0, 13))
+    d.setHours(rnd(8, 17), rnd(0, 59), 0, 0)
+    return { tenant_id: tenantId, created_at: d.toISOString(), duration_seconds: rnd(45, 280), call_outcome: biz.callOutcomes[i % biz.callOutcomes.length], ai_summary: biz.callSummaries[i % biz.callSummaries.length], caller_phone: phones[i % phones.length] }
+  })
 }
 
 function generateLeads(tenantId, biz) {
   const statuses = ['new','new','new','contacted','contacted','converted','converted','lost']
   const notes = ['Called back — left voicemail.','Sent quote via email.','Awaiting response.','Booked in for next week.','Job completed.','','Follow up Monday.','Not suitable at this time.']
-  return biz.leadNames.map((name, i) => ({ tenant_id: tenantId, created_at: daysAgo(rnd(0, 28)).toISOString(), status: statuses[i % statuses.length], lead_contact_name: name, ai_summary: biz.callSummaries[i % biz.callSummaries.length], notes: notes[i % notes.length] }))
+  return biz.leadNames.slice(0, 8).map((name, i) => ({ tenant_id: tenantId, created_at: daysAgo(rnd(0, 13)).toISOString(), status: statuses[i % statuses.length], lead_contact_name: name, ai_summary: biz.callSummaries[i % biz.callSummaries.length], notes: notes[i] }))
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -263,9 +254,14 @@ export default async function handler(req, res) {
     if (ownerEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
     const log = []
     try {
+      // Step 1: get existing demo tenant IDs + their auth user IDs (before deletion)
       const { data: existingDemo } = await supabase.from('tenants').select('id').eq('is_demo', true)
       if (existingDemo?.length) {
         const ids = existingDemo.map(t => t.id)
+        const { data: memberships } = await supabase.from('tenant_memberships').select('user_id').in('tenant_id', ids)
+        const userIds = [...new Set((memberships || []).map(m => m.user_id))]
+
+        // Delete all child data in parallel, then tenants, then auth users
         await Promise.all([
           supabase.from('call_logs').delete().in('tenant_id', ids),
           supabase.from('leads').delete().in('tenant_id', ids),
@@ -276,54 +272,57 @@ export default async function handler(req, res) {
           supabase.from('tenant_memberships').delete().in('tenant_id', ids),
         ])
         await supabase.from('tenants').delete().in('id', ids)
-        log.push(`Cleared ${ids.length} existing demo tenants`)
+        await Promise.all(userIds.map(uid => supabase.auth.admin.deleteUser(uid)))
+        log.push(`Cleared ${ids.length} existing demo tenants, ${userIds.length} auth users`)
       }
 
-      for (const biz of DEMO_BUSINESSES) {
-        let userId
-        const { data: listData } = await supabase.auth.admin.listUsers()
-        const existing = listData?.users?.find(u => u.email === biz.email)
-        if (existing) {
-          userId = existing.id
-          log.push(`Using existing user: ${biz.email}`)
-        } else {
-          const { data: created, error: ue } = await supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
-          if (ue) { log.push(`WARN: could not create ${biz.email}: ${ue.message}`); continue }
-          userId = created.user.id
-          log.push(`Created user: ${biz.email}`)
-        }
+      // Step 2: create all 4 auth users in parallel (no listUsers needed)
+      const authResults = await Promise.all(DEMO_BUSINESSES.map(biz =>
+        supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
+      ))
 
-        const { data: tenant, error: te } = await supabase.from('tenants').insert({
+      // Step 3: create all 4 tenants in parallel
+      const tenantResults = await Promise.all(DEMO_BUSINESSES.map(biz =>
+        supabase.from('tenants').insert({
           business_name: biz.business_name, subscription_tier: biz.tier, included_minutes: biz.included_minutes,
           business_phone: biz.business_phone, business_email: biz.business_email, business_address: biz.business_address,
           opening_hours: biz.opening_hours, lead_contact_name: biz.lead_contact_name, business_context: biz.business_context,
           triage_mode: biz.triage_mode, tone_register: biz.tone_register, business_outcome_type: biz.business_outcome_type,
           greeting_message: biz.greeting_message, is_demo: true,
         }).select('id').single()
+      ))
 
-        if (te) { log.push(`ERROR tenant ${biz.business_name}: ${te.message}`); continue }
-        const tid = tenant.id
-        log.push(`Tenant: ${biz.business_name} (${tid})`)
+      // Step 4: seed all 4 businesses in parallel (reduced data volume)
+      await Promise.all(DEMO_BUSINESSES.map(async (biz, i) => {
+        const authRes = authResults[i]
+        const tenantRes = tenantResults[i]
+        if (authRes.error) { log.push(`WARN auth ${biz.email}: ${authRes.error.message}`); return }
+        if (tenantRes.error) { log.push(`WARN tenant ${biz.business_name}: ${tenantRes.error.message}`); return }
 
-        await supabase.from('tenant_memberships').insert({ tenant_id: tid, user_id: userId, role: 'owner' })
-        if (biz.staff.length) await supabase.from('staff_profiles').insert(biz.staff.map(s => ({ ...s, tenant_id: tid })))
-        if (biz.catalogue.length) await supabase.from('catalogue_items').insert(biz.catalogue.map(c => ({ ...c, tenant_id: tid, active: true })))
+        const userId = authRes.data.user.id
+        const tid = tenantRes.data.id
+        log.push(`${biz.business_name}: user=${userId.slice(0,8)}, tenant=${tid.slice(0,8)}`)
+
+        const seedOps = [
+          supabase.from('tenant_memberships').insert({ tenant_id: tid, user_id: userId, role: 'owner' }),
+        ]
+        if (biz.staff.length) seedOps.push(supabase.from('staff_profiles').insert(biz.staff.map(s => ({ ...s, tenant_id: tid }))))
+        if (biz.catalogue.length) seedOps.push(supabase.from('catalogue_items').insert(biz.catalogue.map(c => ({ ...c, tenant_id: tid, active: true }))))
+        seedOps.push(supabase.from('call_logs').insert(generateCalls(tid, biz)))
+        seedOps.push(supabase.from('leads').insert(generateLeads(tid, biz)))
 
         if (biz.partners.length) {
           const { data: insertedPartners } = await supabase.from('referral_partners').insert(biz.partners.map(p => ({ ...p, tenant_id: tid, agreed: true }))).select('id')
           if (insertedPartners?.length) {
             const pid = insertedPartners[0].id
-            await supabase.from('referral_log').insert(Array.from({ length: rnd(8, 18) }, (_, i) => ({ tenant_id: tid, partner_id: pid, created_at: daysAgo(rnd(0, 29)).toISOString(), caller_name: `Demo Caller ${i + 1}`, reason: 'Caller out of scope — referred to network partner' })))
+            seedOps.push(supabase.from('referral_log').insert(
+              Array.from({ length: 6 }, (_, j) => ({ tenant_id: tid, partner_id: pid, created_at: daysAgo(rnd(0, 14)).toISOString(), caller_name: `Demo Caller ${j + 1}`, reason: 'Caller out of scope — referred to network partner' }))
+            ))
           }
-          log.push(`Partners: ${biz.partners.length}`)
         }
 
-        const calls = generateCalls(tid, biz)
-        await supabase.from('call_logs').insert(calls)
-        const leads = generateLeads(tid, biz)
-        await supabase.from('leads').insert(leads)
-        log.push(`Calls: ${calls.length}, Leads: ${leads.length}`)
-      }
+        await Promise.all(seedOps)
+      }))
 
       return res.status(200).json({ ok: true, log })
     } catch (err) {
