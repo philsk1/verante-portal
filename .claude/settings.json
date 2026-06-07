@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(timeout 8)",
+      "WebSearch",
+      "Bash(grep -n \"return \\(\\\\|{/\\\\*\" src/pages/BusinessProfile.jsx)",
+      "Bash(grep -n \"padding\\\\|marginBottom\\\\|gap\\\\|gridTemplate\\\\|return \\(\\\\|{/\\\\*\" src/pages/AIBehaviour.jsx)",
+      "Bash(Select-String -Path \"c:\\\\Users\\\\philo\\\\verrante-portal\\\\src\\\\pages\\\\Portal.jsx\" -Pattern \"tier\" -SimpleMatch)",
+      "Bash(Select-Object -First 20)",
+      "Bash(npx vercel *)"
     ]
   }
 }

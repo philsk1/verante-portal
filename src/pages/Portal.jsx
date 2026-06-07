@@ -296,10 +296,10 @@ const Portal = () => {
   const initDemoBusinesses = async () => {
     setDemoInitialising(true)
     try {
-      const res = await fetch('/api/demo-init', {
+      const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerEmail: user.email }),
+        body: JSON.stringify({ ownerEmail: user.email, action: 'demo-init' }),
       })
       const json = await res.json()
       if (json.ok) alert(`Demo initialised.\n\n${json.log.join('\n')}`)
