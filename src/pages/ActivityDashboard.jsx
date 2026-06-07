@@ -621,7 +621,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             .from('tenant_integrations')
             .select('integration_id')
             .eq('tenant_id', tid)
-            .eq('status', 'connected')
+            .eq('enabled', true)
           if (integrations) setConnectedIntegrations(new Set(integrations.map(i => i.integration_id)))
         } catch {
           // table may not exist yet — leave as empty Set
