@@ -341,6 +341,7 @@ const DataAnalytics = ({ onNavigate }) => {
 
   const [loading, setLoading] = useState(true)
   const [tier, setTier] = useState('light')
+  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
 
   const [totalCalls, setTotalCalls] = useState(0)
   const [totalLeads, setTotalLeads] = useState(0)

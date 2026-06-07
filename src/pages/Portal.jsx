@@ -270,7 +270,17 @@ const Portal = () => {
   const saveHolidayToggle = async (val) => {
     setHolidayMode(val)
     if (!tenantId || preview.isPreview) return
-    await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
+    const { error } = await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
+    if (error) {
+      console.error('Holiday mode save failed:', error)
+      setHolidayMode(!val) // revert on failure
+    }
+  }
+
+  const saveReturnDate = async (val) => {
+    setHolidayReturnDate(val)
+    if (!tenantId || preview.isPreview) return
+    await supabase.from('tenants').update({ holiday_return_date: val || null }).eq('id', tenantId)
   }
 
   const saveNotification = async (field, val) => {
@@ -497,24 +507,26 @@ const Portal = () => {
                 </div>
               ) : (
                 <div style={{ padding: '0.75rem 0.9rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f0a500', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
                       <IcoMoon />
                       Away mode
                     </div>
                     <Toggle checked={true} onChange={saveHolidayToggle} />
                   </div>
-                  {holidayReturnDate && (
-                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif" }}>
-                      Returns {new Date(holidayReturnDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setActiveTab('settings')}
-                    style={{ marginTop: '0.4rem', fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
-                  >
-                    Edit details →
-                  </button>
+                  <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>Return date (optional)</div>
+                  <input
+                    type="date"
+                    value={holidayReturnDate}
+                    onChange={e => saveReturnDate(e.target.value)}
+                    style={{
+                      width: '100%', fontSize: '0.7rem', padding: '0.3rem 0.4rem', borderRadius: 5,
+                      border: '1px solid rgba(240,165,0,0.4)', background: 'rgba(0,0,0,0.25)',
+                      color: holidayReturnDate ? '#f0a500' : 'rgba(255,255,255,0.4)',
+                      fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', cursor: 'pointer',
+                      colorScheme: 'dark',
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -552,9 +564,10 @@ const Portal = () => {
           {/* ── Bottom controls ─────────────────────────────────────────────── */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
 
-            {/* Owner tenant selector */}
+            {/* Owner controls */}
             {isOwner && !sidebarCollapsed && (
-              <div style={{ padding: '0.75rem 1rem 0' }}>
+              <div style={{ padding: '0.75rem 1rem 0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {/* Tenant selector */}
                 <select
                   value={preview.isPreview ? preview.previewTenantId : ''}
                   onChange={e => {
@@ -571,6 +584,28 @@ const Portal = () => {
                     <option key={t.id} value={t.id} style={{ background: '#5e3b87' }}>{t.business_name}</option>
                   ))}
                 </select>
+                {/* Tier override */}
+                <select
+                  value={preview.tierOverride || ''}
+                  onChange={e => preview.setTierOverride(e.target.value || null)}
+                  style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', background: preview.tierOverride ? 'rgba(240,165,0,0.2)' : 'rgba(255,255,255,0.1)', color: preview.tierOverride ? '#f0a500' : 'rgba(255,255,255,0.6)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
+                >
+                  <option value="" style={{ background: '#5e3b87' }}>— Tier view —</option>
+                  {['free', 'light', 'standard', 'professional', 'enterprise'].map(t => (
+                    <option key={t} value={t} style={{ background: '#5e3b87' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                  ))}
+                </select>
+                {/* Demo portal link */}
+                <a
+                  href="/demo/login"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', textAlign: 'center', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif" }}
+                  onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.75)'}
+                  onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.4)'}
+                >
+                  Demo businesses →
+                </a>
               </div>
             )}
 

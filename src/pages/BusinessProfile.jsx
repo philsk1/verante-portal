@@ -441,6 +441,7 @@ const BusinessProfile = () => {
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
+  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [loading, setLoading] = useState(true)
 
   // Business details
@@ -933,7 +934,7 @@ const BusinessProfile = () => {
           Add team members with their specialist services. Your AI uses these to route calls to the right person — and to tell callers who handles what.
         </p>
 
-        {!isEnterprise ? (
+        {!isProfessional ? (
           <div style={s.lockedOverlay}>
             <div style={s.lockedBlur}>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -950,9 +951,9 @@ const BusinessProfile = () => {
               </div>
             </div>
             <div style={s.lockedBadge}>
-              <div style={s.lockedTier}>Enterprise</div>
+              <div style={s.lockedTier}>Professional</div>
               <div style={s.lockedTitle}>Employee Profiles</div>
-              <div style={s.lockedText}>Upgrade to add staff profiles and direct call routing.</div>
+              <div style={s.lockedText}>Upgrade to Professional or above to add staff profiles and direct call routing.</div>
             </div>
           </div>
         ) : staffError ? (

@@ -482,6 +482,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
+  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [loading, setLoading] = useState(true)
   const [businessEmail, setBusinessEmail] = useState('')
 

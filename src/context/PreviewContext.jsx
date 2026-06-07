@@ -6,11 +6,14 @@ export const usePreview = () => useContext(PreviewContext)
 export const PreviewProvider = ({ children }) => {
   const [previewTenantId, setPreviewTenantId]     = useState(null)
   const [previewBusinessName, setPreviewBusinessName] = useState('')
+  const [tierOverride, setTierOverride]           = useState(null)
 
   const value = {
     isPreview:           !!previewTenantId,
     previewTenantId,
     previewBusinessName,
+    tierOverride,
+    setTierOverride,
     enterPreview: (tid, name) => { setPreviewTenantId(tid); setPreviewBusinessName(name) },
     exitPreview:  ()          => { setPreviewTenantId(null); setPreviewBusinessName('') },
   }

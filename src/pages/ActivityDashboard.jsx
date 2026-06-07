@@ -522,6 +522,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
   const [tier, setTier] = useState('standard')
+  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [triageMode, setTriageMode] = useState('balanced')
   const [voicePref, setVoicePref] = useState('premium')
   const [selectedCall, setSelectedCall] = useState(null)
