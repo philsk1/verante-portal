@@ -31,6 +31,9 @@ CREATE POLICY IF NOT EXISTS "Public read demo_pricing_intelligence"
 CREATE POLICY IF NOT EXISTS "Public read demo_competitor_intelligence"
   ON demo_competitor_intelligence FOR SELECT USING (true);
 
+CREATE POLICY IF NOT EXISTS "Public read demo_appointments"
+  ON demo_appointments FOR SELECT USING (true);
+
 -- Allow anon INSERT on demo_sessions so portal can track demo visits
 CREATE POLICY IF NOT EXISTS "Public insert demo_sessions"
   ON demo_sessions FOR INSERT WITH CHECK (true);

@@ -37,22 +37,40 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
 
         setBusiness(bizRes.data)
 
+        // Normalize timestamps so demo always feels live — find most recent call and
+        // shift everything so that call appears ~30 minutes ago in the browser.
+        const rawCalls = callRes.data || []
+        const rawLeads = leadRes.data || []
+        const rawRefs  = refRes.data  || []
+
+        let shiftMs = 0
+        if (rawCalls.length > 0) {
+          const latestMs = Math.max(...rawCalls.map(c => new Date(c.created_at).getTime()))
+          const targetMs = Date.now() - 30 * 60 * 1000
+          if (latestMs < targetMs) shiftMs = targetMs - latestMs
+        }
+        const shiftIso = (iso) =>
+          shiftMs > 0 ? new Date(new Date(iso).getTime() + shiftMs).toISOString() : iso
+
         // Shape calls for ActivityDashboard: expects callers join { full_name, phone_number }
-        setCalls((callRes.data || []).map(c => ({
+        setCalls(rawCalls.map(c => ({
           ...c,
+          created_at: shiftIso(c.created_at),
           callers: { full_name: c.caller_name, phone_number: c.caller_number },
         })))
 
         // Shape leads for ActivityDashboard: expects lead_contact_name + callers join
-        setLeads((leadRes.data || []).map(l => ({
+        setLeads(rawLeads.map(l => ({
           ...l,
+          created_at: shiftIso(l.created_at),
           lead_contact_name: l.caller_name,
           callers: { phone_number: l.caller_number },
         })))
 
         // Shape referrals for ActivityDashboard: expects referral_partners join { business_name }
-        setReferrals((refRes.data || []).map(r => ({
+        setReferrals(rawRefs.map(r => ({
           ...r,
+          created_at: shiftIso(r.created_at),
           referral_partners: { business_name: r.partner_name },
         })))
 
@@ -60,11 +78,32 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
         setStaff(staffRes.data || [])
         setPartners(partnerRes.data || [])
 
-        // Shape appointments — map staff_id → staff_profile_id so Calendar's toEvent() works
-        setAppointments((apptRes.data || []).map(a => ({
-          ...a,
-          staff_profile_id: a.staff_id,
-        })))
+        // Normalize appointments to the current week (Mon–Fri) so Calendar always looks live
+        const rawAppts = apptRes.data || []
+        if (rawAppts.length > 0) {
+          const getMonday = (ms) => {
+            const d = new Date(ms)
+            const day = d.getDay()
+            d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
+            d.setHours(0, 0, 0, 0)
+            return d.getTime()
+          }
+          const seedWeekStart = getMonday(new Date(rawAppts[0].start_time).getTime())
+          const nowWeekStart  = getMonday(Date.now())
+          const weekShiftMs   = nowWeekStart - seedWeekStart
+          setAppointments(rawAppts.map(a => ({
+            ...a,
+            staff_profile_id: a.staff_id,
+            start_time: weekShiftMs !== 0
+              ? new Date(new Date(a.start_time).getTime() + weekShiftMs).toISOString()
+              : a.start_time,
+            end_time: weekShiftMs !== 0
+              ? new Date(new Date(a.end_time).getTime() + weekShiftMs).toISOString()
+              : a.end_time,
+          })))
+        } else {
+          setAppointments([])
+        }
       } catch (err) {
         console.error('DemoContext load error:', err)
       } finally {
