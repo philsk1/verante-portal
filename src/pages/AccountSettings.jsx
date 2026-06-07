@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 import { useNavigate } from 'react-router-dom'
+import PlanSelector from './PlanSelector'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -535,6 +536,9 @@ const AccountSettings = ({ onNavigate }) => {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
 
+  // Plan selector overlay
+  const [showPlanSelector, setShowPlanSelector] = useState(false)
+
   // Demo mode: inject data from DemoContext
   useEffect(() => {
     if (!isDemo || demo?.loading) return
@@ -747,7 +751,29 @@ const AccountSettings = ({ onNavigate }) => {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading account…</div>
   }
 
+  // Plan selector handler — upgrades Answer tier via Stripe, persists Listen/Calendar to Supabase
+  const handlePlanSelect = async ({ answer, listen, calendar }) => {
+    setShowPlanSelector(false)
+    if (isDemo || isPreview || !tenantId) return
+    // Persist Listen + Calendar product selections
+    await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
+    // Trigger Answer tier upgrade if changed
+    if (answer !== tier && answer !== 'free') {
+      handleUpgrade(answer)
+    }
+  }
+
   return (
+    <>
+    {showPlanSelector && (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 300, overflowY: 'auto', background: '#f7f6f9' }}>
+        <PlanSelector
+          currentAnswer={tier}
+          onBack={() => setShowPlanSelector(false)}
+          onSelect={handlePlanSelect}
+        />
+      </div>
+    )}
     <div>
 
       {/* Business Profile entry card */}
@@ -807,36 +833,19 @@ const AccountSettings = ({ onNavigate }) => {
           </div>
         )}
 
-        {upgradeTiers.length > 0 ? (
-          <div style={s.upgradeGrid}>
-            {upgradeTiers.map((t, i) => {
-              const info = TIERS[t]
-              return (
-                <div key={t} style={s.upgradeCard(i === upgradeTiers.length - 1)}>
-                  <div>
-                    <div style={s.upgradeCardTitle}>{info.label} — {info.price}/month</div>
-                    <div style={s.upgradeCardMeta}>
-                      {info.minutes ? `${info.minutes} Premium minutes` : 'Pay as you go'} · {info.concurrent}{t === 'enterprise' ? '+' : ''} concurrent call{info.concurrent > 1 ? 's' : ''}
-                      {UPGRADE_FEATURES[t] ? ` · ${UPGRADE_FEATURES[t]}` : ''}
-                    </div>
-                  </div>
-                  <button
-                    style={upgradingTier === t
-                      ? { ...s.upgradeBtn, opacity: 0.6, cursor: 'wait' }
-                      : s.upgradeBtn}
-                    onClick={() => handleUpgrade(t)}
-                    disabled={!!upgradingTier}
-                  >
-                    {upgradingTier === t ? 'Loading…' : 'Upgrade'}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        ) : tier === 'bespoke' ? (
+        {tier === 'bespoke' ? (
           <div style={{ fontSize: '0.8rem', color: '#888' }}>You are on a managed Bespoke plan. Contact us to discuss changes.</div>
         ) : (
-          <div style={{ fontSize: '0.8rem', color: '#3db87a', fontWeight: 500 }}>You are on the Enterprise plan — full access enabled.</div>
+          <button
+            onClick={() => setShowPlanSelector(true)}
+            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.75rem 1rem', border: '1.5px dashed rgba(94,59,135,0.25)', borderRadius: 10, background: '#faf9fc', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#5e3b87', marginBottom: '0.15rem' }}>Build your Qerxel</div>
+              <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Choose Answer, Listen and Calendar independently — see live pricing</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         )}
       </div>
 
@@ -1141,6 +1150,7 @@ const AccountSettings = ({ onNavigate }) => {
       )}
 
     </div>
+    </>
   )
 }
 

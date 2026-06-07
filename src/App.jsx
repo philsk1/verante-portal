@@ -11,6 +11,7 @@ import BusinessSelector from './pages/BusinessSelector'
 import TierSelector from './pages/TierSelector'
 import DemoPortal from './pages/DemoPortal'
 import SalesPerformance from './pages/SalesPerformance'
+import PlanSelector from './pages/PlanSelector'
 
 // Guard for demo routes: requires localStorage demo session
 const DemoRoute = ({ children }) => {
@@ -44,6 +45,12 @@ const App = () => {
           <Route path="/demo/tier/:businessId" element={<DemoRoute><TierSelector /></DemoRoute>} />
           <Route path="/demo/portal/:businessId/:tier" element={<DemoRoute><DemoPortal /></DemoRoute>} />
           <Route path="/demo/performance" element={<DemoRoute><SalesPerformance /></DemoRoute>} />
+
+          <Route path="/plans" element={
+            <ProtectedRoute>
+              <PlanSelector />
+            </ProtectedRoute>
+          } />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

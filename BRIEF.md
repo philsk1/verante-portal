@@ -9,9 +9,6 @@
 
 ## Ready to implement
 
-**Pick-and-mix product selection screen**
-Build a product selection UI. Three columns, one per product (Answer, Listen, Calendar). Customer selects their level within each independently. Rules: Calendar Entry always free with any subscription. Listen requires Answer. Advanced Listen (catalogue + competitor) requires Listen standard first. Price is calculated live from the combination selected. See product and pricing structure in Strategy notes below.
-
 
 ## In progress
 
@@ -21,6 +18,7 @@ Build a product selection UI. Three columns, one per product (Answer, Listen, Ca
 - [x] Catalogue section in Business Profile tab — catalogue_items table migrated, UI built with service/product tabs, split appointment support, CSV upload.
 - [x] Calendar booking engine — all 12 spec points. Staff schedules, service-driven slots, category colour, recurring series, intake capture, client history, reminder/buffer/no-show settings. Migration: supabase_calendar_booking_engine.sql.
 - [x] Three-product navigation scaffold — sidebar groups into Answer / Calendar / Listen (locked) / Integrations with product labels, colour dots, and Listen coming-soon page.
+- [x] Pick-and-mix product selection screen — PlanSelector.jsx. Three columns (Answer/Listen/Calendar), four named quick-packages, live price footer, Listen locked unless Answer subscription selected. Route /plans. Wired into AccountSettings Plan & Billing section via "Build your Qerxel" CTA → full-screen overlay. DB: needs listen_tier + calendar_tier columns on tenants.
 
 
 ---
