@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 
 // ─── tier config ──────────────────────────────────────────────────────────────
 
@@ -434,7 +435,8 @@ const ServiceChips = ({ items, onRemove, onAdd, placeholder, chipStyle }) => {
 const BusinessProfile = () => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -471,7 +473,32 @@ const BusinessProfile = () => {
   const [catalogueAdding, setCatalogueAdding] = useState(false)
   const [catalogueTab, setCatalogueTab] = useState('service')
 
+  // ── Demo mode: inject data from DemoContext instead of real Supabase ─────────
   useEffect(() => {
+    if (!demo?.isDemo) return
+    const biz = demo.business
+    if (!biz) return
+    setTier(demo.tier || 'light')
+    if (biz) {
+      setDetails({
+        business_name:    biz.business_name    || '',
+        business_phone:   biz.business_phone   || '',
+        business_email:   biz.business_email   || '',
+        business_address: '',
+        booking_link:     biz.booking_link     || '',
+        opening_hours:    biz.opening_hours    || '',
+        business_context: biz.business_context || '',
+      })
+    }
+    const allSvcs = demo.services || []
+    setServices(allSvcs.filter(s => !s.is_partner_service))
+    setPartnerServices(allSvcs.filter(s => s.is_partner_service))
+    setStaff(demo.staff || [])
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
