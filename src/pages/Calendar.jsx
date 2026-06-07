@@ -119,7 +119,7 @@ const CalendarToolbar = ({
   teamMode, setTeamMode, smartView, setSmartView, hasAutoAdapted, setView,
   onNew, hasTeamMode,
 }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
     {/* Nav */}
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
       <button onClick={() => onNavigate('PREV')} style={{ width: 30, height: 30, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>‹</button>
@@ -561,6 +561,24 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
   )
 }
 
+// ─── Day column header (week / work_week view) ───────────────────────────────
+function DayColumnHeader({ date }) {
+  const isToday = new Date().toDateString() === date.toDateString()
+  return (
+    <div style={{ padding: '3px 0 4px', textAlign: 'center', lineHeight: 1 }}>
+      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: isToday ? '#5e3b87' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>
+        {format(date, 'EEE')}
+      </div>
+      <div style={{ fontSize: '1.05rem', fontWeight: 700, color: isToday ? '#5e3b87' : '#1a1a1a', fontFamily: "'Syne', sans-serif" }}>
+        {isToday
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#5e3b87', color: 'white', fontSize: '0.9rem' }}>{format(date, 'd')}</span>
+          : format(date, 'd')
+        }
+      </div>
+    </div>
+  )
+}
+
 // ─── Staff column header ─────────────────────────────────────────────────────
 const STAFF_COLOURS = ['#5e3b87','#1d4ed8','#16a34a','#db2777','#d97706','#0284c7','#9333ea','#059669']
 const staffColour = (id) => STAFF_COLOURS[(id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % STAFF_COLOURS.length]
@@ -595,6 +613,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const isDemo = !!preview?.isDemo
   const isPreview = preview?.isPreview
   const isMobile = useIsMobile()
+
+  // Inject overrides to collapse the empty all-day row and tighten header cells
+  useEffect(() => {
+    const id = 'rbc-compact-overrides'
+    if (document.getElementById(id)) return
+    const el = document.createElement('style')
+    el.id = id
+    el.textContent = `
+      .rbc-allday-cell { display: none !important; }
+      .rbc-time-header-content { border-bottom: none !important; }
+      .rbc-header { padding: 0 !important; border-bottom: 1px solid rgba(94,59,135,0.08) !important; }
+      .rbc-header + .rbc-header { border-left: 1px solid rgba(94,59,135,0.08) !important; }
+      .rbc-time-header.rbc-overflowing { border-right: 1px solid rgba(94,59,135,0.08) !important; }
+      .rbc-time-header-gutter { border-bottom: 1px solid rgba(94,59,135,0.08) !important; }
+    `
+    document.head.appendChild(el)
+  }, [])
 
   const [tenantId, setTenantId] = useState(null)
   const [events, setEvents] = useState([])
@@ -1347,6 +1382,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   onEventResize={handleEventResize}
                   eventPropGetter={eventPropGetter}
                   components={{
+                    header: DayColumnHeader,
                     toolbar: (props) => <CalendarToolbar {...props}
                       staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter}
                       teamMode={teamMode} setTeamMode={setTeamMode}
