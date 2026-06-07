@@ -817,13 +817,23 @@ const Portal = () => {
           padding: isMobile ? '1rem 1rem 5rem' : '2rem',
           background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
         }}>
-          <HelpMascot
-            activeTab={activeTab}
-            businessName={displayName}
-            tenantId={activeTenantId}
-            contextKey={TAB_CONTEXT[activeTab]}
-          />
+          {activeTab !== 'calendar' && (
+            <HelpMascot
+              activeTab={activeTab}
+              businessName={displayName}
+              tenantId={activeTenantId}
+              contextKey={TAB_CONTEXT[activeTab]}
+            />
+          )}
           {renderTab()}
+          {activeTab === 'calendar' && (
+            <HelpMascot
+              activeTab={activeTab}
+              businessName={displayName}
+              tenantId={activeTenantId}
+              contextKey={TAB_CONTEXT[activeTab]}
+            />
+          )}
         </div>
 
       </div>

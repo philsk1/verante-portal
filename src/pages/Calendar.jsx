@@ -1286,36 +1286,42 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   return (
     <div>
-      {/* ── Top bar: heading + sub-tabs on same row ──────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.75rem' }}
+      {/* ── Single compact top bar ───────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}
         data-help="Qerxel Calendar — create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing gaps so you can book other clients during colour/drying time.">
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.15rem', fontWeight: 700, color: '#1a1a1a', margin: 0, flexShrink: 0 }}>Calendar</h2>
-        <div style={{ display: 'flex', gap: 0, background: '#f0ebf8', borderRadius: 9, padding: 3 }}>
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', margin: 0, flexShrink: 0 }}>Calendar</h2>
+
+        {/* Sub-tabs */}
+        <div style={{ display: 'flex', gap: 0, background: '#f0ebf8', borderRadius: 9, padding: 3, flexShrink: 0 }}>
           {subTabs.map(tab => (
             <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel() }}
-              style={{ padding: '0.32rem 0.85rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
+              style={{ padding: '0.28rem 0.75rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
               {tab.label}
             </button>
           ))}
         </div>
+
+        {/* Status legend — only on appointments tab, pushed to the right */}
+        {activeSubTab === 'appointments' && (
+          <>
+            <div style={{ flex: 1 }} />
+            {Object.entries(STATUS_LABELS).map(([status, label]) => (
+              <span key={status} style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: 4, fontSize: '0.67rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                {label}
+              </span>
+            ))}
+            {smartViewLabel && (
+              <span style={{ fontSize: '0.67rem', color: '#f0a500', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 4, padding: '0.1rem 0.4rem', whiteSpace: 'nowrap' }}>
+                ✦ {smartViewLabel}
+              </span>
+            )}
+          </>
+        )}
       </div>
 
       {/* ── Appointments sub-tab ─────────────────────────────────────────────── */}
       {activeSubTab === 'appointments' && (
         <>
-          {/* Status legend — compact single line */}
-          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginBottom: '0.5rem', alignItems: 'center' }}>
-            {Object.entries(STATUS_LABELS).map(([status, label]) => (
-              <span key={status} style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif" }}>
-                {label}
-              </span>
-            ))}
-            {smartViewLabel && (
-              <span style={{ fontSize: '0.68rem', color: '#f0a500', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginLeft: 2, background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 4, padding: '0.1rem 0.4rem' }}>
-                ✦ {smartViewLabel}
-              </span>
-            )}
-          </div>
 
           <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
             {/* Calendar grid */}
@@ -1362,9 +1368,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   resources={resources}
                   resourceIdAccessor="id"
                   resourceTitleAccessor="title"
-                  style={{ height: panelOpen && !isMobile ? 580 : 620 }}
+                  style={{ height: panelOpen && !isMobile ? 640 : 680 }}
                   min={new Date(0, 0, 0, 7, 0, 0)}
-                  max={new Date(0, 0, 0, 20, 0, 0)}
+                  max={new Date(0, 0, 0, 21, 0, 0)}
                   formats={{
                     timeGutterFormat: 'HH:mm',
                     eventTimeRangeFormat: ({ start, end }) => `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
