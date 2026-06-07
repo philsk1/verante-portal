@@ -104,9 +104,9 @@ const s = {
     gap: '0.75rem',
   },
   featureCard: {
-    background: 'white',
+    background: '#faf9fc',
     borderRadius: '16px',
-    border: '0.5px solid rgba(94,59,135,0.06)',
+    border: '0.5px solid rgba(94,59,135,0.12)',
     overflow: 'hidden',
     position: 'relative',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',

@@ -67,6 +67,8 @@ function buildGreeting(tenant) {
     resolution = "I'll be taking a brief note and sending you a booking link."
   } else if (outcomeType === 'booking') {
     resolution = "I'll be taking a brief note to get you booked in."
+  } else if (outcomeType === 'custom' && tenant.custom_outcome_text) {
+    resolution = `I'll be taking a brief note — ${tenant.custom_outcome_text.trim()}.`
   } else if (tenant.callback_preference_note) {
     resolution = `I'll be taking a brief note, ${owner} will call you back ${tenant.callback_preference_note}.`
   } else {
@@ -94,6 +96,10 @@ function buildPleaseAllowMe(tenant) {
 
   if (outcomeType === 'booking' && tenant.booking_link) {
     return `When you begin taking details, use: "Please allow me to take your details to get you booked in."`
+  }
+
+  if (outcomeType === 'custom' && tenant.custom_outcome_text) {
+    return `When you begin taking details, use: "Please allow me to take your details — ${tenant.custom_outcome_text.trim()}."`
   }
 
   return `When you begin taking details, use: "Please allow me to take your details — ${owner} will call you back ${timeframe}."`

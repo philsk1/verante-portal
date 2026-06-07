@@ -7,16 +7,16 @@ import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const TRIAGE_MODES = [
-  { id: 'strict',   label: 'Strict',   desc: 'Short, efficient calls. The AI captures key details in fewer turns and closes quickly.' },
-  { id: 'balanced', label: 'Balanced', desc: 'Standard triage. Enough turns to qualify the enquiry and collect contact details.' },
+const CALL_MODES = [
+  { id: 'strict',   label: 'Strict',   desc: 'Short, efficient calls. Captures key details in fewer turns and closes quickly.' },
+  { id: 'balanced', label: 'Balanced', desc: 'Standard — enough turns to qualify the enquiry and collect contact details.' },
   { id: 'open',     label: 'Open',     desc: 'More conversational. Gives callers more space before closing or escalating.' },
 ]
 
 const TRIAGE_COLOUR = {
-  strict:   { border: '#ef4444', bg: '#fecaca', text: '#991b1b', dot: '#ef4444' },
-  balanced: { border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8' },
-  open:     { border: '#3db87a', bg: '#bbf7d0', text: '#166534', dot: '#3db87a' },
+  strict:   { border: '#ef4444', bg: '#fecaca', text: '#991b1b', dot: '#ef4444', passiveBg: '#fff5f5', passiveBorder: 'rgba(239,68,68,0.18)' },
+  balanced: { border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8', passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.18)' },
+  open:     { border: '#3db87a', bg: '#bbf7d0', text: '#166634', dot: '#3db87a', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.18)' },
 }
 
 const CALL_TYPES = [
@@ -25,35 +25,35 @@ const CALL_TYPES = [
     label: 'New Customer',
     desc: 'Caller enquiring about a service you offer. Qualify the need and convert.',
     Icon: User,
-    accent: { bg: '#bbf7d0', color: '#166534', border: '#3db87a' },
+    accent: { bg: '#bbf7d0', color: '#166534', border: '#3db87a', passiveBg: '#f0fdf4' },
   },
   {
     key: 'partner_service',
     label: 'Partner Service',
     desc: 'Caller needs a service you refer to an associate. Acknowledge and refer warmly.',
     Icon: ArrowLeftRight,
-    accent: { bg: '#bfdbfe', color: '#1e3a8a', border: '#1d4ed8' },
+    accent: { bg: '#bfdbfe', color: '#1e3a8a', border: '#1d4ed8', passiveBg: '#eff6ff' },
   },
   {
     key: 'sales_call',
     label: 'Sales Call',
     desc: 'Unsolicited commercial or cold call. Close politely and promptly.',
     Icon: PhoneOff,
-    accent: { bg: '#fecaca', color: '#991b1b', border: '#ef4444' },
+    accent: { bg: '#fecaca', color: '#991b1b', border: '#ef4444', passiveBg: '#fff5f5' },
   },
   {
     key: 'supplier_delivery',
     label: 'Supplier / Delivery',
     desc: 'Supplier, delivery driver, or trade contact. Take details and confirm.',
     Icon: Truck,
-    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500' },
+    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500', passiveBg: '#fffbeb' },
   },
   {
     key: 'invoice_authorities',
     label: 'Invoice / Authorities',
     desc: 'Billing query, creditor, or official body. Take reference details and relay.',
     Icon: FileText,
-    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500' },
+    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500', passiveBg: '#fffbeb' },
   },
 ]
 
@@ -132,7 +132,7 @@ const s = {
       padding: '0.35rem 0.85rem',
       borderRadius: '5px',
       border: 'none',
-      background: active ? (c.bg || '#5e3b87') : 'transparent',
+      background: active ? (c.bg || '#5e3b87') : (c.passiveBg || '#f8f8f8'),
       color: active ? (c.text || 'white') : '#777',
       fontSize: '0.75rem',
       fontWeight: active ? 600 : 400,
@@ -365,7 +365,7 @@ const CallTypeCard = ({ type, rule, businessEmail, onChange }) => {
   const set = (field, value) => onChange(type.key, { ...rule, [field]: value })
 
   return (
-    <div style={{ ...s.ruleCard, borderLeft: `3px solid ${accent.border}` }}>
+    <div style={{ ...s.ruleCard, borderLeft: `3px solid ${accent.border}`, background: accent.passiveBg }}>
       {/* Header: icon + name + desc | mode selector */}
       <div style={s.ruleCardHeader}>
         <div style={s.ruleCardLeft}>
@@ -505,6 +505,7 @@ const AIBehaviour = ({ onNavigate }) => {
   // New settings
   const [toneRegister, setToneRegister] = useState('warm')
   const [businessOutcomeType, setBusinessOutcomeType] = useState('quote')
+  const [customOutcomeText, setCustomOutcomeText] = useState('')
   const [callbackPrefNote, setCallbackPrefNote] = useState('')
   const [additionalInstructions, setAdditionalInstructions] = useState('')
 
@@ -575,7 +576,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -589,6 +590,7 @@ const AIBehaviour = ({ onNavigate }) => {
           setAutodialerDetection(tenant.autodialler_detection !== false)
           setToneRegister(tenant.tone_register || 'warm')
           setBusinessOutcomeType(tenant.business_outcome_type || 'quote')
+          setCustomOutcomeText(tenant.custom_outcome_text || '')
           setCallbackPrefNote(tenant.callback_preference_note || '')
           setAdditionalInstructions(tenant.additional_instructions || '')
           setBusinessName(tenant.business_name || '')
@@ -660,6 +662,7 @@ const AIBehaviour = ({ onNavigate }) => {
       greeting_message: greetingMessage.trim() || null,
       tone_register: toneRegister,
       business_outcome_type: businessOutcomeType,
+      custom_outcome_text: businessOutcomeType === 'custom' ? (customOutcomeText.trim() || null) : null,
       callback_preference_note: callbackPrefNote.trim() || null,
       additional_instructions: additionalInstructions.trim() || null,
       urgent_callback_mins: urgentCallbackMins,
@@ -753,7 +756,7 @@ const AIBehaviour = ({ onNavigate }) => {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading settings…</div>
   }
 
-  const currentMode = TRIAGE_MODES.find(m => m.id === triageMode)
+  const currentMode = CALL_MODES.find(m => m.id === triageMode)
   const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
@@ -774,8 +777,8 @@ const AIBehaviour = ({ onNavigate }) => {
                 <button key={tone} onClick={() => setToneRegister(tone)} style={{
                   padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
-                  border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                  background: toneRegister === tone ? '#ddd6fe' : 'white',
+                  border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.18)',
+                  background: toneRegister === tone ? '#ddd6fe' : '#f5f3ff',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
                     <div style={{ width: 13, height: 13, borderRadius: '50%', border: toneRegister === tone ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
@@ -791,10 +794,34 @@ const AIBehaviour = ({ onNavigate }) => {
           </div>
 
           <div>
-            <label style={s.label} data-help="Booking businesses route callers to an appointment. Quote businesses route callers to a callback conversation.">Successful call outcome</label>
+            <label style={s.label} data-help="Tells your AI what a successful call looks like. This shapes how it closes every conversation.">Successful call outcome</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
-              <button onClick={() => setBusinessOutcomeType('booking')} style={{ ...s.pairBtn(businessOutcomeType === 'booking'), width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem' }}>I take bookings and appointments</button>
-              <button onClick={() => setBusinessOutcomeType('quote')} style={{ ...s.pairBtn(businessOutcomeType === 'quote'), width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem' }}>I discuss, quote, and arrange</button>
+              {[
+                { id: 'booking', label: 'I take bookings and appointments', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.25)', activeBg: '#bbf7d0', activeBorder: '#3db87a', activeText: '#166534' },
+                { id: 'quote',   label: 'I discuss, quote, and arrange',    passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.2)',   activeBg: '#bfdbfe', activeBorder: '#1d4ed8', activeText: '#1e3a8a' },
+                { id: 'custom',  label: 'My business works differently',    passiveBg: '#f5f3ff', passiveBorder: 'rgba(94,59,135,0.2)',   activeBg: '#ddd6fe', activeBorder: '#5e3b87', activeText: '#4a2d6e' },
+              ].map(opt => {
+                const on = businessOutcomeType === opt.id
+                return (
+                  <button key={opt.id} onClick={() => setBusinessOutcomeType(opt.id)} style={{
+                    width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem',
+                    borderRadius: '8px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '0.8125rem', fontWeight: on ? 600 : 400,
+                    border: `${on ? '2px' : '1.5px'} solid ${on ? opt.activeBorder : opt.passiveBorder}`,
+                    background: on ? opt.activeBg : opt.passiveBg,
+                    color: on ? opt.activeText : '#555',
+                  }}>{opt.label}</button>
+                )
+              })}
+              {businessOutcomeType === 'custom' && (
+                <input
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: '8px', fontSize: '0.8125rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: '#faf9fc', marginTop: '0.2rem' }}
+                  value={customOutcomeText}
+                  onChange={e => setCustomOutcomeText(e.target.value)}
+                  placeholder="e.g. I sell products and take orders, or I provide emergency callouts…"
+                  autoFocus
+                />
+              )}
             </div>
 
             <label style={s.label} data-help="When the AI cannot resolve a call — Escalate transfers to you live. Hard close wraps up politely and offers a callback.">When AI cannot resolve</label>
@@ -802,39 +829,39 @@ const AIBehaviour = ({ onNavigate }) => {
               <button onClick={() => setEscalationPref('escalate')} style={{
                 padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
-                border: escalationPref === 'escalate' ? '2px solid #f0a500' : '1.5px solid rgba(94,59,135,0.15)',
-                background: escalationPref === 'escalate' ? '#fde68a' : 'white',
-                color: escalationPref === 'escalate' ? '#78460a' : '#444',
+                border: escalationPref === 'escalate' ? '2px solid #f0a500' : '1.5px solid rgba(240,165,0,0.3)',
+                background: escalationPref === 'escalate' ? '#fde68a' : '#fffbeb',
+                color: escalationPref === 'escalate' ? '#78460a' : '#92610a',
               }}>Escalate to me</button>
               <button onClick={() => setEscalationPref('hard_close')} style={{
                 padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
-                border: escalationPref === 'hard_close' ? '2px solid #94a3b8' : '1.5px solid rgba(94,59,135,0.15)',
-                background: escalationPref === 'hard_close' ? '#f1f5f9' : 'white',
-                color: escalationPref === 'hard_close' ? '#475569' : '#444',
+                border: escalationPref === 'hard_close' ? '2px solid #94a3b8' : '1.5px solid rgba(148,163,184,0.35)',
+                background: escalationPref === 'hard_close' ? '#f1f5f9' : '#f8fafc',
+                color: escalationPref === 'hard_close' ? '#475569' : '#64748b',
               }}>Hard close</button>
             </div>
           </div>
         </div>
 
-        {/* Row 2: Triage mode */}
-        <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Triage mode controls the pace of conversations. Strict = short and efficient. Balanced = standard. Open = more conversational.">Default triage mode</label>
+        {/* Row 2: Call mode */}
+        <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Call mode controls the pace and depth of every conversation. Strict = short and efficient. Balanced = standard. Open = relaxed and conversational.">Default call mode</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
-          {TRIAGE_MODES.map(mode => {
+          {CALL_MODES.map(mode => {
             const tc = TRIAGE_COLOUR[mode.id]
             const active = triageMode === mode.id
             return (
               <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
                 padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
-                border: active ? `2px solid ${tc.border}` : '1.5px solid rgba(94,59,135,0.15)',
-                background: active ? tc.bg : 'white',
+                border: active ? `2px solid ${tc.border}` : `1.5px solid ${tc.passiveBorder}`,
+                background: active ? tc.bg : tc.passiveBg,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
-                  <div style={{ width: 13, height: 13, borderRadius: '50%', border: active ? `4px solid ${tc.dot}` : '1.5px solid #ccc', flexShrink: 0 }} />
-                  <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: active ? tc.text : '#1a1a1a' }}>{mode.label}</div>
+                  <div style={{ width: 13, height: 13, borderRadius: '50%', border: active ? `4px solid ${tc.dot}` : `2px solid ${tc.dot}`, flexShrink: 0, opacity: active ? 1 : 0.4 }} />
+                  <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: active ? tc.text : '#333' }}>{mode.label}</div>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: active ? tc.text : '#777', lineHeight: 1.45, paddingLeft: '1.25rem', opacity: active ? 0.8 : 1 }}>{mode.desc}</div>
+                <div style={{ fontSize: '0.72rem', color: active ? tc.text : '#666', lineHeight: 1.45, paddingLeft: '1.25rem', opacity: active ? 0.85 : 1 }}>{mode.desc}</div>
               </button>
             )
           })}
@@ -878,8 +905,8 @@ const AIBehaviour = ({ onNavigate }) => {
             <label style={{ ...s.label, marginBottom: '0.4rem' }}>When you run over your included minutes</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               {[
-                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.', activeBorder: '#5e3b87', activeBg: '#ddd6fe', activeText: '#4a2d6e', activeDot: '#5e3b87' },
-                { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.', activeBorder: '#3db87a', activeBg: '#bbf7d0', activeText: '#166534', activeDot: '#3db87a' },
+                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.', activeBorder: '#5e3b87', activeBg: '#ddd6fe', activeText: '#4a2d6e', activeDot: '#5e3b87', passiveBg: '#f5f3ff', passiveBorder: 'rgba(94,59,135,0.2)' },
+                { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.', activeBorder: '#3db87a', activeBg: '#bbf7d0', activeText: '#166534', activeDot: '#3db87a', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.2)' },
               ].map(opt => {
                 const on = overageVoicePref === opt.id
                 return (
@@ -887,8 +914,8 @@ const AIBehaviour = ({ onNavigate }) => {
                     display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
                     padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif",
-                    border: on ? `2px solid ${opt.activeBorder}` : '1.5px solid rgba(94,59,135,0.15)',
-                    background: on ? opt.activeBg : 'white',
+                    border: on ? `2px solid ${opt.activeBorder}` : `1.5px solid ${opt.passiveBorder}`,
+                    background: on ? opt.activeBg : opt.passiveBg,
                   }}>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', border: on ? `4px solid ${opt.activeDot}` : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
                     <div>

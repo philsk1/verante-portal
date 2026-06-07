@@ -8,15 +8,15 @@ import { Copy, Check, ExternalLink, Share2 } from 'lucide-react'
 // ─── specialty → colour system ────────────────────────────────────────────────
 
 const specialtyColour = (spec) => {
-  if (!spec) return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#ddd6fe', ct: '#4a2d6e' }
+  if (!spec) return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#f5f3ff', ct: '#4a2d6e' }
   const t = spec.toLowerCase()
   if (/plumb|electr|build|roof|carpet|floor|paint|decorat|gas|heat|air.?con|window|door|fenc|garden|lands|clean|waste|skip|pest|lock|glaz|tile|brick|concret|drain|guttr|joiner|carpent|handyman|damp|roofer|scaffold/.test(t))
-    return { bar: '#f0a500', ab: '#fde68a', at: '#78460a', cb: '#fde68a', ct: '#78460a' }
+    return { bar: '#f0a500', ab: '#fde68a', at: '#78460a', cb: '#fffbeb', ct: '#78460a' }
   if (/physio|dental|dentist|doctor|osteo|chiro|optici|optom|mental|counsel|therap|health|medic|nurse|pharmac|beauty|hair|salon|spa|massage|nutrition|diet|gym|fitness|yoga|pilates|sport|care|wellbeing/.test(t))
-    return { bar: '#3db87a', ab: '#bbf7d0', at: '#166534', cb: '#bbf7d0', ct: '#166534' }
+    return { bar: '#3db87a', ab: '#bbf7d0', at: '#166534', cb: '#f0fdf4', ct: '#166534' }
   if (/solicit|account|legal|law|financ|ifa|mortgage|insur|consult|audit|tax|architect|engineer|recruit|market|design|tech|web|software|media|print|photog|video/.test(t))
-    return { bar: '#1d4ed8', ab: '#bfdbfe', at: '#1e3a8a', cb: '#bfdbfe', ct: '#1e3a8a' }
-  return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#ddd6fe', ct: '#4a2d6e' }
+    return { bar: '#1d4ed8', ab: '#bfdbfe', at: '#1e3a8a', cb: '#eff6ff', ct: '#1e3a8a' }
+  return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#f5f3ff', ct: '#4a2d6e' }
 }
 
 const initials = (name) => name ? name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?'
@@ -267,8 +267,8 @@ const PartnersReferrals = () => {
               const { bar, ab, at, cb, ct } = specialtyColour(spec)
               return (
                 <div key={p.id} style={{
-                  background: 'white', borderRadius: '12px',
-                  border: '0.5px solid rgba(94,59,135,0.08)',
+                  background: cb, borderRadius: '12px',
+                  border: `0.5px solid ${bar}22`,
                   borderLeft: `4px solid ${bar}`,
                   padding: '0.8rem 0.8rem 0.8rem 0.85rem',
                   display: 'flex', alignItems: 'flex-start', gap: '0.65rem',
