@@ -297,15 +297,13 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - Component architecture instruction: build every component as a self-contained unit with clearly defined props. No hardcoded layout relationships between siblings. Wrapping not rebuilding for future tile system.
 
 ### Remaining (user actions required)
-- [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor
-- [ ] Run `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text default 'none'; ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text default 'entry';`
-- [ ] leads table: add `notes` column — `ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes text;`
-- [ ] Run `supabase_calendar_booking_engine.sql` in Supabase SQL Editor
-- [ ] Run `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_outcome_text text;`
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
 - [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
 - [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
 - [ ] Confirm new tier pricing when ready to update portal
+
+### DB — all migrations applied (2026-06-07)
+All columns and tables are live. No pending migrations.
 
 ---
 
