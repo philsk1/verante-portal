@@ -60,9 +60,9 @@ const s = {
   section: {
     background: 'white',
     borderRadius: '16px',
-    padding: '1.75rem',
+    padding: '1.25rem 1.5rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
-    marginBottom: '1.25rem',
+    marginBottom: '1rem',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   sectionTitle: {
@@ -75,10 +75,11 @@ const s = {
     margin: '0 0 0.2rem',
   },
   sectionSubtitle: {
-    fontSize: '0.8rem',
-    color: '#888',
-    marginBottom: '1.25rem',
-    lineHeight: 1.55,
+    fontSize: '0.78rem',
+    color: '#999',
+    marginBottom: '0.85rem',
+    lineHeight: 1.5,
+    marginTop: '0.1rem',
   },
   label: {
     display: 'block',
@@ -748,158 +749,121 @@ const AIBehaviour = ({ onNavigate }) => {
         <h3 style={s.sectionTitle}>Call Handling</h3>
         <p style={s.sectionSubtitle}>Global defaults — overridden per call type below.</p>
 
-        {/* Tone register */}
-        <label style={s.label} data-help="Your assistant's tone. Warm is friendly and natural — right for most businesses. Formal is professional and precise — suits solicitors, accountants, and formal practices. Both versions are professionally crafted.">Assistant tone</label>
-        <p style={{ ...s.hint, marginTop: 0, marginBottom: '0.75rem' }}>Choose your assistant's tone. Both versions are professionally crafted — pick the one that fits your business.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
-          {['warm', 'formal'].map(tone => (
-            <button key={tone} onClick={() => setToneRegister(tone)} style={{
-              padding: '0.875rem 1rem',
-              borderRadius: '8px',
-              border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-              background: toneRegister === tone ? '#f0ebf8' : 'white',
-              textAlign: 'left',
-              cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: toneRegister === tone ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
-                <div style={{ fontWeight: '600', fontSize: '0.875rem', color: toneRegister === tone ? '#5e3b87' : '#1a1a1a' }}>
-                  {tone === 'warm' ? 'Warm' : 'Formal'}
-                </div>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.6, fontStyle: 'italic' }}>
-                "{previewGreeting(tone, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
-              </div>
-            </button>
-          ))}
-        </div>
-        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>"Please allow me" appears in every greeting when taking details — this is non-negotiable and protects the quality of every call.</p>
+        {/* Row 1: Tone + Outcome type side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
+          <div>
+            <label style={s.label} data-help="Your assistant's tone. Warm is friendly and natural. Formal is professional and precise — suits solicitors, accountants, formal practices.">Assistant tone</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {['warm', 'formal'].map(tone => (
+                <button key={tone} onClick={() => setToneRegister(tone)} style={{
+                  padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                  border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+                  background: toneRegister === tone ? '#ddd6fe' : 'white',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <div style={{ width: 13, height: 13, borderRadius: '50%', border: toneRegister === tone ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
+                    <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: toneRegister === tone ? '#4a2d6e' : '#1a1a1a' }}>{tone === 'warm' ? 'Warm' : 'Formal'}</div>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45, fontStyle: 'italic', paddingLeft: '1.3rem' }}>
+                    "{previewGreeting(tone, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '0.4rem', lineHeight: 1.4 }}>"Please allow me" is locked — it protects call quality.</div>
+          </div>
 
-        {/* Business outcome type */}
-        <label style={s.label} data-help="This tells your AI what a successful call looks like for you. Booking businesses route callers to an appointment. Quote businesses route callers to a callback conversation.">What does a successful call look like?</label>
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <button onClick={() => setBusinessOutcomeType('booking')} style={s.pairBtn(businessOutcomeType === 'booking')}>I take bookings and appointments</button>
-          <button onClick={() => setBusinessOutcomeType('quote')} style={s.pairBtn(businessOutcomeType === 'quote')}>I discuss, quote, and arrange</button>
-        </div>
-        <p style={{ ...s.hint, marginBottom: '1.5rem' }}>
-          {businessOutcomeType === 'booking'
-            ? 'Your AI will route interested callers to your booking link or offer to get them booked in.'
-            : 'Your AI will take details and arrange for you to call the customer back to discuss.'}
-        </p>
+          <div>
+            <label style={s.label} data-help="Booking businesses route callers to an appointment. Quote businesses route callers to a callback conversation.">Successful call outcome</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+              <button onClick={() => setBusinessOutcomeType('booking')} style={{ ...s.pairBtn(businessOutcomeType === 'booking'), width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem' }}>I take bookings and appointments</button>
+              <button onClick={() => setBusinessOutcomeType('quote')} style={{ ...s.pairBtn(businessOutcomeType === 'quote'), width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem' }}>I discuss, quote, and arrange</button>
+            </div>
 
-        <label style={s.label} data-help="Triage mode controls the pace and style of your AI's conversations. Strict = short and efficient, gets what it needs quickly and closes. Balanced = standard, recommended for most businesses. Open = more relaxed and conversational, good where relationship matters more than speed.">Default triage mode</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <label style={s.label} data-help="When the AI cannot resolve a call — Escalate transfers to you live. Hard close wraps up politely and offers a callback.">When AI cannot resolve</label>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button onClick={() => setEscalationPref('escalate')} style={s.pairBtn(escalationPref === 'escalate')}>Escalate to me</button>
+              <button onClick={() => setEscalationPref('hard_close')} style={s.pairBtn(escalationPref === 'hard_close')}>Hard close</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Triage mode */}
+        <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Triage mode controls the pace of conversations. Strict = short and efficient. Balanced = standard. Open = more conversational.">Default triage mode</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
           {TRIAGE_MODES.map(mode => (
             <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
-              padding: '0.875rem 1rem',
-              borderRadius: '8px',
-              border: triageMode === mode.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-              background: triageMode === mode.id ? '#f0ebf8' : 'white',
-              textAlign: 'left',
-              cursor: 'pointer',
+              padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
+              border: triageMode === mode.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+              background: triageMode === mode.id ? '#ddd6fe' : 'white',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: triageMode === mode.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
-                <div style={{ fontWeight: 600, fontSize: '0.875rem', color: triageMode === mode.id ? '#5e3b87' : '#1a1a1a' }}>
-                  {mode.label}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
+                <div style={{ width: 13, height: 13, borderRadius: '50%', border: triageMode === mode.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
+                <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: triageMode === mode.id ? '#4a2d6e' : '#1a1a1a' }}>{mode.label}</div>
               </div>
-              <div style={{ fontSize: '0.73rem', color: '#777', lineHeight: 1.5 }}>
-                {mode.desc}
-              </div>
+              <div style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.45, paddingLeft: '1.25rem' }}>{mode.desc}</div>
             </button>
           ))}
         </div>
 
-        <div style={{ marginTop: '1.5rem' }}>
-          <label style={s.label} data-help="This controls what happens when your AI genuinely can't help a caller. 'Escalate to me' means it tries to transfer the call to you live — if you don't answer, it takes a callback. 'Hard close' means it wraps up politely without trying to reach you, and offers a callback request instead.">When the AI cannot resolve a call</label>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button onClick={() => setEscalationPref('escalate')} style={s.pairBtn(escalationPref === 'escalate')}>Escalate to me</button>
-            <button onClick={() => setEscalationPref('hard_close')} style={s.pairBtn(escalationPref === 'hard_close')}>Hard close</button>
+        {/* Row 3: Urgent + Call return side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
+          <div>
+            <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="If a caller sounds urgent, how quickly can you respond? This promise is made to the caller.">Urgent call response</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', color: '#444' }}>Respond within</span>
+              <input
+                type="number" min={1}
+                style={{ width: '52px', padding: '0.35rem 0.4rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+                value={urgentCallbackMins}
+                onChange={e => setUrgentCallbackMins(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+              <span style={{ fontSize: '0.8rem', color: '#444' }}>minutes</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {[{ id: 'sms', label: 'Text me' }, { id: 'email', label: 'Email me' }, { id: 'both', label: 'Both' }].map(opt => (
+                <button key={opt.id} onClick={() => setUrgentEscalationMethod(opt.id)} style={s.pairBtn(urgentEscalationMethod === opt.id)}>{opt.label}</button>
+              ))}
+            </div>
           </div>
-          <p style={s.hint}>
-            {escalationPref === 'escalate'
-              ? 'Your AI will attempt to transfer the call to you. If unreachable, it captures a callback request.'
-              : 'Your AI politely closes the call and offers a booking link or callback request. Nothing reaches you in real time.'}
-          </p>
-        </div>
 
-        <div style={{ marginTop: '1.5rem' }}>
-          <label style={s.label} data-help="If a caller sounds urgent, this is how quickly your AI promises a response. It also controls how you get notified — by text, email, or both.">Urgent call response</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.875rem', color: '#444' }}>If a call is urgent, I can respond within</span>
+          <div>
+            <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Your AI says this when closing a call: 'Please allow me to take your details — [your name] will call you back [this].'">Call return preference</label>
             <input
-              type="number"
-              min={1}
-              style={{ width: '64px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
-              value={urgentCallbackMins}
-              onChange={e => setUrgentCallbackMins(Math.max(1, parseInt(e.target.value) || 1))}
+              style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.8125rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+              value={callbackPrefNote}
+              onChange={e => setCallbackPrefNote(e.target.value)}
+              placeholder="e.g. after 3pm same day"
             />
-            <span style={{ fontSize: '0.875rem', color: '#444' }}>minutes.</span>
-          </div>
-          <label style={s.label}>How should urgent calls be flagged?</label>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            {[{ id: 'sms', label: 'Text me' }, { id: 'email', label: 'Email me' }, { id: 'both', label: 'Both' }].map(opt => (
-              <button key={opt.id} onClick={() => setUrgentEscalationMethod(opt.id)} style={s.pairBtn(urgentEscalationMethod === opt.id)}>{opt.label}</button>
-            ))}
           </div>
         </div>
 
-        <div>
-          <label style={s.label} data-help="Tell your AI about your general availability and when to expect a callback. It uses this phrase directly with callers — write it as you'd say it.">Call return preference</label>
-          <input
-            style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
-            value={callbackPrefNote}
-            onChange={e => setCallbackPrefNote(e.target.value)}
-            placeholder="e.g. I return all calls after 3pm same day. Urgent or personal calls should always reach me immediately."
-          />
-          <p style={s.hint}>Your AI uses this when closing a call — "Please allow me to take your details — [owner] will call you back [this]."</p>
-        </div>
-
-        {/* Overage voice preference — paid tiers only */}
+        {/* Row 4: Overage voice — 2 col */}
         {tier !== 'free' && (
-          <div style={{ marginTop: '1.5rem' }} data-help="When your included Premium minutes run out, your AI keeps going. This setting controls whether it continues on Premium voice (18p/min) or drops to Standard voice (14p/min) to save you money. Premium is the default — your callers never notice a change.">
-            <label style={s.label}>When you run over your included minutes</label>
-            <p style={{ ...s.hint, marginBottom: '0.75rem', marginTop: 0 }}>Your AI keeps handling calls — choose how it charges for additional minutes.</p>
-            {[
-              {
-                id: 'premium',
-                title: 'Stay on Premium voice — 18p/min',
-                desc: 'Keep the same quality your callers have experienced all month. No change for them, continuity for you.',
-              },
-              {
-                id: 'standard',
-                title: 'Switch to Standard voice — 14p/min',
-                desc: 'Save 4p per minute on additional calls. Slightly different voice quality. You\'ll return to Premium automatically when your allowance renews.',
-              },
-            ].map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => setOverageVoicePref(opt.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.75rem',
-                  width: '100%',
-                  padding: '0.875rem 1rem',
-                  marginBottom: '0.5rem',
-                  borderRadius: '8px',
-                  border: overageVoicePref === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                  background: overageVoicePref === opt.id ? '#f0ebf8' : 'white',
-                  cursor: 'pointer',
-                  textAlign: 'left',
+          <div data-help="When your included minutes run out, your AI keeps going. Choose whether to stay on Premium (18p/min) or drop to Standard voice (14p/min).">
+            <label style={{ ...s.label, marginBottom: '0.4rem' }}>When you run over your included minutes</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+              {[
+                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.' },
+                { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.' },
+              ].map(opt => (
+                <button key={opt.id} onClick={() => setOverageVoicePref(opt.id)} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+                  padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
-                }}
-              >
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: overageVoicePref === opt.id ? '5px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '0.875rem', color: overageVoicePref === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.2rem' }}>{opt.title}</div>
-                  <div style={{ fontSize: '0.775rem', color: '#888', lineHeight: 1.5 }}>{opt.desc}</div>
-                </div>
-              </button>
-            ))}
+                  border: overageVoicePref === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+                  background: overageVoicePref === opt.id ? '#ddd6fe' : 'white',
+                }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: overageVoicePref === opt.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: overageVoicePref === opt.id ? '#4a2d6e' : '#1a1a1a', marginBottom: '0.15rem' }}>{opt.title}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.4 }}>{opt.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

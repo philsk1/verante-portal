@@ -57,7 +57,7 @@ const SectionLabel = ({ children }) => (
 
 const Card = ({ children, style }) => (
   <div style={{
-    background: 'white', borderRadius: '16px', padding: '1.5rem',
+    background: 'white', borderRadius: '16px', padding: '1.1rem 1.4rem',
     border: '0.5px solid rgba(94,59,135,0.08)', marginBottom: '1rem',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
     ...style,

@@ -38,9 +38,9 @@ const s = {
   section: {
     background: 'white',
     borderRadius: '16px',
-    padding: '1.75rem',
+    padding: '1.25rem 1.5rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
-    marginBottom: '1.25rem',
+    marginBottom: '1rem',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   sectionTitle: {
@@ -53,10 +53,11 @@ const s = {
     margin: '0 0 0.2rem',
   },
   sectionSubtitle: {
-    fontSize: '0.8rem',
-    color: '#888',
-    marginBottom: '1.25rem',
-    lineHeight: 1.55,
+    fontSize: '0.78rem',
+    color: '#999',
+    marginBottom: '0.85rem',
+    lineHeight: 1.5,
+    marginTop: '0.1rem',
   },
   label: {
     display: 'block',

@@ -31,13 +31,13 @@ const s = {
   headlineGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '1rem',
-    marginBottom: '1.25rem',
+    gap: '0.75rem',
+    marginBottom: '0.75rem',
   },
   headlineCard: {
     background: 'white',
     borderRadius: '16px',
-    padding: '1.5rem 1.5rem 1.25rem',
+    padding: '1rem 1.25rem 0.85rem',
     border: '0.5px solid rgba(94,59,135,0.06)',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
@@ -101,7 +101,7 @@ const s = {
   featureGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '1.25rem',
+    gap: '0.75rem',
   },
   featureCard: {
     background: 'white',
@@ -112,7 +112,7 @@ const s = {
     boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.06)',
   },
   featureHeader: {
-    padding: '1.25rem 1.25rem 0',
+    padding: '1rem 1.25rem 0',
   },
   featureTitle: {
     fontSize: '0.6875rem',
@@ -130,7 +130,7 @@ const s = {
     marginBottom: '1rem',
   },
   featureBody: {
-    padding: '0 1.25rem 1.25rem',
+    padding: '0 1.25rem 1rem',
   },
   lockedOverlay: {
     position: 'absolute',
