@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
 const useIsMobile = () => {
@@ -333,9 +332,8 @@ const LiveCard = ({ title, desc, children, helpText }) => (
 
 const DataAnalytics = ({ onNavigate }) => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -349,42 +347,8 @@ const DataAnalytics = ({ onNavigate }) => {
   const [outcomeBreakdown, setOutcomeBreakdown] = useState({})
   const [callsByDay, setCallsByDay] = useState([0, 0, 0, 0, 0, 0, 0])
 
-  // Demo mode: compute analytics from DemoContext data
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-
-    const calls = demo.analyticsCallData || []
-    const leads = demo.leads || []
-
-    setTier(demo.tier)
-    setTotalCalls(calls.length)
-    setTotalLeads(leads.length)
-
-    const withDuration = calls.filter(c => c.duration > 0)
-    const avgSecs = withDuration.length > 0
-      ? Math.round(withDuration.reduce((s, c) => s + c.duration, 0) / withDuration.length)
-      : 0
-    setAvgDurationSecs(avgSecs)
-
-    const outcomes = {}
-    calls.forEach(c => {
-      const k = c.triage_outcome || 'unknown'
-      outcomes[k] = (outcomes[k] || 0) + 1
-    })
-    setOutcomeBreakdown(outcomes)
-
-    const byDay = [0, 0, 0, 0, 0, 0, 0]
-    calls.forEach(c => {
-      const dow = new Date(c.created_at).getDay()
-      byDay[dow]++
-    })
-    setCallsByDay(byDay)
-
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -451,7 +415,7 @@ const DataAnalytics = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   const leadRate = pct(totalLeads, totalCalls)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)

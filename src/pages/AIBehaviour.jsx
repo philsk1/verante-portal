@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 
@@ -475,9 +474,8 @@ function previewGreeting(tone, name, owner, outcomeType, bLink, callbackNote) {
 
 const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -537,30 +535,8 @@ const AIBehaviour = ({ onNavigate }) => {
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
 
-  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-    const biz = demo.business || {}
-    setTier(demo.tier)
-    setBusinessEmail(biz.business_email || '')
-    setTriageMode(biz.triage_mode || 'balanced')
-    setGreetingMessage(biz.greeting_message || '')
-    setToneRegister(biz.tone_register || 'warm')
-    setBusinessOutcomeType(biz.business_outcome_type || 'quote')
-    setEscalationPref('escalate')
-    setSpamFilter(true)
-    setSalesHandling(true)
-    setAutodialerDetection(true)
-    setUrgentCallbackMins(60)
-    setBusinessName(biz.business_name || '')
-    setOwnerName(biz.lead_contact_name || '')
-    setBookingLink(biz.booking_link || '')
-    setOverageVoicePref('premium')
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -640,7 +616,7 @@ const AIBehaviour = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   // ── handlers ────────────────────────────────────────────────────────────────
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
 // ─── tier config ──────────────────────────────────────────────────────────────
@@ -434,9 +433,8 @@ const ServiceChips = ({ items, onRemove, onAdd, placeholder, chipStyle }) => {
 
 const BusinessProfile = () => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -473,29 +471,8 @@ const BusinessProfile = () => {
   const [catalogueAdding, setCatalogueAdding] = useState(false)
   const [catalogueTab, setCatalogueTab] = useState('service')
 
-  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-    const biz = demo.business || {}
-    setTier(demo.tier)
-    setDetails({
-      business_name:    biz.business_name    || '',
-      business_phone:   biz.business_phone   || '',
-      business_email:   biz.business_email   || '',
-      business_address: '',
-      booking_link:     biz.booking_link     || '',
-      opening_hours:    biz.opening_hours    || '',
-      business_context: biz.business_context || '',
-    })
-    setServices(demo.services.filter(s => !s.is_partner_service).map(s => ({ id: s.id, service_name: s.service_name })))
-    setPartnerServices(demo.services.filter(s => s.is_partner_service).map(s => ({ id: s.id, service_name: s.service_name })))
-    setClients([])
-    setStaff(demo.staff.map(s => ({ id: s.id, name: s.name, role: s.role, specialist_services: s.specialist_services, phone: s.phone, active: s.active })))
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -562,7 +539,7 @@ const BusinessProfile = () => {
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   // ── business details ────────────────────────────────────────────────────────
 

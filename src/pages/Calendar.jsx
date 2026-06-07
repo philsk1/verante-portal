@@ -9,7 +9,6 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
 const locales = { 'en-GB': enGB }
@@ -228,18 +227,7 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
   const [expanded, setExpanded] = useState(null) // staffId of open card
 
   useEffect(() => {
-    if (!tenantId && !isDemo) return
-    if (isDemo) {
-      const demo = {}
-      DEMO_STAFF.forEach(s => {
-        demo[s.id] = {}
-        ;[1,2,3,4,5].forEach(d => { demo[s.id][d] = { on: true, start: '09:00', end: '18:00' } })
-        ;[0,6].forEach(d => { demo[s.id][d] = { on: false, start: '09:00', end: '18:00' } })
-      })
-      setSchedules(demo)
-      setLoading(false)
-      return
-    }
+    if (!tenantId) return
     const load = async () => {
       const { data } = await supabase.from('staff_availability')
         .select('staff_profile_id, day_of_week, start_time, end_time, active')
@@ -495,9 +483,8 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed }) {
   const { user } = useAuth()
-  const demo = useDemo()
   const preview = usePreview()
-  const isDemo = !!demo?.isDemo
+  const isDemo = !!preview?.isDemo
   const isPreview = preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -546,14 +533,14 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Load tenant ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const getTid = async () => {
       if (isPreview) { setTenantId(preview.previewTenantId); return }
       const { data } = await supabase.from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
       if (data) setTenantId(data.tenant_id)
     }
     getTid()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   // ─── Load appointments + staff + catalogue ──────────────────────────────────
   useEffect(() => {
@@ -578,28 +565,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     load()
   }, [tenantId])
 
-  // ─── Demo mode ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isDemo) return
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const h = (hrs) => new Date(today.getTime() + hrs * 3600000)
-    setStaff(DEMO_STAFF)
-    setCatalogue([
-      { id: 'demo-cat-1', name: 'Cut & Colour', category: 'Colour', duration_minutes: 150, processing_minutes: 60, item_type: 'service' },
-      { id: 'demo-cat-2', name: 'Balayage', category: 'Colour', duration_minutes: 210, processing_minutes: 90, item_type: 'service' },
-      { id: 'demo-cat-3', name: 'Blow Dry', category: 'Styling', duration_minutes: 45, processing_minutes: 0, item_type: 'service' },
-      { id: 'demo-cat-4', name: 'Consultation', category: 'Consultation', duration_minutes: 30, processing_minutes: 0, item_type: 'service' },
-    ])
-    setEvents([
-      { id: 'demo-1', title: 'Sarah Mitchell — Cut & Colour', start: h(9), end: h(11.5), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Cut & Colour', service_id: 'demo-cat-1' } },
-      { id: 'demo-2', title: 'Emma Clark — Balayage', start: h(9.5), end: h(13), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Balayage', service_id: 'demo-cat-2', processing_start_time: h(10.25).toISOString(), processing_end_time: h(12).toISOString() } },
-      { id: 'demo-3', title: 'James Okafor — Consultation', start: h(10), end: h(10.75), resourceId: 'demo-staff-2', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-2', appointment_type: 'Consultation', service_id: 'demo-cat-4' } },
-      { id: 'demo-4', title: 'Lucy Barnes — Blow Dry', start: h(12), end: h(13), resourceId: 'demo-staff-2', resource: { status: 'provisional', staff_profile_id: 'demo-staff-2', appointment_type: 'Blow Dry', service_id: 'demo-cat-3' } },
-      { id: 'demo-5', title: 'Tom Ellis — Gents Cut', start: h(25), end: h(25.75), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Gents Cut' } },
-    ])
-    setLoading(false)
-  }, [isDemo])
 
   // ─── Service selection → auto-fill duration + processing ─────────────────────
   const handleServiceSelect = (serviceId) => {
@@ -1340,7 +1305,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
       {/* ── Staff schedules sub-tab ──────────────────────────────────────────── */}
       {activeSubTab === 'schedules' && (
-        <StaffScheduleTab tenantId={tenantId} staff={isDemo ? DEMO_STAFF : staff} isDemo={isDemo} isPreview={isPreview} />
+        <StaffScheduleTab tenantId={tenantId} staff={staff} isDemo={isDemo} isPreview={isPreview} />
       )}
 
       {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}

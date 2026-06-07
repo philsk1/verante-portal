@@ -7,19 +7,8 @@ import Signup from './pages/Signup'
 import Onboarding from './pages/Onboarding'
 import Portal from './pages/Portal'
 import DemoLogin from './pages/DemoLogin'
-import BusinessSelector from './pages/BusinessSelector'
-import TierSelector from './pages/TierSelector'
-import DemoPortal from './pages/DemoPortal'
-import SalesPerformance from './pages/SalesPerformance'
 import PlanSelector from './pages/PlanSelector'
 import BookingPage from './pages/BookingPage'
-
-// Guard for demo routes: requires localStorage demo session
-const DemoRoute = ({ children }) => {
-  const session = localStorage.getItem('demo_session')
-  if (!session) return <Navigate to="/demo/login" replace />
-  return children
-}
 
 const App = () => {
   return (
@@ -40,12 +29,9 @@ const App = () => {
             </ProtectedRoute>
           } />
 
-          {/* Demo routes — no Supabase auth, use localStorage session */}
+          {/* Demo route — real Supabase auth, redirects to /portal */}
           <Route path="/demo/login" element={<DemoLogin />} />
-          <Route path="/demo/select" element={<DemoRoute><BusinessSelector /></DemoRoute>} />
-          <Route path="/demo/tier/:businessId" element={<DemoRoute><TierSelector /></DemoRoute>} />
-          <Route path="/demo/portal/:businessId/:tier" element={<DemoRoute><DemoPortal /></DemoRoute>} />
-          <Route path="/demo/performance" element={<DemoRoute><SalesPerformance /></DemoRoute>} />
+          <Route path="/demo" element={<DemoLogin />} />
 
           <Route path="/plans" element={
             <ProtectedRoute>

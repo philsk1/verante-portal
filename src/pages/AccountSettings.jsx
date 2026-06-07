@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 import { useNavigate } from 'react-router-dom'
 import PlanSelector from './PlanSelector'
@@ -483,9 +482,8 @@ const Toggle = ({ checked, onChange }) => (
 
 const AccountSettings = ({ onNavigate }) => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const navigate = useNavigate()
 
@@ -540,27 +538,8 @@ const AccountSettings = ({ onNavigate }) => {
   // Plan selector overlay
   const [showPlanSelector, setShowPlanSelector] = useState(false)
 
-  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-    const biz = demo.business || {}
-    setDisplayName(biz.business_name || '')
-    setTier(demo.tier)
-    setTenantCreatedAt(null)
-    setNotifyNewLead(true)
-    setNotifyDailySummary(false)
-    setNotifyWeeklyReport(true)
-    setDataRetentionDays(90)
-    setBillingModel('subscription')
-    setMonthlyCostLimit(20)
-    setPartnerCount(demo.partners.length)
-    setLeadCount(demo.leads.length)
-    setOutboundCount(demo.referrals.length)
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -610,7 +589,7 @@ const AccountSettings = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })

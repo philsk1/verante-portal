@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 import { Copy, Check, ExternalLink, Share2 } from 'lucide-react'
 
@@ -79,9 +78,8 @@ const Input = ({ style, ...props }) => (
 
 const PartnersReferrals = () => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [loading, setLoading]               = useState(true)
@@ -101,18 +99,7 @@ const PartnersReferrals = () => {
   const estimatedValue  = Math.round(outboundCount * 75)
 
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-    const biz = demo.business || {}
-    setReferralCode(biz.referral_code || '')
-    setCreditMonths(biz.credits_balance || 0)
-    setPartners(demo.partners.map(p => ({ id: p.id, business_name: p.partner_name, business_phone: p.partner_phone || '' })))
-    setPartnerSpecialties(Object.fromEntries(demo.partners.filter(p => p.specialty).map(p => [p.id, p.specialty])))
-    setOutboundCount(demo.referrals.length)
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -152,7 +139,7 @@ const PartnersReferrals = () => {
       }
     }
     load()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   const addPartner = async () => {
     if (isDemo || isPreview) return

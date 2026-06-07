@@ -3,7 +3,6 @@ import ReactApexChart from 'react-apexcharts'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
 const useIsMobile = () => {
@@ -509,9 +508,8 @@ const LeadCard = ({ lead, onClick }) => {
 
 const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo
   const preview = usePreview()
+  const isDemo = !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -538,22 +536,8 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
 
-  // Demo mode: inject data from DemoContext
   useEffect(() => {
-    if (!isDemo || demo?.loading) return
-    setCalls(demo.calls)
-    setLeads(demo.leads)
-    setReferrals(demo.referrals)
-    setBusinessName(demo.business?.business_name || '')
-    setIncludedMinutes(demo.includedMinutes)
-    setTier(demo.business?.tier || 'standard')
-    setTriageMode(demo.business?.triage_mode || 'balanced')
-    setVoicePref('premium')
-    setLoading(false)
-  }, [isDemo, demo?.loading])
-
-  useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       setError(null)
@@ -633,7 +617,7 @@ const ActivityDashboard = ({ onNavigate }) => {
       }
     }
     load()
-  }, [user, isDemo, isPreview, retryKey])
+  }, [user, isPreview, retryKey])
 
   // ESC to close modals
   useEffect(() => {

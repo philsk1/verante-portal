@@ -12,6 +12,7 @@ import AccountSettings from './AccountSettings'
 import Integrations from './Integrations'
 import CalendarTab from './Calendar'
 import HelpMascot from '../components/HelpMascot'
+import DemoBanner from '../components/DemoBanner'
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,8 @@ const Portal = () => {
   const [notifyDailySummary, setNotifyDailySummary] = useState(false)
   const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
+  const [baseTier, setBaseTier] = useState('light')
+  const [demoInitialising, setDemoInitialising] = useState(false)
 
   const navigate = useNavigate()
 
@@ -215,7 +218,7 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
@@ -226,6 +229,8 @@ const Portal = () => {
         setNotifyNewLead(tenant.notify_new_lead !== false)
         setNotifyDailySummary(tenant.notify_daily_summary === true)
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
+        setBaseTier(tenant.subscription_tier || 'light')
+        if (tenant.is_demo) preview.setIsDemo(true)
       }
 
       if (user.email === 'finsolsoffice@gmail.com') {
@@ -269,23 +274,41 @@ const Portal = () => {
 
   const saveHolidayToggle = async (val) => {
     setHolidayMode(val)
-    if (!tenantId || preview.isPreview) return
+    if (!tenantId || preview.isPreview || preview.isDemo) return
     const { error } = await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
     if (error) {
       console.error('Holiday mode save failed:', error)
-      setHolidayMode(!val) // revert on failure
+      setHolidayMode(!val)
     }
   }
 
   const saveReturnDate = async (val) => {
     setHolidayReturnDate(val)
-    if (!tenantId || preview.isPreview) return
+    if (!tenantId || preview.isPreview || preview.isDemo) return
     await supabase.from('tenants').update({ holiday_return_date: val || null }).eq('id', tenantId)
   }
 
   const saveNotification = async (field, val) => {
-    if (!tenantId || preview.isPreview) return
+    if (!tenantId || preview.isPreview || preview.isDemo) return
     await supabase.from('tenants').update({ [field]: val }).eq('id', tenantId)
+  }
+
+  const initDemoBusinesses = async () => {
+    setDemoInitialising(true)
+    try {
+      const res = await fetch('/api/demo-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerEmail: user.email }),
+      })
+      const json = await res.json()
+      if (json.ok) alert(`Demo initialised.\n\n${json.log.join('\n')}`)
+      else alert(`Error: ${json.error}\n\n${(json.log || []).join('\n')}`)
+    } catch (err) {
+      alert('Failed to initialise demo: ' + err.message)
+    } finally {
+      setDemoInitialising(false)
+    }
   }
 
   // Product-organised navigation
@@ -606,6 +629,14 @@ const Portal = () => {
                 >
                   Demo businesses →
                 </a>
+                {/* Init demo button */}
+                <button
+                  onClick={initDemoBusinesses}
+                  disabled={demoInitialising}
+                  style={{ fontSize: '0.65rem', color: demoInitialising ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.35)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, cursor: demoInitialising ? 'not-allowed' : 'pointer', padding: '0.2rem 0.4rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}
+                >
+                  {demoInitialising ? 'Initialising…' : 'Seed demo data'}
+                </button>
               </div>
             )}
 
@@ -716,6 +747,11 @@ const Portal = () => {
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+
+        {/* Demo banner */}
+        {preview.isDemo && (
+          <DemoBanner businessName={displayName} baseTier={baseTier} />
+        )}
 
         {/* Preview banner */}
         {preview.isPreview && (

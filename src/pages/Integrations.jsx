@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -329,9 +328,8 @@ const DEFAULT_WA_TEMPLATE = `Hi {{name}}, thanks for calling {{business}}. {{own
 
 export default function Integrations({ onNavigate }) {
   const { user } = useAuth()
-  const demo = useDemo()
   const preview = usePreview()
-  const isDemo = !!demo?.isDemo
+  const isDemo = !!preview?.isDemo
   const isPreview = preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -357,7 +355,7 @@ export default function Integrations({ onNavigate }) {
 
   // ── Load tenant ID ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const getTid = async () => {
       if (isPreview) { setTenantId(preview.previewTenantId); return }
       const { data } = await supabase
@@ -365,7 +363,7 @@ export default function Integrations({ onNavigate }) {
       if (data) setTenantId(data.tenant_id)
     }
     getTid()
-  }, [user, isDemo, isPreview])
+  }, [user, isPreview])
 
   // ── Load connected integrations ──────────────────────────────────────────────
   useEffect(() => {
