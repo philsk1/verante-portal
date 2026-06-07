@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 import { useNavigate } from 'react-router-dom'
 import PlanSelector from './PlanSelector'
 
@@ -483,7 +484,8 @@ const Toggle = ({ checked, onChange }) => (
 const AccountSettings = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const navigate = useNavigate()
 
@@ -538,7 +540,20 @@ const AccountSettings = ({ onNavigate }) => {
   // Plan selector overlay
   const [showPlanSelector, setShowPlanSelector] = useState(false)
 
+  // ── Demo mode: inject from DemoContext ───────────────────────────────────────
   useEffect(() => {
+    if (!demo?.isDemo || demo.loading || !demo.business) return
+    const biz = demo.business
+    setDisplayName(biz.business_name || '')
+    setTier(demo.tier || 'light')
+    setPartnerCount((demo.partners || []).length)
+    setLeadCount((demo.leads || []).length)
+    setOutboundCount((demo.referrals || []).length)
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -690,6 +705,11 @@ const AccountSettings = ({ onNavigate }) => {
   const sendChatMessage = async () => {
     const text = chatInput.trim()
     if (!text || chatWaiting) return
+    if (isDemo) {
+      setChatMessages(prev => [...prev, { role: 'user', text }, { role: 'ai', text: 'Support chat isn\'t active in the demo. In your live account, I\'d have full access to your settings and billing context.' }])
+      setChatInput('')
+      return
+    }
     const newMessages = [...chatMessages, { role: 'user', text }]
     setChatMessages(newMessages)
     setChatInput('')
