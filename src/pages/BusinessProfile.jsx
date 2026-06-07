@@ -465,6 +465,12 @@ const BusinessProfile = () => {
   const [staffAdding, setStaffAdding] = useState(false)
   const [staffError, setStaffError] = useState(false)
 
+  // Catalogue
+  const [catalogueItems, setCatalogueItems] = useState([])
+  const [catalogueDraft, setCatalogueDraft] = useState({ item_type: 'service', name: '', description: '', price_from: '', price_to: '', duration_minutes: '', processing_minutes: '', category: '', sku: '' })
+  const [catalogueAdding, setCatalogueAdding] = useState(false)
+  const [catalogueTab, setCatalogueTab] = useState('service')
+
   // Demo mode: inject data from DemoContext
   useEffect(() => {
     if (!isDemo || demo?.loading) return
@@ -521,7 +527,7 @@ const BusinessProfile = () => {
           })
         }
 
-        const [svcRes, bannedRes, clientRes, staffRes] = await Promise.all([
+        const [svcRes, bannedRes, clientRes, staffRes, catRes] = await Promise.all([
           supabase.from('services').select('id,service_name').eq('tenant_id', tid),
           supabase.from('banned_services').select('id,service_name').eq('tenant_id', tid),
           supabase
@@ -534,6 +540,11 @@ const BusinessProfile = () => {
             .select('id, name, role, specialist_services, phone, direct_line_did, active')
             .eq('tenant_id', tid)
             .order('created_at'),
+          supabase
+            .from('catalogue_items')
+            .select('*')
+            .eq('tenant_id', tid)
+            .order('created_at'),
         ])
 
         setServices(svcRes.data || [])
@@ -541,6 +552,7 @@ const BusinessProfile = () => {
         setClients(clientRes.data || [])
         if (staffRes.error) setStaffError(true)
         else setStaff(staffRes.data || [])
+        setCatalogueItems(catRes.data || [])
       } catch (err) {
         console.error('Load error:', err)
       } finally {
@@ -694,6 +706,69 @@ const BusinessProfile = () => {
     if (isDemo || isPreview) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
+  }
+
+  // ── catalogue ───────────────────────────────────────────────────────────────
+
+  const addCatalogueItem = async () => {
+    if (isDemo || isPreview || !tenantId) return
+    const name = catalogueDraft.name.trim()
+    if (!name) return
+    setCatalogueAdding(true)
+    const { data, error } = await supabase.from('catalogue_items')
+      .insert({
+        tenant_id: tenantId,
+        item_type: catalogueDraft.item_type,
+        name,
+        description: catalogueDraft.description.trim() || null,
+        price_from: catalogueDraft.price_from ? parseFloat(catalogueDraft.price_from) : null,
+        price_to: catalogueDraft.price_to ? parseFloat(catalogueDraft.price_to) : null,
+        duration_minutes: catalogueDraft.duration_minutes ? parseInt(catalogueDraft.duration_minutes) : null,
+        processing_minutes: catalogueDraft.processing_minutes ? parseInt(catalogueDraft.processing_minutes) : null,
+        category: catalogueDraft.category.trim() || null,
+        sku: catalogueDraft.sku.trim() || null,
+      })
+      .select().maybeSingle()
+    setCatalogueAdding(false)
+    if (!error && data) {
+      setCatalogueItems(prev => [...prev, data])
+      setCatalogueDraft({ item_type: catalogueTab, name: '', description: '', price_from: '', price_to: '', duration_minutes: '', processing_minutes: '', category: '', sku: '' })
+    }
+  }
+
+  const removeCatalogueItem = async (id) => {
+    if (isDemo || isPreview) return
+    await supabase.from('catalogue_items').delete().eq('id', id)
+    setCatalogueItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const handleCatalogueCSV = (e) => {
+    if (isDemo || isPreview || !tenantId) return
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const lines = ev.target.result.split('\n').filter(l => l.trim())
+      const rows = lines.slice(1).map(line => {
+        const [name, item_type, description, price_from, price_to, duration_minutes, category, sku] = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+        return {
+          tenant_id: tenantId,
+          item_type: item_type || 'service',
+          name: name || '',
+          description: description || null,
+          price_from: price_from ? parseFloat(price_from) : null,
+          price_to: price_to ? parseFloat(price_to) : null,
+          duration_minutes: duration_minutes ? parseInt(duration_minutes) : null,
+          category: category || null,
+          sku: sku || null,
+        }
+      }).filter(r => r.name)
+      if (!rows.length) return
+      const { data } = await supabase.from('catalogue_items').insert(rows).select()
+      if (data) setCatalogueItems(prev => [...prev, ...data])
+    }
+    reader.readAsText(file)
+    e.target.value = ''
   }
 
   // ── computed ────────────────────────────────────────────────────────────────
@@ -903,6 +978,183 @@ const BusinessProfile = () => {
             </div>
           </>
         )}
+      </div>
+
+      {/* ── Services & Products Catalogue ──────────────────────────────── */}
+      <div style={s.section} data-help="Your catalogue is the knowledge base Qerxel's AI uses to answer questions and surface information during calls. Add your services with prices and durations, or products with codes and descriptions. The AI uses this in real time.">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={s.sectionTitle}>Services &amp; Products Catalogue</div>
+            <div style={{ fontSize: '0.8rem', color: '#999', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5, marginTop: '0.2rem' }}>
+              Qerxel uses this to surface information in real time during calls.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label style={{
+              padding: '0.4rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(94,59,135,0.2)',
+              background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500,
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+            }}>
+              Upload CSV
+              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleCatalogueCSV} />
+            </label>
+          </div>
+        </div>
+
+        {/* Type tabs */}
+        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem' }}>
+          {['service', 'product'].map(t => (
+            <button key={t} onClick={() => { setCatalogueTab(t); setCatalogueDraft(d => ({ ...d, item_type: t })) }} style={{
+              padding: '0.35rem 0.9rem', borderRadius: '999px', border: 'none',
+              background: catalogueTab === t ? '#5e3b87' : '#f0ebf8',
+              color: catalogueTab === t ? 'white' : '#5e3b87',
+              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif", textTransform: 'capitalize',
+            }}>
+              {t === 'service' ? 'Services' : 'Products'}
+            </button>
+          ))}
+          {catalogueItems.length > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#aaa', alignSelf: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+              {catalogueItems.filter(i => i.item_type === catalogueTab).length} {catalogueTab === 'service' ? 'services' : 'products'}
+            </span>
+          )}
+        </div>
+
+        {/* Item list */}
+        {catalogueItems.filter(i => i.item_type === catalogueTab).length === 0 ? (
+          <div style={{ borderRadius: '12px', border: '1.5px dashed rgba(94,59,135,0.12)', padding: '1.5rem', textAlign: 'center', marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.82rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
+              No {catalogueTab === 'service' ? 'services' : 'products'} added yet. Add below or upload a CSV.
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+            {catalogueItems.filter(i => i.item_type === catalogueTab).map(item => {
+              const isService = item.item_type === 'service'
+              const accentColor = isService ? '#5e3b87' : '#3db87a'
+              const accentBg = isService ? '#ddd6fe' : '#bbf7d0'
+              return (
+                <div key={item.id} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                  padding: '0.75rem 0.85rem',
+                  background: 'white', borderRadius: '10px',
+                  border: '0.5px solid rgba(94,59,135,0.08)',
+                  borderLeft: `3px solid ${accentColor}`,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: item.description ? '0.2rem' : 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{item.name}</span>
+                      {item.sku && <span style={{ fontSize: '0.68rem', background: '#f1f5f9', color: '#64748b', borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{item.sku}</span>}
+                      {item.category && <span style={{ fontSize: '0.68rem', background: accentBg, color: accentColor, borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{item.category}</span>}
+                    </div>
+                    {item.description && <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45 }}>{item.description}</div>}
+                    <div style={{ display: 'flex', gap: '0.85rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+                      {(item.price_from || item.price_to) && (
+                        <span style={{ fontSize: '0.78rem', color: '#92610a', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+                          £{item.price_from ?? ''}
+                          {item.price_to && item.price_to !== item.price_from ? `–£${item.price_to}` : ''}
+                        </span>
+                      )}
+                      {item.duration_minutes && (
+                        <span style={{ fontSize: '0.78rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
+                          {item.duration_minutes}min
+                          {item.processing_minutes ? ` + ${item.processing_minutes}min processing` : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => removeCatalogueItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ddd', fontSize: '1.1rem', lineHeight: 1, flexShrink: 0, padding: 0 }} title="Remove">×</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Add form */}
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)', paddingTop: '1.1rem' }}>
+          <div style={s.sectionSubtitle}>Add {catalogueTab === 'service' ? 'a service' : 'a product'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              value={catalogueDraft.name}
+              onChange={e => setCatalogueDraft(d => ({ ...d, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && addCatalogueItem()}
+              placeholder={catalogueTab === 'service' ? 'Service name (e.g. Boiler service)' : 'Product name (e.g. Heritage Oak Skirting)'}
+              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+            />
+            <input
+              value={catalogueDraft.category}
+              onChange={e => setCatalogueDraft(d => ({ ...d, category: e.target.value }))}
+              placeholder="Category (optional)"
+              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+            />
+          </div>
+          <input
+            value={catalogueDraft.description}
+            onChange={e => setCatalogueDraft(d => ({ ...d, description: e.target.value }))}
+            placeholder="Description (optional — helps the AI explain the service accurately)"
+            style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.5rem' }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: catalogueTab === 'service' ? '1fr 1fr 1fr 1fr auto' : '1fr 1fr 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              value={catalogueDraft.price_from}
+              onChange={e => setCatalogueDraft(d => ({ ...d, price_from: e.target.value }))}
+              placeholder="Price from £"
+              type="number" min="0"
+              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+            />
+            <input
+              value={catalogueDraft.price_to}
+              onChange={e => setCatalogueDraft(d => ({ ...d, price_to: e.target.value }))}
+              placeholder="Price to £"
+              type="number" min="0"
+              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+            />
+            {catalogueTab === 'service' ? (
+              <>
+                <input
+                  value={catalogueDraft.duration_minutes}
+                  onChange={e => setCatalogueDraft(d => ({ ...d, duration_minutes: e.target.value }))}
+                  placeholder="Duration (mins)"
+                  type="number" min="0"
+                  style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+                />
+                <input
+                  value={catalogueDraft.processing_minutes}
+                  onChange={e => setCatalogueDraft(d => ({ ...d, processing_minutes: e.target.value }))}
+                  placeholder="Processing (mins)"
+                  type="number" min="0"
+                  title="Split appointment: time client waits while you're free (e.g. colour processing, X-ray wait)"
+                  style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+                />
+              </>
+            ) : (
+              <input
+                value={catalogueDraft.sku}
+                onChange={e => setCatalogueDraft(d => ({ ...d, sku: e.target.value }))}
+                placeholder="Product code / SKU"
+                style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+              />
+            )}
+            <button
+              onClick={addCatalogueItem}
+              disabled={!catalogueDraft.name.trim() || catalogueAdding}
+              style={{
+                padding: '0.55rem 1.1rem', borderRadius: '8px', border: 'none',
+                background: !catalogueDraft.name.trim() || catalogueAdding ? '#f5d98a' : '#f0a500',
+                color: !catalogueDraft.name.trim() || catalogueAdding ? '#7a5c1a' : '#1a0533',
+                fontSize: '0.8125rem', fontWeight: 700, cursor: !catalogueDraft.name.trim() || catalogueAdding ? 'not-allowed' : 'pointer',
+                fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+              }}
+            >
+              {catalogueAdding ? 'Adding…' : '+ Add'}
+            </button>
+          </div>
+          <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
+            CSV format: <span style={{ fontFamily: 'monospace' }}>name, type, description, price_from, price_to, duration_mins, category, sku</span>
+          </div>
+        </div>
       </div>
 
     </div>

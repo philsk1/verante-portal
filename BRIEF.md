@@ -9,6 +9,7 @@
 
 ## Ready to implement
 
+- [ ] Catalogue section in Business Profile tab — manual entry (name, description, price from/to, duration, category, SKU), CSV upload, web scrape trigger (Firecrawl already built). Stored in tenant_catalogue table (already migrated). Foundation for Qerxel Assist.
 
 ## In progress
 
@@ -19,5 +20,15 @@
 ---
 
 ## Strategy notes
-*Unresolved debates, half-formed ideas, context for future sessions. Not actionable yet.*
+
+**Qerxel Assist — confirmed vision (2026-06-07)**
+Three modes: Full AI handling / Listen & Assist / Listen & Note.
+Activation phrase: operator says "I'll just get my AI Qerxel to take a note" — natural, informs customer AI is present (recording consent), engages the AI, name-tags the brand.
+Real-time intent → portal card surfacing: product/service mentioned → catalogue card; date mentioned → calendar opens with draft booking; operator says "Qerxel book that in" → confirmed.
+Booking model: AI proposes draft → operator confirms → customer told. Never auto-books.
+Portal open during call = client workflow responsibility.
+Query architecture = tech responsibility.
+Philip's only concern: customer experience.
+Catalogue is the foundational data layer — build first, improves existing missed-call AI immediately, backbone of Assist later.
+Latency target <2 seconds spoken word → card on screen. Achievable with current stack. Not a blocker.
 
