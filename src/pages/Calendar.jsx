@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 
 const locales = { 'en-GB': enGB }
 const localizer = dateFnsLocalizer({
@@ -565,16 +566,14 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
 function DayColumnHeader({ date }) {
   const isToday = new Date().toDateString() === date.toDateString()
   return (
-    <div style={{ padding: '3px 0 4px', textAlign: 'center', lineHeight: 1 }}>
-      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: isToday ? '#5e3b87' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>
+    <div style={{ padding: '5px 4px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+      <span style={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: isToday ? '#5e3b87' : '#555', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
         {format(date, 'EEE')}
-      </div>
-      <div style={{ fontSize: '1.05rem', fontWeight: 700, color: isToday ? '#5e3b87' : '#1a1a1a', fontFamily: "'Syne', sans-serif" }}>
-        {isToday
-          ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#5e3b87', color: 'white', fontSize: '0.9rem' }}>{format(date, 'd')}</span>
-          : format(date, 'd')
-        }
-      </div>
+      </span>
+      {isToday
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#5e3b87', color: 'white', fontSize: '0.82rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>{format(date, 'd')}</span>
+        : <span style={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: '#1a1a1a' }}>{format(date, 'd')}</span>
+      }
     </div>
   )
 }
@@ -610,7 +609,8 @@ function ResourceHeader({ label, resource, staffList, events }) {
 export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed }) {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -676,20 +676,29 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return () => document.removeEventListener('keydown', h)
   }, [])
 
+  // ─── Demo data injection ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!demo?.isDemo) return
+    setStaff(demo.staff || [])
+    setEvents([])
+    setCatalogue([])
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id])
+
   // ─── Load tenant ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user && !isPreview) return
+    if (demo?.isDemo || (!user && !isPreview)) return
     const getTid = async () => {
       if (isPreview) { setTenantId(preview.previewTenantId); return }
       const { data } = await supabase.from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
       if (data) setTenantId(data.tenant_id)
     }
     getTid()
-  }, [user, isPreview])
+  }, [user, isPreview, demo?.isDemo])
 
   // ─── Load appointments + staff + catalogue ──────────────────────────────────
   useEffect(() => {
-    if (!tenantId) return
+    if (demo?.isDemo || !tenantId) return
     const load = async () => {
       setLoading(true)
       try {
@@ -1405,6 +1414,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   resourceIdAccessor="id"
                   resourceTitleAccessor="title"
                   style={{ height: panelOpen && !isMobile ? 640 : 680 }}
+                  scrollToTime={new Date(0, 0, 0, 7, 0, 0)}
                   min={new Date(0, 0, 0, 7, 0, 0)}
                   max={new Date(0, 0, 0, 21, 0, 0)}
                   formats={{
