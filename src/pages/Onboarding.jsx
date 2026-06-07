@@ -365,6 +365,12 @@ const Step0Website = ({ data, update }) => {
       if (Array.isArray(f.services) && f.services.length > 0) {
         update('services', f.services.map(s => ({ service_name: s, price_from: '', price_to: '', price_note: '' })))
       }
+      if (Array.isArray(f.staff) && f.staff.length > 0) {
+        update('scrapedStaff', f.staff)
+      }
+      if (Array.isArray(f.catalogue_items) && f.catalogue_items.length > 0) {
+        update('scrapedCatalogue', f.catalogue_items)
+      }
       update('websiteUrl', url.trim())
       setResult({ fields: f, found: data_r.found })
     } catch {
@@ -382,7 +388,9 @@ const Step0Website = ({ data, update }) => {
     ['opening_hours',     'Opening hours'],
     ['lead_contact_name', 'Contact name'],
     ['business_context',  'About the business'],
-    ['services',          'Services list'],
+    ['services',          'Services'],
+    ['staff',             'Team members'],
+    ['catalogue_items',   'Priced services'],
   ]
 
   return (
@@ -425,18 +433,28 @@ const Step0Website = ({ data, update }) => {
           </div>
           {FIELD_LABELS.filter(([key]) => {
             const v = result.fields[key]
-            return key === 'services' ? Array.isArray(v) && v.length > 0 : v
-          }).map(([key, label]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.3rem' }}>
-              <span style={{ color: '#22c55e', flexShrink: 0, fontSize: '0.875rem' }}>✓</span>
-              <span style={{ fontSize: '0.8rem', color: '#166534' }}>
-                <span style={{ fontWeight: '500' }}>{label}:</span>{' '}
-                {key === 'services'
-                  ? result.fields.services.slice(0, 4).join(', ') + (result.fields.services.length > 4 ? `… +${result.fields.services.length - 4} more` : '')
-                  : String(result.fields[key]).slice(0, 60) + (String(result.fields[key]).length > 60 ? '…' : '')}
-              </span>
-            </div>
-          ))}
+            return ['services','staff','catalogue_items'].includes(key) ? Array.isArray(v) && v.length > 0 : v
+          }).map(([key, label]) => {
+            const v = result.fields[key]
+            let preview
+            if (key === 'services') {
+              preview = v.slice(0, 4).join(', ') + (v.length > 4 ? ` +${v.length - 4} more` : '')
+            } else if (key === 'staff') {
+              preview = v.map(m => m.name).slice(0, 3).join(', ') + (v.length > 3 ? ` +${v.length - 3} more` : '')
+            } else if (key === 'catalogue_items') {
+              preview = `${v.length} item${v.length !== 1 ? 's' : ''} with pricing`
+            } else {
+              preview = String(v).slice(0, 60) + (String(v).length > 60 ? '…' : '')
+            }
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                <span style={{ color: '#22c55e', flexShrink: 0, fontSize: '0.875rem' }}>✓</span>
+                <span style={{ fontSize: '0.8rem', color: '#166534' }}>
+                  <span style={{ fontWeight: '500' }}>{label}:</span>{' '}{preview}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -611,6 +629,8 @@ const Onboarding = () => {
     wont_touch: '',
     services: [],
     partners: [],
+    scrapedStaff: [],
+    scrapedCatalogue: [],
     billing_model: 'subscription',
     subscription_tier: 'standard',
     monthly_cost_limit: 20,
@@ -696,6 +716,32 @@ const Onboarding = () => {
         setLoading(false)
         return
       }
+    }
+
+    if (data.scrapedStaff.length > 0) {
+      await supabase.from('staff_profiles').insert(
+        data.scrapedStaff.map(m => ({
+          tenant_id: tenantData.id,
+          name: m.name,
+          role: m.role || null,
+          active: true,
+        }))
+      )
+    }
+
+    if (data.scrapedCatalogue.length > 0) {
+      await supabase.from('catalogue_items').insert(
+        data.scrapedCatalogue.map(item => ({
+          tenant_id: tenantData.id,
+          item_type: 'service',
+          name: item.name,
+          description: item.description || null,
+          price_from: item.price_from || null,
+          price_to: item.price_to || null,
+          duration_minutes: item.duration_minutes || null,
+          active: true,
+        }))
+      )
     }
 
     const { error: membershipError } = await supabase.from('tenant_memberships').insert({

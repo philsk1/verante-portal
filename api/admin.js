@@ -14,7 +14,7 @@ const OWNER_EMAIL = 'finsolsoffice@gmail.com'
 
 const EXTRACTION_PROMPT = `You are extracting business information from a UK business website.
 
-Return a JSON object with EXACTLY these fields (use null if not found or not confident):
+Return a JSON object with EXACTLY these fields (use null or empty array if not found):
 {
   "business_name": string or null,
   "business_phone": string or null (UK format, e.g. "0114 123 4567"),
@@ -23,14 +23,20 @@ Return a JSON object with EXACTLY these fields (use null if not found or not con
   "opening_hours": string or null (e.g. "Mon–Fri 8am–6pm, Sat 9am–1pm"),
   "lead_contact_name": string or null (owner name or main contact name),
   "business_context": string or null (2-3 sentence description of what the business does, in plain English),
-  "services": array of strings (list of specific services offered, max 12 items, empty array if none found)
+  "services": array of strings (list of specific service names offered, max 12 items, empty array if none found),
+  "staff": array of objects with { "name": string, "role": string } for each named team member or employee listed on the site (empty array if none found),
+  "catalogue_items": array of objects for any services or products with pricing or duration mentioned, each with:
+    { "name": string, "description": string or null, "price_from": number or null, "price_to": number or null, "duration_minutes": number or null }
+    (empty array if no pricing details found)
 }
 
 Rules:
 - Only extract information clearly stated on the website
 - Do not guess, infer, or fabricate any field
-- For services: list specific named services, not generic descriptions
-- For business_context: write in third person, factual, 2-3 sentences max
+- For services: named services only, not generic descriptions
+- For staff: only named individuals with a stated role or title
+- For catalogue_items: only where a price or duration is explicitly stated; price_from/price_to in GBP numbers only (no £ symbol)
+- For business_context: third person, factual, 2-3 sentences max
 - Return ONLY valid JSON, no explanation, no markdown fences`
 
 export default async function handler(req, res) {
@@ -104,7 +110,7 @@ export default async function handler(req, res) {
     }
 
     const found = Object.entries(fields).filter(([k, v]) => {
-      if (k === 'services') return Array.isArray(v) && v.length > 0
+      if (['services', 'staff', 'catalogue_items'].includes(k)) return Array.isArray(v) && v.length > 0
       return v !== null && v !== ''
     }).length
 
