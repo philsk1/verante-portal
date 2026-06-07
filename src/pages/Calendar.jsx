@@ -111,26 +111,69 @@ const useIsMobile = () => {
   return v
 }
 
-// ─── Custom toolbar ───────────────────────────────────────────────────────────
-const CalendarToolbar = ({ label, onNavigate, onView, view }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-      <button onClick={() => onNavigate('PREV')}
-        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>‹</button>
-      <button onClick={() => onNavigate('TODAY')}
-        style={{ padding: '0 0.75rem', height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Today</button>
-      <button onClick={() => onNavigate('NEXT')}
-        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>›</button>
+// ─── Custom toolbar (carries all calendar controls) ──────────────────────────
+const CalendarToolbar = ({
+  label, onNavigate, onView, view,
+  // extra controls passed via closure
+  staff, staffFilter, setStaffFilter,
+  teamMode, setTeamMode, smartView, setSmartView, hasAutoAdapted, setView,
+  onNew, hasTeamMode,
+}) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+    {/* Nav */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+      <button onClick={() => onNavigate('PREV')} style={{ width: 30, height: 30, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>‹</button>
+      <button onClick={() => onNavigate('TODAY')} style={{ padding: '0 0.6rem', height: 30, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Today</button>
+      <button onClick={() => onNavigate('NEXT')} style={{ width: 30, height: 30, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>›</button>
     </div>
-    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', textAlign: 'center' }}>{label}</span>
-    <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 3 }}>
-      {[['month','Month'],['week','Week'],['work_week','5 Day'],['day','Day']].map(([v, label]) => (
-        <button key={v} onClick={() => onView(v)}
-          style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: view === v ? '#5e3b87' : 'transparent', color: view === v ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s' }}>
-          {label}
+
+    {/* Date label */}
+    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', whiteSpace: 'nowrap', flex: '0 0 auto' }}>{label}</span>
+
+    {/* View switcher */}
+    <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 7, padding: 2, flexShrink: 0 }}>
+      {[['month','Month'],['week','Week'],['work_week','5 Day'],['day','Day']].map(([v, lbl]) => (
+        <button key={v} onClick={() => { onView(v); if (setSmartView) setSmartView(false) }}
+          style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: view === v ? '#5e3b87' : 'transparent', color: view === v ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s' }}>
+          {lbl}
         </button>
       ))}
     </div>
+
+    {/* Spacer */}
+    <div style={{ flex: 1 }} />
+
+    {/* Team mode controls */}
+    {hasTeamMode && (
+      <>
+        <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 7, padding: 2, flexShrink: 0 }}>
+          <button onClick={() => { setTeamMode(false); setStaffFilter(''); setView('week'); setSmartView(false) }}
+            style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: !teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: !teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            Solo
+          </button>
+          <button onClick={() => { setTeamMode(true); setStaffFilter(''); setView('day'); setSmartView(false) }}
+            style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            Team
+          </button>
+          <button onClick={() => { if (hasAutoAdapted) hasAutoAdapted.current = false; setSmartView(true) }}
+            style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: smartView ? '#f0a500' : 'transparent', color: smartView ? '#1a0533' : '#5e3b87', fontSize: '0.75rem', fontWeight: smartView ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            Smart
+          </button>
+        </div>
+        <select value={staffFilter} onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week'); setSmartView(false) } }}
+          style={{ padding: '0.25rem 0.5rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 6, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", color: staffFilter ? '#5e3b87' : '#888', background: staffFilter ? '#f5f3ff' : 'white', cursor: 'pointer', fontWeight: staffFilter ? 600 : 400, maxWidth: 110 }}>
+          <option value="">All staff</option>
+          {(staff || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </>
+    )}
+
+    {/* New appointment */}
+    {onNew && (
+      <button onClick={onNew} style={{ padding: '0.3rem 0.9rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+        + New
+      </button>
+    )}
   </div>
 )
 
@@ -1243,93 +1286,33 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   return (
     <div>
-      {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}
+      {/* ── Top bar: heading + sub-tabs on same row ──────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.75rem' }}
         data-help="Qerxel Calendar — create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing gaps so you can book other clients during colour/drying time.">
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Calendar</h2>
-        {activeSubTab === 'appointments' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {hasTeamMode && (
-              <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 2 }}>
-                <button
-                  onClick={() => { setTeamMode(false); setStaffFilter(''); setView('week'); setSmartView(false) }}
-                  title="One personal calendar view"
-                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: !teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: !teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                  Solo
-                </button>
-                <button
-                  onClick={() => { setTeamMode(true); setStaffFilter(''); setView('day'); setSmartView(false) }}
-                  title="All staff as columns"
-                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                  Team
-                </button>
-                <button
-                  onClick={() => { hasAutoAdapted.current = false; setSmartView(true) }}
-                  title="Auto-adapt view to number of staff working"
-                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: smartView ? '#f0a500' : 'transparent', color: smartView ? '#1a0533' : '#5e3b87', fontSize: '0.78rem', fontWeight: smartView ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                  Smart
-                </button>
-              </div>
-            )}
-            {hasTeamMode && (
-              <select
-                value={staffFilter}
-                onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week'); setSmartView(false) } }}
-                style={{ padding: '0.35rem 0.6rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: staffFilter ? '#5e3b87' : '#888', background: staffFilter ? '#f5f3ff' : 'white', cursor: 'pointer', fontWeight: staffFilter ? 600 : 400 }}>
-                <option value="">All staff</option>
-                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            )}
-            <button
-              onClick={() => {
-                const now = startOfHour(addHours(new Date(), 1))
-                setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)), staff_profile_id: staffFilter || '' })
-                setBookingMode('service')
-                setSlotWarning(false)
-                setPanelEvent(null)
-                setPanelMode('create')
-              }}
-              style={{ padding: '0.5rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-              + New
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.15rem', fontWeight: 700, color: '#1a1a1a', margin: 0, flexShrink: 0 }}>Calendar</h2>
+        <div style={{ display: 'flex', gap: 0, background: '#f0ebf8', borderRadius: 9, padding: 3 }}>
+          {subTabs.map(tab => (
+            <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel() }}
+              style={{ padding: '0.32rem 0.85rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
+              {tab.label}
             </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Sub-tab nav ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: '1rem', background: '#f0ebf8', borderRadius: 9, padding: 3, alignSelf: 'flex-start', width: 'fit-content' }}>
-        {subTabs.map(tab => (
-          <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel() }}
-            style={{ padding: '0.38rem 1rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.8rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
-            {tab.label}
-          </button>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ── Appointments sub-tab ─────────────────────────────────────────────── */}
       {activeSubTab === 'appointments' && (
         <>
-          {/* Status + category legend */}
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
+          {/* Status legend — compact single line */}
+          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginBottom: '0.5rem', alignItems: 'center' }}>
             {Object.entries(STATUS_LABELS).map(([status, label]) => (
-              <span key={status} style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 5, fontSize: '0.72rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif" }}>
+              <span key={status} style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif" }}>
                 {label}
               </span>
             ))}
-            {Array.from(new Set(events.map(e => {
-              const ci = catalogue.find(c => c.id === e.resource?.service_id)
-              return ci?.category
-            }).filter(Boolean))).slice(0, 4).map(cat => {
-              const cc = getCategoryColour(cat)
-              return (
-                <span key={cat} style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 5, fontSize: '0.72rem', fontWeight: 600, background: cc.bg, color: cc.text, border: `1px solid ${cc.border}`, fontFamily: "'DM Sans', sans-serif" }}>
-                  {cat}
-                </span>
-              )
-            })}
             {smartViewLabel && (
-              <span style={{ fontSize: '0.72rem', color: '#f0a500', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginLeft: 4, background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 5, padding: '0.15rem 0.45rem' }}>
-                ✦ Smart: {smartViewLabel}
+              <span style={{ fontSize: '0.68rem', color: '#f0a500', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginLeft: 2, background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 4, padding: '0.1rem 0.4rem' }}>
+                ✦ {smartViewLabel}
               </span>
             )}
           </div>
@@ -1358,7 +1341,21 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   onEventResize={handleEventResize}
                   eventPropGetter={eventPropGetter}
                   components={{
-                    toolbar: CalendarToolbar,
+                    toolbar: (props) => <CalendarToolbar {...props}
+                      staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter}
+                      teamMode={teamMode} setTeamMode={setTeamMode}
+                      smartView={smartView} setSmartView={setSmartView}
+                      hasAutoAdapted={hasAutoAdapted} setView={setView}
+                      hasTeamMode={hasTeamMode}
+                      onNew={() => {
+                        const now = startOfHour(addHours(new Date(), 1))
+                        setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)), staff_profile_id: staffFilter || '' })
+                        setBookingMode('service')
+                        setSlotWarning(false)
+                        setPanelEvent(null)
+                        setPanelMode('create')
+                      }}
+                    />,
                     event: (props) => <AppointmentCard {...props} catalogue={catalogue} />,
                     resourceHeader: (props) => <ResourceHeader {...props} staffList={staff} events={visibleEvents} />,
                   }}

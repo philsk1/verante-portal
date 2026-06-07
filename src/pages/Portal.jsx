@@ -11,6 +11,7 @@ import PartnersReferrals from './PartnersReferrals'
 import AccountSettings from './AccountSettings'
 import Integrations from './Integrations'
 import CalendarTab from './Calendar'
+import StaffDirectory from './StaffDirectory'
 import HelpMascot from '../components/HelpMascot'
 import DemoBanner from '../components/DemoBanner'
 
@@ -120,6 +121,16 @@ const IcoMoon = () => (
   </svg>
 )
 
+const IcoPeople = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <line x1="23" y1="21" x2="23" y2="19"/>
+    <line x1="19" y1="21" x2="19" y2="19"/>
+    <path d="M23 13a4 4 0 0 0-4-4"/>
+  </svg>
+)
+
 const IcoListen = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -202,6 +213,7 @@ const Portal = () => {
     ai:           'ai_behaviour.first_visit',
     analytics:    'analytics.first_visit',
     referrals:    'referrals.first_visit',
+    team:         'team.first_visit',
     calendar:     'calendar.first_visit',
     integrations: 'integrations.first_visit',
     settings:     'account.first_visit',
@@ -322,6 +334,7 @@ const Portal = () => {
         { id: 'analytics',  label: 'Analytics', icon: <IcoAnalytics /> },
         { id: 'ai',         label: 'Answer AI', icon: <IcoAI /> },
         { id: 'referrals',  label: 'Partners',  icon: <IcoPartners /> },
+        { id: 'team',       label: 'Team',       icon: <IcoPeople /> },
       ],
     },
     {
@@ -362,6 +375,7 @@ const Portal = () => {
       case 'dashboard':    return <ActivityDashboard onNavigate={handleNavigate} />
       case 'analytics':    return <DataAnalytics onNavigate={handleNavigate} />
       case 'referrals':    return <PartnersReferrals />
+      case 'team':         return <StaffDirectory />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />

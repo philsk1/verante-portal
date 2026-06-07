@@ -36,8 +36,8 @@ const injectStyles = () => {
     .vera-idle      { animation: veraBob    5s ease-in-out infinite; }
     .vera-bubble-in { animation: veraFlyIn  0.18s ease-out forwards; }
     .vera-glow-zone { animation: veraGlow   2s ease-in-out infinite; cursor: pointer; }
-    [data-help]     { cursor: help; }
     .vera-hover-mode [data-help] {
+      cursor: help;
       outline: 1.5px dashed rgba(240,165,0,0.5);
       border-radius: 4px;
       animation: veraHelpPulse 2s ease-in-out infinite;
