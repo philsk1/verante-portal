@@ -101,16 +101,19 @@ Locked sections: `blur(3px)` + `opacity 0.45` + absolute white badge.
 
 ## Portal Structure
 
-Shell: 64px violet header → 44px dark violet nav (amber underline on active) → `#f7f6f9` content, maxWidth 940px, padding 2rem. Default tab: Dashboard.
+Shell: 260px collapsible violet sidebar (60px collapsed) → `#f7f6f9` content. Default tab: Dashboard. Nav is product-grouped (Answer / Calendar / Listen / platform).
 
 | Tab | File | Status |
 |-----|------|--------|
-| Business Profile | `BusinessProfile.jsx` | BUILT |
-| AI Behaviour | `AIBehaviour.jsx` | BUILT |
 | Dashboard | `ActivityDashboard.jsx` | BUILT |
 | Analytics | `DataAnalytics.jsx` | BUILT |
+| Answer AI | `AIBehaviour.jsx` | BUILT |
 | Partners & Referrals | `PartnersReferrals.jsx` | BUILT |
-| Account | `AccountSettings.jsx` | BUILT |
+| Team | `StaffDirectory.jsx` | BUILT |
+| Calendar | `Calendar.jsx` | BUILT |
+| Integrations | `Integrations.jsx` | BUILT |
+| Account / Settings | `AccountSettings.jsx` | BUILT |
+| Business Profile | `BusinessProfile.jsx` | BUILT (under Settings breadcrumb) |
 
 **Vera help mascot:** `src/components/HelpMascot.jsx` — violet owl, bobs top of every page. Click Vera → all `[data-help]` elements pulse amber (`.vera-hover-mode` body class). Hover any to get explanation bubble. "Need more help?" button opens glowing zone mode → click zone → draggable Claude Haiku dialogue panel. Label: "Click on Vera the owl / for suggestions" (12px, `#5e3b87`, italic).
 
@@ -130,10 +133,15 @@ Key columns added this session:
 Key tables added session 13:
 - `catalogue_items` — service/product catalogue per tenant. Columns: item_type, name, description, price_from, price_to, duration_minutes, processing_minutes, category, sku, active. Foundation for Qerxel Assist real-time lookup. Migration: `supabase_catalogue_migration.sql` ✅ run.
 
+Column additions from session 15:
+- `staff_profiles.email`, `address`, `birthday`, `private_notes`, `colour` — ✅ migrated (`supabase_staff_profiles_v2.sql`)
+
 Pending migrations (not yet run):
 ```sql
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number_id text;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number text;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text DEFAULT 'none';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text DEFAULT 'entry';
 ```
 
 ---
@@ -297,14 +305,25 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - New tier structure proposed (not yet confirmed/implemented): Starter £19 / Essential £39 / Professional £65 / Business £99 / Enterprise £199. Listen Standard included from Essential upward.
 - Component architecture instruction: build every component as a self-contained unit with clearly defined props. No hardcoded layout relationships between siblings. Wrapping not rebuilding for future tile system.
 
+### Done — Session 15 (2026-06-07) — Team tab + Calendar + cursor fix
+
+- [x] `StaffDirectory.jsx` — Team tab: card grid with avatar initials (colour-coded by name, active dot), slide-in detail panel. Fields: name, role, phone, email, address, birthday, specialist services, direct line DID, private notes. Add/edit/remove. DemoContext wired — demo businesses show their staff.
+- [x] `Portal.jsx` — Team tab added to sidebar under Answer product group (`IcoPeople` icon, `team` route)
+- [x] `supabase_staff_profiles_v2.sql` — email, address, birthday, private_notes, colour columns added to staff_profiles. ✅ migrated.
+- [x] `HelpMascot.jsx` — cursor:help moved into `.vera-hover-mode [data-help]` selector; question mark no longer appears when Vera is inactive
+- [x] `Calendar.jsx` — all controls (nav, view switcher, Smart/Solo/Team, staff filter, + New) merged into react-big-calendar toolbar; external header = h2 + sub-tab pills only (~80px saved)
+- [x] All 6 portal tabs wired to DemoContext — demo businesses show real seeded data across all tabs
+
 ### Remaining (user actions required)
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
 - [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
 - [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
 - [ ] Confirm new tier pricing when ready to update portal
+- [ ] Vera rename — pending Philip choosing a name
+- [ ] Run pending migrations (vapi_phone_number_id, vapi_phone_number, listen_tier, calendar_tier) when needed
 
 ### DB — all migrations applied (2026-06-07)
-All columns and tables are live. No pending migrations.
+All columns and tables are live. See "Pending migrations" above for next batch.
 
 ---
 

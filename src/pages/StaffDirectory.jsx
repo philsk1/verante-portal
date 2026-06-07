@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 
 const AVATAR_PALETTE = [
   { bg: '#f0ebf8', text: '#5e3b87' },
@@ -21,7 +22,8 @@ const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', bi
 export default function StaffDirectory() {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -36,7 +38,13 @@ export default function StaffDirectory() {
   const [addSaving, setAddSaving] = useState(false)
 
   useEffect(() => {
-    if (!user && !isPreview) return
+    if (!demo?.isDemo) return
+    setStaff(demo.staff || [])
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id])
+
+  useEffect(() => {
+    if (demo?.isDemo || (!user && !isPreview)) return
     const load = async () => {
       setLoading(true)
       try {
