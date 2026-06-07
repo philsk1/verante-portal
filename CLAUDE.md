@@ -126,6 +126,9 @@ Shell: 64px violet header → 44px dark violet nav (amber underline on active) �
 Key columns added this session:
 - `tenants.data_retention_days` integer default 90 — ✅ migrated
 
+Key tables added session 13:
+- `catalogue_items` — service/product catalogue per tenant. Columns: item_type, name, description, price_from, price_to, duration_minutes, processing_minutes, category, sku, active. Foundation for Qerxel Assist real-time lookup. Migration: `supabase_catalogue_migration.sql` ✅ run.
+
 Pending migrations (not yet run):
 ```sql
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number_id text;
@@ -266,6 +269,16 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] Calendar Session 2 — split appointments, team mode: confirmed already built in `Calendar.jsx`
 - [x] Integration builds — all Priority 1 complete: Google Calendar (CalDAV), WhatsApp, FreeAgent (OAuth), Xero (OAuth), Google Business Profile. All API endpoints exist and are wired. FreeAgent/Xero/Stripe invoice buttons in lead modal. Review request trigger in Calendar on appointment completion.
 - [x] ClWeb market research critique changes — confirmed applied in session 11
+
+### Done — Session 13 (2026-06-07) — Colour system + catalogue + strategy
+
+- [x] Colour pass: all tint backgrounds pushed from pastel (-100) to saturated (-200) across Dashboard, Analytics, Partners, Account
+- [x] Dashboard Zone 2: 3-column layout (Calls | Leads | Referrals Today). Referrals moved from Zone 3.
+- [x] Analytics: bolder headline cards + 4-tile outcome row (Booked | Leads | Referred | Filtered)
+- [x] Partners: 3-tile KPI row at top, Network Activity anchor bar, Referral Code moved to bottom
+- [x] BRIEF.md created — shared SOP file for strategy/coding window coordination
+- [x] Catalogue feature: `catalogue_items` table migrated, Services & Products section in Business Profile. Manual entry + CSV upload. Split appointment support (duration_minutes + processing_minutes). Foundation for Qerxel Assist.
+- [x] Qerxel Assist strategy confirmed — see BRIEF.md strategy notes
 
 ### Remaining (user actions required)
 - [ ] Run supabase_migrations_session4.sql in Supabase SQL Editor

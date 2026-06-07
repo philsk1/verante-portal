@@ -9,12 +9,13 @@
 
 ## Ready to implement
 
-- [ ] Catalogue section in Business Profile tab — manual entry (name, description, price from/to, duration, category, SKU), CSV upload, web scrape trigger (Firecrawl already built). Stored in tenant_catalogue table (already migrated). Foundation for Qerxel Assist.
 
 ## In progress
 
 
 ## Done
+
+- [x] Catalogue section in Business Profile tab — catalogue_items table migrated, UI built with service/product tabs, split appointment support, CSV upload.
 
 
 ---
