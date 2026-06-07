@@ -80,7 +80,8 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
         })))
 
         setServices(svcRes.data || [])
-        setStaff(staffRes.data || [])
+        // Map demo_staff.direct_line → direct_line_did to match staff_profiles column name
+        setStaff((staffRes.data || []).map(s => ({ ...s, direct_line_did: s.direct_line || s.direct_line_did || '' })))
         setPartners(partnerRes.data || [])
         setPricingIntelligence(pricingRes.data || [])
         setCompetitorIntelligence(competitorRes.data || [])
