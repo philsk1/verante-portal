@@ -515,7 +515,7 @@ const DataAnalytics = ({ onNavigate }) => {
       {/* Headline numbers */}
       {(() => {
         const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
-        const rateBg    = leadRate >= 35 ? '#d1f5e4' : leadRate >= 15 ? '#fef3d0' : '#fee2e2'
+        const rateBg    = leadRate >= 35 ? '#bbf7d0' : leadRate >= 15 ? '#fde68a' : '#fecaca'
         const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
 
         const bookedCount       = outcomeBreakdown.booked || 0
@@ -527,7 +527,7 @@ const DataAnalytics = ({ onNavigate }) => {
           <>
             {/* Row 1 — volume · rate · duration */}
             <div style={{ ...s.headlineGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
-              <div style={{ ...s.headlineCard, background: '#ede8f8', borderLeft: '4px solid #5e3b87' }}
+              <div style={{ ...s.headlineCard, background: '#ddd6fe', borderLeft: '4px solid #5e3b87' }}
                 data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated.">
                 <div style={s.headlineLabel}>Total calls handled</div>
                 <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
@@ -539,7 +539,7 @@ const DataAnalytics = ({ onNavigate }) => {
                 <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
                 <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
               </div>
-              <div style={{ ...s.headlineCard, background: '#dbeafe', borderLeft: '4px solid #1d4ed8' }}
+              <div style={{ ...s.headlineCard, background: '#bfdbfe', borderLeft: '4px solid #1d4ed8' }}
                 data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam.">
                 <div style={s.headlineLabel}>Avg call duration</div>
                 <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
@@ -549,15 +549,15 @@ const DataAnalytics = ({ onNavigate }) => {
 
             {/* Row 2 — outcome breakdown tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div style={{ background: '#ede8f8', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #5e3b87', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ background: '#ddd6fe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #5e3b87', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#5e3b87', lineHeight: 1, marginBottom: '0.2rem' }}>{bookedCount}</div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Booked</div>
               </div>
-              <div style={{ background: '#d1f5e4', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #3db87a', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ background: '#bbf7d0', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #3db87a', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.2rem' }}>{leadCapturedCount}</div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads captured</div>
               </div>
-              <div style={{ background: '#dbeafe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #1d4ed8', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ background: '#bfdbfe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #1d4ed8', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1d4ed8', lineHeight: 1, marginBottom: '0.2rem' }}>{referredOutCount}</div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referred out</div>
               </div>

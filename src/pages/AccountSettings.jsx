@@ -70,8 +70,8 @@ const s = {
   },
   // Plan
   planRow: (tier) => {
-    const bgs = { free: '#f8fafc', light: '#f5f8ff', standard: '#f4fbf7', professional: '#faf8ff', enterprise: '#fef9ec', bespoke: '#fef9ec' }
-    const borders = { free: 'rgba(100,116,139,0.15)', light: 'rgba(29,78,216,0.15)', standard: 'rgba(61,184,122,0.2)', professional: 'rgba(94,59,135,0.15)', enterprise: 'rgba(240,165,0,0.25)', bespoke: 'rgba(240,165,0,0.25)' }
+    const bgs = { free: '#f1f5f9', light: '#bfdbfe', standard: '#bbf7d0', professional: '#ddd6fe', enterprise: '#fde68a', bespoke: '#fde68a' }
+    const borders = { free: 'rgba(100,116,139,0.2)', light: 'rgba(29,78,216,0.25)', standard: 'rgba(61,184,122,0.3)', professional: 'rgba(94,59,135,0.25)', enterprise: 'rgba(240,165,0,0.4)', bespoke: 'rgba(240,165,0,0.4)' }
     return {
       display: 'flex',
       alignItems: 'center',
@@ -86,11 +86,11 @@ const s = {
   planBadge: (tier) => {
     const map = {
       free:         { bg: '#f8fafc', color: '#64748b' },
-      light:        { bg: '#eff6ff', color: '#1d4ed8' },
-      standard:     { bg: '#e6f5ee', color: '#1e7a4a' },
-      professional: { bg: '#f0ebf8', color: '#5e3b87' },
-      enterprise:   { bg: '#fef3d0', color: '#92610a' },
-      bespoke:      { bg: '#fef3d0', color: '#92610a' },
+      light:        { bg: '#bfdbfe', color: '#1e3a8a' },
+      standard:     { bg: '#bbf7d0', color: '#166534' },
+      professional: { bg: '#ddd6fe', color: '#4a2d6e' },
+      enterprise:   { bg: '#fde68a', color: '#78460a' },
+      bespoke:      { bg: '#fde68a', color: '#78460a' },
     }
     const t = map[tier] || map.professional
     return {

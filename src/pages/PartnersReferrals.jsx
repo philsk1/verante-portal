@@ -8,15 +8,15 @@ import { Copy, Check, ExternalLink, Share2 } from 'lucide-react'
 // ─── specialty → colour system ────────────────────────────────────────────────
 
 const specialtyColour = (spec) => {
-  if (!spec) return { bar: '#5e3b87', ab: '#f0ebf8', at: '#5e3b87', cb: '#f0ebf8', ct: '#5e3b87' }
+  if (!spec) return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#ddd6fe', ct: '#4a2d6e' }
   const t = spec.toLowerCase()
   if (/plumb|electr|build|roof|carpet|floor|paint|decorat|gas|heat|air.?con|window|door|fenc|garden|lands|clean|waste|skip|pest|lock|glaz|tile|brick|concret|drain|guttr|joiner|carpent|handyman|damp|roofer|scaffold/.test(t))
-    return { bar: '#f0a500', ab: '#fef3d0', at: '#92610a', cb: '#fef3d0', ct: '#92610a' }
+    return { bar: '#f0a500', ab: '#fde68a', at: '#78460a', cb: '#fde68a', ct: '#78460a' }
   if (/physio|dental|dentist|doctor|osteo|chiro|optici|optom|mental|counsel|therap|health|medic|nurse|pharmac|beauty|hair|salon|spa|massage|nutrition|diet|gym|fitness|yoga|pilates|sport|care|wellbeing/.test(t))
-    return { bar: '#3db87a', ab: '#e6f5ee', at: '#1e7a4a', cb: '#e6f5ee', ct: '#1e7a4a' }
+    return { bar: '#3db87a', ab: '#bbf7d0', at: '#166534', cb: '#bbf7d0', ct: '#166534' }
   if (/solicit|account|legal|law|financ|ifa|mortgage|insur|consult|audit|tax|architect|engineer|recruit|market|design|tech|web|software|media|print|photog|video/.test(t))
-    return { bar: '#1d4ed8', ab: '#eff6ff', at: '#1d4ed8', cb: '#eff6ff', ct: '#1d4ed8' }
-  return { bar: '#5e3b87', ab: '#f0ebf8', at: '#5e3b87', cb: '#f0ebf8', ct: '#5e3b87' }
+    return { bar: '#1d4ed8', ab: '#bfdbfe', at: '#1e3a8a', cb: '#bfdbfe', ct: '#1e3a8a' }
+  return { bar: '#5e3b87', ab: '#ddd6fe', at: '#4a2d6e', cb: '#ddd6fe', ct: '#4a2d6e' }
 }
 
 const initials = (name) => name ? name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?'
@@ -203,19 +203,19 @@ const PartnersReferrals = () => {
       {/* ── KPI TILES ─────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}
         data-help="At a glance: referrals sent by your AI, estimated value those referrals created, and free months earned from your referral code.">
-        <div style={{ background: '#d1f5e4', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(61,184,122,0.2)', textAlign: 'center' }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.25rem' }}>{outboundCount}</div>
-          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referrals sent</div>
-          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>Partners obligated</div>
+        <div style={{ background: '#bbf7d0', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(61,184,122,0.3)', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#166534', lineHeight: 1, marginBottom: '0.25rem' }}>{outboundCount}</div>
+          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#1e7a4a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referrals sent</div>
+          <div style={{ fontSize: '0.68rem', color: '#166534', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>Partners obligated</div>
         </div>
-        <div style={{ background: '#fef3d0', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(240,165,0,0.25)', textAlign: 'center' }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#92610a', lineHeight: 1, marginBottom: '0.25rem' }}>£{estimatedValue.toLocaleString()}</div>
-          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Est. value generated</div>
-          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>At £75 per caller</div>
+        <div style={{ background: '#fde68a', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(240,165,0,0.4)', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#78460a', lineHeight: 1, marginBottom: '0.25rem' }}>£{estimatedValue.toLocaleString()}</div>
+          <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#92610a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Est. value generated</div>
+          <div style={{ fontSize: '0.68rem', color: '#78460a', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>At £75 per caller</div>
         </div>
-        <div style={{ background: creditMonths > 0 ? '#ede8f8' : '#f8fafc', borderRadius: '14px', padding: '1.1rem 1rem', border: creditMonths > 0 ? '1px solid rgba(94,59,135,0.2)' : '1px solid rgba(203,213,225,0.4)', textAlign: 'center' }}
+        <div style={{ background: creditMonths > 0 ? '#ddd6fe' : '#f1f5f9', borderRadius: '14px', padding: '1.1rem 1rem', border: creditMonths > 0 ? '1px solid rgba(94,59,135,0.3)' : '1px solid rgba(203,213,225,0.4)', textAlign: 'center' }}
           data-help="Credits are earned when someone signs up using your referral code. One signup = one free month, applied automatically at renewal.">
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: creditMonths > 0 ? '#5e3b87' : '#d1d5db', lineHeight: 1, marginBottom: '0.25rem' }}>{creditMonths}</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: creditMonths > 0 ? '#4a2d6e' : '#d1d5db', lineHeight: 1, marginBottom: '0.25rem' }}>{creditMonths}</div>
           <div style={{ fontSize: '0.69rem', fontWeight: 700, color: creditMonths > 0 ? '#5e3b87' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Credits earned</div>
           <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>
             {creditMonths === 1 ? '1 month free' : creditMonths > 1 ? `${creditMonths} months free` : 'Share your code below'}

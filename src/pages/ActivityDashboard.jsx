@@ -295,13 +295,13 @@ const ArcGauge = ({ pct }) => {
 // ─── outcome → accent colour map ─────────────────────────────────────────────
 
 const OUTCOME_ACCENT = {
-  booked:        { border: '#5e3b87', bg: '#ede8f8' },
-  lead_captured: { border: '#3db87a', bg: '#d1f5e4' },
-  referred_out:  { border: '#1d4ed8', bg: '#dbeafe' },
-  escalated:     { border: '#ef4444', bg: '#fee2e2' },
-  filtered:      { border: '#cbd5e1', bg: '#f8fafc' },
-  spam:          { border: '#cbd5e1', bg: '#f8fafc' },
-  hard_close:    { border: '#cbd5e1', bg: '#f8fafc' },
+  booked:        { border: '#5e3b87', bg: '#ddd6fe' },
+  lead_captured: { border: '#3db87a', bg: '#bbf7d0' },
+  referred_out:  { border: '#1d4ed8', bg: '#bfdbfe' },
+  escalated:     { border: '#ef4444', bg: '#fecaca' },
+  filtered:      { border: '#cbd5e1', bg: '#f1f5f9' },
+  spam:          { border: '#cbd5e1', bg: '#f1f5f9' },
+  hard_close:    { border: '#cbd5e1', bg: '#f1f5f9' },
 }
 
 // ─── call card ────────────────────────────────────────────────────────────────
@@ -443,10 +443,10 @@ const EmptyState = ({ icon, title, body }) => (
 )
 
 const LEAD_STATUS_ACCENT = {
-  new:       { border: '#3db87a', bg: '#d1f5e4' },
-  contacted: { border: '#1d4ed8', bg: '#dbeafe' },
-  converted: { border: '#5e3b87', bg: '#ede8f8' },
-  lost:      { border: '#cbd5e1', bg: '#f8fafc' },
+  new:       { border: '#3db87a', bg: '#bbf7d0' },
+  contacted: { border: '#1d4ed8', bg: '#bfdbfe' },
+  converted: { border: '#5e3b87', bg: '#ddd6fe' },
+  lost:      { border: '#cbd5e1', bg: '#f1f5f9' },
 }
 
 const LeadCard = ({ lead, onClick }) => {
@@ -455,7 +455,7 @@ const LeadCard = ({ lead, onClick }) => {
   const urgent = isUrgentLead(lead.created_at) && (!lead.status || lead.status === 'new')
   const phone = lead.callers?.phone_number
   const accent = urgent
-    ? { border: '#f0a500', bg: '#fef3d0' }
+    ? { border: '#f0a500', bg: '#fde68a' }
     : LEAD_STATUS_ACCENT[lead.status] || LEAD_STATUS_ACCENT.new
 
   return (
@@ -1259,7 +1259,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '0.55rem 0.75rem',
-                      background: '#fef3d0', borderRadius: 10,
+                      background: '#fde68a', borderRadius: 10,
                       borderLeft: '3px solid #f0a500',
                     }}
                   >
