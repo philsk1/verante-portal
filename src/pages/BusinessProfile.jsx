@@ -1004,15 +1004,18 @@ const BusinessProfile = () => {
 
         {/* Type tabs */}
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem' }}>
-          {['service', 'product'].map(t => (
-            <button key={t} onClick={() => { setCatalogueTab(t); setCatalogueDraft(d => ({ ...d, item_type: t })) }} style={{
+          {[
+            { id: 'service', label: 'Services', activeBg: '#ddd6fe', activeColor: '#4a2d6e' },
+            { id: 'product', label: 'Products', activeBg: '#bbf7d0', activeColor: '#166534' },
+          ].map(t => (
+            <button key={t.id} onClick={() => { setCatalogueTab(t.id); setCatalogueDraft(d => ({ ...d, item_type: t.id })) }} style={{
               padding: '0.35rem 0.9rem', borderRadius: '999px', border: 'none',
-              background: catalogueTab === t ? '#5e3b87' : '#f0ebf8',
-              color: catalogueTab === t ? 'white' : '#5e3b87',
+              background: catalogueTab === t.id ? t.activeBg : '#f3f4f6',
+              color: catalogueTab === t.id ? t.activeColor : '#888',
               fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif", textTransform: 'capitalize',
+              fontFamily: "'DM Sans', sans-serif",
             }}>
-              {t === 'service' ? 'Services' : 'Products'}
+              {t.label}
             </button>
           ))}
           {catalogueItems.length > 0 && (

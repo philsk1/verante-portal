@@ -1023,16 +1023,29 @@ const AccountSettings = ({ onNavigate }) => {
             Call logs and lead records are deleted after this period. Sensitive business types are always capped at 30 days.
           </p>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {[{ label: '30 days', value: 30 }, { label: '90 days', value: 90 }, { label: '1 year', value: 365 }].map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => saveDataRetention(opt.value)}
-                disabled={dataSaving}
-                style={{ ...s.retentionPill(dataRetentionDays === opt.value), cursor: dataSaving ? 'not-allowed' : 'pointer', opacity: dataSaving ? 0.7 : 1 }}
-              >
-                {opt.label}
-              </button>
-            ))}
+            {[
+              { label: '30 days', value: 30,  activeBg: '#bbf7d0', activeColor: '#166534', activeBorder: '#3db87a' },
+              { label: '90 days', value: 90,  activeBg: '#bfdbfe', activeColor: '#1e3a8a', activeBorder: '#1d4ed8' },
+              { label: '1 year',  value: 365, activeBg: '#fde68a', activeColor: '#78460a', activeBorder: '#f0a500' },
+            ].map(opt => {
+              const on = dataRetentionDays === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => saveDataRetention(opt.value)}
+                  disabled={dataSaving}
+                  style={{
+                    padding: '0.45rem 1rem', borderRadius: '8px', fontSize: '0.875rem', fontWeight: on ? 600 : 400,
+                    fontFamily: "'DM Sans', sans-serif", cursor: dataSaving ? 'not-allowed' : 'pointer', opacity: dataSaving ? 0.7 : 1,
+                    background: on ? opt.activeBg : 'white',
+                    color: on ? opt.activeColor : '#666',
+                    border: `1.5px solid ${on ? opt.activeBorder : 'rgba(94,59,135,0.2)'}`,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
           </div>
           {dataToast.msg && (
             <div style={{ marginTop: '0.75rem' }}>

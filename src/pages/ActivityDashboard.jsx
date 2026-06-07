@@ -791,8 +791,8 @@ const ActivityDashboard = ({ onNavigate }) => {
       : minutesPct >= 80
       ? { label: 'Near limit', color: '#b07a00', dot: '#f0a500' }
       : { label: 'Active', color: '#1e7a4a', dot: '#3db87a' }
-    const triageColors = { strict: { color: '#1d4ed8', bg: '#eff6ff' }, balanced: { color: '#5e3b87', bg: '#f0ebf8' }, open: { color: '#1e7a4a', bg: '#e6f5ee' } }
-    const triageLabels = { strict: 'Selective', balanced: 'Balanced', open: 'Open' }
+    const triageColors = { strict: { color: '#991b1b', bg: '#fecaca' }, balanced: { color: '#1e3a8a', bg: '#bfdbfe' }, open: { color: '#166534', bg: '#bbf7d0' } }
+    const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
     const triage = { label: triageLabels[triageMode] || 'Balanced', ...(triageColors[triageMode] || triageColors.balanced) }
     const week7 = getDayBuckets(7, calls)
     const capturedCountM = calls.filter(c => c.call_outcome === 'lead_captured' || c.call_outcome === 'booked').length
@@ -1089,11 +1089,11 @@ const ActivityDashboard = ({ onNavigate }) => {
         const voiceLabel = tier === 'free' ? 'Standard voice' : voicePref === 'standard' ? 'Standard voice' : 'Premium voice'
         const voiceColor = (tier === 'free' || voicePref === 'standard') ? { color: '#64748b', bg: '#f8fafc' } : { color: '#5e3b87', bg: '#f0ebf8' }
 
-        const triageLabels = { strict: 'Selective', balanced: 'Balanced', open: 'Open' }
+        const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
         const triageColors = {
-          strict:   { color: '#1d4ed8', bg: '#eff6ff' },
-          balanced: { color: '#5e3b87', bg: '#f0ebf8' },
-          open:     { color: '#1e7a4a', bg: '#e6f5ee' },
+          strict:   { color: '#991b1b', bg: '#fecaca' },
+          balanced: { color: '#1e3a8a', bg: '#bfdbfe' },
+          open:     { color: '#166534', bg: '#bbf7d0' },
         }
         const triage = { label: triageLabels[triageMode] || 'Balanced', ...((triageColors[triageMode]) || triageColors.balanced) }
 

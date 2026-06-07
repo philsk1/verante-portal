@@ -13,36 +13,47 @@ const TRIAGE_MODES = [
   { id: 'open',     label: 'Open',     desc: 'More conversational. Gives callers more space before closing or escalating.' },
 ]
 
+const TRIAGE_COLOUR = {
+  strict:   { border: '#ef4444', bg: '#fecaca', text: '#991b1b', dot: '#ef4444' },
+  balanced: { border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8' },
+  open:     { border: '#3db87a', bg: '#bbf7d0', text: '#166534', dot: '#3db87a' },
+}
+
 const CALL_TYPES = [
   {
     key: 'new_customer',
     label: 'New Customer',
     desc: 'Caller enquiring about a service you offer. Qualify the need and convert.',
     Icon: User,
+    accent: { bg: '#bbf7d0', color: '#166534', border: '#3db87a' },
   },
   {
     key: 'partner_service',
     label: 'Partner Service',
     desc: 'Caller needs a service you refer to an associate. Acknowledge and refer warmly.',
     Icon: ArrowLeftRight,
+    accent: { bg: '#bfdbfe', color: '#1e3a8a', border: '#1d4ed8' },
   },
   {
     key: 'sales_call',
     label: 'Sales Call',
     desc: 'Unsolicited commercial or cold call. Close politely and promptly.',
     Icon: PhoneOff,
+    accent: { bg: '#fecaca', color: '#991b1b', border: '#ef4444' },
   },
   {
     key: 'supplier_delivery',
     label: 'Supplier / Delivery',
     desc: 'Supplier, delivery driver, or trade contact. Take details and confirm.',
     Icon: Truck,
+    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500' },
   },
   {
     key: 'invoice_authorities',
     label: 'Invoice / Authorities',
     desc: 'Billing query, creditor, or official body. Take reference details and relay.',
     Icon: FileText,
+    accent: { bg: '#fde68a', color: '#78460a', border: '#f0a500' },
   },
 ]
 
@@ -115,19 +126,24 @@ const s = {
     transition: 'all 0.15s',
     fontFamily: "'DM Sans', sans-serif",
   }),
-  segBtnSm: (active) => ({
-    padding: '0.35rem 0.85rem',
-    borderRadius: '5px',
-    border: 'none',
-    background: active ? '#5e3b87' : 'transparent',
-    color: active ? 'white' : '#777',
-    fontSize: '0.75rem',
-    fontWeight: active ? 600 : 400,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    fontFamily: "'DM Sans', sans-serif",
-    whiteSpace: 'nowrap',
-  }),
+  segBtnSm: (active, mode) => {
+    const c = TRIAGE_COLOUR[mode] || {}
+    return {
+      padding: '0.35rem 0.85rem',
+      borderRadius: '5px',
+      border: 'none',
+      background: active ? (c.bg || '#5e3b87') : 'transparent',
+      color: active ? (c.text || 'white') : '#777',
+      fontSize: '0.75rem',
+      fontWeight: active ? 600 : 400,
+      cursor: 'pointer',
+      transition: 'all 0.15s',
+      fontFamily: "'DM Sans', sans-serif",
+      whiteSpace: 'nowrap',
+      outline: active ? `1.5px solid ${c.border || '#5e3b87'}` : 'none',
+      outlineOffset: '-1px',
+    }
+  },
   pairBtn: (active) => ({
     padding: '0.5rem 1.1rem',
     borderRadius: '8px',
@@ -344,17 +360,17 @@ const Toast = ({ msg, type }) =>
 // ─── call type card ───────────────────────────────────────────────────────────
 
 const CallTypeCard = ({ type, rule, businessEmail, onChange }) => {
-  const { Icon, label, desc } = type
+  const { Icon, label, desc, accent } = type
 
   const set = (field, value) => onChange(type.key, { ...rule, [field]: value })
 
   return (
-    <div style={s.ruleCard}>
+    <div style={{ ...s.ruleCard, borderLeft: `3px solid ${accent.border}` }}>
       {/* Header: icon + name + desc | mode selector */}
       <div style={s.ruleCardHeader}>
         <div style={s.ruleCardLeft}>
-          <div style={s.ruleCardIcon}>
-            <Icon size={15} color="#5e3b87" />
+          <div style={{ ...s.ruleCardIcon, background: accent.bg }}>
+            <Icon size={15} color={accent.color} />
           </div>
           <div>
             <div style={s.ruleCardName}>{label}</div>
@@ -363,7 +379,7 @@ const CallTypeCard = ({ type, rule, businessEmail, onChange }) => {
         </div>
         <div style={{ ...s.segmented, padding: '2px', gap: '1px', flexShrink: 0 }}>
           {['strict', 'balanced', 'open'].map(m => (
-            <button key={m} onClick={() => set('mode', m)} style={s.segBtnSm(rule.mode === m)}>
+            <button key={m} onClick={() => set('mode', m)} style={s.segBtnSm(rule.mode === m, m)}>
               {m.charAt(0).toUpperCase() + m.slice(1)}
             </button>
           ))}
@@ -783,8 +799,20 @@ const AIBehaviour = ({ onNavigate }) => {
 
             <label style={s.label} data-help="When the AI cannot resolve a call — Escalate transfers to you live. Hard close wraps up politely and offers a callback.">When AI cannot resolve</label>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button onClick={() => setEscalationPref('escalate')} style={s.pairBtn(escalationPref === 'escalate')}>Escalate to me</button>
-              <button onClick={() => setEscalationPref('hard_close')} style={s.pairBtn(escalationPref === 'hard_close')}>Hard close</button>
+              <button onClick={() => setEscalationPref('escalate')} style={{
+                padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
+                border: escalationPref === 'escalate' ? '2px solid #f0a500' : '1.5px solid rgba(94,59,135,0.15)',
+                background: escalationPref === 'escalate' ? '#fde68a' : 'white',
+                color: escalationPref === 'escalate' ? '#78460a' : '#444',
+              }}>Escalate to me</button>
+              <button onClick={() => setEscalationPref('hard_close')} style={{
+                padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
+                border: escalationPref === 'hard_close' ? '2px solid #94a3b8' : '1.5px solid rgba(94,59,135,0.15)',
+                background: escalationPref === 'hard_close' ? '#f1f5f9' : 'white',
+                color: escalationPref === 'hard_close' ? '#475569' : '#444',
+              }}>Hard close</button>
             </div>
           </div>
         </div>
@@ -792,20 +820,24 @@ const AIBehaviour = ({ onNavigate }) => {
         {/* Row 2: Triage mode */}
         <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Triage mode controls the pace of conversations. Strict = short and efficient. Balanced = standard. Open = more conversational.">Default triage mode</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
-          {TRIAGE_MODES.map(mode => (
-            <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
-              padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
-              border: triageMode === mode.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-              background: triageMode === mode.id ? '#ddd6fe' : 'white',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
-                <div style={{ width: 13, height: 13, borderRadius: '50%', border: triageMode === mode.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
-                <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: triageMode === mode.id ? '#4a2d6e' : '#1a1a1a' }}>{mode.label}</div>
-              </div>
-              <div style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.45, paddingLeft: '1.25rem' }}>{mode.desc}</div>
-            </button>
-          ))}
+          {TRIAGE_MODES.map(mode => {
+            const tc = TRIAGE_COLOUR[mode.id]
+            const active = triageMode === mode.id
+            return (
+              <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
+                padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                border: active ? `2px solid ${tc.border}` : '1.5px solid rgba(94,59,135,0.15)',
+                background: active ? tc.bg : 'white',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
+                  <div style={{ width: 13, height: 13, borderRadius: '50%', border: active ? `4px solid ${tc.dot}` : '1.5px solid #ccc', flexShrink: 0 }} />
+                  <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: active ? tc.text : '#1a1a1a' }}>{mode.label}</div>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: active ? tc.text : '#777', lineHeight: 1.45, paddingLeft: '1.25rem', opacity: active ? 0.8 : 1 }}>{mode.desc}</div>
+              </button>
+            )
+          })}
         </div>
 
         {/* Row 3: Urgent + Call return side by side */}
@@ -846,23 +878,26 @@ const AIBehaviour = ({ onNavigate }) => {
             <label style={{ ...s.label, marginBottom: '0.4rem' }}>When you run over your included minutes</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               {[
-                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.' },
-                { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.' },
-              ].map(opt => (
-                <button key={opt.id} onClick={() => setOverageVoicePref(opt.id)} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
-                  padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif",
-                  border: overageVoicePref === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                  background: overageVoicePref === opt.id ? '#ddd6fe' : 'white',
-                }}>
-                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: overageVoicePref === opt.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: overageVoicePref === opt.id ? '#4a2d6e' : '#1a1a1a', marginBottom: '0.15rem' }}>{opt.title}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.4 }}>{opt.desc}</div>
-                  </div>
-                </button>
-              ))}
+                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.', activeBorder: '#5e3b87', activeBg: '#ddd6fe', activeText: '#4a2d6e', activeDot: '#5e3b87' },
+                { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.', activeBorder: '#3db87a', activeBg: '#bbf7d0', activeText: '#166534', activeDot: '#3db87a' },
+              ].map(opt => {
+                const on = overageVoicePref === opt.id
+                return (
+                  <button key={opt.id} onClick={() => setOverageVoicePref(opt.id)} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+                    padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif",
+                    border: on ? `2px solid ${opt.activeBorder}` : '1.5px solid rgba(94,59,135,0.15)',
+                    background: on ? opt.activeBg : 'white',
+                  }}>
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: on ? `4px solid ${opt.activeDot}` : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: on ? opt.activeText : '#1a1a1a', marginBottom: '0.15rem' }}>{opt.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: on ? opt.activeText : '#888', lineHeight: 1.4, opacity: on ? 0.8 : 1 }}>{opt.desc}</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
