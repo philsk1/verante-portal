@@ -254,14 +254,10 @@ export default async function handler(req, res) {
     if (ownerEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
     const log = []
     try {
-      // Step 1: get existing demo tenant IDs + their auth user IDs (before deletion)
+      // Step 1: wipe existing demo tenant data only (auth users are never deleted/recreated)
       const { data: existingDemo } = await supabase.from('tenants').select('id').eq('is_demo', true)
       if (existingDemo?.length) {
         const ids = existingDemo.map(t => t.id)
-        const { data: memberships } = await supabase.from('tenant_memberships').select('user_id').in('tenant_id', ids)
-        const userIds = [...new Set((memberships || []).map(m => m.user_id))]
-
-        // Delete all child data in parallel, then tenants, then auth users
         await Promise.all([
           supabase.from('call_logs').delete().in('tenant_id', ids),
           supabase.from('leads').delete().in('tenant_id', ids),
@@ -270,53 +266,52 @@ export default async function handler(req, res) {
           supabase.from('staff_profiles').delete().in('tenant_id', ids),
           supabase.from('catalogue_items').delete().in('tenant_id', ids),
           supabase.from('tenant_memberships').delete().in('tenant_id', ids),
+          supabase.from('tenants').delete().in('id', ids),
         ])
-        await supabase.from('tenants').delete().in('id', ids)
-        await Promise.all(userIds.map(uid => supabase.auth.admin.deleteUser(uid)))
-        log.push(`Cleared ${ids.length} existing demo tenants, ${userIds.length} auth users`)
+        log.push(`Cleared ${ids.length} existing demo tenants`)
       }
 
-      // Step 2: create all 4 auth users in parallel (no listUsers needed)
-      const authResults = await Promise.all(DEMO_BUSINESSES.map(biz =>
-        supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
-      ))
+      // Step 2: resolve auth user IDs — look up existing via RPC, create only if missing
+      const userIds = await Promise.all(DEMO_BUSINESSES.map(async biz => {
+        const { data: uid } = await supabase.rpc('lookup_demo_user_id', { p_email: biz.email })
+        if (uid) return uid
+        const { data: created, error } = await supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
+        if (error) { log.push(`WARN auth ${biz.email}: ${error.message}`); return null }
+        log.push(`Created auth user: ${biz.email}`)
+        return created.user.id
+      }))
 
-      // Step 3: create all 4 tenants in parallel
-      const tenantResults = await Promise.all(DEMO_BUSINESSES.map(biz =>
-        supabase.from('tenants').insert({
+      // Step 3: create tenants + seed all 4 businesses in parallel
+      await Promise.all(DEMO_BUSINESSES.map(async (biz, i) => {
+        const userId = userIds[i]
+        if (!userId) return
+
+        const { data: tenant, error: te } = await supabase.from('tenants').insert({
           business_name: biz.business_name, subscription_tier: biz.tier, included_minutes: biz.included_minutes,
           business_phone: biz.business_phone, business_email: biz.business_email, business_address: biz.business_address,
           opening_hours: biz.opening_hours, lead_contact_name: biz.lead_contact_name, business_context: biz.business_context,
           triage_mode: biz.triage_mode, tone_register: biz.tone_register, business_outcome_type: biz.business_outcome_type,
           greeting_message: biz.greeting_message, is_demo: true,
         }).select('id').single()
-      ))
+        if (te) { log.push(`WARN tenant ${biz.business_name}: ${te.message}`); return }
 
-      // Step 4: seed all 4 businesses in parallel (reduced data volume)
-      await Promise.all(DEMO_BUSINESSES.map(async (biz, i) => {
-        const authRes = authResults[i]
-        const tenantRes = tenantResults[i]
-        if (authRes.error) { log.push(`WARN auth ${biz.email}: ${authRes.error.message}`); return }
-        if (tenantRes.error) { log.push(`WARN tenant ${biz.business_name}: ${tenantRes.error.message}`); return }
-
-        const userId = authRes.data.user.id
-        const tid = tenantRes.data.id
-        log.push(`${biz.business_name}: user=${userId.slice(0,8)}, tenant=${tid.slice(0,8)}`)
+        const tid = tenant.id
+        log.push(`${biz.business_name} (${tid.slice(0, 8)})`)
 
         const seedOps = [
           supabase.from('tenant_memberships').insert({ tenant_id: tid, user_id: userId, role: 'owner' }),
+          supabase.from('call_logs').insert(generateCalls(tid, biz)),
+          supabase.from('leads').insert(generateLeads(tid, biz)),
         ]
         if (biz.staff.length) seedOps.push(supabase.from('staff_profiles').insert(biz.staff.map(s => ({ ...s, tenant_id: tid }))))
         if (biz.catalogue.length) seedOps.push(supabase.from('catalogue_items').insert(biz.catalogue.map(c => ({ ...c, tenant_id: tid, active: true }))))
-        seedOps.push(supabase.from('call_logs').insert(generateCalls(tid, biz)))
-        seedOps.push(supabase.from('leads').insert(generateLeads(tid, biz)))
 
         if (biz.partners.length) {
-          const { data: insertedPartners } = await supabase.from('referral_partners').insert(biz.partners.map(p => ({ ...p, tenant_id: tid, agreed: true }))).select('id')
+          const { data: insertedPartners } = await supabase.from('referral_partners')
+            .insert(biz.partners.map(p => ({ ...p, tenant_id: tid, agreed: true }))).select('id')
           if (insertedPartners?.length) {
-            const pid = insertedPartners[0].id
             seedOps.push(supabase.from('referral_log').insert(
-              Array.from({ length: 6 }, (_, j) => ({ tenant_id: tid, partner_id: pid, created_at: daysAgo(rnd(0, 14)).toISOString(), caller_name: `Demo Caller ${j + 1}`, reason: 'Caller out of scope — referred to network partner' }))
+              Array.from({ length: 5 }, (_, j) => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString(), caller_name: `Demo Caller ${j + 1}`, reason: 'Caller out of scope — referred to network partner' }))
             ))
           }
         }
