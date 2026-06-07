@@ -13,13 +13,14 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
   const [services, setServices] = useState([])
   const [staff, setStaff] = useState([])
   const [partners, setPartners] = useState([])
+  const [appointments, setAppointments] = useState([])
 
   useEffect(() => {
     if (!businessId) return
     const load = async () => {
       setLoading(true)
       try {
-        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes] = await Promise.all([
+        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes, apptRes] = await Promise.all([
           supabase.from('demo_businesses').select('*').eq('id', businessId).maybeSingle(),
           supabase.from('demo_call_logs').select('*').eq('business_id', businessId)
             .order('created_at', { ascending: false }).limit(500),
@@ -30,6 +31,8 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
           supabase.from('demo_services').select('*').eq('business_id', businessId),
           supabase.from('demo_staff').select('*').eq('business_id', businessId),
           supabase.from('demo_partners').select('*').eq('business_id', businessId),
+          supabase.from('demo_appointments').select('*').eq('business_id', businessId)
+            .order('start_time', { ascending: true }),
         ])
 
         setBusiness(bizRes.data)
@@ -56,6 +59,12 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
         setServices(svcRes.data || [])
         setStaff(staffRes.data || [])
         setPartners(partnerRes.data || [])
+
+        // Shape appointments — map staff_id → staff_profile_id so Calendar's toEvent() works
+        setAppointments((apptRes.data || []).map(a => ({
+          ...a,
+          staff_profile_id: a.staff_id,
+        })))
       } catch (err) {
         console.error('DemoContext load error:', err)
       } finally {
@@ -78,6 +87,7 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
     services,
     staff,
     partners,
+    appointments,
     // DataAnalytics expects `duration` not `duration_seconds`
     analyticsCallData: calls.map(c => ({ ...c, duration: c.duration_seconds })),
     includedMinutes: business?.included_minutes || 250,

@@ -680,10 +680,10 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   useEffect(() => {
     if (!demo?.isDemo) return
     setStaff(demo.staff || [])
-    setEvents([])
+    setEvents((demo.appointments || []).map(toEvent))
     setCatalogue([])
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id])
+  }, [demo?.isDemo, demo?.business?.id, demo?.appointments])
 
   // ─── Load tenant ────────────────────────────────────────────────────────────
   useEffect(() => {
