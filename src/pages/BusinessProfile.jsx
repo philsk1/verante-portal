@@ -778,12 +778,51 @@ const BusinessProfile = () => {
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
   const quotaPct = (clients.length / clientLimit) * 100
 
+  // Profile completeness
+  const profileChecks = [
+    !!details.business_name,
+    !!details.business_phone || !!details.business_email,
+    services.length > 0,
+    !!details.opening_hours,
+    !!details.business_context,
+  ]
+  const profileScore = profileChecks.filter(Boolean).length
+  const profilePct   = Math.round((profileScore / profileChecks.length) * 100)
+
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading your profile…</div>
   }
 
   return (
     <div>
+
+      {/* ── Profile summary bar ─────────────────────────────────────────────── */}
+      <div style={{ background: 'white', borderRadius: 14, padding: '0.9rem 1.25rem', marginBottom: '1rem', border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        {/* Stat pills */}
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Services',  value: services.length,      dot: '#3db87a' },
+            { label: 'Staff',     value: staff.length,         dot: '#1d4ed8' },
+            { label: 'Clients',   value: clients.length,       dot: '#5e3b87' },
+            { label: 'Catalogue', value: catalogueItems.length, dot: '#f0a500' },
+          ].map(item => (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', background: '#faf9fc', borderRadius: 20, border: '1px solid rgba(94,59,135,0.08)' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.dot, flexShrink: 0 }} />
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.8125rem', color: '#1a1a1a' }}>{item.value}</span>
+              <span style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+        {/* Completeness */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+          <div style={{ width: 80, height: 5, borderRadius: 3, background: '#f0ebf8', overflow: 'hidden' }}>
+            <div style={{ width: `${profilePct}%`, height: '100%', borderRadius: 3, background: profilePct === 100 ? '#3db87a' : '#5e3b87', transition: 'width 0.4s ease' }} />
+          </div>
+          <span style={{ fontSize: '0.72rem', color: profilePct === 100 ? '#3db87a' : '#5e3b87', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+            {profilePct === 100 ? 'Profile complete' : `${profilePct}% complete`}
+          </span>
+        </div>
+      </div>
 
       {/* Business Details */}
       <div style={s.section}>

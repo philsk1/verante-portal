@@ -760,8 +760,60 @@ const AIBehaviour = ({ onNavigate }) => {
   const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
+  // Derive current state labels for status hero
+  const modeInfo   = TRIAGE_COLOUR[triageMode] || TRIAGE_COLOUR.balanced
+  const modeLabel  = CALL_MODES.find(m => m.id === triageMode)?.label || 'Balanced'
+  const outcomeLabels = { booking: 'Books appointments', quote: 'Discusses & quotes', custom: 'Custom outcome' }
+  const outcomeLabel  = outcomeLabels[businessOutcomeType] || 'Discusses & quotes'
+
   return (
     <div>
+
+      {/* ── AI Status Hero ───────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 60%, #4a2d6e 100%)',
+        borderRadius: 16,
+        padding: '1.25rem 1.5rem',
+        marginBottom: '1rem',
+        boxShadow: '0 4px 24px rgba(94,59,135,0.28), 0 1px 4px rgba(0,0,0,0.12)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Background noise texture */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
+
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          {/* Left — live indicator + label */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3db87a' }} />
+              <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '2px solid rgba(61,184,122,0.4)', animation: 'veraBob 2s ease-in-out infinite' }} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: 'white', lineHeight: 1 }}>Answer AI · Live</div>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>Your AI is answering missed calls</div>
+            </div>
+          </div>
+
+          {/* Right — mode + tone + outcome badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* Mode badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: modeInfo.dot }} />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'white', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.06em' }}>{modeLabel}</span>
+            </div>
+            {/* Tone badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>{toneRegister === 'warm' ? '☀️' : '🎩'}</span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'white', fontFamily: "'DM Sans', sans-serif", textTransform: 'capitalize' }}>{toneRegister}</span>
+            </div>
+            {/* Outcome badge */}
+            <div style={{ background: 'rgba(240,165,0,0.22)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(240,165,0,0.3)' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#f0a500', fontFamily: "'DM Sans', sans-serif" }}>{outcomeLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Global Call Handling */}
       <div style={s.section}>

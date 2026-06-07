@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Product definitions ──────────────────────────────────────────────────────
@@ -284,7 +284,10 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
   }
 
   const listenLocked = answer === 'free'
-  if (listenLocked && listen !== 'none') setListen('none')
+
+  useEffect(() => {
+    if (listenLocked && listen !== 'none') setListen('none')
+  }, [listenLocked])
 
   const { fixed, listenLabel, answerOverage } = priceBreakdown(answer, listen, calendar)
 
