@@ -348,6 +348,8 @@ const DataAnalytics = ({ onNavigate }) => {
   const [avgDurationSecs, setAvgDurationSecs] = useState(0)
   const [outcomeBreakdown, setOutcomeBreakdown] = useState({})
   const [callsByDay, setCallsByDay] = useState([0, 0, 0, 0, 0, 0, 0])
+  const [demoPricing, setDemoPricing] = useState([])
+  const [demoCompetitors, setDemoCompetitors] = useState([])
 
   // ── Demo mode: compute analytics from DemoContext ─────────────────────────────
   useEffect(() => {
@@ -365,6 +367,8 @@ const DataAnalytics = ({ onNavigate }) => {
     const byDay = [0, 0, 0, 0, 0, 0, 0]
     calls.forEach(c => { byDay[new Date(c.created_at).getDay()]++ })
     setCallsByDay(byDay)
+    setDemoPricing(demo.pricingIntelligence || [])
+    setDemoCompetitors(demo.competitorIntelligence || [])
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
 
@@ -578,7 +582,23 @@ const DataAnalytics = ({ onNavigate }) => {
             desc="Market rates mentioned by callers, cross-referenced with your win rate."
             helpText="Pricing Intelligence listens for price signals in your call transcripts — when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
           >
-            <div style={s.comingSoon}>Data will populate from your call history.</div>
+            {demoPricing.length === 0 ? (
+              <div style={s.comingSoon}>Data will populate from your call history.</div>
+            ) : demoPricing.map((item, i, arr) => (
+              <div key={item.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                  <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{item.service_name}</span>
+                  {item.market_low && item.market_high && (
+                    <span style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600 }}>
+                      {typeof item.market_low === 'number' && item.market_low > 100
+                        ? `£${item.market_low.toLocaleString()}–£${item.market_high.toLocaleString()}`
+                        : `${item.market_low}%–${item.market_high}%`}
+                    </span>
+                  )}
+                </div>
+                {item.insight && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{item.insight}</div>}
+              </div>
+            ))}
           </LiveCard>
         ) : (
           <LockedCard
@@ -681,7 +701,19 @@ const DataAnalytics = ({ onNavigate }) => {
             desc="Businesses mentioned by callers when comparing prices or explaining why they called."
             helpText="Competitor Intelligence captures when callers name other businesses — 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Useful for pricing and positioning decisions. Enterprise only."
           >
-            <div style={s.comingSoon}>Data will populate from your call history.</div>
+            {demoCompetitors.length === 0 ? (
+              <div style={s.comingSoon}>Data will populate from your call history.</div>
+            ) : demoCompetitors.map((comp, i, arr) => (
+              <div key={comp.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                  <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{comp.competitor_name}</span>
+                  <span style={{ background: '#fde68a', color: '#78460a', borderRadius: 10, padding: '0.1rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+                    {comp.mention_count} mention{comp.mention_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {comp.context && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{comp.context}</div>}
+              </div>
+            ))}
           </LiveCard>
         ) : (
           <LockedCard

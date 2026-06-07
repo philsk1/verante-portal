@@ -14,13 +14,15 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
   const [staff, setStaff] = useState([])
   const [partners, setPartners] = useState([])
   const [appointments, setAppointments] = useState([])
+  const [pricingIntelligence, setPricingIntelligence] = useState([])
+  const [competitorIntelligence, setCompetitorIntelligence] = useState([])
 
   useEffect(() => {
     if (!businessId) return
     const load = async () => {
       setLoading(true)
       try {
-        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes, apptRes] = await Promise.all([
+        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes, apptRes, pricingRes, competitorRes] = await Promise.all([
           supabase.from('demo_businesses').select('*').eq('id', businessId).maybeSingle(),
           supabase.from('demo_call_logs').select('*').eq('business_id', businessId)
             .order('created_at', { ascending: false }).limit(500),
@@ -33,6 +35,9 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
           supabase.from('demo_partners').select('*').eq('business_id', businessId),
           supabase.from('demo_appointments').select('*').eq('business_id', businessId)
             .order('start_time', { ascending: true }),
+          supabase.from('demo_pricing_intelligence').select('*').eq('business_id', businessId),
+          supabase.from('demo_competitor_intelligence').select('*').eq('business_id', businessId)
+            .order('mention_count', { ascending: false }),
         ])
 
         setBusiness(bizRes.data)
@@ -77,6 +82,8 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
         setServices(svcRes.data || [])
         setStaff(staffRes.data || [])
         setPartners(partnerRes.data || [])
+        setPricingIntelligence(pricingRes.data || [])
+        setCompetitorIntelligence(competitorRes.data || [])
 
         // Normalize appointments to the current week (Mon–Fri) so Calendar always looks live
         const rawAppts = apptRes.data || []
@@ -127,6 +134,8 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
     staff,
     partners,
     appointments,
+    pricingIntelligence,
+    competitorIntelligence,
     // DataAnalytics expects `duration` not `duration_seconds`
     analyticsCallData: calls.map(c => ({ ...c, duration: c.duration_seconds })),
     includedMinutes: business?.included_minutes || 250,
