@@ -211,11 +211,21 @@ const FieldTextarea = ({ value, onChange, placeholder, rows = 3 }) => (
 )
 
 // ─── Staff Schedule editor ────────────────────────────────────────────────────
+function scheduleSummary(sch) {
+  const on = [0,1,2,3,4,5,6].filter(d => sch[d]?.on)
+  if (!on.length) return 'No working days set'
+  const hours = sch[on[0]]
+  const timeStr = hours ? `${hours.start}–${hours.end}` : ''
+  const dayStr = on.map(d => DAYS[d]).join(', ')
+  return `${dayStr} · ${timeStr}`
+}
+
 function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
   const [schedules, setSchedules] = useState({}) // { staffId: { 0: {on,start,end}, ... } }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
   const [saved, setSaved] = useState(null)
+  const [expanded, setExpanded] = useState(null) // staffId of open card
 
   useEffect(() => {
     if (!tenantId && !isDemo) return
@@ -282,47 +292,63 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
       {staff.map(s => {
         const sch = schedules[s.id] || {}
         const isSav = saving === s.id
         const isSaved = saved === s.id
+        const isOpen = expanded === s.id
+        const summary = Object.keys(sch).length ? scheduleSummary(sch) : 'Not configured'
         return (
-          <div key={s.id} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', overflow: 'hidden' }}>
-            <div style={{ padding: '0.85rem 1.25rem', background: '#f5f3ff', borderBottom: '1px solid rgba(94,59,135,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
+          <div key={s.id} style={{ background: 'white', borderRadius: 12, border: `0.5px solid ${isOpen ? 'rgba(94,59,135,0.22)' : 'rgba(94,59,135,0.1)'}`, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+            {/* Clickable header */}
+            <button
+              onClick={() => setExpanded(isOpen ? null : s.id)}
+              style={{ width: '100%', padding: '0.85rem 1.25rem', background: isOpen ? '#f5f3ff' : 'white', border: 'none', borderBottom: isOpen ? '1px solid rgba(94,59,135,0.08)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'background 0.15s' }}>
+              <div style={{ textAlign: 'left' }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#3a2057' }}>{s.name}</div>
-                {s.role && <div style={{ fontSize: '0.75rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>{s.role}</div>}
+                <div style={{ fontSize: '0.72rem', color: isOpen ? '#5e3b87' : '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
+                  {s.role ? `${s.role} · ` : ''}{summary}
+                </div>
               </div>
-              <button onClick={() => saveSchedule(s.id)} disabled={isSav || isDemo || isPreview}
-                style={{ padding: '0.38rem 0.9rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.75rem', fontWeight: 600, cursor: (isSav || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                {isSav ? 'Saving…' : isSaved ? '✓ Saved' : 'Save schedule'}
-              </button>
-            </div>
-            <div style={{ padding: '0.85rem 1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
-                {[0,1,2,3,4,5,6].map(d => {
-                  const day = sch[d] || { on: false, start: '09:00', end: '18:00' }
-                  return (
-                    <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#aaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>{DAYS[d]}</div>
-                      <button onClick={() => toggle(s.id, d)}
-                        style={{ width: 36, height: 22, borderRadius: 11, border: 'none', background: day.on ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
-                        <span style={{ position: 'absolute', top: 2, left: day.on ? 16 : 2, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
-                      </button>
-                      {day.on && (
-                        <>
-                          <input type="time" value={day.start} onChange={e => setTime(s.id, d, 'start', e.target.value)}
-                            style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
-                          <input type="time" value={day.end} onChange={e => setTime(s.id, d, 'end', e.target.value)}
-                            style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
-                        </>
-                      )}
-                    </div>
-                  )
-                })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+                {isOpen && (
+                  <button onClick={e => { e.stopPropagation(); saveSchedule(s.id) }} disabled={isSav || isDemo || isPreview}
+                    style={{ padding: '0.32rem 0.8rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600, cursor: (isSav || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    {isSav ? 'Saving…' : isSaved ? '✓ Saved' : 'Save'}
+                  </button>
+                )}
+                <span style={{ fontSize: '0.85rem', color: '#aaa', lineHeight: 1 }}>{isOpen ? '▲' : '▼'}</span>
               </div>
-            </div>
+            </button>
+
+            {/* Expanded schedule grid */}
+            {isOpen && (
+              <div style={{ padding: '0.85rem 1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
+                  {[0,1,2,3,4,5,6].map(d => {
+                    const day = sch[d] || { on: false, start: '09:00', end: '18:00' }
+                    return (
+                      <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#aaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>{DAYS[d]}</div>
+                        <button onClick={() => toggle(s.id, d)}
+                          style={{ width: 36, height: 22, borderRadius: 11, border: 'none', background: day.on ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
+                          <span style={{ position: 'absolute', top: 2, left: day.on ? 16 : 2, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+                        </button>
+                        {day.on && (
+                          <>
+                            <input type="time" value={day.start} onChange={e => setTime(s.id, d, 'start', e.target.value)}
+                              style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
+                            <input type="time" value={day.end} onChange={e => setTime(s.id, d, 'end', e.target.value)}
+                              style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )
       })}
@@ -443,12 +469,14 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState('week')
   const [teamMode, setTeamMode] = useState(false)
+  const [staffFilter, setStaffFilter] = useState('') // '' = all, staffId = single staff
   const [activeSubTab, setActiveSubTab] = useState('appointments')
 
   // Right panel state
   const [panelMode, setPanelMode] = useState(null) // null | 'view' | 'edit' | 'create'
   const [panelEvent, setPanelEvent] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [bookingMode, setBookingMode] = useState('service') // 'service' | 'manual'
   const [saving, setSaving] = useState(false)
   const [slotWarning, setSlotWarning] = useState(false)
 
@@ -569,9 +597,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   // ─── Resources for team mode ─────────────────────────────────────────────────
-  const resources = teamMode && staff.length > 0
+  const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff
+  const resources = teamMode && staff.length > 0 && !staffFilter
     ? [{ id: 'unassigned', title: 'Unassigned' }, ...staff.map(s => ({ id: s.id, title: s.name }))]
     : undefined
+  const visibleEvents = staffFilter
+    ? events.filter(e => e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
+    : events
 
   // ─── Event style ─────────────────────────────────────────────────────────────
   const eventPropGetter = useCallback((event) => {
@@ -917,64 +949,88 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   const renderFormPanel = () => (
     <>
-      <div style={{ padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Header with mode toggle */}
+      <div style={{ padding: '1rem 1.25rem 0', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a' }}>
             {panelMode === 'create' ? 'New appointment' : 'Edit appointment'}
           </div>
           <button onClick={closePanel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaaaaa', fontSize: '1.3rem', lineHeight: 1, padding: '0 0.15rem' }}>×</button>
         </div>
+        {/* Service / Manual toggle */}
+        {catalogue.length > 0 && (
+          <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 7, padding: 2, marginBottom: '0.85rem' }}>
+            {[{ id: 'service', label: 'From catalogue' }, { id: 'manual', label: 'Manual entry' }].map(m => (
+              <button key={m.id} onClick={() => { setBookingMode(m.id); if (m.id === 'manual') setForm(prev => ({ ...prev, service_id: '', isSplit: false })) }}
+                style={{ flex: 1, padding: '0.3rem 0', borderRadius: 5, border: 'none', background: bookingMode === m.id ? '#5e3b87' : 'transparent', color: bookingMode === m.id ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: bookingMode === m.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s' }}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
         {slotWarning && (
           <div style={{ padding: '0.6rem 0.8rem', background: '#fef3d9', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 7, fontSize: '0.78rem', color: '#7a5c00', lineHeight: 1.5 }}>
-            This slot may be shorter than usual. Check the end time below.
+            Slot may be shorter than usual — check the end time.
           </div>
         )}
 
-        {/* Service picker — drives duration + staff filter */}
-        {catalogue.length > 0 && (
-          <div>
-            <Label>Service from catalogue</Label>
+        {/* ── SERVICE MODE ─────────────────────────────────────────────────── */}
+        {bookingMode === 'service' && catalogue.length > 0 && (
+          <div style={{ background: '#faf9fc', borderRadius: 10, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.12)' }}>
+            <Label>Select service</Label>
             <FieldSelect value={form.service_id} onChange={e => handleServiceSelect(e.target.value)}>
-              <option value="">— Select a service —</option>
+              <option value="">— Choose from your catalogue —</option>
               {catalogue.filter(c => c.item_type === 'service').map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.duration_minutes} min{c.processing_minutes > 0 ? `, ${c.processing_minutes} min processing` : ''})</option>
+                <option key={c.id} value={c.id}>{c.name} · {c.duration_minutes} min{c.processing_minutes > 0 ? ` (+ ${c.processing_minutes} min processing)` : ''}</option>
               ))}
-              <option value="">— Or enter manually below —</option>
             </FieldSelect>
+            {form.service_id && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
+                Duration and times auto-filled from catalogue ✓
+              </div>
+            )}
           </div>
         )}
 
+        {/* Client name — always visible */}
         <div>
-          <Label>Title *</Label>
-          <FieldInput value={form.title} onChange={f('title')} placeholder="e.g. Sarah Mitchell — Cut & Colour" autoFocus />
+          <Label>Client name *</Label>
+          <FieldInput value={form.title} onChange={f('title')}
+            placeholder={bookingMode === 'service' && form.service_id ? `e.g. Sarah Mitchell — ${form.appointment_type}` : 'e.g. Sarah Mitchell'}
+            autoFocus />
         </div>
 
+        {/* Times — always visible, auto-filled in service mode */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <div>
-            <Label>Start *</Label>
-            <FieldInput type="datetime-local" value={form.start} onChange={f('start')} />
-          </div>
-          <div>
-            <Label>End *</Label>
-            <FieldInput type="datetime-local" value={form.end} onChange={f('end')} />
-          </div>
+          <div><Label>Start *</Label><FieldInput type="datetime-local" value={form.start} onChange={f('start')} /></div>
+          <div><Label>End *</Label><FieldInput type="datetime-local" value={form.end} onChange={f('end')} /></div>
         </div>
 
-        {/* Split appointment */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-          <input type="checkbox" checked={form.isSplit}
-            onChange={e => setForm(prev => ({ ...prev, isSplit: e.target.checked, processing_start: '', processing_end: '' }))}
-            style={{ width: 15, height: 15, accentColor: '#f0a500', cursor: 'pointer' }} />
-          <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>Split appointment — has processing time</span>
-        </label>
+        {/* ── MANUAL MODE extras ───────────────────────────────────────────── */}
+        {bookingMode === 'manual' && (
+          <div style={{ background: '#faf9fc', borderRadius: 10, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif" }}>Manual details</div>
+            <div>
+              <Label>Service / appointment type</Label>
+              <FieldInput value={form.appointment_type} onChange={f('appointment_type')} placeholder="e.g. Boiler service, Consultation" />
+            </div>
+            {/* Split toggle */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.isSplit}
+                onChange={e => setForm(prev => ({ ...prev, isSplit: e.target.checked, processing_start: '', processing_end: '' }))}
+                style={{ width: 15, height: 15, accentColor: '#f0a500', cursor: 'pointer' }} />
+              <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>Split appointment — has processing time</span>
+            </label>
+          </div>
+        )}
 
+        {/* Processing window — service or manual split */}
         {form.isSplit && (
           <div style={{ background: '#fef3d9', borderRadius: 8, padding: '0.85rem', border: '1px solid rgba(240,165,0,0.25)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7a5c00', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Processing window</div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.65rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>When is the client under heat / you're free for another booking?</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7a5c00', marginBottom: '0.45rem', fontFamily: "'DM Sans', sans-serif" }}>Processing window — when you're free for another client</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               <div><Label>Starts</Label><FieldInput type="datetime-local" value={form.processing_start} onChange={f('processing_start')} /></div>
               <div><Label>Ends</Label><FieldInput type="datetime-local" value={form.processing_end} onChange={f('processing_end')} /></div>
@@ -982,50 +1038,43 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           </div>
         )}
 
-        <div>
-          <Label>Status</Label>
-          <FieldSelect value={form.status} onChange={f('status')}>
-            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </FieldSelect>
-        </div>
-
-        {staff.length > 0 && (
+        {/* Status + Staff */}
+        <div style={{ display: 'grid', gridTemplateColumns: staff.length > 0 ? '1fr 1fr' : '1fr', gap: '0.5rem' }}>
           <div>
-            <Label>Staff member{form.service_id && availableStaff.length < staff.length ? ` (${availableStaff.length} qualified)` : ''}</Label>
-            <FieldSelect value={form.staff_profile_id} onChange={f('staff_profile_id')}>
-              <option value="">— Unassigned —</option>
-              {availableStaff.map(s => <option key={s.id} value={s.id}>{s.name}{s.role ? ` — ${s.role}` : ''}</option>)}
+            <Label>Status</Label>
+            <FieldSelect value={form.status} onChange={f('status')}>
+              {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </FieldSelect>
           </div>
-        )}
+          {staff.length > 0 && (
+            <div>
+              <Label>Staff{form.service_id && availableStaff.length < staff.length ? ` (${availableStaff.length} qualified)` : ''}</Label>
+              <FieldSelect value={form.staff_profile_id} onChange={f('staff_profile_id')}>
+                <option value="">— Unassigned —</option>
+                {availableStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </FieldSelect>
+            </div>
+          )}
+        </div>
 
-        {!form.service_id && (
-          <div>
-            <Label>Service type</Label>
-            <FieldInput value={form.appointment_type} onChange={f('appointment_type')} placeholder="e.g. Cut & Colour, Boiler service" />
-          </div>
-        )}
-
-        {/* Intake / pre-appointment info */}
+        {/* Intake + notes */}
         <div>
           <Label>Pre-appointment info</Label>
           <FieldTextarea value={form.intake_answers} onChange={f('intake_answers')} placeholder="Allergies, preferences, access requirements…" rows={2} />
         </div>
-
         <div>
           <Label>Client notes</Label>
-          <FieldTextarea value={form.client_notes} onChange={f('client_notes')} placeholder="Notes visible when opening this appointment" rows={2} />
+          <FieldTextarea value={form.client_notes} onChange={f('client_notes')} placeholder="Visible when opening this appointment" rows={2} />
         </div>
-
         <div>
           <Label>Internal notes</Label>
-          <FieldTextarea value={form.description} onChange={f('description')} placeholder="Internal instructions" rows={2} />
+          <FieldTextarea value={form.description} onChange={f('description')} placeholder="Internal use only" rows={2} />
         </div>
 
         {/* Recurring series — create mode only */}
         {panelMode === 'create' && (
           <div style={{ background: '#f5f3ff', borderRadius: 8, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.15)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4a2d6e', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>🔁 Recurring series</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4a2d6e', marginBottom: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>🔁 Recurring series</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               <div>
                 <Label>Repeat</Label>
@@ -1046,7 +1095,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             </div>
             {form.repeat_type !== 'none' && (
               <div style={{ fontSize: '0.72rem', color: '#666', fontFamily: "'DM Sans', sans-serif", marginTop: '0.5rem', lineHeight: 1.4 }}>
-                Creates {form.repeat_count} appointments, {form.repeat_type === 'weekly' ? 'one per week' : 'every two weeks'} from the start date.
+                Creates {form.repeat_count} appointments, {form.repeat_type === 'weekly' ? 'weekly' : 'fortnightly'} from the start date.
               </div>
             )}
           </div>
@@ -1099,23 +1148,33 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         data-help="Qerxel Calendar — create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing gaps so you can book other clients during colour/drying time.">
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Calendar</h2>
         {activeSubTab === 'appointments' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             {hasTeamMode && (
-              <>
-                <button onClick={() => { setTeamMode(false); setView('week') }}
-                  style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: !teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: !teamMode ? '#5e3b87' : 'white', color: !teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 2 }}>
+                <button onClick={() => { setTeamMode(false); setStaffFilter(''); setView('week') }}
+                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: !teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: !teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Solo
                 </button>
-                <button onClick={() => { setTeamMode(true); setView('day') }}
-                  style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: teamMode ? '#5e3b87' : 'white', color: teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                <button onClick={() => { setTeamMode(true); setStaffFilter(''); setView('day') }}
+                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Team
                 </button>
-              </>
+              </div>
+            )}
+            {hasTeamMode && (
+              <select
+                value={staffFilter}
+                onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week') } }}
+                style={{ padding: '0.35rem 0.6rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: staffFilter ? '#5e3b87' : '#888', background: staffFilter ? '#f5f3ff' : 'white', cursor: 'pointer', fontWeight: staffFilter ? 600 : 400 }}>
+                <option value="">All staff</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             )}
             <button
               onClick={() => {
                 const now = startOfHour(addHours(new Date(), 1))
-                setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)) })
+                setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)), staff_profile_id: staffFilter || '' })
+                setBookingMode('service')
                 setSlotWarning(false)
                 setPanelEvent(null)
                 setPanelMode('create')
@@ -1175,7 +1234,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               ) : (
                 <DnDCalendar
                   localizer={localizer}
-                  events={events}
+                  events={visibleEvents}
                   date={currentDate}
                   view={view}
                   onNavigate={setCurrentDate}
