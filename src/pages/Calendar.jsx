@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar'
 import _withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 const withDragAndDrop = _withDragAndDrop.default || _withDragAndDrop
-import { format, parse, startOfWeek, getDay, addHours, startOfHour } from 'date-fns'
+import { format, parse, startOfWeek, getDay, addHours, startOfHour, addMinutes, addWeeks } from 'date-fns'
 import { enGB } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
@@ -33,9 +33,30 @@ const STATUS_LABELS = {
   cancelled: 'Cancelled', no_show: 'No show',
 }
 
+// ─── Category colour palette (service-type colouring) ────────────────────────
+const CATEGORY_PALETTE = [
+  { bg: '#ede9fe', border: '#7c3aed', text: '#4c1d95' },
+  { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
+  { bg: '#dbeafe', border: '#2563eb', text: '#1e3a8a' },
+  { bg: '#fef3c7', border: '#d97706', text: '#92400e' },
+  { bg: '#fce7f3', border: '#db2777', text: '#831843' },
+  { bg: '#e0f2fe', border: '#0284c7', text: '#075985' },
+  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
+  { bg: '#f3e8ff', border: '#a855f7', text: '#6b21a8' },
+]
+function getCategoryColour(category) {
+  if (!category) return null
+  let h = 0
+  for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) % CATEGORY_PALETTE.length
+  return CATEGORY_PALETTE[Math.abs(h)]
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 const DEMO_STAFF = [
-  { id: 'demo-staff-1', name: 'Sophie', role: 'Senior Stylist' },
-  { id: 'demo-staff-2', name: 'Olivia', role: 'Stylist' },
+  { id: 'demo-staff-1', name: 'Sophie', role: 'Senior Stylist', colour: '#7c3aed' },
+  { id: 'demo-staff-2', name: 'Olivia', role: 'Stylist', colour: '#16a34a' },
 ]
 
 const EMPTY_FORM = {
@@ -43,6 +64,10 @@ const EMPTY_FORM = {
   status: 'confirmed', appointment_type: '', client_notes: '',
   staff_profile_id: '',
   isSplit: false, processing_start: '', processing_end: '',
+  service_id: '',
+  repeat_type: 'none',   // none | weekly | fortnightly
+  repeat_count: 4,
+  intake_answers: '',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -56,19 +81,25 @@ function toEvent(appt) {
     resource: appt,
   }
 }
-
 function isoLocal(date) {
   const d = new Date(date)
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
 }
-
 function fmtTime(dateStr) {
   return new Date(dateStr).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
-
 function fmtDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+function minsToTime(mins) {
+  const h = String(Math.floor(mins / 60)).padStart(2, '0')
+  const m = String(mins % 60).padStart(2, '0')
+  return `${h}:${m}`
+}
+function timeToMins(t) {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
 }
 
 const useIsMobile = () => {
@@ -86,21 +117,13 @@ const CalendarToolbar = ({ label, onNavigate, onView, view }) => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
       <button onClick={() => onNavigate('PREV')}
-        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
-        ‹
-      </button>
+        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>‹</button>
       <button onClick={() => onNavigate('TODAY')}
-        style={{ padding: '0 0.75rem', height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-        Today
-      </button>
+        style={{ padding: '0 0.75rem', height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Today</button>
       <button onClick={() => onNavigate('NEXT')}
-        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
-        ›
-      </button>
+        style={{ width: 32, height: 32, border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>›</button>
     </div>
-    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', textAlign: 'center' }}>
-      {label}
-    </span>
+    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', textAlign: 'center' }}>{label}</span>
     <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 3 }}>
       {['month', 'week', 'day'].map(v => (
         <button key={v} onClick={() => onView(v)}
@@ -113,10 +136,15 @@ const CalendarToolbar = ({ label, onNavigate, onView, view }) => (
 )
 
 // ─── Appointment event card ───────────────────────────────────────────────────
-function AppointmentCard({ event, title }) {
+function AppointmentCard({ event, title, catalogue }) {
   const appt = event.resource || {}
   const status = appt.status || 'confirmed'
-  const c = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
+  const statusC = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
+
+  // Use service category colour when available, fall back to status colour
+  const catalogueItem = catalogue?.find(ci => ci.id === appt.service_id)
+  const catC = catalogueItem ? getCategoryColour(catalogueItem.category) : null
+  const c = catC || statusC
 
   if (appt.processing_start_time && appt.processing_end_time) {
     const totalMs = event.end - event.start
@@ -161,43 +189,242 @@ function AppointmentCard({ event, title }) {
   )
 }
 
-// ─── Field components (used in right panel form) ─────────────────────────────
+// ─── Field components ─────────────────────────────────────────────────────────
 const Label = ({ children }) => (
   <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem', fontFamily: "'DM Sans', sans-serif" }}>
     {children}
   </div>
 )
-
-const FieldInput = ({ value, onChange, type = 'text', placeholder, autoFocus }) => (
-  <input
-    type={type}
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    autoFocus={autoFocus}
-    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', boxSizing: 'border-box', outline: 'none', background: 'white' }}
-  />
+const FieldInput = ({ value, onChange, type = 'text', placeholder, autoFocus, disabled }) => (
+  <input type={type} value={value} onChange={onChange} placeholder={placeholder} autoFocus={autoFocus} disabled={disabled}
+    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', boxSizing: 'border-box', outline: 'none', background: disabled ? '#f7f6f9' : 'white' }} />
 )
-
-const FieldSelect = ({ value, onChange, children }) => (
-  <select
-    value={value}
-    onChange={onChange}
-    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', boxSizing: 'border-box', cursor: 'pointer', outline: 'none' }}
-  >
+const FieldSelect = ({ value, onChange, children, disabled }) => (
+  <select value={value} onChange={onChange} disabled={disabled}
+    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: disabled ? '#f7f6f9' : 'white', boxSizing: 'border-box', cursor: disabled ? 'not-allowed' : 'pointer', outline: 'none' }}>
     {children}
   </select>
 )
-
 const FieldTextarea = ({ value, onChange, placeholder, rows = 3 }) => (
-  <textarea
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    rows={rows}
-    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', boxSizing: 'border-box', outline: 'none', resize: 'vertical', lineHeight: 1.55 }}
-  />
+  <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows}
+    style={{ width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', boxSizing: 'border-box', outline: 'none', resize: 'vertical', lineHeight: 1.55 }} />
 )
+
+// ─── Staff Schedule editor ────────────────────────────────────────────────────
+function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
+  const [schedules, setSchedules] = useState({}) // { staffId: { 0: {on,start,end}, ... } }
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(null)
+  const [saved, setSaved] = useState(null)
+
+  useEffect(() => {
+    if (!tenantId && !isDemo) return
+    if (isDemo) {
+      const demo = {}
+      DEMO_STAFF.forEach(s => {
+        demo[s.id] = {}
+        ;[1,2,3,4,5].forEach(d => { demo[s.id][d] = { on: true, start: '09:00', end: '18:00' } })
+        ;[0,6].forEach(d => { demo[s.id][d] = { on: false, start: '09:00', end: '18:00' } })
+      })
+      setSchedules(demo)
+      setLoading(false)
+      return
+    }
+    const load = async () => {
+      const { data } = await supabase.from('staff_availability')
+        .select('staff_profile_id, day_of_week, start_time, end_time, active')
+      const map = {}
+      staff.forEach(s => {
+        map[s.id] = {}
+        for (let d = 0; d < 7; d++) {
+          const row = data?.find(r => r.staff_profile_id === s.id && r.day_of_week === d)
+          map[s.id][d] = row
+            ? { on: row.active, start: row.start_time.slice(0, 5), end: row.end_time.slice(0, 5) }
+            : { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+        }
+      })
+      setSchedules(map)
+      setLoading(false)
+    }
+    load()
+  }, [tenantId, isDemo, staff.length])
+
+  const toggle = (staffId, day) => {
+    setSchedules(prev => ({ ...prev, [staffId]: { ...prev[staffId], [day]: { ...prev[staffId][day], on: !prev[staffId][day].on } } }))
+  }
+  const setTime = (staffId, day, field, val) => {
+    setSchedules(prev => ({ ...prev, [staffId]: { ...prev[staffId], [day]: { ...prev[staffId][day], [field]: val } } }))
+  }
+
+  const saveSchedule = async (staffId) => {
+    if (isDemo || isPreview) return
+    setSaving(staffId)
+    const days = schedules[staffId] || {}
+    for (let d = 0; d < 7; d++) {
+      const { on, start, end } = days[d] || { on: false, start: '09:00', end: '18:00' }
+      await supabase.from('staff_availability').upsert(
+        { staff_profile_id: staffId, day_of_week: d, start_time: start, end_time: end, active: on },
+        { onConflict: 'staff_profile_id,day_of_week' }
+      )
+    }
+    setSaving(null)
+    setSaved(staffId)
+    setTimeout(() => setSaved(null), 2000)
+  }
+
+  if (loading) return <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem', fontFamily: "'DM Sans', sans-serif" }}>Loading schedules…</div>
+  if (!staff.length) return (
+    <div style={{ background: '#faf9fc', border: '1px solid rgba(94,59,135,0.1)', borderRadius: 12, padding: '2rem', textAlign: 'center' }}>
+      <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👥</div>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>No staff added yet</div>
+      <div style={{ fontSize: '0.8125rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Add staff members in Business Profile → Staff</div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {staff.map(s => {
+        const sch = schedules[s.id] || {}
+        const isSav = saving === s.id
+        const isSaved = saved === s.id
+        return (
+          <div key={s.id} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', overflow: 'hidden' }}>
+            <div style={{ padding: '0.85rem 1.25rem', background: '#f5f3ff', borderBottom: '1px solid rgba(94,59,135,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#3a2057' }}>{s.name}</div>
+                {s.role && <div style={{ fontSize: '0.75rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>{s.role}</div>}
+              </div>
+              <button onClick={() => saveSchedule(s.id)} disabled={isSav || isDemo || isPreview}
+                style={{ padding: '0.38rem 0.9rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.75rem', fontWeight: 600, cursor: (isSav || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                {isSav ? 'Saving…' : isSaved ? '✓ Saved' : 'Save schedule'}
+              </button>
+            </div>
+            <div style={{ padding: '0.85rem 1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
+                {[0,1,2,3,4,5,6].map(d => {
+                  const day = sch[d] || { on: false, start: '09:00', end: '18:00' }
+                  return (
+                    <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#aaa', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>{DAYS[d]}</div>
+                      <button onClick={() => toggle(s.id, d)}
+                        style={{ width: 36, height: 22, borderRadius: 11, border: 'none', background: day.on ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
+                        <span style={{ position: 'absolute', top: 2, left: day.on ? 16 : 2, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+                      </button>
+                      {day.on && (
+                        <>
+                          <input type="time" value={day.start} onChange={e => setTime(s.id, d, 'start', e.target.value)}
+                            style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
+                          <input type="time" value={day.end} onChange={e => setTime(s.id, d, 'end', e.target.value)}
+                            style={{ width: '100%', padding: '0.2rem 0.25rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', boxSizing: 'border-box' }} />
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Calendar settings tab ────────────────────────────────────────────────────
+function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
+  const [bufferMins, setBufferMins] = useState(15)
+  const [reminder48h, setReminder48h] = useState(true)
+  const [reminder24h, setReminder24h] = useState(true)
+  const [reminder1h, setReminder1h] = useState(false)
+  const [noShowFee, setNoShowFee] = useState('')
+  const [cancelCutoffHrs, setCancelCutoffHrs] = useState(24)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('tenants').select('booking_buffer_mins, reminder_48h, reminder_24h, reminder_1h, no_show_fee, cancel_cutoff_hrs').eq('id', tenantId).maybeSingle().then(({ data }) => {
+      if (!data) return
+      setBufferMins(data.booking_buffer_mins ?? 15)
+      setReminder48h(data.reminder_48h !== false)
+      setReminder24h(data.reminder_24h !== false)
+      setReminder1h(!!data.reminder_1h)
+      setNoShowFee(data.no_show_fee ?? '')
+      setCancelCutoffHrs(data.cancel_cutoff_hrs ?? 24)
+    })
+  }, [tenantId])
+
+  const save = async () => {
+    if (isDemo || isPreview || !tenantId) return
+    setSaving(true)
+    await supabase.from('tenants').update({
+      booking_buffer_mins: bufferMins,
+      reminder_48h: reminder48h,
+      reminder_24h: reminder24h,
+      reminder_1h: reminder1h,
+      no_show_fee: noShowFee ? parseFloat(noShowFee) : null,
+      cancel_cutoff_hrs: cancelCutoffHrs,
+    }).eq('id', tenantId)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const Toggle = ({ val, set }) => (
+    <button onClick={() => set(!val)} style={{ width: 42, height: 24, borderRadius: 12, border: 'none', background: val ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 3, left: val ? 20 : 3, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
+    </button>
+  )
+
+  const Row = ({ label, desc, children }) => (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+      <div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a' }}>{label}</div>
+        {desc && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginTop: 2, lineHeight: 1.4 }}>{desc}</div>}
+      </div>
+      <div style={{ flexShrink: 0 }}>{children}</div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 640 }}>
+      <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Buffer & cancellation</div>
+        <Row label="Gap between appointments" desc="Prevents back-to-back bookings — gives travel/prep time">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <select value={bufferMins} onChange={e => setBufferMins(Number(e.target.value))}
+              style={{ padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', cursor: 'pointer' }}>
+              {[0,5,10,15,20,30,45,60].map(m => <option key={m} value={m}>{m === 0 ? 'None' : `${m} min`}</option>)}
+            </select>
+          </div>
+        </Row>
+        <Row label="Cancellation cutoff" desc="Minimum notice required to cancel without penalty">
+          <select value={cancelCutoffHrs} onChange={e => setCancelCutoffHrs(Number(e.target.value))}
+            style={{ padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', cursor: 'pointer' }}>
+            {[2,4,12,24,48,72].map(h => <option key={h} value={h}>{h}h</option>)}
+          </select>
+        </Row>
+        <Row label="No-show fee (£)" desc="Charged when a client doesn't attend without notice">
+          <input type="number" min="0" step="5" value={noShowFee} onChange={e => setNoShowFee(e.target.value)} placeholder="—"
+            style={{ width: 90, padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'right' }} />
+        </Row>
+      </div>
+
+      <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Reminder cadence</div>
+        <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem' }}>Automated SMS/email reminders sent to clients before their appointment</div>
+        <Row label="48-hour reminder"><Toggle val={reminder48h} set={setReminder48h} /></Row>
+        <Row label="24-hour reminder"><Toggle val={reminder24h} set={setReminder24h} /></Row>
+        <Row label="1-hour reminder"><Toggle val={reminder1h} set={setReminder1h} /></Row>
+      </div>
+
+      <button onClick={save} disabled={saving || isDemo || isPreview}
+        style={{ alignSelf: 'flex-start', padding: '0.55rem 1.4rem', background: saved ? '#3db87a' : (saving || isDemo ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: (saving || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
+      </button>
+    </div>
+  )
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed }) {
@@ -211,10 +438,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [tenantId, setTenantId] = useState(null)
   const [events, setEvents] = useState([])
   const [staff, setStaff] = useState([])
+  const [catalogue, setCatalogue] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState('week')
   const [teamMode, setTeamMode] = useState(false)
+  const [activeSubTab, setActiveSubTab] = useState('appointments')
 
   // Right panel state
   const [panelMode, setPanelMode] = useState(null) // null | 'view' | 'edit' | 'create'
@@ -222,6 +451,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [slotWarning, setSlotWarning] = useState(false)
+
+  // Waitlist state
+  const [waitlists, setWaitlists] = useState({}) // { appointmentId: count }
 
   const closePanel = () => { setPanelMode(null); setPanelEvent(null) }
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }))
@@ -255,18 +487,20 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     getTid()
   }, [user, isDemo, isPreview])
 
-  // ─── Load appointments + staff ──────────────────────────────────────────────
+  // ─── Load appointments + staff + catalogue ──────────────────────────────────
   useEffect(() => {
     if (!tenantId) return
     const load = async () => {
       setLoading(true)
       try {
-        const [apptRes, staffRes] = await Promise.all([
+        const [apptRes, staffRes, catRes] = await Promise.all([
           supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time'),
-          supabase.from('staff_profiles').select('id, name, role').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('staff_profiles').select('id, name, role, colour, skills').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('catalogue_items').select('id, name, category, duration_minutes, processing_minutes, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         setEvents((apptRes.data || []).map(toEvent))
         setStaff(staffRes.data || [])
+        setCatalogue(catRes.data || [])
       } catch (err) {
         console.error('Calendar load error:', err)
       } finally {
@@ -283,15 +517,56 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const h = (hrs) => new Date(today.getTime() + hrs * 3600000)
     setStaff(DEMO_STAFF)
+    setCatalogue([
+      { id: 'demo-cat-1', name: 'Cut & Colour', category: 'Colour', duration_minutes: 150, processing_minutes: 60, item_type: 'service' },
+      { id: 'demo-cat-2', name: 'Balayage', category: 'Colour', duration_minutes: 210, processing_minutes: 90, item_type: 'service' },
+      { id: 'demo-cat-3', name: 'Blow Dry', category: 'Styling', duration_minutes: 45, processing_minutes: 0, item_type: 'service' },
+      { id: 'demo-cat-4', name: 'Consultation', category: 'Consultation', duration_minutes: 30, processing_minutes: 0, item_type: 'service' },
+    ])
     setEvents([
-      { id: 'demo-1', title: 'Sarah Mitchell — Cut & Colour', start: h(9), end: h(11.5), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Cut & Colour' } },
-      { id: 'demo-2', title: 'Emma Clark — Balayage', start: h(9.5), end: h(13), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Balayage', processing_start_time: h(10.25).toISOString(), processing_end_time: h(12).toISOString() } },
-      { id: 'demo-3', title: 'James Okafor — Consultation', start: h(10), end: h(10.75), resourceId: 'demo-staff-2', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-2', appointment_type: 'Consultation' } },
-      { id: 'demo-4', title: 'Lucy Barnes — Blow Dry', start: h(12), end: h(13), resourceId: 'demo-staff-2', resource: { status: 'provisional', staff_profile_id: 'demo-staff-2', appointment_type: 'Blow Dry' } },
+      { id: 'demo-1', title: 'Sarah Mitchell — Cut & Colour', start: h(9), end: h(11.5), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Cut & Colour', service_id: 'demo-cat-1' } },
+      { id: 'demo-2', title: 'Emma Clark — Balayage', start: h(9.5), end: h(13), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Balayage', service_id: 'demo-cat-2', processing_start_time: h(10.25).toISOString(), processing_end_time: h(12).toISOString() } },
+      { id: 'demo-3', title: 'James Okafor — Consultation', start: h(10), end: h(10.75), resourceId: 'demo-staff-2', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-2', appointment_type: 'Consultation', service_id: 'demo-cat-4' } },
+      { id: 'demo-4', title: 'Lucy Barnes — Blow Dry', start: h(12), end: h(13), resourceId: 'demo-staff-2', resource: { status: 'provisional', staff_profile_id: 'demo-staff-2', appointment_type: 'Blow Dry', service_id: 'demo-cat-3' } },
       { id: 'demo-5', title: 'Tom Ellis — Gents Cut', start: h(25), end: h(25.75), resourceId: 'demo-staff-1', resource: { status: 'confirmed', staff_profile_id: 'demo-staff-1', appointment_type: 'Gents Cut' } },
     ])
     setLoading(false)
   }, [isDemo])
+
+  // ─── Service selection → auto-fill duration + processing ─────────────────────
+  const handleServiceSelect = (serviceId) => {
+    const svc = catalogue.find(c => c.id === serviceId)
+    if (!svc) {
+      setForm(prev => ({ ...prev, service_id: '', appointment_type: '' }))
+      return
+    }
+    const startDt = form.start ? new Date(form.start) : startOfHour(addHours(new Date(), 1))
+    const endDt = addMinutes(startDt, svc.duration_minutes || 60)
+    const hasProcesing = svc.processing_minutes > 0
+    let procStart = '', procEnd = ''
+    if (hasProcesing) {
+      const activeFirst = Math.max(15, Math.floor((svc.duration_minutes - svc.processing_minutes) / 2))
+      procStart = isoLocal(addMinutes(startDt, activeFirst))
+      procEnd = isoLocal(addMinutes(startDt, activeFirst + svc.processing_minutes))
+    }
+    setForm(prev => ({
+      ...prev,
+      service_id: serviceId,
+      appointment_type: svc.name,
+      start: form.start || isoLocal(startDt),
+      end: isoLocal(endDt),
+      isSplit: hasProcesing,
+      processing_start: procStart,
+      processing_end: procEnd,
+    }))
+  }
+
+  // ─── Staff filtered by service skills ────────────────────────────────────────
+  const filteredStaff = (serviceId) => {
+    if (!serviceId) return staff
+    const qualified = staff.filter(s => !s.skills || s.skills.length === 0 || (s.skills && s.skills.includes(serviceId)))
+    return qualified.length > 0 ? qualified : staff
+  }
 
   // ─── Resources for team mode ─────────────────────────────────────────────────
   const resources = teamMode && staff.length > 0
@@ -300,9 +575,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Event style ─────────────────────────────────────────────────────────────
   const eventPropGetter = useCallback((event) => {
-    const status = event.resource?.status || 'confirmed'
-    const c = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
-    const isSplit = !!(event.resource?.processing_start_time)
+    const appt = event.resource || {}
+    const status = appt.status || 'confirmed'
+    const statusC = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
+    const catItem = catalogue.find(ci => ci.id === appt.service_id)
+    const catC = catItem ? getCategoryColour(catItem.category) : null
+    const c = catC || statusC
+    const isSplit = !!(appt.processing_start_time)
     return {
       style: {
         background: isSplit ? 'transparent' : c.bg,
@@ -314,7 +593,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         overflow: 'hidden',
       },
     }
-  }, [])
+  }, [catalogue])
 
   // ─── Slot select → create panel ──────────────────────────────────────────────
   const handleSelectSlot = useCallback(({ start, end, resourceId }) => {
@@ -346,6 +625,10 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       isSplit: !!(appt.processing_start_time),
       processing_start: appt.processing_start_time ? isoLocal(appt.processing_start_time) : '',
       processing_end: appt.processing_end_time ? isoLocal(appt.processing_end_time) : '',
+      service_id: appt.service_id || '',
+      repeat_type: 'none',
+      repeat_count: 4,
+      intake_answers: appt.intake_answers || '',
     })
     setSlotWarning(false)
     setPanelMode('edit')
@@ -367,14 +650,14 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     await supabase.from('appointments').update(updates).eq('id', event.id)
   }, [isDemo, isPreview])
 
-  // ─── Save ─────────────────────────────────────────────────────────────────────
+  // ─── Save (with recurring series support) ────────────────────────────────────
   const handleSave = async () => {
     if (isDemo || isPreview || !tenantId) return
     if (!form.title.trim() || !form.start || !form.end) return
     if (form.isSplit && (!form.processing_start || !form.processing_end)) return
     setSaving(true)
     try {
-      const payload = {
+      const basePayload = {
         tenant_id: tenantId,
         title: form.title.trim(),
         description: form.description || null,
@@ -386,18 +669,45 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         staff_profile_id: form.staff_profile_id || null,
         processing_start_time: form.isSplit && form.processing_start ? new Date(form.processing_start).toISOString() : null,
         processing_end_time: form.isSplit && form.processing_end ? new Date(form.processing_end).toISOString() : null,
+        service_id: form.service_id || null,
+        intake_answers: form.intake_answers ? form.intake_answers : null,
         created_from: 'manual',
       }
-      let savedId
+
       if (panelMode === 'edit' && panelEvent) {
-        const { data } = await supabase.from('appointments').update(payload).eq('id', panelEvent.id).select().maybeSingle()
-        if (data) { setEvents(prev => prev.map(e => e.id === panelEvent.id ? toEvent(data) : e)); savedId = panelEvent.id }
+        const { data } = await supabase.from('appointments').update(basePayload).eq('id', panelEvent.id).select().maybeSingle()
+        if (data) setEvents(prev => prev.map(e => e.id === panelEvent.id ? toEvent(data) : e))
+        fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: panelEvent.id, action: 'upsert' }) }).catch(() => {})
       } else {
-        const { data } = await supabase.from('appointments').insert(payload).select().maybeSingle()
-        if (data) { setEvents(prev => [...prev, toEvent(data)]); savedId = data.id }
-      }
-      if (savedId) {
-        fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: savedId, action: 'upsert' }) }).catch(() => {})
+        const isRecurring = form.repeat_type !== 'none'
+        const weekGap = form.repeat_type === 'fortnightly' ? 2 : 1
+        const count = isRecurring ? Math.max(1, parseInt(form.repeat_count) || 4) : 1
+        const seriesId = isRecurring ? crypto.randomUUID() : null
+
+        const payloads = Array.from({ length: count }, (_, i) => {
+          const offset = i * weekGap * 7 * 24 * 60 * 60 * 1000
+          return {
+            ...basePayload,
+            start_time: new Date(new Date(form.start).getTime() + offset).toISOString(),
+            end_time: new Date(new Date(form.end).getTime() + offset).toISOString(),
+            processing_start_time: basePayload.processing_start_time
+              ? new Date(new Date(basePayload.processing_start_time).getTime() + offset).toISOString()
+              : null,
+            processing_end_time: basePayload.processing_end_time
+              ? new Date(new Date(basePayload.processing_end_time).getTime() + offset).toISOString()
+              : null,
+            series_id: seriesId,
+            series_index: i,
+          }
+        })
+
+        const { data } = await supabase.from('appointments').insert(payloads).select()
+        if (data) {
+          setEvents(prev => [...prev, ...data.map(toEvent)])
+          data.forEach(appt => {
+            fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: appt.id, action: 'upsert' }) }).catch(() => {})
+          })
+        }
       }
       closePanel()
     } catch (err) {
@@ -412,15 +722,16 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     if (isDemo || isPreview || !panelEvent) return
     setSaving(true)
     try {
+      const appt = panelEvent.resource
+      if (appt.series_id) {
+        // Delete just this one; could extend with "delete all in series" later
+      }
       await supabase.from('appointments').delete().eq('id', panelEvent.id)
       setEvents(prev => prev.filter(e => e.id !== panelEvent.id))
       fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: panelEvent.id, action: 'delete' }) }).catch(() => {})
       closePanel()
-    } catch (err) {
-      console.error('Delete error:', err)
-    } finally {
-      setSaving(false)
-    }
+    } catch (err) { console.error('Delete error:', err) }
+    finally { setSaving(false) }
   }
 
   // ─── Mark completed ───────────────────────────────────────────────────────────
@@ -429,9 +740,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     const updates = { status: 'completed' }
     setEvents(prev => prev.map(e => e.id === panelEvent.id ? { ...e, resource: { ...e.resource, status: 'completed' } } : e))
     setPanelEvent(prev => prev ? { ...prev, resource: { ...prev.resource, status: 'completed' } } : prev)
-    if (!isDemo && !isPreview) {
-      await supabase.from('appointments').update(updates).eq('id', panelEvent.id)
-    }
+    await supabase.from('appointments').update(updates).eq('id', panelEvent.id)
   }
 
   const canSave = form.title.trim() && form.start && form.end && !saving
@@ -439,17 +748,25 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   const hasTeamMode = staff.length > 0
 
-  // ─── Right panel content ──────────────────────────────────────────────────────
+  // ─── Link to lead/contact history ────────────────────────────────────────────
+  const clientHistory = panelEvent ? events.filter(e =>
+    e.id !== panelEvent.id &&
+    e.resource?.title?.split('—')[0]?.trim() === panelEvent.title?.split('—')[0]?.trim()
+  ).sort((a, b) => new Date(b.start) - new Date(a.start)).slice(0, 5) : []
+
+  // ─── Right panel — view ───────────────────────────────────────────────────────
   const renderViewPanel = () => {
     if (!panelEvent) return null
     const appt = panelEvent.resource || {}
     const status = appt.status || 'confirmed'
     const c = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
     const staffMember = staff.find(s => s.id === appt.staff_profile_id)
+    const catItem = catalogue.find(ci => ci.id === appt.service_id)
+    const catC = catItem ? getCategoryColour(catItem.category) : null
+    const isRecurring = !!appt.series_id
 
     return (
       <>
-        {/* Header */}
         <div style={{ padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ minWidth: 0 }}>
@@ -460,6 +777,16 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                 <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: c.bg, color: c.text, border: `1px solid ${c.border}`, fontFamily: "'DM Sans', sans-serif" }}>
                   {STATUS_LABELS[status] || status}
                 </span>
+                {catItem && catC && (
+                  <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, background: catC.bg, color: catC.text, border: `1px solid ${catC.border}`, fontFamily: "'DM Sans', sans-serif" }}>
+                    {catItem.category}
+                  </span>
+                )}
+                {isRecurring && (
+                  <span style={{ display: 'inline-block', padding: '0.15rem 0.45rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 500, background: '#f0f4ff', color: '#1d4ed8', fontFamily: "'DM Sans', sans-serif" }}>
+                    🔁 Recurring
+                  </span>
+                )}
                 <span style={{ fontSize: '0.75rem', color: '#aaaaaa', fontFamily: "'DM Sans', sans-serif" }}>
                   {fmtDate(appt.start_time || panelEvent.start)}
                 </span>
@@ -469,10 +796,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           </div>
         </div>
 
-        {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          {/* Time */}
           <div>
             <Label>Time</Label>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a', fontWeight: 500 }}>
@@ -485,7 +809,16 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             )}
           </div>
 
-          {appt.appointment_type && (
+          {catItem && (
+            <div>
+              <Label>Service</Label>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a' }}>
+                {catItem.name}
+                {catItem.duration_minutes && <span style={{ color: '#888', marginLeft: 6, fontSize: '0.8rem' }}>{catItem.duration_minutes} min</span>}
+              </div>
+            </div>
+          )}
+          {!catItem && appt.appointment_type && (
             <div>
               <Label>Service</Label>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a' }}>{appt.appointment_type}</div>
@@ -497,6 +830,15 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               <Label>Staff</Label>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a' }}>
                 {staffMember.name}{staffMember.role ? ` · ${staffMember.role}` : ''}
+              </div>
+            </div>
+          )}
+
+          {appt.intake_answers && (
+            <div>
+              <Label>Pre-appointment notes</Label>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', color: '#444', lineHeight: 1.6, background: '#f7f6f9', borderRadius: 8, padding: '0.65rem 0.75rem' }}>
+                {appt.intake_answers}
               </div>
             </div>
           )}
@@ -519,7 +861,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             </div>
           )}
 
-          {/* Review requests (completed only) */}
+          {/* Client history */}
+          {clientHistory.length > 0 && (
+            <div>
+              <Label>Previous visits</Label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                {clientHistory.map(e => (
+                  <div key={e.id} onClick={() => { setPanelEvent(e); setPanelMode('view') }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.65rem', background: '#faf9fc', borderRadius: 7, cursor: 'pointer', fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: '#444', border: '0.5px solid rgba(94,59,135,0.08)' }}>
+                    <span>{fmtDate(e.start)}</span>
+                    <span style={{ color: '#888' }}>{e.resource?.appointment_type || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Review requests */}
           {status === 'completed' && !isDemo && !isPreview && (
             <div>
               <Label>Review requests</Label>
@@ -532,7 +890,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           )}
         </div>
 
-        {/* Footer actions */}
         <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {status !== 'completed' && (
             <button onClick={handleMarkCompleted}
@@ -555,9 +912,11 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     )
   }
 
+  // ─── Right panel — form ───────────────────────────────────────────────────────
+  const availableStaff = filteredStaff(form.service_id)
+
   const renderFormPanel = () => (
     <>
-      {/* Header */}
       <div style={{ padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a' }}>
@@ -567,12 +926,24 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </div>
       </div>
 
-      {/* Form body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-
         {slotWarning && (
           <div style={{ padding: '0.6rem 0.8rem', background: '#fef3d9', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 7, fontSize: '0.78rem', color: '#7a5c00', lineHeight: 1.5 }}>
-            This slot may be shorter than usual. Adjust the end time below.
+            This slot may be shorter than usual. Check the end time below.
+          </div>
+        )}
+
+        {/* Service picker — drives duration + staff filter */}
+        {catalogue.length > 0 && (
+          <div>
+            <Label>Service from catalogue</Label>
+            <FieldSelect value={form.service_id} onChange={e => handleServiceSelect(e.target.value)}>
+              <option value="">— Select a service —</option>
+              {catalogue.filter(c => c.item_type === 'service').map(c => (
+                <option key={c.id} value={c.id}>{c.name} ({c.duration_minutes} min{c.processing_minutes > 0 ? `, ${c.processing_minutes} min processing` : ''})</option>
+              ))}
+              <option value="">— Or enter manually below —</option>
+            </FieldSelect>
           </div>
         )}
 
@@ -592,33 +963,21 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           </div>
         </div>
 
-        {/* Split toggle */}
+        {/* Split appointment */}
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={form.isSplit}
             onChange={e => setForm(prev => ({ ...prev, isSplit: e.target.checked, processing_start: '', processing_end: '' }))}
             style={{ width: 15, height: 15, accentColor: '#f0a500', cursor: 'pointer' }} />
-          <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>
-            Split appointment — has processing time
-          </span>
+          <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>Split appointment — has processing time</span>
         </label>
 
         {form.isSplit && (
           <div style={{ background: '#fef3d9', borderRadius: 8, padding: '0.85rem', border: '1px solid rgba(240,165,0,0.25)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7a5c00', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>
-              Processing window
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.65rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>
-              When is the client under heat and you're free for another booking?
-            </div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7a5c00', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Processing window</div>
+            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.65rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>When is the client under heat / you're free for another booking?</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <div>
-                <Label>Starts</Label>
-                <FieldInput type="datetime-local" value={form.processing_start} onChange={f('processing_start')} />
-              </div>
-              <div>
-                <Label>Ends</Label>
-                <FieldInput type="datetime-local" value={form.processing_end} onChange={f('processing_end')} />
-              </div>
+              <div><Label>Starts</Label><FieldInput type="datetime-local" value={form.processing_start} onChange={f('processing_start')} /></div>
+              <div><Label>Ends</Label><FieldInput type="datetime-local" value={form.processing_end} onChange={f('processing_end')} /></div>
             </div>
           </div>
         )}
@@ -632,31 +991,68 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
         {staff.length > 0 && (
           <div>
-            <Label>Staff member</Label>
+            <Label>Staff member{form.service_id && availableStaff.length < staff.length ? ` (${availableStaff.length} qualified)` : ''}</Label>
             <FieldSelect value={form.staff_profile_id} onChange={f('staff_profile_id')}>
               <option value="">— Unassigned —</option>
-              {staff.map(s => <option key={s.id} value={s.id}>{s.name}{s.role ? ` — ${s.role}` : ''}</option>)}
+              {availableStaff.map(s => <option key={s.id} value={s.id}>{s.name}{s.role ? ` — ${s.role}` : ''}</option>)}
             </FieldSelect>
           </div>
         )}
 
+        {!form.service_id && (
+          <div>
+            <Label>Service type</Label>
+            <FieldInput value={form.appointment_type} onChange={f('appointment_type')} placeholder="e.g. Cut & Colour, Boiler service" />
+          </div>
+        )}
+
+        {/* Intake / pre-appointment info */}
         <div>
-          <Label>Service type</Label>
-          <FieldInput value={form.appointment_type} onChange={f('appointment_type')} placeholder="e.g. Cut & Colour, Boiler service" />
+          <Label>Pre-appointment info</Label>
+          <FieldTextarea value={form.intake_answers} onChange={f('intake_answers')} placeholder="Allergies, preferences, access requirements…" rows={2} />
         </div>
 
         <div>
           <Label>Client notes</Label>
-          <FieldTextarea value={form.client_notes} onChange={f('client_notes')} placeholder="Notes visible when opening this appointment" />
+          <FieldTextarea value={form.client_notes} onChange={f('client_notes')} placeholder="Notes visible when opening this appointment" rows={2} />
         </div>
 
         <div>
           <Label>Internal notes</Label>
-          <FieldTextarea value={form.description} onChange={f('description')} placeholder="Internal instructions" />
+          <FieldTextarea value={form.description} onChange={f('description')} placeholder="Internal instructions" rows={2} />
         </div>
+
+        {/* Recurring series — create mode only */}
+        {panelMode === 'create' && (
+          <div style={{ background: '#f5f3ff', borderRadius: 8, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.15)' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4a2d6e', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>🔁 Recurring series</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <div>
+                <Label>Repeat</Label>
+                <FieldSelect value={form.repeat_type} onChange={f('repeat_type')}>
+                  <option value="none">No repeat</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="fortnightly">Fortnightly</option>
+                </FieldSelect>
+              </div>
+              {form.repeat_type !== 'none' && (
+                <div>
+                  <Label>Occurrences</Label>
+                  <FieldSelect value={form.repeat_count} onChange={f('repeat_count')}>
+                    {[2,4,6,8,12,26,52].map(n => <option key={n} value={n}>{n} sessions</option>)}
+                  </FieldSelect>
+                </div>
+              )}
+            </div>
+            {form.repeat_type !== 'none' && (
+              <div style={{ fontSize: '0.72rem', color: '#666', fontFamily: "'DM Sans', sans-serif", marginTop: '0.5rem', lineHeight: 1.4 }}>
+                Creates {form.repeat_count} appointments, {form.repeat_type === 'weekly' ? 'one per week' : 'every two weeks'} from the start date.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Footer */}
       <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
         {panelMode === 'edit' && !isDemo && !isPreview && (
           <button onClick={handleDelete} disabled={saving}
@@ -670,7 +1066,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </button>
         <button onClick={handleSave} disabled={!canSave || isDemo || isPreview}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || isDemo || isPreview) ? '#f5d98a' : '#f0a500', color: (!canSave || isDemo || isPreview) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || isDemo || isPreview) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : form.repeat_type !== 'none' ? `Save ${form.repeat_count} sessions` : 'Save'}
         </button>
       </div>
     </>
@@ -678,161 +1074,180 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   const panelOpen = !!panelMode
 
-  // ─── Desktop: right panel layout vars ────────────────────────────────────────
   const panelVariants = {
     hidden: { x: 32, opacity: 0 },
     visible: { x: 0, opacity: 1, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } },
     exit:   { x: 32, opacity: 0, transition: { duration: 0.16 } },
   }
-
   const drawerVariants = {
     hidden: { y: '100%' },
     visible: { y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } },
     exit:   { y: '100%', transition: { duration: 0.2 } },
   }
 
+  // ─── Sub-tab nav ──────────────────────────────────────────────────────────────
+  const subTabs = [
+    { id: 'appointments', label: 'Appointments' },
+    { id: 'schedules', label: 'Staff schedules' },
+    { id: 'settings', label: 'Settings' },
+  ]
+
   return (
     <div>
-
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}
         data-help="Qerxel Calendar — create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing gaps so you can book other clients during colour/drying time.">
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>
-          Calendar
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {hasTeamMode && (
-            <>
-              <button
-                onClick={() => { setTeamMode(false); setView('week') }}
-                style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: !teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: !teamMode ? '#5e3b87' : 'white', color: !teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Solo
-              </button>
-              <button
-                onClick={() => { setTeamMode(true); setView('day') }}
-                style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: teamMode ? '#5e3b87' : 'white', color: teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Team
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => {
-              const now = startOfHour(addHours(new Date(), 1))
-              setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)) })
-              setSlotWarning(false)
-              setPanelEvent(null)
-              setPanelMode('create')
-            }}
-            style={{ padding: '0.5rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-            + New
-          </button>
-        </div>
-      </div>
-
-      {/* ── Status legend ────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
-        {Object.entries(STATUS_LABELS).map(([status, label]) => (
-          <span key={status} style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 5, fontSize: '0.72rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif" }}>
-            {label}
-          </span>
-        ))}
-        {hasTeamMode && (
-          <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginLeft: 4 }}>
-            {teamMode ? `Team · ${staff.length} staff` : 'Solo'}
-          </span>
-        )}
-      </div>
-
-      {/* ── Main layout: calendar + right panel ─────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-
-        {/* Calendar grid */}
-        <div style={{ flex: 1, minWidth: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem', boxSizing: 'border-box' }}>
-          {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, color: '#aaa', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
-              Loading calendar…
-            </div>
-          ) : (
-            <DnDCalendar
-              localizer={localizer}
-              events={events}
-              date={currentDate}
-              view={view}
-              onNavigate={setCurrentDate}
-              onView={setView}
-              views={['month', 'week', 'day']}
-              selectable
-              resizable
-              onSelectSlot={handleSelectSlot}
-              onSelectEvent={handleSelectEvent}
-              onEventDrop={handleEventDrop}
-              onEventResize={handleEventResize}
-              eventPropGetter={eventPropGetter}
-              components={{ toolbar: CalendarToolbar, event: AppointmentCard }}
-              resources={resources}
-              resourceIdAccessor="id"
-              resourceTitleAccessor="title"
-              style={{ height: panelOpen && !isMobile ? 580 : 620 }}
-              min={new Date(0, 0, 0, 7, 0, 0)}
-              max={new Date(0, 0, 0, 20, 0, 0)}
-              formats={{
-                timeGutterFormat: 'HH:mm',
-                eventTimeRangeFormat: ({ start, end }) => `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
-              }}
-              messages={{ today: 'Today', previous: '‹', next: '›' }}
-            />
-          )}
-        </div>
-
-        {/* Right panel (desktop) */}
-        {!isMobile && (
-          <AnimatePresence>
-            {panelOpen && (
-              <motion.div
-                key="right-panel"
-                variants={panelVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                style={{ width: 320, flexShrink: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 4px 24px rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 640, overflow: 'hidden' }}
-              >
-                {panelMode === 'view' ? renderViewPanel() : renderFormPanel()}
-              </motion.div>
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Calendar</h2>
+        {activeSubTab === 'appointments' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {hasTeamMode && (
+              <>
+                <button onClick={() => { setTeamMode(false); setView('week') }}
+                  style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: !teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: !teamMode ? '#5e3b87' : 'white', color: !teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Solo
+                </button>
+                <button onClick={() => { setTeamMode(true); setView('day') }}
+                  style={{ padding: '0.38rem 0.85rem', borderRadius: 7, border: teamMode ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.25)', background: teamMode ? '#5e3b87' : 'white', color: teamMode ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Team
+                </button>
+              </>
             )}
-          </AnimatePresence>
+            <button
+              onClick={() => {
+                const now = startOfHour(addHours(new Date(), 1))
+                setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)) })
+                setSlotWarning(false)
+                setPanelEvent(null)
+                setPanelMode('create')
+              }}
+              style={{ padding: '0.5rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              + New
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Bottom drawer (mobile) */}
-      {isMobile && (
-        <AnimatePresence>
-          {panelOpen && (
-            <>
-              <motion.div
-                key="drawer-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                onClick={closePanel}
-                style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.45)', zIndex: 1100 }}
-              />
-              <motion.div
-                key="drawer"
-                variants={drawerVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', zIndex: 1200, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-              >
-                <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e0d8ed', margin: '12px auto 0', flexShrink: 0 }} />
-                {panelMode === 'view' ? renderViewPanel() : renderFormPanel()}
-              </motion.div>
-            </>
+      {/* ── Sub-tab nav ──────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: '1rem', background: '#f0ebf8', borderRadius: 9, padding: 3, alignSelf: 'flex-start', width: 'fit-content' }}>
+        {subTabs.map(tab => (
+          <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel() }}
+            style={{ padding: '0.38rem 1rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.8rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Appointments sub-tab ─────────────────────────────────────────────── */}
+      {activeSubTab === 'appointments' && (
+        <>
+          {/* Status + category legend */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
+            {Object.entries(STATUS_LABELS).map(([status, label]) => (
+              <span key={status} style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 5, fontSize: '0.72rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif" }}>
+                {label}
+              </span>
+            ))}
+            {Array.from(new Set(events.map(e => {
+              const ci = catalogue.find(c => c.id === e.resource?.service_id)
+              return ci?.category
+            }).filter(Boolean))).slice(0, 4).map(cat => {
+              const cc = getCategoryColour(cat)
+              return (
+                <span key={cat} style={{ display: 'inline-block', padding: '0.18rem 0.55rem', borderRadius: 5, fontSize: '0.72rem', fontWeight: 600, background: cc.bg, color: cc.text, border: `1px solid ${cc.border}`, fontFamily: "'DM Sans', sans-serif" }}>
+                  {cat}
+                </span>
+              )
+            })}
+            {hasTeamMode && (
+              <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginLeft: 4 }}>
+                {teamMode ? `Team · ${staff.length} staff` : 'Solo'}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+            {/* Calendar grid */}
+            <div style={{ flex: 1, minWidth: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem', boxSizing: 'border-box' }}>
+              {loading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, color: '#aaa', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
+                  Loading calendar…
+                </div>
+              ) : (
+                <DnDCalendar
+                  localizer={localizer}
+                  events={events}
+                  date={currentDate}
+                  view={view}
+                  onNavigate={setCurrentDate}
+                  onView={setView}
+                  views={['month', 'week', 'day']}
+                  selectable
+                  resizable
+                  onSelectSlot={handleSelectSlot}
+                  onSelectEvent={handleSelectEvent}
+                  onEventDrop={handleEventDrop}
+                  onEventResize={handleEventResize}
+                  eventPropGetter={eventPropGetter}
+                  components={{
+                    toolbar: CalendarToolbar,
+                    event: (props) => <AppointmentCard {...props} catalogue={catalogue} />,
+                  }}
+                  resources={resources}
+                  resourceIdAccessor="id"
+                  resourceTitleAccessor="title"
+                  style={{ height: panelOpen && !isMobile ? 580 : 620 }}
+                  min={new Date(0, 0, 0, 7, 0, 0)}
+                  max={new Date(0, 0, 0, 20, 0, 0)}
+                  formats={{
+                    timeGutterFormat: 'HH:mm',
+                    eventTimeRangeFormat: ({ start, end }) => `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
+                  }}
+                  messages={{ today: 'Today', previous: '‹', next: '›' }}
+                />
+              )}
+            </div>
+
+            {/* Right panel (desktop) */}
+            {!isMobile && (
+              <AnimatePresence>
+                {panelOpen && (
+                  <motion.div key="right-panel" variants={panelVariants} initial="hidden" animate="visible" exit="exit"
+                    style={{ width: 320, flexShrink: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 4px 24px rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 660, overflow: 'hidden' }}>
+                    {panelMode === 'view' ? renderViewPanel() : renderFormPanel()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </div>
+
+          {/* Bottom drawer (mobile) */}
+          {isMobile && (
+            <AnimatePresence>
+              {panelOpen && (
+                <>
+                  <motion.div key="drawer-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+                    onClick={closePanel} style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.45)', zIndex: 1100 }} />
+                  <motion.div key="drawer" variants={drawerVariants} initial="hidden" animate="visible" exit="exit"
+                    style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', zIndex: 1200, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e0d8ed', margin: '12px auto 0', flexShrink: 0 }} />
+                    {panelMode === 'view' ? renderViewPanel() : renderFormPanel()}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           )}
-        </AnimatePresence>
+        </>
       )}
 
+      {/* ── Staff schedules sub-tab ──────────────────────────────────────────── */}
+      {activeSubTab === 'schedules' && (
+        <StaffScheduleTab tenantId={tenantId} staff={isDemo ? DEMO_STAFF : staff} isDemo={isDemo} isPreview={isPreview} />
+      )}
+
+      {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}
+      {activeSubTab === 'settings' && (
+        <CalendarSettingsTab tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} />
+      )}
     </div>
   )
 }
@@ -840,7 +1255,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 // ─── Review request button ────────────────────────────────────────────────────
 function ReviewRequestButton({ tenantId, appointmentId, integrationId = 'google_business', label = '⭐ Review' }) {
   const [status, setStatus] = useState('idle')
-
   const handleSend = async () => {
     setStatus('sending')
     try {
@@ -852,10 +1266,8 @@ function ReviewRequestButton({ tenantId, appointmentId, integrationId = 'google_
       setStatus(res.ok ? 'sent' : 'error')
     } catch { setStatus('error') }
   }
-
   if (status === 'sent') return <span style={{ fontSize: '0.75rem', color: '#3db87a', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{label} ✓</span>
   if (status === 'error') return null
-
   return (
     <button onClick={handleSend} disabled={status === 'sending'}
       style={{ padding: '0.35rem 0.7rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: status === 'sending' ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: status === 'sending' ? 0.6 : 1 }}>
