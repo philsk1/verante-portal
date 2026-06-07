@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar'
 import _withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 const withDragAndDrop = _withDragAndDrop.default || _withDragAndDrop
@@ -518,6 +518,33 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
   )
 }
 
+// ─── Staff column header ─────────────────────────────────────────────────────
+const STAFF_COLOURS = ['#5e3b87','#1d4ed8','#16a34a','#db2777','#d97706','#0284c7','#9333ea','#059669']
+const staffColour = (id) => STAFF_COLOURS[(id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % STAFF_COLOURS.length]
+
+function ResourceHeader({ label, resource, staffList, events }) {
+  const member = staffList?.find(s => s.id === resource?.id)
+  const colour = member ? (member.colour || staffColour(member.id)) : '#aaa'
+  const todayCount = events?.filter(e => {
+    const d = new Date(e.start)
+    const now = new Date()
+    return e.resourceId === resource?.id &&
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+  }).length ?? 0
+  return (
+    <div style={{ padding: '4px 6px', textAlign: 'center' }}>
+      <div style={{ width: 28, height: 28, borderRadius: '50%', background: colour + '22', border: `2px solid ${colour}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 3px', fontSize: '0.72rem', fontWeight: 700, color: colour, fontFamily: "'Syne', sans-serif" }}>
+        {(label || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+      </div>
+      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 90 }}>{label}</div>
+      {member?.role && <div style={{ fontSize: '0.62rem', color: '#999', fontFamily: "'DM Sans', sans-serif", marginTop: 1 }}>{member.role}</div>}
+      {todayCount > 0 && <div style={{ fontSize: '0.6rem', color: colour, fontWeight: 600, marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{todayCount} today</div>}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed }) {
   const { user } = useAuth()
@@ -535,6 +562,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [view, setView] = useState('week')
   const [teamMode, setTeamMode] = useState(false)
   const [staffFilter, setStaffFilter] = useState('') // '' = all, staffId = single staff
+  const [smartView, setSmartView] = useState(true) // auto-adapt based on staff count
+  const hasAutoAdapted = useRef(false)
   const [activeSubTab, setActiveSubTab] = useState('appointments')
 
   // Right panel state
@@ -604,6 +633,22 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }, [tenantId])
 
 
+  // ─── Auto-adapt view based on staff count (fires once after first load) ────────
+  useEffect(() => {
+    if (staff.length === 0 || hasAutoAdapted.current || !smartView) return
+    hasAutoAdapted.current = true
+    if (staff.length <= 1) {
+      setView('week')
+      setTeamMode(false)
+    } else if (staff.length === 2) {
+      setView('work_week')
+      setTeamMode(false)
+    } else {
+      setView('day')
+      setTeamMode(true)
+    }
+  }, [staff.length, smartView])
+
   // ─── Service selection → auto-fill duration + processing ─────────────────────
   const handleServiceSelect = (serviceId) => {
     const svc = catalogue.find(c => c.id === serviceId)
@@ -639,14 +684,26 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return qualified.length > 0 ? qualified : staff
   }
 
-  // ─── Resources for team mode ─────────────────────────────────────────────────
+  // ─── Resources for team / column mode ────────────────────────────────────────
   const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff
-  const resources = teamMode && staff.length > 0 && !staffFilter
-    ? [{ id: 'unassigned', title: 'Unassigned' }, ...staff.map(s => ({ id: s.id, title: s.name }))]
-    : undefined
+  const resources = useMemo(() => {
+    if (!teamMode || staff.length === 0 || staffFilter) return undefined
+    return [
+      { id: 'unassigned', title: 'Unassigned' },
+      ...staff.map(s => ({ id: s.id, title: s.name })),
+    ]
+  }, [teamMode, staff, staffFilter])
   const visibleEvents = staffFilter
     ? events.filter(e => e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
     : events
+
+  // Smart view label shown in legend
+  const smartViewLabel = useMemo(() => {
+    if (!smartView || staff.length === 0) return null
+    if (staff.length <= 1) return `${staff.length === 0 ? 'No' : '1'} staff · week view`
+    if (staff.length === 2) return `2 staff · 5-day view`
+    return `${staff.length} staff · column view`
+  }, [smartView, staff.length])
 
   // ─── Event style ─────────────────────────────────────────────────────────────
   const eventPropGetter = useCallback((event) => {
@@ -1194,20 +1251,30 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             {hasTeamMode && (
               <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 2 }}>
-                <button onClick={() => { setTeamMode(false); setStaffFilter(''); setView('week') }}
+                <button
+                  onClick={() => { setTeamMode(false); setStaffFilter(''); setView('week'); setSmartView(false) }}
+                  title="One personal calendar view"
                   style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: !teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: !teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Solo
                 </button>
-                <button onClick={() => { setTeamMode(true); setStaffFilter(''); setView('day') }}
+                <button
+                  onClick={() => { setTeamMode(true); setStaffFilter(''); setView('day'); setSmartView(false) }}
+                  title="All staff as columns"
                   style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Team
+                </button>
+                <button
+                  onClick={() => { hasAutoAdapted.current = false; setSmartView(true) }}
+                  title="Auto-adapt view to number of staff working"
+                  style={{ padding: '0.32rem 0.75rem', borderRadius: 6, border: 'none', background: smartView ? '#f0a500' : 'transparent', color: smartView ? '#1a0533' : '#5e3b87', fontSize: '0.78rem', fontWeight: smartView ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                  Smart
                 </button>
               </div>
             )}
             {hasTeamMode && (
               <select
                 value={staffFilter}
-                onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week') } }}
+                onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week'); setSmartView(false) } }}
                 style={{ padding: '0.35rem 0.6rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: staffFilter ? '#5e3b87' : '#888', background: staffFilter ? '#f5f3ff' : 'white', cursor: 'pointer', fontWeight: staffFilter ? 600 : 400 }}>
                 <option value="">All staff</option>
                 {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1260,9 +1327,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                 </span>
               )
             })}
-            {hasTeamMode && (
-              <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginLeft: 4 }}>
-                {teamMode ? `Team · ${staff.length} staff` : 'Solo'}
+            {smartViewLabel && (
+              <span style={{ fontSize: '0.72rem', color: '#f0a500', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginLeft: 4, background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 5, padding: '0.15rem 0.45rem' }}>
+                ✦ Smart: {smartViewLabel}
               </span>
             )}
           </div>
@@ -1293,6 +1360,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   components={{
                     toolbar: CalendarToolbar,
                     event: (props) => <AppointmentCard {...props} catalogue={catalogue} />,
+                    resourceHeader: (props) => <ResourceHeader {...props} staffList={staff} events={visibleEvents} />,
                   }}
                   resources={resources}
                   resourceIdAccessor="id"
