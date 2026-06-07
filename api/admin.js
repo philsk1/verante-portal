@@ -230,7 +230,9 @@ function generateCalls(tenantId, biz) {
   const phones = ['07712 334 451','07823 661 290','07934 772 001','07651 229 882','07788 441 763','07900 112 445','07543 871 229','07612 990 334']
   const count = biz.tier === 'enterprise' ? 20 : biz.tier === 'professional' ? 16 : 12
   return Array.from({ length: count }, (_, i) => {
-    const d = daysAgo(rnd(0, 13))
+    // First 3 calls are from today; rest spread over last 0-6 days (all within current month)
+    const daysBack = i < 3 ? 0 : rnd(1, 6)
+    const d = daysAgo(daysBack)
     d.setHours(rnd(8, 17), rnd(0, 59), 0, 0)
     return { tenant_id: tenantId, created_at: d.toISOString(), duration_seconds: rnd(45, 280), call_outcome: biz.callOutcomes[i % biz.callOutcomes.length], ai_summary: biz.callSummaries[i % biz.callSummaries.length], caller_phone: phones[i % phones.length] }
   })
@@ -239,7 +241,7 @@ function generateCalls(tenantId, biz) {
 function generateLeads(tenantId, biz) {
   const statuses = ['new','new','new','contacted','contacted','converted','converted','lost']
   const notes = ['Called back — left voicemail.','Sent quote via email.','Awaiting response.','Booked in for next week.','Job completed.','','Follow up Monday.','Not suitable at this time.']
-  return biz.leadNames.slice(0, 8).map((name, i) => ({ tenant_id: tenantId, created_at: daysAgo(rnd(0, 13)).toISOString(), status: statuses[i % statuses.length], lead_contact_name: name, ai_summary: biz.callSummaries[i % biz.callSummaries.length], notes: notes[i] }))
+  return biz.leadNames.slice(0, 8).map((name, i) => ({ tenant_id: tenantId, created_at: daysAgo(rnd(0, 6)).toISOString(), status: statuses[i % statuses.length], lead_contact_name: name, ai_summary: biz.callSummaries[i % biz.callSummaries.length], notes: notes[i] }))
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
