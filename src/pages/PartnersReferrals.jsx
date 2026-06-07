@@ -102,7 +102,7 @@ const PartnersReferrals = () => {
 
   // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || !demo.business) return
+    if (!demo?.isDemo || demo.loading || !demo.business) return
     setReferralCode(demo.business.referral_code || 'DEMO2026')
     setCreditMonths(0)
     // Map demo_partners columns to what the UI expects
@@ -117,7 +117,7 @@ const PartnersReferrals = () => {
     setPartnerSpecialties(specMap)
     setOutboundCount(demo.referrals?.length || 0)
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id])
+  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
   useEffect(() => {
     if (demo?.isDemo) return

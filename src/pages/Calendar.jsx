@@ -678,12 +678,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Demo data injection ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo) return
+    if (!demo?.isDemo || demo.loading) return
     setStaff(demo.staff || [])
     setEvents((demo.appointments || []).map(toEvent))
     setCatalogue([])
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.appointments])
+  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
   // ─── Load tenant ────────────────────────────────────────────────────────────
   useEffect(() => {

@@ -38,10 +38,10 @@ export default function StaffDirectory() {
   const [addSaving, setAddSaving] = useState(false)
 
   useEffect(() => {
-    if (!demo?.isDemo) return
+    if (!demo?.isDemo || demo.loading) return
     setStaff(demo.staff || [])
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id])
+  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
   useEffect(() => {
     if (demo?.isDemo || (!user && !isPreview)) return

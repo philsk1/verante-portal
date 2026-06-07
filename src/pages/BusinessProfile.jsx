@@ -475,7 +475,7 @@ const BusinessProfile = () => {
 
   // ── Demo mode: inject data from DemoContext instead of real Supabase ─────────
   useEffect(() => {
-    if (!demo?.isDemo) return
+    if (!demo?.isDemo || demo.loading) return
     const biz = demo.business
     if (!biz) return
     setTier(demo.tier || 'light')
@@ -495,7 +495,7 @@ const BusinessProfile = () => {
     setPartnerServices(allSvcs.filter(s => s.is_partner_service))
     setStaff(demo.staff || [])
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id])
+  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
   useEffect(() => {
     if (demo?.isDemo) return

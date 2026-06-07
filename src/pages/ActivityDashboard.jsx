@@ -540,7 +540,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || !demo.business) return
+    if (!demo?.isDemo || demo.loading || !demo.business) return
     const biz = demo.business
     setTier(demo.tier || 'standard')
     setBusinessName(biz.business_name || '')
@@ -550,7 +550,7 @@ const ActivityDashboard = ({ onNavigate }) => {
     setLeads(demo.leads || [])
     setReferrals(demo.referrals || [])
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
 
   useEffect(() => {
     if (demo?.isDemo) return

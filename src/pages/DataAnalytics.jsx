@@ -351,7 +351,7 @@ const DataAnalytics = ({ onNavigate }) => {
 
   // ── Demo mode: compute analytics from DemoContext ─────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo) return
+    if (!demo?.isDemo || demo.loading) return
     setTier(demo.tier || 'light')
     const calls = demo.analyticsCallData || []
     const leads = demo.leads || []
@@ -366,7 +366,7 @@ const DataAnalytics = ({ onNavigate }) => {
     calls.forEach(c => { byDay[new Date(c.created_at).getDay()]++ })
     setCallsByDay(byDay)
     setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
 
   useEffect(() => {
     if (demo?.isDemo) return
