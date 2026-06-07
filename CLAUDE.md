@@ -68,8 +68,9 @@ Dev environment: Windows 11, VSCode, PowerShell. F12 hijacked by ASUS — uses C
 
 **Supabase:** https://kkrsvkxkefijmtbwykzv.supabase.co
 **Anon key (HS256 — use this, NOT sb_publishable_):** in `src/supabase.js`
-**GitHub:** https://github.com/philsk1/qerxel-portal
-**Live URL:** https://qerxel-portal.vercel.app
+**GitHub:** https://github.com/philsk1/verante-portal
+**Live URL:** https://verrante-portal.vercel.app
+**Note:** Vercel GitHub auto-deploy broken (builds fail in 0ms). Use `npx vercel deploy --prod` from project root to deploy manually until reconnected in Vercel Settings → Git.
 
 ---
 
