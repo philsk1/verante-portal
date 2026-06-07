@@ -119,6 +119,14 @@ const IcoMoon = () => (
   </svg>
 )
 
+const IcoListen = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/>
+    <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+  </svg>
+)
+
 // ─── Simple toggle ─────────────────────────────────────────────────────────────
 
 const Toggle = ({ checked, onChange }) => (
@@ -270,15 +278,49 @@ const Portal = () => {
     await supabase.from('tenants').update({ [field]: val }).eq('id', tenantId)
   }
 
-  // Nav tabs — operational screens only
-  const tabs = [
-    { id: 'dashboard',    label: 'Home',         icon: <IcoDashboard /> },
-    { id: 'calendar',     label: 'Calendar',     icon: <IcoCalendar /> },
-    { id: 'ai',           label: 'Answer AI',    icon: <IcoAI /> },
-    { id: 'analytics',    label: 'Analytics',    icon: <IcoAnalytics /> },
-    { id: 'referrals',    label: 'Partners',     icon: <IcoPartners /> },
-    { id: 'integrations', label: 'Integrations', icon: <IcoIntegrations /> },
+  // Product-organised navigation
+  const PRODUCTS = [
+    {
+      id: 'answer',
+      label: 'Answer',
+      dot: '#f0a500',
+      tabs: [
+        { id: 'dashboard',  label: 'Home',      icon: <IcoDashboard /> },
+        { id: 'analytics',  label: 'Analytics', icon: <IcoAnalytics /> },
+        { id: 'ai',         label: 'Answer AI', icon: <IcoAI /> },
+        { id: 'referrals',  label: 'Partners',  icon: <IcoPartners /> },
+      ],
+    },
+    {
+      id: 'calendar',
+      label: 'Calendar',
+      dot: '#1d4ed8',
+      tabs: [
+        { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
+      ],
+    },
+    {
+      id: 'listen',
+      label: 'Listen',
+      dot: '#3db87a',
+      locked: true,
+      tabs: [
+        { id: 'listen', label: 'Real-time assist', icon: <IcoListen />, locked: true },
+      ],
+    },
+    {
+      id: 'platform',
+      label: '',
+      dot: null,
+      dividerOnly: true,
+      tabs: [
+        { id: 'integrations', label: 'Integrations', icon: <IcoIntegrations /> },
+      ],
+    },
   ]
+
+  // Flat tab list still needed for renderTab + mobile nav
+  const tabs = PRODUCTS.flatMap(p => p.tabs).filter(t => !t.locked)
 
   const renderTab = () => {
     switch (activeTab) {
@@ -290,6 +332,20 @@ const Portal = () => {
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
+      case 'listen': return (
+        <div style={{ background: 'white', borderRadius: 16, padding: '2.5rem 2rem', border: '0.5px solid rgba(61,184,122,0.15)', textAlign: 'center', maxWidth: 540, margin: '0 auto' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f0fdf4', border: '1.5px solid rgba(61,184,122,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#3db87a' }}>
+            <IcoListen />
+          </div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.5rem' }}>Qerxel Listen</div>
+          <div style={{ fontSize: '0.875rem', color: '#666', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif", marginBottom: '1.5rem' }}>
+            Real-time call listening with on-screen AI assist. Your AI surfaces the right information as the conversation happens — product details, availability, notes — without the caller knowing.
+          </div>
+          <div style={{ display: 'inline-block', padding: '0.4rem 1rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.3)', borderRadius: 20, fontSize: '0.78rem', fontWeight: 600, color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>
+            Coming in a future release
+          </div>
+        </div>
+      )
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
           <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Coming soon.</p>
@@ -351,50 +407,77 @@ const Portal = () => {
             )}
           </div>
 
-          {/* Nav items */}
-          <nav style={{ flex: 1, paddingTop: '0.5rem', overflowY: 'auto', overflowX: 'hidden' }}>
-            {tabs.map(tab => {
-              const isActive = activeTab === tab.id
-              const isHovered = hoveredNav === tab.id
-              return (
-                <div key={tab.id}>
-                  {tab.id === 'integrations' && (
-                    <div style={{ height: 1, margin: '0.3rem 0.75rem', background: 'rgba(255,255,255,0.1)' }} />
-                  )}
-                  <button
-                    onClick={() => setActiveTab(tab.id)}
-                    onMouseEnter={() => setHoveredNav(tab.id)}
-                    onMouseLeave={() => setHoveredNav(null)}
-                    title={sidebarCollapsed ? tab.label : undefined}
-                    style={{
-                      width: '100%', height: 42,
-                      display: 'flex', alignItems: 'center',
-                      justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                      gap: '0.7rem',
-                      padding: sidebarCollapsed ? 0 : '0 1.25rem',
-                      border: 'none',
-                      borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
-                      marginLeft: isActive ? -3 : 0,
-                      background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-                      color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
-                      cursor: 'pointer',
-                      transition: 'background 0.12s, color 0.12s',
-                      boxSizing: 'border-box',
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: '0.8125rem',
-                      fontWeight: isActive ? 500 : 400,
-                    }}
-                  >
-                    {tab.icon}
-                    {!sidebarCollapsed && (
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {tab.label}
+          {/* Nav items — product-grouped */}
+          <nav style={{ flex: 1, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden' }}>
+            {PRODUCTS.map((product, pi) => (
+              <div key={product.id}>
+                {/* Product label */}
+                {!sidebarCollapsed && product.label && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: pi === 0 ? '0.55rem 1.25rem 0.2rem' : '0.7rem 1.25rem 0.2rem' }}>
+                    {product.dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: product.dot, flexShrink: 0 }} />}
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.11em', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      {product.label}
+                    </span>
+                    {product.locked && (
+                      <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.07)', borderRadius: 3, padding: '0.05rem 0.3rem', letterSpacing: '0.06em' }}>
+                        SOON
                       </span>
                     )}
-                  </button>
-                </div>
-              )
-            })}
+                  </div>
+                )}
+                {/* Collapsed divider between products */}
+                {sidebarCollapsed && pi > 0 && (
+                  <div style={{ height: 1, margin: '0.25rem 0.75rem', background: 'rgba(255,255,255,0.08)' }} />
+                )}
+
+                {/* Tabs */}
+                {product.tabs.map(tab => {
+                  const isActive = activeTab === tab.id
+                  const isHovered = hoveredNav === tab.id
+                  const isLocked = !!tab.locked
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => !isLocked && setActiveTab(tab.id)}
+                      onMouseEnter={() => setHoveredNav(tab.id)}
+                      onMouseLeave={() => setHoveredNav(null)}
+                      title={sidebarCollapsed ? tab.label : undefined}
+                      disabled={isLocked}
+                      style={{
+                        width: '100%', height: 40,
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                        gap: '0.65rem',
+                        padding: sidebarCollapsed ? 0 : '0 1.25rem',
+                        border: 'none',
+                        borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
+                        marginLeft: isActive ? -3 : 0,
+                        background: isActive ? 'rgba(255,255,255,0.15)' : isHovered && !isLocked ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        color: isLocked ? 'rgba(255,255,255,0.22)' : isActive ? 'white' : 'rgba(255,255,255,0.62)',
+                        cursor: isLocked ? 'default' : 'pointer',
+                        transition: 'background 0.12s, color 0.12s',
+                        boxSizing: 'border-box',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '0.8125rem',
+                        fontWeight: isActive ? 500 : 400,
+                      }}
+                    >
+                      {tab.icon}
+                      {!sidebarCollapsed && (
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
+                          {tab.label}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+
+                {/* Divider after each product group (except last) */}
+                {!sidebarCollapsed && pi < PRODUCTS.length - 1 && (
+                  <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
+                )}
+              </div>
+            ))}
           </nav>
 
           {/* ── Holiday widget ─────────────────────────────────────────────── */}
