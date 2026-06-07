@@ -412,8 +412,48 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
     </div>
   )
 
+  const [copied, setCopied] = useState(false)
+  const bookingUrl = tenantId ? `${window.location.origin}/book/${tenantId}` : null
+
+  const copyLink = () => {
+    if (!bookingUrl) return
+    navigator.clipboard.writeText(bookingUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 640 }}>
+
+      {/* ── Customer booking link ──────────────────────────────────────────── */}
+      <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Customer booking link</div>
+        <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.85rem', lineHeight: 1.5 }}>
+          Share this link with customers — they can pick a service, choose a date and time, and book directly. No login needed.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ flex: 1, padding: '0.5rem 0.75rem', background: '#faf9fc', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, fontSize: '0.78rem', color: '#5e3b87', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {bookingUrl || '—'}
+          </div>
+          <button
+            onClick={copyLink}
+            style={{ padding: '0.5rem 1rem', background: copied ? '#3db87a' : '#5e3b87', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s' }}
+          >
+            {copied ? '✓ Copied' : 'Copy link'}
+          </button>
+          {bookingUrl && (
+            <a href={bookingUrl} target="_blank" rel="noreferrer"
+              style={{ padding: '0.5rem 0.75rem', background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 8, fontSize: '0.8rem', color: '#5e3b87', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
+              Preview ↗
+            </a>
+          )}
+        </div>
+        <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>
+          Add staff schedules and catalogue services to control which slots appear.
+        </div>
+      </div>
+
       <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Buffer & cancellation</div>
         <Row label="Gap between appointments" desc="Prevents back-to-back bookings — gives travel/prep time">

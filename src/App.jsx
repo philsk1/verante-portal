@@ -12,6 +12,7 @@ import TierSelector from './pages/TierSelector'
 import DemoPortal from './pages/DemoPortal'
 import SalesPerformance from './pages/SalesPerformance'
 import PlanSelector from './pages/PlanSelector'
+import BookingPage from './pages/BookingPage'
 
 // Guard for demo routes: requires localStorage demo session
 const DemoRoute = ({ children }) => {
@@ -51,6 +52,9 @@ const App = () => {
               <PlanSelector />
             </ProtectedRoute>
           } />
+
+          {/* Public booking page — no auth required */}
+          <Route path="/book/:tenantId" element={<BookingPage />} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
