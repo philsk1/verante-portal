@@ -3,10 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 const Login = () => {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState(null)
-  const [loading, setLoading]   = useState(false)
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [error, setError]           = useState(null)
+  const [loading, setLoading]       = useState(false)
+  const [resetSent, setResetSent]   = useState(false)
+  const [resetting, setResetting]   = useState(false)
   const navigate = useNavigate()
 
   const handleLogin = async (e) => {
@@ -20,6 +22,15 @@ const Login = () => {
     } else {
       navigate('/portal')
     }
+  }
+
+  const handleReset = async () => {
+    if (!email.trim()) { setError('Enter your email address above first.'); return }
+    setResetting(true)
+    setError(null)
+    await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/portal` })
+    setResetSent(true)
+    setResetting(false)
   }
 
   return (
@@ -75,7 +86,19 @@ const Login = () => {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: 0, fontSize: '0.875rem', color: '#888' }}>
+        {resetSent ? (
+          <p style={{ textAlign: 'center', marginTop: '1.25rem', marginBottom: 0, fontSize: '0.875rem', color: '#3db87a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
+            Reset link sent — check your email.
+          </p>
+        ) : (
+          <p style={{ textAlign: 'center', marginTop: '1rem', marginBottom: 0, fontSize: '0.8rem', color: '#aaa' }}>
+            <button onClick={handleReset} disabled={resetting} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.8rem', padding: 0, textDecoration: 'underline', fontFamily: "'DM Sans', sans-serif" }}>
+              {resetting ? 'Sending…' : 'Forgot password?'}
+            </button>
+          </p>
+        )}
+
+        <p style={{ textAlign: 'center', marginTop: '0.75rem', marginBottom: 0, fontSize: '0.875rem', color: '#888' }}>
           Don't have an account?{' '}
           <Link to="/signup" style={{ color: '#5e3b87', fontWeight: '500', textDecoration: 'none' }}>Sign up</Link>
         </p>
