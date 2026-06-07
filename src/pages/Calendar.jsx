@@ -124,10 +124,10 @@ const CalendarToolbar = ({ label, onNavigate, onView, view }) => (
     </div>
     <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', textAlign: 'center' }}>{label}</span>
     <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 8, padding: 3 }}>
-      {['month', 'week', 'day'].map(v => (
+      {[['month','Month'],['week','Week'],['work_week','5 Day'],['day','Day']].map(([v, label]) => (
         <button key={v} onClick={() => onView(v)}
-          style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: view === v ? '#5e3b87' : 'transparent', color: view === v ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textTransform: 'capitalize', transition: 'background 0.15s' }}>
-          {v}
+          style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: view === v ? '#5e3b87' : 'transparent', color: view === v ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: view === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s' }}>
+          {label}
         </button>
       ))}
     </div>
@@ -350,34 +350,49 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
   const [reminder48h, setReminder48h] = useState(true)
   const [reminder24h, setReminder24h] = useState(true)
   const [reminder1h, setReminder1h] = useState(false)
+  const [noShowFeeType, setNoShowFeeType] = useState('fixed')
   const [noShowFee, setNoShowFee] = useState('')
+  const [noShowFeePct, setNoShowFeePct] = useState('')
   const [cancelCutoffHrs, setCancelCutoffHrs] = useState(24)
+  const [chargeLateCancel, setChargeLateCancel] = useState(false)
+  const [clientCanReschedule, setClientCanReschedule] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     if (!tenantId) return
-    supabase.from('tenants').select('booking_buffer_mins, reminder_48h, reminder_24h, reminder_1h, no_show_fee, cancel_cutoff_hrs').eq('id', tenantId).maybeSingle().then(({ data }) => {
-      if (!data) return
-      setBufferMins(data.booking_buffer_mins ?? 15)
-      setReminder48h(data.reminder_48h !== false)
-      setReminder24h(data.reminder_24h !== false)
-      setReminder1h(!!data.reminder_1h)
-      setNoShowFee(data.no_show_fee ?? '')
-      setCancelCutoffHrs(data.cancel_cutoff_hrs ?? 24)
-    })
+    supabase.from('tenants')
+      .select('booking_buffer_mins, reminder_48h, reminder_24h, reminder_1h, no_show_fee, no_show_fee_type, no_show_fee_pct, cancel_cutoff_hrs, charge_late_cancel, client_can_reschedule')
+      .eq('id', tenantId).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setBufferMins(data.booking_buffer_mins ?? 15)
+        setReminder48h(data.reminder_48h !== false)
+        setReminder24h(data.reminder_24h !== false)
+        setReminder1h(!!data.reminder_1h)
+        setNoShowFeeType(data.no_show_fee_type || 'fixed')
+        setNoShowFee(data.no_show_fee ?? '')
+        setNoShowFeePct(data.no_show_fee_pct ?? '')
+        setCancelCutoffHrs(data.cancel_cutoff_hrs ?? 24)
+        setChargeLateCancel(!!data.charge_late_cancel)
+        setClientCanReschedule(data.client_can_reschedule !== false)
+      })
   }, [tenantId])
 
   const save = async () => {
     if (isDemo || isPreview || !tenantId) return
     setSaving(true)
     await supabase.from('tenants').update({
-      booking_buffer_mins: bufferMins,
-      reminder_48h: reminder48h,
-      reminder_24h: reminder24h,
-      reminder_1h: reminder1h,
-      no_show_fee: noShowFee ? parseFloat(noShowFee) : null,
-      cancel_cutoff_hrs: cancelCutoffHrs,
+      booking_buffer_mins:   bufferMins,
+      reminder_48h:          reminder48h,
+      reminder_24h:          reminder24h,
+      reminder_1h:           reminder1h,
+      no_show_fee_type:      noShowFeeType,
+      no_show_fee:           noShowFeeType === 'fixed' && noShowFee ? parseFloat(noShowFee) : null,
+      no_show_fee_pct:       noShowFeeType === 'percentage' && noShowFeePct ? parseFloat(noShowFeePct) : null,
+      cancel_cutoff_hrs:     cancelCutoffHrs,
+      charge_late_cancel:    chargeLateCancel,
+      client_can_reschedule: clientCanReschedule,
     }).eq('id', tenantId)
     setSaving(false)
     setSaved(true)
@@ -400,15 +415,13 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
     </div>
   )
 
+  const inputSt = { padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white' }
+
   const [copied, setCopied] = useState(false)
   const bookingUrl = tenantId ? `${window.location.origin}/book/${tenantId}` : null
-
   const copyLink = () => {
     if (!bookingUrl) return
-    navigator.clipboard.writeText(bookingUrl).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    navigator.clipboard.writeText(bookingUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
   return (
@@ -418,52 +431,77 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
       <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Customer booking link</div>
         <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.85rem', lineHeight: 1.5 }}>
-          Share this link with customers — they can pick a service, choose a date and time, and book directly. No login needed.
+          Share this link — customers book directly with no login needed, and can manage or cancel their own appointments.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ flex: 1, padding: '0.5rem 0.75rem', background: '#faf9fc', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, fontSize: '0.78rem', color: '#5e3b87', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {bookingUrl || '—'}
           </div>
-          <button
-            onClick={copyLink}
-            style={{ padding: '0.5rem 1rem', background: copied ? '#3db87a' : '#5e3b87', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s' }}
-          >
+          <button onClick={copyLink} style={{ padding: '0.5rem 1rem', background: copied ? '#3db87a' : '#5e3b87', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s' }}>
             {copied ? '✓ Copied' : 'Copy link'}
           </button>
           {bookingUrl && (
-            <a href={bookingUrl} target="_blank" rel="noreferrer"
-              style={{ padding: '0.5rem 0.75rem', background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 8, fontSize: '0.8rem', color: '#5e3b87', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ padding: '0.5rem 0.75rem', background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 8, fontSize: '0.8rem', color: '#5e3b87', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
               Preview ↗
             </a>
           )}
         </div>
-        <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>
-          Add staff schedules and catalogue services to control which slots appear.
-        </div>
       </div>
 
+      {/* ── Booking behaviour ─────────────────────────────────────────────── */}
       <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Buffer & cancellation</div>
-        <Row label="Gap between appointments" desc="Prevents back-to-back bookings — gives travel/prep time">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <select value={bufferMins} onChange={e => setBufferMins(Number(e.target.value))}
-              style={{ padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', cursor: 'pointer' }}>
-              {[0,5,10,15,20,30,45,60].map(m => <option key={m} value={m}>{m === 0 ? 'None' : `${m} min`}</option>)}
-            </select>
-          </div>
-        </Row>
-        <Row label="Cancellation cutoff" desc="Minimum notice required to cancel without penalty">
-          <select value={cancelCutoffHrs} onChange={e => setCancelCutoffHrs(Number(e.target.value))}
-            style={{ padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', cursor: 'pointer' }}>
-            {[2,4,12,24,48,72].map(h => <option key={h} value={h}>{h}h</option>)}
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Booking behaviour</div>
+        <Row label="Gap between appointments" desc="Buffer time between bookings — prevents back-to-back without prep time">
+          <select value={bufferMins} onChange={e => setBufferMins(Number(e.target.value))} style={inputSt}>
+            {[0,5,10,15,20,30,45,60].map(m => <option key={m} value={m}>{m === 0 ? 'None' : `${m} min`}</option>)}
           </select>
         </Row>
-        <Row label="No-show fee (£)" desc="Charged when a client doesn't attend without notice">
-          <input type="number" min="0" step="5" value={noShowFee} onChange={e => setNoShowFee(e.target.value)} placeholder="—"
-            style={{ width: 90, padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'right' }} />
+        <Row label="Allow clients to reschedule" desc="Clients can pick a new slot via their booking link (subject to cutoff window)">
+          <Toggle val={clientCanReschedule} set={setClientCanReschedule} />
         </Row>
       </div>
 
+      {/* ── Cancellation policy ───────────────────────────────────────────── */}
+      <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Cancellation policy</div>
+        <Row label="Cancellation cutoff" desc="Clients cannot cancel free of charge within this window">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="number" min="0" max="168" value={cancelCutoffHrs} onChange={e => setCancelCutoffHrs(Number(e.target.value))}
+              style={{ ...inputSt, width: 64, textAlign: 'right' }} />
+            <span style={{ fontSize: '0.8rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>hours</span>
+          </div>
+        </Row>
+        <Row label="Apply fee to late cancellations" desc="Charge the no-show fee when a client cancels inside the cutoff window">
+          <Toggle val={chargeLateCancel} set={setChargeLateCancel} />
+        </Row>
+        <Row label="No-show fee" desc="Charged when a client doesn't attend — set type and amount">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', background: '#f0ebf8', borderRadius: 7, padding: 2 }}>
+              {[['fixed','£ Fixed'],['percentage','% of service']].map(([v,l]) => (
+                <button key={v} onClick={() => setNoShowFeeType(v)}
+                  style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: noShowFeeType === v ? '#5e3b87' : 'transparent', color: noShowFeeType === v ? 'white' : '#5e3b87', fontSize: '0.72rem', fontWeight: noShowFeeType === v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.12s' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {noShowFeeType === 'fixed' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: '0.85rem', color: '#555', fontFamily: "'DM Sans', sans-serif" }}>£</span>
+                <input type="number" min="0" step="5" value={noShowFee} onChange={e => setNoShowFee(e.target.value)} placeholder="0"
+                  style={{ ...inputSt, width: 72, textAlign: 'right' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="number" min="0" max="100" step="5" value={noShowFeePct} onChange={e => setNoShowFeePct(e.target.value)} placeholder="0"
+                  style={{ ...inputSt, width: 64, textAlign: 'right' }} />
+                <span style={{ fontSize: '0.85rem', color: '#555', fontFamily: "'DM Sans', sans-serif" }}>%</span>
+              </div>
+            )}
+          </div>
+        </Row>
+      </div>
+
+      {/* ── Reminder cadence ─────────────────────────────────────────────── */}
       <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Reminder cadence</div>
         <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem' }}>Automated SMS/email reminders sent to clients before their appointment</div>
@@ -1244,7 +1282,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   view={view}
                   onNavigate={setCurrentDate}
                   onView={setView}
-                  views={['month', 'week', 'day']}
+                  views={['month', 'week', 'work_week', 'day']}
                   selectable
                   resizable
                   onSelectSlot={handleSelectSlot}
