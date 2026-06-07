@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { useDemo } from '../context/DemoContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -475,12 +476,13 @@ function previewGreeting(tone, name, owner, outcomeType, bLink, callbackNote) {
 const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const demo = useDemo()
+  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
-  useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
+  useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
   const [loading, setLoading] = useState(true)
   const [businessEmail, setBusinessEmail] = useState('')
 
@@ -535,7 +537,21 @@ const AIBehaviour = ({ onNavigate }) => {
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
 
+  // ── Demo mode: inject AI settings from DemoContext ───────────────────────────
   useEffect(() => {
+    if (!demo?.isDemo || !demo.business) return
+    const biz = demo.business
+    setTier(demo.tier || 'light')
+    setBusinessName(biz.business_name || '')
+    setTriageMode(biz.triage_mode || 'balanced')
+    setToneRegister(biz.tone_register || 'warm')
+    setGreetingMessage(biz.greeting_message || '')
+    setBusinessOutcomeType(biz.business_outcome_type || 'callback')
+    setLoading(false)
+  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
+
+  useEffect(() => {
+    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
