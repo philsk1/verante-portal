@@ -502,11 +502,6 @@ const AccountSettings = ({ onNavigate }) => {
   const [accountSaving, setAccountSaving] = useState(false)
   const [accountToast, setAccountToast] = useState({ msg: '', type: '' })
 
-  // Notifications (local toggles — columns added to tenants when backend is ready)
-  const [notifyNewLead, setNotifyNewLead] = useState(true)
-  const [notifyDailySummary, setNotifyDailySummary] = useState(false)
-  const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
-
   // Feedback
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
@@ -521,15 +516,6 @@ const AccountSettings = ({ onNavigate }) => {
   const [chatInput, setChatInput] = useState('')
   const [chatWaiting, setChatWaiting] = useState(false)
   const chatEndRef = useRef(null)
-
-  // Holiday mode & cover
-  const [holidayMode, setHolidayMode] = useState(false)
-  const [holidayReturnDate, setHolidayReturnDate] = useState('')
-  const [coverEmail, setCoverEmail] = useState('')
-  const [emailScanMode, setEmailScanMode] = useState(null)
-  const [interventionTimeMins, setInterventionTimeMins] = useState(60)
-  const [holidaySaving, setHolidaySaving] = useState(false)
-  const [holidayToast, setHolidayToast] = useState({ msg: '', type: '' })
 
   // Billing
   const [billingModel, setBillingModel] = useState('subscription')
@@ -587,7 +573,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, notify_new_lead, notify_daily_summary, notify_weekly_report, holiday_mode, holiday_return_date, cover_email, email_scan_mode, intervention_time_mins, data_retention_days, billing_model, monthly_cost_limit')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit')
           .eq('id', tid)
           .maybeSingle()
 
@@ -599,11 +585,6 @@ const AccountSettings = ({ onNavigate }) => {
           setNotifyNewLead(tenant.notify_new_lead !== false)
           setNotifyDailySummary(tenant.notify_daily_summary === true)
           setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
-          setHolidayMode(tenant.holiday_mode || false)
-          setHolidayReturnDate(tenant.holiday_return_date || '')
-          setCoverEmail(tenant.cover_email || '')
-          setEmailScanMode(tenant.cover_email ? (tenant.email_scan_mode || null) : null)
-          setInterventionTimeMins(tenant.intervention_time_mins ?? 60)
           setDataRetentionDays(tenant.data_retention_days ?? 90)
           setBillingModel(tenant.billing_model || 'subscription')
           setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
@@ -677,31 +658,6 @@ const AccountSettings = ({ onNavigate }) => {
     showAccountToast(error ? 'Could not save. Please try again.' : 'Details saved.', error ? 'error' : 'success')
   }
 
-  const saveNotification = async (field, value) => {
-    if (isDemo || isPreview || !tenantId) return
-    await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
-  }
-
-  const showHolidayToast = (msg, type = 'success') => {
-    setHolidayToast({ msg, type })
-    setTimeout(() => setHolidayToast({ msg: '', type: '' }), 3000)
-  }
-
-  const saveHolidaySettings = async () => {
-    if (isDemo || isPreview || !tenantId) return
-    setHolidaySaving(true)
-    const { error } = await supabase.from('tenants').update({
-      holiday_mode: holidayMode,
-      holiday_return_date: holidayReturnDate || null,
-      cover_email: coverEmail.trim() || null,
-      email_scan_mode: coverEmail.trim() ? emailScanMode : 'none',
-      intervention_time_mins: interventionTimeMins,
-    }).eq('id', tenantId)
-    setHolidaySaving(false)
-    showHolidayToast(error ? 'Could not save. Please try again.' : 'Availability settings saved.', error ? 'error' : 'success')
-  }
-
-  const holidaySaveDisabled = holidaySaving || (coverEmail.trim().length > 0 && emailScanMode === null)
 
   const showDataToast = (msg, type = 'success') => {
     setDataToast({ msg, type })
@@ -793,6 +749,18 @@ const AccountSettings = ({ onNavigate }) => {
 
   return (
     <div>
+
+      {/* Business Profile entry card */}
+      <div
+        onClick={() => onNavigate('profile')}
+        style={{ ...s.section, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', marginBottom: '0.5rem', borderLeft: '3px solid #5e3b87', background: '#faf9fc' }}
+      >
+        <div>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Business Profile</div>
+          <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.15rem', fontFamily: "'DM Sans', sans-serif" }}>Business info, staff, services catalogue, partner details</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
 
       {/* Plan & Billing */}
       <div style={s.section}>
@@ -906,111 +874,6 @@ const AccountSettings = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Notification Preferences */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Notifications control when Qerxel sends you emails. New lead = an immediate alert the moment your AI captures a lead. Daily summary = a brief end-of-day digest. Weekly report = a Monday morning overview. All emails go to your account email address.">Notifications</h3>
-        <p style={s.sectionSubtitle}>Choose when Qerxel contacts you. All notifications are sent to your account email.</p>
-
-        {[
-          { label: 'New lead captured', desc: 'Immediate email when your AI captures a new lead.', val: notifyNewLead, set: v => { setNotifyNewLead(v); saveNotification('notify_new_lead', v) } },
-          { label: 'Daily summary', desc: 'A brief end-of-day digest of calls, leads, and referrals.', val: notifyDailySummary, set: v => { setNotifyDailySummary(v); saveNotification('notify_daily_summary', v) } },
-          { label: 'Weekly report', desc: 'Monday morning overview of the past week\'s performance.', val: notifyWeeklyReport, set: v => { setNotifyWeeklyReport(v); saveNotification('notify_weekly_report', v) } },
-        ].map((item, i, arr) => (
-          <div key={item.label} style={s.toggleRow(i === arr.length - 1)}>
-            <div>
-              <div style={s.toggleLabel}>{item.label}</div>
-              <div style={s.toggleDesc}>{item.desc}</div>
-            </div>
-            <Toggle checked={item.val} onChange={item.set} />
-          </div>
-        ))}
-      </div>
-
-      {/* Availability & Cover */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Availability and Cover lets your AI know you're away and sets up a cover inbox monitor. When holiday mode is on your AI still handles calls — but you can also ask it to watch a cover email address for urgent messages while you're away.">Availability &amp; Cover</h3>
-        <p style={s.sectionSubtitle}>Let your AI know when you're away and how to handle cover communications.</p>
-
-        <div style={s.toggleRow(false)}>
-          <div>
-            <div style={s.toggleLabel}>I'm going away</div>
-            <div style={s.toggleDesc}>Your AI continues handling calls. This unlocks cover email monitoring below.</div>
-          </div>
-          <Toggle checked={holidayMode} onChange={v => setHolidayMode(v)} />
-        </div>
-
-        {holidayMode && (
-          <div style={{ marginTop: '1rem' }}>
-            <label style={s.label}>Return date</label>
-            <input
-              type="date"
-              style={{ ...s.input, width: 'auto', marginBottom: '1.25rem' }}
-              value={holidayReturnDate}
-              onChange={e => setHolidayReturnDate(e.target.value)}
-            />
-
-            <label style={s.label}>Cover email address</label>
-            <input
-              type="email"
-              style={{ ...s.input, marginBottom: coverEmail.trim() ? '1.25rem' : 0 }}
-              value={coverEmail}
-              onChange={e => { setCoverEmail(e.target.value); if (!e.target.value.trim()) setEmailScanMode(null) }}
-              placeholder="e.g. cover@yourbusiness.com"
-            />
-
-            {coverEmail.trim() && (
-              <>
-                <label style={{ ...s.label, marginTop: '0.25rem' }}>How would you like us to monitor this inbox?</label>
-                <p style={{ fontSize: '0.775rem', color: '#aaa', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
-                  Choose one to enable save.
-                </p>
-                {[
-                  { id: 'subject_only', label: 'Scan subject lines only', desc: 'We check subject lines for urgency signals. Email content is never read. Recommended for client privileged communications.' },
-                  { id: 'full',         label: 'Scan full emails',         desc: 'We read the full email to assess urgency. Recommended for non-sensitive businesses.' },
-                  { id: 'none',         label: 'Don\'t scan emails',       desc: 'We won\'t monitor this inbox.' },
-                ].map(opt => (
-                  <div key={opt.id} onClick={() => setEmailScanMode(opt.id)} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.875rem 1rem',
-                    borderRadius: '8px', marginBottom: '0.5rem', cursor: 'pointer',
-                    border: emailScanMode === opt.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
-                    background: emailScanMode === opt.id ? '#f0ebf8' : 'white',
-                  }}>
-                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: emailScanMode === opt.id ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0, marginTop: 2 }} />
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: emailScanMode === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.2rem' }}>{opt.label}</div>
-                      <div style={{ fontSize: '0.775rem', color: '#888', lineHeight: 1.5 }}>{opt.desc}</div>
-                    </div>
-                  </div>
-                ))}
-
-                {(emailScanMode === 'subject_only' || emailScanMode === 'full') && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <label style={s.label}>Intervention timing</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.875rem', color: '#444' }}>If an urgent email goes unattended, notify me again after</span>
-                      <input
-                        type="number"
-                        min={1}
-                        style={{ width: '64px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
-                        value={interventionTimeMins}
-                        onChange={e => setInterventionTimeMins(Math.max(1, parseInt(e.target.value) || 1))}
-                      />
-                      <span style={{ fontSize: '0.875rem', color: '#444' }}>minutes.</span>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button style={holidaySaveDisabled ? s.saveBtnDisabled : s.saveBtn} onClick={saveHolidaySettings} disabled={holidaySaveDisabled}>
-            {holidaySaving ? 'Saving…' : 'Save availability'}
-          </button>
-          {holidayToast.msg && <span style={s.toast(holidayToast.type)}>{holidayToast.type === 'success' ? '✓' : '!'} {holidayToast.msg}</span>}
-        </div>
-      </div>
 
       {/* Privacy & Data */}
       <div style={s.section}>

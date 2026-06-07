@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
@@ -21,17 +21,6 @@ const IcoDashboard = () => (
     <rect x="14" y="3" width="7" height="7" rx="1"/>
     <rect x="14" y="14" width="7" height="7" rx="1"/>
     <rect x="3" y="14" width="7" height="7" rx="1"/>
-  </svg>
-)
-
-const IcoBusiness = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <rect x="4" y="2" width="16" height="20" rx="1"/>
-    <path d="M9 22V12h6v10"/>
-    <line x1="4" y1="8" x2="20" y2="8"/>
-    <line x1="4" y1="14" x2="20" y2="14"/>
-    <circle cx="9" cy="5" r="0.5" fill="currentColor"/>
-    <circle cx="15" cy="5" r="0.5" fill="currentColor"/>
   </svg>
 )
 
@@ -78,15 +67,8 @@ const IcoIntegrations = () => (
   </svg>
 )
 
-const IcoAccount = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-  </svg>
-)
-
 const IcoVera = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <ellipse cx="12" cy="14" rx="7" ry="8"/>
     <circle cx="9" cy="12" r="1.5"/>
     <circle cx="15" cy="12" r="1.5"/>
@@ -117,6 +99,44 @@ const IcoChevronRight = () => (
   </svg>
 )
 
+const IcoBell = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+  </svg>
+)
+
+const IcoGear = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+)
+
+const IcoMoon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+)
+
+// ─── Simple toggle ─────────────────────────────────────────────────────────────
+
+const Toggle = ({ checked, onChange }) => (
+  <button
+    onClick={() => onChange(!checked)}
+    style={{
+      width: 38, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', flexShrink: 0,
+      background: checked ? '#3db87a' : '#d1d5db', position: 'relative', transition: 'background 0.18s', padding: 0,
+    }}
+  >
+    <div style={{
+      width: 16, height: 16, borderRadius: '50%', background: 'white',
+      position: 'absolute', top: 3, left: checked ? 19 : 3, transition: 'left 0.18s',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+    }} />
+  </button>
+)
+
 // ─── Portal ────────────────────────────────────────────────────────────────────
 
 const useIsMobile = () => {
@@ -133,9 +153,11 @@ const Portal = () => {
   const { user } = useAuth()
   const preview = usePreview()
   const isMobile = useIsMobile()
+  const notifPanelRef = useRef(null)
+
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('upgraded')) return 'account'
+    if (params.get('upgraded')) return 'settings'
     if (params.get('tab') === 'integrations') return 'integrations'
     return 'dashboard'
   })
@@ -147,6 +169,15 @@ const Portal = () => {
   const [calendarPrefill, setCalendarPrefill] = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [hoveredNav, setHoveredNav] = useState(null)
+
+  // Live operational state — owned here, displayed in sidebar
+  const [holidayMode, setHolidayMode] = useState(false)
+  const [holidayReturnDate, setHolidayReturnDate] = useState('')
+  const [notifyNewLead, setNotifyNewLead] = useState(true)
+  const [notifyDailySummary, setNotifyDailySummary] = useState(false)
+  const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false)
+
   const navigate = useNavigate()
 
   const handleNavigate = (tabId, prefillData) => {
@@ -157,13 +188,13 @@ const Portal = () => {
 
   const TAB_CONTEXT = {
     dashboard:    'dashboard.first_visit',
-    profile:      'profile.first_visit',
     ai:           'ai_behaviour.first_visit',
     analytics:    'analytics.first_visit',
     referrals:    'referrals.first_visit',
     calendar:     'calendar.first_visit',
     integrations: 'integrations.first_visit',
-    account:      'account.first_visit',
+    settings:     'account.first_visit',
+    profile:      'profile.first_visit',
   }
 
   useEffect(() => {
@@ -175,8 +206,19 @@ const Portal = () => {
       setTenantId(membership.tenant_id)
 
       const { data: tenant } = await supabase
-        .from('tenants').select('business_name').eq('id', membership.tenant_id).maybeSingle()
-      setBusinessName(tenant?.business_name || '')
+        .from('tenants')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report')
+        .eq('id', membership.tenant_id)
+        .maybeSingle()
+
+      if (tenant) {
+        setBusinessName(tenant.business_name || '')
+        setHolidayMode(tenant.holiday_mode || false)
+        setHolidayReturnDate(tenant.holiday_return_date || '')
+        setNotifyNewLead(tenant.notify_new_lead !== false)
+        setNotifyDailySummary(tenant.notify_daily_summary === true)
+        setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
+      }
 
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
@@ -190,15 +232,25 @@ const Portal = () => {
             const json = await res.json()
             setAllTenants(json.tenants || [])
           }
-        } catch {
-          // not available on localhost
-        }
+        } catch {}
       }
 
       setChecking(false)
     }
     init()
   }, [user])
+
+  // Close notif panel on outside click
+  useEffect(() => {
+    if (!notifPanelOpen) return
+    const handler = (e) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) {
+        setNotifPanelOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [notifPanelOpen])
 
   if (checking) return null
 
@@ -207,18 +259,26 @@ const Portal = () => {
     navigate('/login')
   }
 
-  const tabs = [
-    { id: 'dashboard',    label: 'Dashboard',            icon: <IcoDashboard /> },
-    { id: 'calendar',     label: 'Calendar',             icon: <IcoCalendar /> },
-    { id: 'ai',           label: 'AI Behaviour',         icon: <IcoAI /> },
-    { id: 'analytics',    label: 'Analytics',            icon: <IcoAnalytics /> },
-    { id: 'referrals',    label: 'Partners & Referrals', icon: <IcoPartners /> },
-    { id: 'integrations', label: 'Integrations',         icon: <IcoIntegrations /> },
-    { id: 'profile',      label: 'Business Profile',     icon: <IcoBusiness /> },
-    { id: 'account',      label: 'Account',              icon: <IcoAccount /> },
-  ]
+  const saveHolidayToggle = async (val) => {
+    setHolidayMode(val)
+    if (!tenantId || preview.isPreview) return
+    await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
+  }
 
-  const sidebarTabs = tabs.filter(t => t.id !== 'profile')
+  const saveNotification = async (field, val) => {
+    if (!tenantId || preview.isPreview) return
+    await supabase.from('tenants').update({ [field]: val }).eq('id', tenantId)
+  }
+
+  // Nav tabs — operational screens only
+  const tabs = [
+    { id: 'dashboard',    label: 'Home',         icon: <IcoDashboard /> },
+    { id: 'calendar',     label: 'Calendar',     icon: <IcoCalendar /> },
+    { id: 'ai',           label: 'Answer AI',    icon: <IcoAI /> },
+    { id: 'analytics',    label: 'Analytics',    icon: <IcoAnalytics /> },
+    { id: 'referrals',    label: 'Partners',     icon: <IcoPartners /> },
+    { id: 'integrations', label: 'Integrations', icon: <IcoIntegrations /> },
+  ]
 
   const renderTab = () => {
     switch (activeTab) {
@@ -229,13 +289,10 @@ const Portal = () => {
       case 'referrals':    return <PartnersReferrals />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
-      case 'account':      return <AccountSettings onNavigate={setActiveTab} />
+      case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '0.5rem' }}>
-            {tabs.find(t => t.id === activeTab)?.label}
-          </h2>
-          <p style={{ color: '#aaa', fontSize: '0.875rem' }}>This section is coming soon.</p>
+          <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Coming soon.</p>
         </div>
       )
     }
@@ -245,213 +302,299 @@ const Portal = () => {
   const activeTenantId = preview.isPreview ? preview.previewTenantId : tenantId
 
   const mobileNavTabs = [
-    { id: 'dashboard', label: 'Home',     icon: <IcoDashboard /> },
-    { id: 'calendar',  label: 'Calendar', icon: <IcoCalendar /> },
-    { id: 'ai',        label: 'AI',       icon: <IcoAI /> },
-    { id: 'analytics', label: 'Analytics',icon: <IcoAnalytics /> },
-    { id: 'account',   label: 'Account',  icon: <IcoAccount /> },
+    { id: 'dashboard',  label: 'Home',     icon: <IcoDashboard /> },
+    { id: 'calendar',   label: 'Calendar', icon: <IcoCalendar /> },
+    { id: 'ai',         label: 'AI',       icon: <IcoAI /> },
+    { id: 'analytics',  label: 'Stats',    icon: <IcoAnalytics /> },
+    { id: 'settings',   label: 'Settings', icon: <IcoGear /> },
   ]
+
+  const sidebarW = sidebarCollapsed ? 60 : 260
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
 
       {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
-      <aside style={{
-        position: 'relative',
-        width: isMobile ? 0 : sidebarCollapsed ? 60 : 260,
-        background: '#5e3b87',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.22s ease',
-        overflow: 'hidden',
-        flexShrink: 0,
-        zIndex: 10,
-        visibility: isMobile ? 'hidden' : 'visible',
-      }}>
-
-        {/* Logo */}
-        <div style={{
-          height: 64,
+      {!isMobile && (
+        <aside style={{
+          position: 'relative',
+          width: sidebarW,
+          background: '#5e3b87',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-          padding: sidebarCollapsed ? 0 : '0 1.25rem',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          flexDirection: 'column',
+          transition: 'width 0.22s ease',
+          overflow: 'hidden',
           flexShrink: 0,
-          boxSizing: 'border-box',
+          zIndex: 10,
         }}>
-          {sidebarCollapsed ? (
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-                Qerxel
-              </span>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
-            </div>
-          )}
-        </div>
 
-        {/* Nav items */}
-        <nav style={{ flex: 1, paddingTop: '0.5rem', overflowY: 'auto', overflowX: 'hidden' }}>
-          {sidebarTabs.map(tab => {
-            const isActive = activeTab === tab.id
-            const isHovered = hoveredNav === tab.id
-            return (
-              <div key={tab.id}>
-                {tab.id === 'integrations' && (
-                  <div style={{ height: 1, margin: '0.3rem 0.75rem', background: 'rgba(255,255,255,0.1)' }} />
-                )}
-                <button
-                  onClick={() => setActiveTab(tab.id)}
-                  onMouseEnter={() => setHoveredNav(tab.id)}
-                  onMouseLeave={() => setHoveredNav(null)}
-                  title={sidebarCollapsed ? tab.label : undefined}
-                  style={{
-                    width: '100%',
-                    height: 42,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                    gap: '0.7rem',
-                    padding: sidebarCollapsed ? 0 : '0 1.25rem',
-                    border: 'none',
-                    borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
-                    marginLeft: isActive ? -3 : 0,
-                    background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-                    color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
-                    cursor: 'pointer',
-                    transition: 'background 0.12s, color 0.12s',
-                    boxSizing: 'border-box',
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '0.8125rem',
-                    fontWeight: isActive ? 500 : 400,
-                  }}
-                >
-                  {tab.icon}
-                  {!sidebarCollapsed && (
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {tab.label}
-                    </span>
-                  )}
-                </button>
+          {/* Logo */}
+          <div style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+            padding: sidebarCollapsed ? 0 : '0 1.25rem',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flexShrink: 0,
+            boxSizing: 'border-box',
+          }}>
+            {sidebarCollapsed ? (
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                  Qerxel
+                </span>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
               </div>
-            )
-          })}
-        </nav>
+            )}
+          </div>
 
-        {/* Bottom section */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+          {/* Nav items */}
+          <nav style={{ flex: 1, paddingTop: '0.5rem', overflowY: 'auto', overflowX: 'hidden' }}>
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id
+              const isHovered = hoveredNav === tab.id
+              return (
+                <div key={tab.id}>
+                  {tab.id === 'integrations' && (
+                    <div style={{ height: 1, margin: '0.3rem 0.75rem', background: 'rgba(255,255,255,0.1)' }} />
+                  )}
+                  <button
+                    onClick={() => setActiveTab(tab.id)}
+                    onMouseEnter={() => setHoveredNav(tab.id)}
+                    onMouseLeave={() => setHoveredNav(null)}
+                    title={sidebarCollapsed ? tab.label : undefined}
+                    style={{
+                      width: '100%', height: 42,
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                      gap: '0.7rem',
+                      padding: sidebarCollapsed ? 0 : '0 1.25rem',
+                      border: 'none',
+                      borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
+                      marginLeft: isActive ? -3 : 0,
+                      background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+                      color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
+                      cursor: 'pointer',
+                      transition: 'background 0.12s, color 0.12s',
+                      boxSizing: 'border-box',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '0.8125rem',
+                      fontWeight: isActive ? 500 : 400,
+                    }}
+                  >
+                    {tab.icon}
+                    {!sidebarCollapsed && (
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {tab.label}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+          </nav>
 
-          {/* Owner tenant selector */}
-          {isOwner && !sidebarCollapsed && (
-            <div style={{ padding: '0.75rem 1rem 0' }}>
-              <select
-                value={preview.isPreview ? preview.previewTenantId : ''}
-                onChange={e => {
-                  const tid = e.target.value
-                  if (!tid) { preview.exitPreview(); return }
-                  const t = allTenants.find(t => t.id === tid)
-                  preview.enterPreview(tid, t?.business_name || '')
-                  setActiveTab('dashboard')
-                }}
-                style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
-              >
-                <option value="" style={{ background: '#5e3b87' }}>— Preview tenant —</option>
-                {allTenants.map(t => (
-                  <option key={t.id} value={t.id} style={{ background: '#5e3b87' }}>{t.business_name}</option>
-                ))}
-              </select>
+          {/* ── Holiday widget ─────────────────────────────────────────────── */}
+          {holidayMode ? (
+            <div style={{
+              margin: sidebarCollapsed ? '0.5rem 0' : '0.5rem 0.75rem',
+              borderRadius: 10,
+              background: 'rgba(240,165,0,0.18)',
+              border: '1px solid rgba(240,165,0,0.35)',
+              overflow: 'hidden',
+              flexShrink: 0,
+              boxShadow: '0 0 12px rgba(240,165,0,0.2)',
+            }}>
+              {sidebarCollapsed ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.6rem 0' }}>
+                  <IcoMoon />
+                </div>
+              ) : (
+                <div style={{ padding: '0.75rem 0.9rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f0a500', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
+                      <IcoMoon />
+                      Away mode
+                    </div>
+                    <Toggle checked={true} onChange={saveHolidayToggle} />
+                  </div>
+                  {holidayReturnDate && (
+                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif" }}>
+                      Returns {new Date(holidayReturnDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    style={{ marginTop: '0.4rem', fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Edit details →
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              margin: sidebarCollapsed ? '0.5rem 0' : '0.5rem 0.75rem',
+              borderRadius: 8,
+              background: 'rgba(61,184,122,0.1)',
+              border: '1px solid rgba(61,184,122,0.2)',
+              overflow: 'hidden',
+              flexShrink: 0,
+            }}>
+              {sidebarCollapsed ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.55rem 0' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a' }} />
+                </div>
+              ) : (
+                <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3db87a', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Available</span>
+                  </div>
+                  <button
+                    onClick={() => saveHolidayToggle(true)}
+                    style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
+                    title="Set to away"
+                  >
+                    Going away?
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Business name + sign out */}
-          {!sidebarCollapsed && (
-            <div style={{ padding: '0.75rem 1.25rem' }}>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500, marginBottom: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
+          {/* ── Bottom controls ─────────────────────────────────────────────── */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+
+            {/* Owner tenant selector */}
+            {isOwner && !sidebarCollapsed && (
+              <div style={{ padding: '0.75rem 1rem 0' }}>
+                <select
+                  value={preview.isPreview ? preview.previewTenantId : ''}
+                  onChange={e => {
+                    const tid = e.target.value
+                    if (!tid) { preview.exitPreview(); return }
+                    const t = allTenants.find(t => t.id === tid)
+                    preview.enterPreview(tid, t?.business_name || '')
+                    setActiveTab('dashboard')
+                  }}
+                  style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
+                >
+                  <option value="" style={{ background: '#5e3b87' }}>— Preview tenant —</option>
+                  {allTenants.map(t => (
+                    <option key={t.id} value={t.id} style={{ background: '#5e3b87' }}>{t.business_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Business name */}
+            {!sidebarCollapsed && (
+              <div style={{ padding: '0.6rem 1.25rem 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
                 {displayName || user?.email}
               </div>
-              <button
-                onClick={handleSignOut}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-              >
-                <IcoSignOut />
-                Sign out
-              </button>
+            )}
+
+            {/* Icon row: Bell · Gear · Vera · Sign out */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '0.4rem' }}>
+              {[
+                { id: 'bell', icon: <IcoBell />, label: 'Notifications', action: () => setNotifPanelOpen(o => !o), active: notifPanelOpen },
+                { id: 'gear', icon: <IcoGear />, label: 'Settings', action: () => setActiveTab('settings'), active: activeTab === 'settings' },
+                { id: 'vera', icon: <IcoVera />, label: 'Ask Vera', action: () => document.getElementById('vera-trigger-btn')?.click(), active: false },
+                { id: 'signout', icon: <IcoSignOut />, label: 'Sign out', action: handleSignOut, active: false },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={item.action}
+                  title={item.label}
+                  onMouseEnter={() => setHoveredNav(item.id)}
+                  onMouseLeave={() => setHoveredNav(null)}
+                  style={{
+                    flex: 1, height: 40,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: 'none',
+                    borderTop: item.active ? '2px solid #f0a500' : '2px solid transparent',
+                    background: item.active ? 'rgba(255,255,255,0.12)' : hoveredNav === item.id ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    color: item.active ? '#f0a500' : 'rgba(255,255,255,0.5)',
+                    cursor: 'pointer',
+                    transition: 'all 0.12s',
+                    padding: 0,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {item.icon}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* Sign out icon only when collapsed */}
-          {sidebarCollapsed && (
-            <button
-              onClick={handleSignOut}
-              title="Sign out"
-              style={{ width: '100%', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}
-            >
-              <IcoSignOut />
-            </button>
-          )}
-
-          {/* Vera help trigger */}
-          <button
-            onClick={() => document.getElementById('vera-trigger-btn')?.click()}
-            onMouseEnter={() => setHoveredNav('vera')}
-            onMouseLeave={() => setHoveredNav(null)}
-            title="Ask Vera for help"
-            style={{
-              width: '100%',
-              height: 42,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-              gap: '0.7rem',
-              padding: sidebarCollapsed ? 0 : '0 1.25rem',
-              border: 'none',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              background: hoveredNav === 'vera' ? 'rgba(255,255,255,0.07)' : 'transparent',
-              color: 'rgba(255,255,255,0.6)',
-              cursor: 'pointer',
-              transition: 'background 0.12s',
-              boxSizing: 'border-box',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '0.8125rem',
-            }}
-          >
-            <IcoVera />
-            {!sidebarCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Ask Vera</span>}
-          </button>
-        </div>
-
-        {/* Collapse toggle — right edge, vertically centred */}
-        {!isMobile && (
+          {/* Collapse toggle */}
           <button
             onClick={() => setSidebarCollapsed(c => !c)}
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             style={{
-              position: 'absolute',
-              right: -12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              background: 'white',
-              border: '1px solid rgba(94,59,135,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              zIndex: 20,
+              position: 'absolute', right: -12, top: '50%', transform: 'translateY(-50%)',
+              width: 24, height: 24, borderRadius: '50%',
+              background: 'white', border: '1px solid rgba(94,59,135,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 20,
               boxShadow: '0 2px 8px rgba(94,59,135,0.15)',
-              color: '#5e3b87',
-              padding: 0,
+              color: '#5e3b87', padding: 0,
             }}
           >
             {sidebarCollapsed ? <IcoChevronRight /> : <IcoChevronLeft />}
           </button>
-        )}
 
-      </aside>
+          {/* Notification slide-out panel */}
+          {notifPanelOpen && (
+            <div
+              ref={notifPanelRef}
+              style={{
+                position: 'fixed',
+                left: sidebarW,
+                bottom: 0,
+                width: 280,
+                background: 'white',
+                borderRadius: '0 12px 0 0',
+                boxShadow: '6px -4px 28px rgba(0,0,0,0.16)',
+                padding: '1.25rem',
+                zIndex: 200,
+                borderTop: '3px solid #f0a500',
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>
+                Notifications
+              </div>
+              {[
+                { label: 'New lead captured', desc: 'Immediate alert when your AI captures a lead.', val: notifyNewLead, field: 'notify_new_lead', set: setNotifyNewLead },
+                { label: 'Daily summary', desc: 'End-of-day digest of calls, leads, referrals.', val: notifyDailySummary, field: 'notify_daily_summary', set: setNotifyDailySummary },
+                { label: 'Weekly report', desc: 'Monday morning overview of the week.', val: notifyWeeklyReport, field: 'notify_weekly_report', set: setNotifyWeeklyReport },
+              ].map((item, i, arr) => (
+                <div key={item.field} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                  paddingBottom: i < arr.length - 1 ? '0.9rem' : 0,
+                  marginBottom: i < arr.length - 1 ? '0.9rem' : 0,
+                  borderBottom: i < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#1a1a1a', marginBottom: '0.15rem' }}>{item.label}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#999', lineHeight: 1.4 }}>{item.desc}</div>
+                  </div>
+                  <Toggle
+                    checked={item.val}
+                    onChange={v => { item.set(v); saveNotification(item.field, v) }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+        </aside>
+      )}
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -472,8 +615,40 @@ const Portal = () => {
           </div>
         )}
 
+        {/* Settings mode header */}
+        {activeTab === 'settings' && (
+          <div style={{ background: 'white', borderBottom: '1px solid rgba(94,59,135,0.08)', padding: '0.75rem 2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+            <IcoGear />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Settings</span>
+            <span style={{ fontSize: '0.8125rem', color: '#ccc' }}>·</span>
+            <button
+              onClick={() => setActiveTab('profile')}
+              style={{ fontSize: '0.8125rem', color: activeTab === 'profile' ? '#5e3b87' : '#888', fontWeight: activeTab === 'profile' ? 600 : 400, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Business Profile
+            </button>
+          </div>
+        )}
+        {activeTab === 'profile' && (
+          <div style={{ background: 'white', borderBottom: '1px solid rgba(94,59,135,0.08)', padding: '0.75rem 2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+            <IcoGear />
+            <button
+              onClick={() => setActiveTab('settings')}
+              style={{ fontSize: '0.8125rem', color: '#888', fontWeight: 400, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Settings
+            </button>
+            <span style={{ fontSize: '0.8125rem', color: '#ccc' }}>›</span>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Business Profile</span>
+          </div>
+        )}
+
         {/* Scrollable page content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '1rem 1rem 5rem' : '2rem' }}>
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: isMobile ? '1rem 1rem 5rem' : '2rem',
+          background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
+        }}>
           <HelpMascot
             activeTab={activeTab}
             businessName={displayName}
