@@ -4,6 +4,16 @@ import { useAuth } from '../context/AuthContext'
 import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
+const useIsMobile = () => {
+  const [m, setM] = useState(window.innerWidth <= 768)
+  useEffect(() => {
+    const h = () => setM(window.innerWidth <= 768)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+  return m
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const fmtDuration = (secs) => {
@@ -327,6 +337,7 @@ const DataAnalytics = ({ onNavigate }) => {
   const isDemo = !!demo?.isDemo
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const isMobile = useIsMobile()
 
   const [loading, setLoading] = useState(true)
   const [tier, setTier] = useState('light')
@@ -504,32 +515,58 @@ const DataAnalytics = ({ onNavigate }) => {
       {/* Headline numbers */}
       {(() => {
         const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
-        const rateBg    = leadRate >= 35 ? '#f0faf5' : leadRate >= 15 ? '#fef9ec' : '#fdecea'
+        const rateBg    = leadRate >= 35 ? '#d1f5e4' : leadRate >= 15 ? '#fef3d0' : '#fee2e2'
         const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
+
+        const bookedCount       = outcomeBreakdown.booked || 0
+        const leadCapturedCount = outcomeBreakdown.lead_captured || 0
+        const referredOutCount  = outcomeBreakdown.referred_out || 0
+        const filteredCount     = (outcomeBreakdown.filtered || 0) + (outcomeBreakdown.spam || 0) + (outcomeBreakdown.hard_close || 0)
+
         return (
-          <div style={s.headlineGrid}>
-            {/* Volume — violet */}
-            <div style={{ ...s.headlineCard, background: '#faf8ff', borderLeft: '4px solid #5e3b87' }}
-              data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated. This is your raw volume — how hard your AI has been working for you.">
-              <div style={s.headlineLabel}>Total calls handled</div>
-              <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
-              <div style={s.headlineSub}>all time</div>
+          <>
+            {/* Row 1 — volume · rate · duration */}
+            <div style={{ ...s.headlineGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
+              <div style={{ ...s.headlineCard, background: '#ede8f8', borderLeft: '4px solid #5e3b87' }}
+                data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated.">
+                <div style={s.headlineLabel}>Total calls handled</div>
+                <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
+                <div style={s.headlineSub}>all time</div>
+              </div>
+              <div style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}` }}
+                data-help="Lead capture rate is the percentage of all calls that resulted in a lead. A healthy rate is 30–50% for most service businesses.">
+                <div style={s.headlineLabel}>Lead capture rate</div>
+                <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
+                <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+              </div>
+              <div style={{ ...s.headlineCard, background: '#dbeafe', borderLeft: '4px solid #1d4ed8' }}
+                data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam.">
+                <div style={s.headlineLabel}>Avg call duration</div>
+                <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
+                <div style={s.headlineSub}>across handled calls</div>
+              </div>
             </div>
-            {/* Lead capture rate — semantic colour */}
-            <div style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}` }}
-              data-help="Lead capture rate is the percentage of all calls that resulted in a lead — meaning the caller gave their details or requested follow-up. A healthy rate is 30–50% for most service businesses. If yours is low, check whether your services list is accurate.">
-              <div style={s.headlineLabel}>Lead capture rate</div>
-              <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
-              <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+
+            {/* Row 2 — outcome breakdown tiles */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: '#ede8f8', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #5e3b87', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#5e3b87', lineHeight: 1, marginBottom: '0.2rem' }}>{bookedCount}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Booked</div>
+              </div>
+              <div style={{ background: '#d1f5e4', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #3db87a', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.2rem' }}>{leadCapturedCount}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads captured</div>
+              </div>
+              <div style={{ background: '#dbeafe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #1d4ed8', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1d4ed8', lineHeight: 1, marginBottom: '0.2rem' }}>{referredOutCount}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referred out</div>
+              </div>
+              <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #cbd5e1', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#64748b', lineHeight: 1, marginBottom: '0.2rem' }}>{filteredCount}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Filtered / spam</div>
+              </div>
             </div>
-            {/* Avg duration — blue (informational) */}
-            <div style={{ ...s.headlineCard, background: '#f5f8ff', borderLeft: '4px solid #1d4ed8' }}
-              data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam. Very long calls may indicate your AI is over-explaining — both are worth investigating.">
-              <div style={s.headlineLabel}>Avg call duration</div>
-              <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
-              <div style={s.headlineSub}>across handled calls</div>
-            </div>
-          </div>
+          </>
         )
       })()}
 
