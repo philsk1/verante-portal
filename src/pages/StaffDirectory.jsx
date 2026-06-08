@@ -42,6 +42,7 @@ export default function StaffDirectory({ onNavigate }) {
   const [adding, setAdding]     = useState(false)
   const [addDraft, setAddDraft] = useState(EMPTY_MEMBER)
   const [addSaving, setAddSaving] = useState(false)
+  const [editingSkills, setEditingSkills] = useState(false)
 
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
@@ -102,6 +103,7 @@ export default function StaffDirectory({ onNavigate }) {
     setSelected(member.id)
     setDraft({ ...member })
     setAdding(false)
+    setEditingSkills(false)
   }
 
   const closeProfile = () => { setSelected(null); setDraft(null) }
@@ -326,89 +328,134 @@ export default function StaffDirectory({ onNavigate }) {
                 <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name || 'Team member'}</div>
                 <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{draft.role || 'No role set'}</div>
               </div>
-              <button onClick={closeProfile} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>×</button>
+              {/* Active toggle — right side of header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: draft.active !== false ? '#3db87a' : '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
+                  {draft.active !== false ? 'Available' : 'Offline'}
+                </span>
+                <button onClick={() => toggleActive(draft)}
+                  style={{ width: 38, height: 22, borderRadius: 11, border: 'none', background: draft.active !== false ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0, padding: 0 }}>
+                  <span style={{ position: 'absolute', top: 2, left: draft.active !== false ? 18 : 2, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
+                </button>
+              </div>
+              <button onClick={closeProfile} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px', marginLeft: '0.25rem' }}>×</button>
             </div>
 
             {/* Panel body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
-              {/* Active toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: '0.6rem 0.85rem', background: '#faf9fc', borderRadius: 8 }}>
-                <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>Active</div>
-                  <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{draft.active !== false ? 'Available for bookings' : 'Not taking bookings'}</div>
-                </div>
-                <button onClick={() => toggleActive(draft)}
-                  style={{ width: 42, height: 24, borderRadius: 12, border: 'none', background: draft.active !== false ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', top: 3, left: draft.active !== false ? 20 : 3, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
-                </button>
-              </div>
-
               {/* Contact section */}
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem', fontFamily: "'DM Sans', sans-serif" }}>Contact</div>
-              {field('name', 'Full name', { required: true })}
-              {field('role', 'Role / title', { placeholder: 'e.g. Senior Stylist' })}
-              {field('phone', 'Mobile phone', { type: 'tel', placeholder: '07700 000000' })}
+              {/* Name + role side by side */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.9rem' }}>
+                <div>
+                  {lbl('Full name', true)}
+                  <input type="text" value={draft.name || ''} placeholder="e.g. Sandra Swift"
+                    onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inp()} />
+                </div>
+                <div>
+                  {lbl('Role / title')}
+                  <input type="text" value={draft.role || ''} placeholder="e.g. Office & Accounts"
+                    onChange={e => setDraft(d => ({ ...d, role: e.target.value }))} style={inp()} />
+                </div>
+              </div>
               {field('email', 'Email address', { type: 'email', placeholder: 'name@example.com' })}
               {field('address', 'Home address', { placeholder: 'Street, City, Postcode' })}
               {field('birthday', 'Birthday', { type: 'date' })}
 
               {/* Professional section */}
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0.85rem 0 0.65rem', fontFamily: "'DM Sans', sans-serif" }}>Professional</div>
-              {/* Tag picker for specialist services */}
+
+              {/* Direct line + mobile side by side */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.9rem' }}>
+                <div>
+                  {lbl('Direct line DID')}
+                  <input type="tel" value={draft.direct_line_did || ''} placeholder="020 7946 0001"
+                    onChange={e => setDraft(d => ({ ...d, direct_line_did: e.target.value }))} style={inp()} />
+                </div>
+                <div>
+                  {lbl('Direct mobile')}
+                  <input type="tel" value={draft.phone || ''} placeholder="07700 000000"
+                    onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} style={inp()} />
+                </div>
+              </div>
+
+              {/* Specialist skills */}
               <div style={{ marginBottom: '0.9rem' }}>
-                {lbl('Specialist services / skills')}
-                {catalogueItems.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.5rem' }}>
-                    {catalogueItems.map(item => {
-                      const active = (draft.specialist_services || []).includes(item.name)
-                      return (
-                        <button key={item.id} onClick={() => {
-                          if (isDemo || isPreview) return
-                          setDraft(d => {
-                            const curr = d.specialist_services || []
-                            return { ...d, specialist_services: active ? curr.filter(n => n !== item.name) : [...curr, item.name] }
-                          })
-                        }}
-                          style={{ padding: '0.22rem 0.6rem', borderRadius: 20, border: 'none', cursor: isDemo || isPreview ? 'default' : 'pointer', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, background: active ? '#5e3b87' : '#f0ebf8', color: active ? 'white' : '#5e3b87', transition: 'all 0.15s' }}>
-                          {item.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", background: '#faf9fc', borderRadius: 8, padding: '0.5rem 0.65rem', marginBottom: '0.5rem' }}>
-                    Add services in Business Profile to enable tag selection.
-                  </div>
-                )}
-                {/* Custom skills not in catalogue */}
-                {(draft.specialist_services || []).filter(s => !catalogueItems.some(c => c.name === s)).map((tag, i) => (
-                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.18rem 0.5rem', borderRadius: 20, background: '#e6f5ee', color: '#1e7a4a', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", marginRight: '0.3rem', marginBottom: '0.3rem' }}>
-                    {tag}
-                    {!isDemo && !isPreview && (
-                      <button onClick={() => setDraft(d => ({ ...d, specialist_services: (d.specialist_services || []).filter(s => s !== tag) }))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e7a4a', fontSize: '0.85rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center' }}>×</button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  {lbl('Specialist services / skills')}
+                  {!isDemo && !isPreview && !editingSkills && (
+                    <button onClick={() => setEditingSkills(true)}
+                      style={{ fontSize: '0.72rem', fontWeight: 600, color: '#5e3b87', background: '#f0ebf8', border: 'none', borderRadius: 6, padding: '0.2rem 0.55rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>
+                      Edit
+                    </button>
+                  )}
+                </div>
+
+                {/* Assigned chips (always visible) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: (draft.specialist_services || []).length > 0 ? '0.4rem' : 0 }}>
+                  {(draft.specialist_services || []).map(tag => {
+                    const isCatalogue = catalogueItems.some(c => c.name === tag)
+                    return (
+                      <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.22rem 0.55rem', borderRadius: 20, background: isCatalogue ? '#f0ebf8' : '#e6f5ee', color: isCatalogue ? '#5e3b87' : '#1e7a4a', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                        {tag}
+                        {(editingSkills || !isDemo) && !isPreview && (
+                          <button onClick={() => setDraft(d => ({ ...d, specialist_services: (d.specialist_services || []).filter(s => s !== tag) }))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '0.9rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', marginLeft: 1 }}>×</button>
+                        )}
+                      </span>
+                    )
+                  })}
+                  {(draft.specialist_services || []).length === 0 && !editingSkills && (
+                    <span style={{ fontSize: '0.78rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif" }}>None assigned</span>
+                  )}
+                </div>
+
+                {/* Edit panel */}
+                {editingSkills && (
+                  <div style={{ background: '#faf9fc', borderRadius: 10, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.12)', marginTop: '0.35rem' }}>
+                    {catalogueItems.length > 0 ? (
+                      <>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Add service</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.65rem' }}>
+                          {catalogueItems.filter(c => !(draft.specialist_services || []).includes(c.name)).map(item => (
+                            <button key={item.id} onClick={() => setDraft(d => ({ ...d, specialist_services: [...(d.specialist_services || []), item.name] }))}
+                              style={{ padding: '0.22rem 0.6rem', borderRadius: 20, border: '1.5px dashed rgba(94,59,135,0.3)', background: 'white', color: '#5e3b87', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500 }}>
+                              + {item.name}
+                            </button>
+                          ))}
+                          {catalogueItems.every(c => (draft.specialist_services || []).includes(c.name)) && (
+                            <span style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>All catalogue services assigned</span>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.65rem' }}>
+                        Add services in Business Profile to enable quick selection here.
+                      </div>
                     )}
-                  </span>
-                ))}
-                {!isDemo && !isPreview && (
-                  <input type="text" placeholder="+ custom skill, press Enter"
-                    style={{ ...inp(), fontSize: '0.78rem', marginTop: '0.25rem' }}
-                    onKeyDown={e => {
-                      if (e.key !== 'Enter') return
-                      const val = e.target.value.trim()
-                      if (!val) return
-                      setDraft(d => {
-                        const curr = d.specialist_services || []
-                        if (curr.includes(val)) return d
-                        return { ...d, specialist_services: [...curr, val] }
-                      })
-                      e.target.value = ''
-                      e.preventDefault()
-                    }}
-                  />
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Custom skill</div>
+                    <input type="text" placeholder="Type a skill and press Enter"
+                      style={{ ...inp({ fontSize: '0.78rem', marginBottom: '0.65rem' }) }}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const val = e.target.value.trim()
+                        if (!val) return
+                        setDraft(d => {
+                          const curr = d.specialist_services || []
+                          if (curr.includes(val)) return d
+                          return { ...d, specialist_services: [...curr, val] }
+                        })
+                        e.target.value = ''
+                        e.preventDefault()
+                      }}
+                    />
+                    <button onClick={() => setEditingSkills(false)}
+                      style={{ padding: '0.35rem 0.85rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      Done
+                    </button>
+                  </div>
                 )}
               </div>
-              {field('direct_line_did', 'Direct line DID', { type: 'tel', placeholder: '020 7946 0001' })}
 
               {/* Private notes */}
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0.85rem 0 0.65rem', fontFamily: "'DM Sans', sans-serif" }}>Private notes</div>

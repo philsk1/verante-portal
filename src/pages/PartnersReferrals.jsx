@@ -234,7 +234,8 @@ const PartnersReferrals = ({ onNavigate }) => {
   // Show invite modal when referrals exist
   useEffect(() => {
     if (loading || outboundTotal === 0) return
-    if (localStorage.getItem('qx_partner_invite_dismissed')) return
+    const snooze = localStorage.getItem('qx_partner_invite_snoozed')
+    if (snooze && Date.now() < parseInt(snooze, 10)) return
     const t = setTimeout(() => {
       setShowInviteModal(true)
       pulseTimerRef.current = setTimeout(() => {
@@ -552,14 +553,12 @@ const PartnersReferrals = ({ onNavigate }) => {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowInviteModal(false)}
-                style={{ padding: '0.35rem 0.85rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Send later
-              </button>
-              <button onClick={() => { localStorage.setItem('qx_partner_invite_dismissed', '1'); setShowInviteModal(false) }}
-                style={{ padding: '0.35rem 0.85rem', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: 'rgba(255,255,255,0.3)', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Don't show again
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => {
+                localStorage.setItem('qx_partner_invite_snoozed', String(Date.now() + 14 * 24 * 60 * 60 * 1000))
+                setShowInviteModal(false)
+              }} style={{ padding: '0.35rem 0.85rem', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: 'rgba(255,255,255,0.35)', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Remind me in 2 weeks
               </button>
             </div>
           </div>
