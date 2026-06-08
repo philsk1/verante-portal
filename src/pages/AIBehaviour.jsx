@@ -503,6 +503,10 @@ const AIBehaviour = ({ onNavigate }) => {
   const [salesHandling, setSalesHandling] = useState(true)
   const [autodialerDetection, setAutodialerDetection] = useState(true)
 
+  // SMS follow-up
+  const [smsFollowupEnabled, setSmsFollowupEnabled] = useState(false)
+  const [smsFollowupMessage, setSmsFollowupMessage] = useState('')
+
   // New settings
   const [toneRegister, setToneRegister] = useState('warm')
   const [businessOutcomeType, setBusinessOutcomeType] = useState('quote')
@@ -569,7 +573,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -581,6 +585,8 @@ const AIBehaviour = ({ onNavigate }) => {
           setSpamFilter(tenant.spam_filter_enabled !== false)
           setSalesHandling(tenant.sales_call_handling !== false)
           setAutodialerDetection(tenant.autodialler_detection !== false)
+          setSmsFollowupEnabled(tenant.sms_followup_enabled || false)
+          setSmsFollowupMessage(tenant.sms_followup_message || '')
           setToneRegister(tenant.tone_register || 'warm')
           setBusinessOutcomeType(tenant.business_outcome_type || 'quote')
           setCustomOutcomeText(tenant.custom_outcome_text || '')
@@ -666,6 +672,7 @@ const AIBehaviour = ({ onNavigate }) => {
       booking_buffer_mins: bookingBufferMins,
       booking_confirmation_window_mins: bookingConfirmationWindowMins,
       overage_voice_preference: overageVoicePref,
+      sms_followup_message: smsFollowupMessage.trim() || null,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -1103,6 +1110,42 @@ const AIBehaviour = ({ onNavigate }) => {
           checked={salesHandling} onChange={v => { setSalesHandling(v); saveToggle('sales_call_handling', v) }} />
         <ToggleRow label="Autodialler detection" desc="Detect autodialler patterns and end the call before your AI engages."
           checked={autodialerDetection} onChange={v => { setAutodialerDetection(v); saveToggle('autodialler_detection', v) }} last />
+      </div>
+
+      {/* Lead Follow-up SMS */}
+      <div style={s.section} data-help="When SMS follow-up is on, your AI texts every captured lead within seconds of the call ending. The caller knows immediately that their enquiry was received. Leave the message blank to use the auto-generated version.">
+        <h3 style={s.sectionTitle}>Lead Follow-up</h3>
+        <p style={s.sectionSubtitle}>Send an automatic SMS to every caller whose lead is captured — confirms receipt instantly.</p>
+        <ToggleRow
+          label="SMS follow-up to leads"
+          desc="Text the caller within seconds of hanging up. Uses your Qerxel number."
+          checked={smsFollowupEnabled}
+          onChange={v => { setSmsFollowupEnabled(v); saveToggle('sms_followup_enabled', v) }}
+          last={!smsFollowupEnabled}
+        />
+        {smsFollowupEnabled && (
+          <div style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+            <label style={s.label}>Message template <span style={{ color: '#bbb', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — leave blank for auto-generated)</span></label>
+            <textarea
+              value={smsFollowupMessage}
+              onChange={e => setSmsFollowupMessage(e.target.value)}
+              placeholder={`Hi [name], thanks for calling [business]. [owner] will be in touch shortly.`}
+              maxLength={160}
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: '8px',
+                padding: '0.6rem 0.75rem', fontSize: '0.825rem',
+                fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a',
+                resize: 'vertical', outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.35rem' }}>
+              <span style={s.hint}>Keep under 160 characters for a single SMS.</span>
+              <span style={{ fontSize: '0.75rem', color: smsFollowupMessage.length > 140 ? '#f0a500' : '#bbb' }}>{smsFollowupMessage.length}/160</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Number Blocking */}

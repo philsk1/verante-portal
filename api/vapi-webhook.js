@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, email80pct, emailExhausted, emailDailyCost } from './_emails.js'
+import { sendSms } from './_sms.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -87,7 +88,7 @@ export default async function handler(req, res) {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id')
+    .select('id, business_name, business_email, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id, lead_contact_name, callback_preference_note, booking_link, sms_followup_enabled, sms_followup_message')
     .eq('vapi_assistant_id', assistantId)
     .maybeSingle()
 
@@ -156,6 +157,18 @@ export default async function handler(req, res) {
       lead_contact_name: analysis.structuredData?.caller_name || null,
       status:            'new',
     })
+
+    // SMS follow-up — confirmation text to caller seconds after the call
+    if (callerNumber && tenant.sms_followup_enabled) {
+      const name      = callerName || 'there'
+      const biz       = tenant.business_name || 'us'
+      const owner     = tenant.lead_contact_name || 'We'
+      const timeframe = tenant.callback_preference_note || 'shortly'
+      const bookingP  = tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''
+      const message   = tenant.sms_followup_message?.trim()
+        || `Hi ${name}, thanks for calling ${biz}. ${owner} will be in touch ${timeframe}.${bookingP}`
+      await sendSms({ to: callerNumber, message })
+    }
 
     // WhatsApp follow-up — fire if tenant has WhatsApp connected + enabled
     const callerPhone = call?.customer?.number
