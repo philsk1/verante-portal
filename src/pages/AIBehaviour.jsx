@@ -517,6 +517,7 @@ const AIBehaviour = ({ onNavigate }) => {
   // Urgent callback
   const [urgentCallbackMins, setUrgentCallbackMins] = useState(60)
   const [urgentEscalationMethod, setUrgentEscalationMethod] = useState('both')
+  const [urgentOutcomes, setUrgentOutcomes] = useState(['escalated'])
 
   // Greeting generator
   const [businessName, setBusinessName] = useState('')
@@ -573,7 +574,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -603,6 +604,7 @@ const AIBehaviour = ({ onNavigate }) => {
           setBookingBufferMins(tenant.booking_buffer_mins ?? 30)
           setBookingConfirmationWindowMins(tenant.booking_confirmation_window_mins ?? 120)
           setOverageVoicePref(tenant.overage_voice_preference || 'premium')
+          setUrgentOutcomes(Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0 ? tenant.urgent_outcomes : ['escalated'])
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
               ? tenant.emergency_keywords
@@ -666,6 +668,7 @@ const AIBehaviour = ({ onNavigate }) => {
       additional_instructions: additionalInstructions.trim() || null,
       urgent_callback_mins: urgentCallbackMins,
       urgent_escalation_method: urgentEscalationMethod,
+      urgent_outcomes: urgentOutcomes,
       provisional_booking_enabled: provisionalBookingEnabled,
       provisional_booking_rule: provisionalBookingRule.trim() || null,
       booking_slots_to_offer: bookingSlotsToOffer,
@@ -949,6 +952,40 @@ const AIBehaviour = ({ onNavigate }) => {
               placeholder="e.g. after 3pm same day"
             />
           </div>
+        </div>
+
+        {/* Row 3b: Urgent outcomes for Listen inbox */}
+        <div style={{ marginBottom: '1rem' }} data-help="Choose which call types appear in the Urgent tab of your Listen inbox. Escalated means the caller said it was urgent. You can also flag bookings or leads as urgent so they surface immediately.">
+          <label style={{ ...s.label, marginBottom: '0.5rem' }}>What counts as Urgent in your Listen inbox?</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            {[
+              { id: 'escalated',     label: 'Escalated calls' },
+              { id: 'booked',        label: 'Bookings' },
+              { id: 'lead_captured', label: 'Leads captured' },
+              { id: 'referred_out',  label: 'Referred out' },
+            ].map(opt => {
+              const on = urgentOutcomes.includes(opt.id)
+              const toggle = () => setUrgentOutcomes(prev =>
+                on ? prev.filter(x => x !== opt.id) : [...prev, opt.id]
+              )
+              return (
+                <button key={opt.id} onClick={toggle} style={{
+                  padding: '0.3rem 0.75rem', borderRadius: '999px', border: `1.5px solid ${on ? '#b91c1c' : 'rgba(94,59,135,0.15)'}`,
+                  background: on ? '#fef2f2' : 'white', color: on ? '#b91c1c' : '#888',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: on ? 600 : 400,
+                  cursor: 'pointer', transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: '0.35rem',
+                }}>
+                  {on && <span style={{ fontSize: '0.7rem' }}>●</span>}
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+          {urgentOutcomes.length === 0 && (
+            <div style={{ fontSize: '0.72rem', color: '#f59e0b', marginTop: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
+              Nothing selected — your Urgent tab will always be empty.
+            </div>
+          )}
         </div>
 
         {/* Row 4: Overage voice — 2 col */}

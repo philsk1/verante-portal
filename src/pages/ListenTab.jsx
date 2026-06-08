@@ -109,7 +109,7 @@ const FlagIcon = ({ active }) => (
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ListenTab({ prefill, onPrefillConsumed }) {
+export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes = ['escalated'] }) {
   const { user }   = useAuth()
   const preview    = usePreview()
   const demo       = useDemo()
@@ -187,15 +187,18 @@ export default function ListenTab({ prefill, onPrefillConsumed }) {
     if (transcriptRef.current) transcriptRef.current.scrollTop = 0
   }, [selected?.id])
 
-  // ── Auto-advance to first populated tab if Urgent is empty ──────────────────
+  // ── Auto-advance to first populated tab if current is empty ──────────────────
   useEffect(() => {
     if (loading || calls.length === 0 || prefill?.callId) return
+    const getCount = (t) => t.id === 'urgent'
+      ? calls.filter(c => urgentOutcomes.includes(c.call_outcome)).length
+      : calls.filter(t.filter).length
     const currentTabDef = TABS.find(t => t.id === activeTab)
-    if (currentTabDef && calls.filter(currentTabDef.filter).length === 0) {
-      const firstPopulated = TABS.find(t => calls.filter(t.filter).length > 0)
+    if (currentTabDef && getCount(currentTabDef) === 0) {
+      const firstPopulated = TABS.find(t => getCount(t) > 0)
       if (firstPopulated) setActiveTab(firstPopulated.id)
     }
-  }, [loading, calls])
+  }, [loading, calls, urgentOutcomes])
 
   // ── Flag toggle ──────────────────────────────────────────────────────────────
   const toggleFlag = async (callId, e) => {
@@ -211,8 +214,10 @@ export default function ListenTab({ prefill, onPrefillConsumed }) {
   }
 
   // ── Filtered list for active tab ─────────────────────────────────────────────
+  const urgentFilter = c => urgentOutcomes.includes(c.call_outcome)
   const tabDef   = TABS.find(t => t.id === activeTab)
-  const tabCalls = calls.filter(tabDef.filter)
+  const effectiveFilter = activeTab === 'urgent' ? urgentFilter : tabDef.filter
+  const tabCalls = calls.filter(effectiveFilter)
   const visible  = activeTab === 'log' && search
     ? tabCalls.filter(c => {
         const q = search.toLowerCase()
@@ -224,7 +229,11 @@ export default function ListenTab({ prefill, onPrefillConsumed }) {
     : tabCalls
 
   const tabCounts = {}
-  TABS.forEach(t => { tabCounts[t.id] = calls.filter(t.filter).length })
+  TABS.forEach(t => {
+    tabCounts[t.id] = t.id === 'urgent'
+      ? calls.filter(urgentFilter).length
+      : calls.filter(t.filter).length
+  })
 
   return (
     <div data-help="Listen — your AI call triage inbox. Urgent and unhandled calls surface at the top. Flag any call to add it to your personal Call Back list. The Call Log at the end is the full searchable archive."

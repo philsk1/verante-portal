@@ -26,15 +26,15 @@ const IcoChevron = ({ dir }) => <svg width="14" height="14" viewBox="0 0 24 24" 
 const IcoListen   = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
 
 const NAV = [
-  { id: 'profile',   label: 'Business Profile',    icon: <IcoUser /> },
-  { id: 'ai',        label: 'AI Behaviour',         icon: <IcoBot /> },
   { id: 'dashboard', label: 'Dashboard',            icon: <IcoGrid /> },
   { id: 'analytics', label: 'Analytics',            icon: <IcoChart /> },
+  { id: 'ai',        label: 'AI Behaviour',         icon: <IcoBot /> },
   { id: 'referrals', label: 'Partners & Referrals', icon: <IcoPartner /> },
+  { id: 'team',      label: 'Team',                 icon: <IcoPeople /> },
   { id: 'listen',    label: 'Listen',               icon: <IcoListen /> },
   { id: 'calendar',  label: 'Calendar',             icon: <IcoCalendar /> },
-  { id: 'team',      label: 'Team',                 icon: <IcoPeople /> },
   { id: 'account',   label: 'Account',              icon: <IcoGear /> },
+  { id: 'profile',   label: 'Business Profile',     icon: <IcoUser /> },
 ]
 
 const DemoPortalInner = ({ businessId }) => {

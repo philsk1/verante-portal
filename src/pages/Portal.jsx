@@ -132,6 +132,14 @@ const IcoPeople = () => (
   </svg>
 )
 
+const IcoBuilding = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M3 21h18"/>
+    <path d="M5 21V7l7-4 7 4v14"/>
+    <path d="M9 21v-6h6v6"/>
+  </svg>
+)
+
 const IcoListen = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -202,6 +210,7 @@ const Portal = () => {
   const [baseTier, setBaseTier] = useState('light')
   const [demoInitialising, setDemoInitialising] = useState(false)
   const [triageMode, setTriageMode] = useState('balanced')
+  const [urgentOutcomes, setUrgentOutcomes] = useState(['escalated'])
   const [uncontactedCount, setUncontactedCount] = useState(0)
 
   const navigate = useNavigate()
@@ -237,7 +246,7 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode, urgent_outcomes')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
@@ -250,6 +259,7 @@ const Portal = () => {
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
         setBaseTier(tenant.subscription_tier || 'light')
         setTriageMode(tenant.triage_mode || 'balanced')
+        setUrgentOutcomes(Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0 ? tenant.urgent_outcomes : ['escalated'])
         if (tenant.is_demo) preview.setIsDemo(true)
       }
 
@@ -375,7 +385,8 @@ const Portal = () => {
       dot: null,
       dividerOnly: true,
       tabs: [
-        { id: 'integrations', label: 'Integrations', icon: <IcoIntegrations /> },
+        { id: 'integrations', label: 'Integrations',      icon: <IcoIntegrations /> },
+        { id: 'profile',      label: 'Business Profile',  icon: <IcoBuilding /> },
       ],
     },
   ]
@@ -394,7 +405,7 @@ const Portal = () => {
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
-      case 'listen': return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} />
+      case 'listen': return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} urgentOutcomes={urgentOutcomes} />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
           <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Coming soon.</p>
