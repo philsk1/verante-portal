@@ -216,12 +216,11 @@ export default async function handler(req, res) {
     if (partnerName) {
       const { data: partner } = await supabase
         .from('referral_partners').select('id')
-        .eq('tenant_id', tenantId).ilike('business_name', `%${partnerName}%`).maybeSingle()
+        .eq('tenant_id', tenantId).ilike('partner_name', `%${partnerName}%`).maybeSingle()
       if (partner) {
         await supabase.from('referral_log').insert({
-          tenant_id:   tenantId,
-          partner_id:  partner.id,
-          call_log_id: callLog?.id || null,
+          tenant_id:  tenantId,
+          partner_id: partner.id,
         })
       }
     }

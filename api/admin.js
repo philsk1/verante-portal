@@ -310,10 +310,10 @@ export default async function handler(req, res) {
 
         if (biz.partners.length) {
           const { data: insertedPartners } = await supabase.from('referral_partners')
-            .insert(biz.partners.map(p => ({ ...p, tenant_id: tid, agreed: true }))).select('id')
+            .insert(biz.partners.map(p => ({ partner_name: p.business_name || p.partner_name, contact_phone: p.business_phone || p.contact_phone || null, tenant_id: tid }))).select('id')
           if (insertedPartners?.length) {
             seedOps.push(supabase.from('referral_log').insert(
-              Array.from({ length: 5 }, (_, j) => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString(), caller_name: `Demo Caller ${j + 1}`, reason: 'Caller out of scope — referred to network partner' }))
+              Array.from({ length: 5 }, (_, j) => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString() }))
             ))
           }
         }
