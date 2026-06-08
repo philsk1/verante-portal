@@ -61,7 +61,7 @@ function parseTranscript(raw) {
   return bubbles.length >= 2 ? bubbles : null
 }
 
-export default function ListenTab() {
+export default function ListenTab({ prefill, onPrefillConsumed }) {
   const { user }  = useAuth()
   const preview   = usePreview()
   const demo      = useDemo()
@@ -120,6 +120,17 @@ export default function ListenTab() {
     }
     load()
   }, [user, isPreview])
+
+  // Auto-select call when navigated from lead modal
+  useEffect(() => {
+    if (!prefill?.callId || calls.length === 0) return
+    const match = calls.find(c => c.id === prefill.callId)
+    if (match) {
+      setSelected(match)
+      setFilter('all')
+      onPrefillConsumed?.()
+    }
+  }, [prefill?.callId, calls])
 
   // Scroll transcript to top on selection change
   useEffect(() => {

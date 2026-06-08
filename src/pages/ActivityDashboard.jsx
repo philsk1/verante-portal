@@ -1939,6 +1939,13 @@ const ActivityDashboard = ({ onNavigate }) => {
                   style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                   Book appointment
                 </button>
+                {lead.call_log_id && onNavigate && (
+                  <button
+                    onClick={() => { setSelectedLead(null); onNavigate('listen', { callId: lead.call_log_id }) }}
+                    style={{ padding: '0.5rem 1rem', border: '1px solid rgba(61,184,122,0.35)', borderRadius: 8, background: '#f0fdf4', color: '#1e7a4a', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    View transcript
+                  </button>
+                )}
                 {connectedIntegrations.has('freeagent') && <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />}
                 {connectedIntegrations.has('xero') && <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />}
                 {connectedIntegrations.has('stripe') && <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />}

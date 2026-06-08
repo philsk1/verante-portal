@@ -188,6 +188,7 @@ const Portal = () => {
   const [isOwner, setIsOwner] = useState(false)
   const [allTenants, setAllTenants] = useState([])
   const [calendarPrefill, setCalendarPrefill] = useState(null)
+  const [listenPrefill, setListenPrefill]     = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [hoveredNav, setHoveredNav] = useState(null)
 
@@ -209,6 +210,8 @@ const Portal = () => {
     setActiveTab(tabId)
     if (tabId === 'calendar' && prefillData) setCalendarPrefill(prefillData)
     else setCalendarPrefill(null)
+    if (tabId === 'listen' && prefillData?.callId) setListenPrefill(prefillData)
+    else if (tabId !== 'listen') setListenPrefill(null)
   }
 
   const TAB_CONTEXT = {
@@ -390,7 +393,7 @@ const Portal = () => {
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
-      case 'listen': return <ListenTab />
+      case 'listen': return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
           <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Coming soon.</p>
