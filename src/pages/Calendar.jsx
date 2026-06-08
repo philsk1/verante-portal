@@ -388,6 +388,203 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
   )
 }
 
+// ─── Booking rules tab ───────────────────────────────────────────────────────
+function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview }) {
+  // edits: { [id]: { apply_minutes, processing_minutes, overlap_start_mins, overlap_end_mins } }
+  const [edits, setEdits] = useState({})
+  const [saving, setSaving] = useState(null)
+  const [saved, setSaved]   = useState(null)
+
+  // Initialise edits from catalogue prop
+  useEffect(() => {
+    const initial = {}
+    for (const s of catalogue) {
+      initial[s.id] = {
+        apply_minutes:     s.apply_minutes     ?? 0,
+        processing_minutes: s.processing_minutes ?? 0,
+        overlap_start_mins: s.overlap_start_mins ?? 0,
+        overlap_end_mins:   s.overlap_end_mins   ?? 0,
+      }
+    }
+    setEdits(initial)
+  }, [catalogue])
+
+  const step = (id, field, delta) => {
+    setEdits(prev => {
+      const cur = prev[id] || {}
+      return { ...prev, [id]: { ...cur, [field]: Math.max(0, (cur[field] ?? 0) + delta) } }
+    })
+  }
+
+  const save = async (id) => {
+    if (isDemo || isPreview || !tenantId) return
+    setSaving(id)
+    const e = edits[id] || {}
+    const service = catalogue.find(c => c.id === id)
+    // Derive total duration: apply + process + finish
+    // finish = original duration - apply - process (floor at 0)
+    const applyMins    = e.apply_minutes || 0
+    const processMins  = e.processing_minutes || 0
+    const originalTotal = service?.duration_minutes || 0
+    const finishMins   = Math.max(0, originalTotal - applyMins - processMins)
+    const newTotal     = applyMins + processMins + finishMins
+    await supabase.from('catalogue_items').update({
+      apply_minutes:      applyMins || null,
+      processing_minutes: processMins || null,
+      overlap_start_mins: e.overlap_start_mins ?? 0,
+      overlap_end_mins:   e.overlap_end_mins   ?? 0,
+      duration_minutes:   newTotal > 0 ? newTotal : (originalTotal || null),
+    }).eq('id', id)
+    setSaving(null)
+    setSaved(id)
+    setTimeout(() => setSaved(s => s === id ? null : s), 2000)
+  }
+
+  const stepBtn = { width: 26, height: 26, border: '1px solid rgba(94,59,135,0.25)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '1rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }
+
+  const Stepper = ({ id, field, label, min = 0 }) => {
+    const val = edits[id]?.[field] ?? 0
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#555', width: 58, flexShrink: 0 }}>{label}</span>
+        <button onClick={() => step(id, field, -5)} style={stepBtn}>−</button>
+        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{val}</span>
+        <button onClick={() => step(id, field, +5)} style={stepBtn}>+</button>
+        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min</span>
+      </div>
+    )
+  }
+
+  const splitServices = catalogue.filter(s => (edits[s.id]?.processing_minutes || s.processing_minutes || 0) > 0)
+  const plainServices = catalogue.filter(s => !((edits[s.id]?.processing_minutes || s.processing_minutes || 0) > 0))
+
+  return (
+    <div style={{ maxWidth: 700 }}>
+      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', color: '#666', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+        For services with a <strong>process phase</strong> (colour, dye, treatments) you can define how your AI handles booking overlap — letting you serve another client while the first client waits. Set apply → process → finish times, then configure the overlap window within the process phase.
+      </div>
+
+      {/* ── Split services ──────────────────────────────────────────────────── */}
+      {splitServices.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+            Multi-phase services
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {splitServices.map(s => {
+              const e = edits[s.id] || {}
+              const apply = e.apply_minutes || 0
+              const process = e.processing_minutes || 0
+              const original = s.duration_minutes || 0
+              const finish = Math.max(0, original - apply - process)
+              const overlapWindow = Math.max(0, process - e.overlap_start_mins - e.overlap_end_mins)
+              return (
+                <div key={s.id} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.15)', padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a' }}>{s.name}</div>
+                      {s.category && <div style={{ fontSize: '0.72rem', color: '#888', marginTop: 2 }}>{s.category}</div>}
+                    </div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87' }}>
+                      {apply + process + finish} min total
+                    </div>
+                  </div>
+
+                  {/* Phase steppers */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(94,59,135,0.07)' }}>
+                    <Stepper id={s.id} field="apply_minutes"     label="Apply" />
+                    <Stepper id={s.id} field="processing_minutes" label="Process" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#555', width: 58 }}>Finish</span>
+                      <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#aaa', paddingLeft: 8 }}>{finish} min</span>
+                      <span style={{ fontSize: '0.72rem', color: '#bbb', marginLeft: 4, fontFamily: "'DM Sans', sans-serif" }}>(remainder)</span>
+                    </div>
+                  </div>
+
+                  {/* Overlap window */}
+                  <div style={{ marginBottom: '0.85rem' }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.8rem', color: '#5e3b87', marginBottom: 6 }}>
+                      Overlap window <span style={{ fontWeight: 400, color: '#888' }}>— within the {process} min process phase</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 160, flexShrink: 0 }}>New client starts after</span>
+                        <button onClick={() => step(s.id, 'overlap_start_mins', -5)} style={stepBtn}>−</button>
+                        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{e.overlap_start_mins ?? 0}</span>
+                        <button onClick={() => step(s.id, 'overlap_start_mins', +5)} style={stepBtn}>+</button>
+                        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 160, flexShrink: 0 }}>Must finish</span>
+                        <button onClick={() => step(s.id, 'overlap_end_mins', -5)} style={stepBtn}>−</button>
+                        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{e.overlap_end_mins ?? 0}</span>
+                        <button onClick={() => step(s.id, 'overlap_end_mins', +5)} style={stepBtn}>+</button>
+                        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min before finish</span>
+                      </div>
+                    </div>
+                    {overlapWindow > 0 ? (
+                      <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.25)', borderRadius: 6, padding: '0.4rem 0.65rem' }}>
+                        ✓ {overlapWindow} min overlap window — AI can schedule another client during this phase
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>
+                        No overlap — set start/finish buffers smaller than the process time to allow booking during processing
+                      </div>
+                    )}
+                  </div>
+
+                  <button onClick={() => save(s.id)} disabled={saving === s.id}
+                    style={{ padding: '0.35rem 1rem', background: saved === s.id ? '#3db87a' : '#f0a500', color: saved === s.id ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s', opacity: saving === s.id ? 0.7 : 1 }}>
+                    {saved === s.id ? '✓ Saved' : saving === s.id ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Standard services — can be promoted to split ─────────────────────── */}
+      {plainServices.length > 0 && (
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+            Standard services
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {plainServices.map(s => {
+              const e = edits[s.id] || {}
+              return (
+                <div key={s.id} style={{ background: 'white', borderRadius: 10, border: '0.5px solid rgba(94,59,135,0.1)', padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                  <div>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a' }}>{s.name}</span>
+                    {s.duration_minutes > 0 && <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{s.duration_minutes} min</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>Add process time:</span>
+                    <Stepper id={s.id} field="processing_minutes" label="" />
+                    {(e.processing_minutes || 0) > 0 && (
+                      <button onClick={() => save(s.id)} disabled={saving === s.id}
+                        style={{ padding: '0.25rem 0.65rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                        {saving === s.id ? '…' : saved === s.id ? '✓' : 'Save'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {catalogue.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem' }}>
+          No services in your catalogue yet. Add them in Business Profile → Services & Products, then configure booking rules here.
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Calendar settings tab ────────────────────────────────────────────────────
 function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
   const [bufferMins, setBufferMins] = useState(15)
@@ -681,7 +878,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     if (!demo?.isDemo || demo.loading) return
     setStaff(demo.staff || [])
     setEvents((demo.appointments || []).map(toEvent))
-    setCatalogue([])
+    setCatalogue((demo.services || []).map(s => ({ ...s, apply_minutes: s.apply_minutes ?? 0, overlap_start_mins: s.overlap_start_mins ?? 0, overlap_end_mins: s.overlap_end_mins ?? 0 })))
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
@@ -705,7 +902,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         const [apptRes, staffRes, catRes] = await Promise.all([
           supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time'),
           supabase.from('staff_profiles').select('id, name, role, colour, skills').eq('tenant_id', tenantId).eq('active', true).order('name'),
-          supabase.from('catalogue_items').select('id, name, category, duration_minutes, processing_minutes, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('catalogue_items').select('id, name, category, duration_minutes, processing_minutes, apply_minutes, overlap_start_mins, overlap_end_mins, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         setEvents((apptRes.data || []).map(toEvent))
         setStaff(staffRes.data || [])
@@ -775,10 +972,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff
   const resources = useMemo(() => {
     if (!teamMode || staff.length === 0 || staffFilter) return undefined
-    return [
-      { id: 'unassigned', title: 'Unassigned' },
-      ...staff.map(s => ({ id: s.id, title: s.name })),
-    ]
+    // Unassigned column removed — all bookings require a staff member
+    return staff.map(s => ({ id: s.id, title: s.name }))
   }, [teamMode, staff, staffFilter])
   const visibleEvents = staffFilter
     ? events.filter(e => e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
@@ -1325,6 +1520,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const subTabs = [
     { id: 'appointments', label: 'Appointments' },
     { id: 'schedules', label: 'Staff schedules' },
+    { id: 'booking-rules', label: 'Booking rules' },
     { id: 'settings', label: 'Settings' },
   ]
 
@@ -1461,6 +1657,11 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       {/* ── Staff schedules sub-tab ──────────────────────────────────────────── */}
       {activeSubTab === 'schedules' && (
         <StaffScheduleTab tenantId={tenantId} staff={staff} isDemo={isDemo} isPreview={isPreview} />
+      )}
+
+      {/* ── Booking rules sub-tab ────────────────────────────────────────────── */}
+      {activeSubTab === 'booking-rules' && (
+        <BookingRulesTab tenantId={tenantId} catalogue={catalogue} isDemo={isDemo} isPreview={isPreview} />
       )}
 
       {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}

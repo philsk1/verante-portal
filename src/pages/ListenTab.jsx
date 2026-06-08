@@ -123,26 +123,26 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const [selected, setSelected]   = useState(null)
   const [search, setSearch]       = useState('')
   const transcriptRef             = useRef(null)
+  // Persists callback flags set this session — never wiped by reloads
+  const localFlagsRef             = useRef(new Map())
 
   // ── Demo load ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
     const raw = demo.calls || []
-    setCalls(prev => {
-      // Preserve any callback_flagged toggles the user made locally this session
-      const localFlags = new Map(prev.map(c => [c.id, c.callback_flagged]))
-      return raw.map(c => ({
-        id:               c.id,
-        created_at:       c.created_at,
-        duration_seconds: c.duration_seconds,
-        call_outcome:     c.call_outcome,
-        ai_summary:       c.ai_summary,
-        caller_phone:     c.callers?.phone_number || c.caller_number || null,
-        caller_name:      c.caller_name || null,
-        transcript:       c.transcript || null,
-        callback_flagged: localFlags.has(c.id) ? localFlags.get(c.id) : (c.callback_flagged || false),
-      }))
-    })
+    setCalls(raw.map(c => ({
+      id:               c.id,
+      created_at:       c.created_at,
+      duration_seconds: c.duration_seconds,
+      call_outcome:     c.call_outcome,
+      ai_summary:       c.ai_summary,
+      caller_phone:     c.callers?.phone_number || c.caller_number || null,
+      caller_name:      c.caller_name || null,
+      transcript:       c.transcript || null,
+      callback_flagged: localFlagsRef.current.has(c.id)
+        ? localFlagsRef.current.get(c.id)
+        : (c.callback_flagged || false),
+    })))
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
@@ -167,19 +167,18 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           .eq('tenant_id', tid)
           .order('created_at', { ascending: false })
           .limit(200)
-        setCalls(prev => {
-          const localFlags = new Map(prev.map(c => [c.id, c.callback_flagged]))
-          return (data || []).map(c => ({
-            ...c,
-            callback_flagged: localFlags.has(c.id) ? localFlags.get(c.id) : (c.callback_flagged || false),
-          }))
-        })
+        setCalls((data || []).map(c => ({
+          ...c,
+          callback_flagged: localFlagsRef.current.has(c.id)
+            ? localFlagsRef.current.get(c.id)
+            : (c.callback_flagged || false),
+        })))
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [user, isPreview])
+  }, [user?.id, isPreview])
 
   // ── Prefill: navigate from Dashboard "View transcript" ───────────────────────
   useEffect(() => {
@@ -218,6 +217,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
     const call = calls.find(c => c.id === callId)
     if (!call) return
     const next = !call.callback_flagged
+    localFlagsRef.current.set(callId, next)
     setCalls(prev => prev.map(c => c.id === callId ? { ...c, callback_flagged: next } : c))
     if (selected?.id === callId) setSelected(s => ({ ...s, callback_flagged: next }))
     if (!isDemo && !isPreview && tenantId) {
