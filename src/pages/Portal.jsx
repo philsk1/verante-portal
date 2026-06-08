@@ -428,20 +428,22 @@ const Portal = () => {
   const sidebarW = sidebarCollapsed ? 60 : 260
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
       <style>{`@keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }`}</style>
 
       {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
       {!isMobile && (
         <aside style={{
-          position: 'relative',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
           width: sidebarW,
           background: '#5e3b87',
           display: 'flex',
           flexDirection: 'column',
           transition: 'width 0.22s ease',
           overflow: 'hidden',
-          flexShrink: 0,
           zIndex: 10,
         }}>
 
@@ -793,7 +795,7 @@ const Portal = () => {
       )}
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{ marginLeft: isMobile ? 0 : sidebarW, transition: 'margin-left 0.22s ease', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
         {/* Demo banner */}
         {preview.isDemo && (

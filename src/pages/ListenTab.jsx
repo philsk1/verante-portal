@@ -167,7 +167,13 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           .eq('tenant_id', tid)
           .order('created_at', { ascending: false })
           .limit(200)
-        setCalls(data || [])
+        setCalls(prev => {
+          const localFlags = new Map(prev.map(c => [c.id, c.callback_flagged]))
+          return (data || []).map(c => ({
+            ...c,
+            callback_flagged: localFlags.has(c.id) ? localFlags.get(c.id) : (c.callback_flagged || false),
+          }))
+        })
       } finally {
         setLoading(false)
       }
