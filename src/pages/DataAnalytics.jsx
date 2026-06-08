@@ -329,6 +329,31 @@ const LiveCard = ({ title, desc, children, helpText }) => (
   </div>
 )
 
+// ─── drill-down panel ────────────────────────────────────────────────────────
+
+const drillLabel = {
+  fontSize: '0.6875rem', fontWeight: 700, color: '#aaa',
+  textTransform: 'uppercase', letterSpacing: '0.08em',
+  marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif",
+}
+
+const DrillPanel = ({ title, onClose, children }) => (
+  <div
+    onClick={e => e.target === e.currentTarget && onClose()}
+    style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', boxSizing: 'border-box' }}
+  >
+    <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '660px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.28)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.5rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
+        <h2 style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontSize: '1rem', fontWeight: 700, color: '#1a1a1a' }}>{title}</h2>
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: '#f3f1f6', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#5e3b87', fontWeight: 700, lineHeight: 1, flexShrink: 0 }}>×</button>
+      </div>
+      <div style={{ overflowY: 'auto', padding: '1.5rem', flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+)
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const DataAnalytics = ({ onNavigate }) => {
@@ -351,6 +376,10 @@ const DataAnalytics = ({ onNavigate }) => {
   const [demoPricing, setDemoPricing] = useState([])
   const [demoCompetitors, setDemoCompetitors] = useState([])
 
+  const [drillOpen, setDrillOpen] = useState(null) // null | 'calls' | 'leads' | 'duration'
+  const [leadsByStatus, setLeadsByStatus] = useState({ new: 0, contacted: 0, converted: 0, lost: 0 })
+  const [durationBuckets, setDurationBuckets] = useState({ short: 0, medium: 0, long: 0 })
+
   // ── Demo mode: compute analytics from DemoContext ─────────────────────────────
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
@@ -369,6 +398,15 @@ const DataAnalytics = ({ onNavigate }) => {
     setCallsByDay(byDay)
     setDemoPricing(demo.pricingIntelligence || [])
     setDemoCompetitors(demo.competitorIntelligence || [])
+    const lbs = { new: 0, contacted: 0, converted: 0, lost: 0 }
+    ;(demo.leads || []).forEach(l => { const k = l.status || 'new'; lbs[k] = (lbs[k] || 0) + 1 })
+    setLeadsByStatus(lbs)
+    const dbs = { short: 0, medium: 0, long: 0 }
+    calls.forEach(c => {
+      const d = c.duration || c.duration_seconds || 0
+      if (d < 30) dbs.short++; else if (d < 120) dbs.medium++; else dbs.long++
+    })
+    setDurationBuckets(dbs)
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
 
@@ -405,7 +443,7 @@ const DataAnalytics = ({ onNavigate }) => {
 
           supabase
             .from('leads')
-            .select('id')
+            .select('id, status')
             .eq('tenant_id', tid),
         ])
 
@@ -434,6 +472,17 @@ const DataAnalytics = ({ onNavigate }) => {
           byDay[dow]++
         })
         setCallsByDay(byDay)
+
+        const lbs = { new: 0, contacted: 0, converted: 0, lost: 0 }
+        leads.forEach(l => { const k = l.status || 'new'; lbs[k] = (lbs[k] || 0) + 1 })
+        setLeadsByStatus(lbs)
+
+        const dbs = { short: 0, medium: 0, long: 0 }
+        calls.forEach(c => {
+          const d = c.duration_seconds || 0
+          if (d < 30) dbs.short++; else if (d < 120) dbs.medium++; else dbs.long++
+        })
+        setDurationBuckets(dbs)
       } catch (err) {
         console.error('Analytics load error:', err)
       } finally {
@@ -464,10 +513,10 @@ const DataAnalytics = ({ onNavigate }) => {
     }
   } else if (leadRate < 30 && totalCalls > 10) {
     reco = {
-      title: `Your lead capture rate is ${leadRate}%`,
-      body: 'A balanced or open triage mode typically increases lead capture. Review your AI Behaviour settings.',
-      actionLabel: 'AI Behaviour',
-      onAction: () => onNavigate && onNavigate('ai'),
+      title: `Lead capture rate is ${leadRate}% across ${totalCalls} calls`,
+      body: 'Your AI, your response speed, and your follow-up each play a role in the overall capture loop. Explore the data to identify where the gap is.',
+      actionLabel: 'Explore capture data',
+      onAction: () => setDrillOpen('leads'),
     }
   } else {
     reco = {
@@ -518,23 +567,32 @@ const DataAnalytics = ({ onNavigate }) => {
           <>
             {/* Row 1 — volume · rate · duration */}
             <div style={{ ...s.headlineGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
-              <div style={{ ...s.headlineCard, background: '#ddd6fe', borderLeft: '4px solid #5e3b87' }}
+              <div onClick={() => setDrillOpen('calls')} style={{ ...s.headlineCard, background: '#ddd6fe', borderLeft: '4px solid #5e3b87', cursor: 'pointer', userSelect: 'none' }}
                 data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated.">
                 <div style={s.headlineLabel}>Total calls handled</div>
                 <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
-                <div style={s.headlineSub}>all time</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={s.headlineSub}>all time</div>
+                  <div style={{ fontSize: '0.7rem', color: '#7c5ab8', fontWeight: 600 }}>Explore →</div>
+                </div>
               </div>
-              <div style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}` }}
+              <div onClick={() => setDrillOpen('leads')} style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}`, cursor: 'pointer', userSelect: 'none' }}
                 data-help="Lead capture rate is the percentage of all calls that resulted in a lead. A healthy rate is 30–50% for most service businesses.">
                 <div style={s.headlineLabel}>Lead capture rate</div>
                 <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
-                <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+                  <div style={{ fontSize: '0.7rem', color: rateColor, fontWeight: 600 }}>Explore →</div>
+                </div>
               </div>
-              <div style={{ ...s.headlineCard, background: '#bfdbfe', borderLeft: '4px solid #1d4ed8' }}
+              <div onClick={() => setDrillOpen('duration')} style={{ ...s.headlineCard, background: '#bfdbfe', borderLeft: '4px solid #1d4ed8', cursor: 'pointer', userSelect: 'none' }}
                 data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam.">
                 <div style={s.headlineLabel}>Avg call duration</div>
                 <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
-                <div style={s.headlineSub}>across handled calls</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={s.headlineSub}>across handled calls</div>
+                  <div style={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 600 }}>Explore →</div>
+                </div>
               </div>
             </div>
 
@@ -725,6 +783,205 @@ const DataAnalytics = ({ onNavigate }) => {
         )}
 
       </div>
+
+      {/* ── Drill panels ─────────────────────────────────────────────────────── */}
+
+      {drillOpen === 'calls' && (
+        <DrillPanel title="Call volume breakdown" onClose={() => setDrillOpen(null)}>
+          <div style={{ marginBottom: '1.75rem' }}>
+            <div style={drillLabel}>How calls resolved</div>
+            {Object.keys(outcomeBreakdown).length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: '#aaa' }}>No call data yet.</p>
+            ) : Object.entries(outcomeBreakdown).sort((a, b) => b[1] - a[1]).map(([outcome, count]) => {
+              const meta = OUTCOME_META[outcome] || { label: outcome, color: '#d1d5db' }
+              const barPct = pct(count, totalCalls)
+              return (
+                <div key={outcome} style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#555', marginBottom: 4 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, display: 'inline-block', flexShrink: 0 }} />
+                      {meta.label}
+                    </span>
+                    <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{count} · {barPct}%</span>
+                  </div>
+                  <div style={{ height: 7, background: '#f3f1f6', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${barPct}%`, background: meta.color, borderRadius: 4 }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div>
+            <div style={drillLabel}>Volume by day of week</div>
+            {totalCalls === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: '#aaa' }}>No data yet.</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 80, marginBottom: 6 }}>
+                  {callsByDay.map((count, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ width: '100%', height: Math.max(4, Math.round((count / Math.max(...callsByDay, 1)) * 72)), background: count === Math.max(...callsByDay) ? '#5e3b87' : 'rgba(94,59,135,0.18)', borderRadius: '3px 3px 0 0', transition: 'height 0.3s' }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {DAY_LABELS.map((d, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.65rem', color: callsByDay[i] === Math.max(...callsByDay) ? '#5e3b87' : '#bbb', fontWeight: callsByDay[i] === Math.max(...callsByDay) ? 700 : 400 }}>{d}</div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DrillPanel>
+      )}
+
+      {drillOpen === 'leads' && (
+        <DrillPanel title="Lead capture — the full picture" onClose={() => setDrillOpen(null)}>
+          {/* Section A — AI capture */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={drillLabel}>What your AI handled</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ background: '#f4effe', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#5e3b87', lineHeight: 1, marginBottom: '0.25rem' }}>{totalCalls}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7c5ab8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Calls handled</div>
+              </div>
+              <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.25rem' }}>{totalLeads}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads created</div>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#888', margin: 0, lineHeight: 1.6 }}>
+              A lead is created when your AI captures enough to act on — a name, number, or clear request. Filtered calls, spam, referred enquiries, and hard closes don't generate a lead record.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', marginBottom: '1.5rem' }} />
+
+          {/* Section B — Human chain */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={drillLabel}>What happened after capture</div>
+            {totalLeads === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: '#aaa' }}>No leads captured yet.</p>
+            ) : (
+              [
+                { key: 'new',       label: 'Not yet contacted', color: '#f59e0b', note: 'Captured — no action taken' },
+                { key: 'contacted', label: 'Contacted',         color: '#1d4ed8', note: 'You reached out' },
+                { key: 'converted', label: 'Converted',         color: '#3db87a', note: 'Marked as won' },
+                { key: 'lost',      label: 'Lost',              color: '#94a3b8', note: 'Didn\'t proceed' },
+              ].map(({ key, label, color, note }) => {
+                const count = leadsByStatus[key] || 0
+                const barPct = pct(count, totalLeads)
+                return (
+                  <div key={key} style={{ marginBottom: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                      <div>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#1a1a1a' }}>{label}</span>
+                        <span style={{ fontSize: '0.72rem', color: '#bbb', marginLeft: 8 }}>{note}</span>
+                      </div>
+                      <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '1rem', fontWeight: 700, color }}>
+                        {count}<span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 400, color: '#aaa', marginLeft: 4 }}>{barPct}%</span>
+                      </span>
+                    </div>
+                    <div style={{ height: 8, background: '#f3f1f6', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${barPct}%`, background: color, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', marginBottom: '1.5rem' }} />
+
+          {/* Section C — Neutral diagnosis */}
+          {(() => {
+            const uncontacted = leadsByStatus.new || 0
+            const uncontactedPct = pct(uncontacted, totalLeads)
+            let diagnosis, actions = []
+
+            if (totalCalls < 5) {
+              diagnosis = 'Not enough data yet — the picture will sharpen after a few more calls.'
+            } else if (leadRate < 15) {
+              diagnosis = `Your AI is converting ${leadRate}% of calls into lead records. This could reflect the mix of calls you're receiving, your current conversation style, or enquiries that are genuinely out of scope. It's worth reviewing what types of calls are coming in before adjusting anything.`
+              actions = [{ label: 'Review conversation style', nav: 'ai' }]
+            } else if (totalLeads > 3 && uncontactedPct > 40) {
+              diagnosis = `Your AI is capturing leads. The gap is in follow-up — ${uncontacted} of ${totalLeads} captured leads (${uncontactedPct}%) haven't been contacted yet. The faster a lead is followed up, the higher the conversion rate. Automated SMS follow-up can close that window.`
+              actions = [{ label: 'Enable SMS follow-up', nav: 'ai' }]
+            } else if (totalLeads > 0 && pct(leadsByStatus.converted || 0, totalLeads) < 15) {
+              diagnosis = `Capture and follow-up look reasonable. The next lever is conversion — how the conversation develops once you make contact. This is a sales and fit question, not a technology one.`
+            } else {
+              diagnosis = `Capture, follow-up, and conversion all look healthy here. Expanding your referral network is typically the next move when the basics are working.`
+              actions = [{ label: 'Manage referral partners', nav: 'referrals' }]
+            }
+
+            return (
+              <div style={{ background: '#f4effe', borderRadius: 12, padding: '1rem 1.25rem' }}>
+                <div style={{ ...drillLabel, color: '#7c5ab8', marginBottom: '0.5rem' }}>Where to look</div>
+                <p style={{ fontSize: '0.8125rem', color: '#3a2057', lineHeight: 1.65, margin: actions.length ? '0 0 0.85rem' : 0 }}>{diagnosis}</p>
+                {actions.map(({ label, nav }) => (
+                  <button key={nav} onClick={() => { setDrillOpen(null); onNavigate && onNavigate(nav) }}
+                    style={{ padding: '0.45rem 0.9rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+        </DrillPanel>
+      )}
+
+      {drillOpen === 'duration' && (
+        <DrillPanel title="Call duration breakdown" onClose={() => setDrillOpen(null)}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={drillLabel}>Calls by duration</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              {[
+                { key: 'short',  label: 'Under 30s', color: '#94a3b8', bg: '#f1f5f9', note: 'Filtered, spam, or hang-ups' },
+                { key: 'medium', label: '30s – 2min', color: '#f0a500', bg: '#fef3c7', note: 'Standard enquiry' },
+                { key: 'long',   label: 'Over 2min',  color: '#5e3b87', bg: '#f4effe', note: 'Complex or high-intent call' },
+              ].map(({ key, label, color, bg, note }) => (
+                <div key={key} style={{ background: bg, borderRadius: 12, padding: '0.85rem', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1, marginBottom: '0.25rem' }}>{durationBuckets[key]}</div>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.25rem' }}>{label}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#888', lineHeight: 1.4 }}>{note}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 64, marginBottom: 6 }}>
+              {[
+                { key: 'short', color: '#cbd5e1' },
+                { key: 'medium', color: '#f0a500' },
+                { key: 'long', color: '#5e3b87' },
+              ].map(({ key, color }) => {
+                const maxVal = Math.max(durationBuckets.short, durationBuckets.medium, durationBuckets.long, 1)
+                return (
+                  <div key={key} style={{ flex: 1, height: Math.max(4, Math.round((durationBuckets[key] / maxVal) * 56)), background: color, borderRadius: '4px 4px 0 0', alignSelf: 'flex-end' }} />
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex' }}>
+              {['Under 30s', '30s–2min', 'Over 2min'].map(l => (
+                <div key={l} style={{ flex: 1, textAlign: 'center', fontSize: '0.65rem', color: '#aaa' }}>{l}</div>
+              ))}
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', paddingTop: '1.25rem' }}>
+            <div style={drillLabel}>What duration tells you</div>
+            <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.7 }}>
+              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>High short calls</strong> — callers are hanging up quickly, or your AI is filtering a lot. Check whether your spam and sales filters are set too broadly.</p>
+              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>Most calls medium</strong> — this is a healthy pattern. Your AI is handling standard enquiries efficiently.</p>
+              <p style={{ margin: 0 }}><strong style={{ color: '#1a1a1a' }}>High long calls</strong> — complex or high-intent callers. These are your most valuable interactions and worth reviewing in Listen.</p>
+            </div>
+            {durationBuckets.long > 0 && (
+              <button onClick={() => { setDrillOpen(null); onNavigate && onNavigate('listen') }}
+                style={{ marginTop: '1rem', padding: '0.45rem 0.9rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
+                Review long calls in Listen →
+              </button>
+            )}
+          </div>
+        </DrillPanel>
+      )}
+
     </div>
   )
 }
