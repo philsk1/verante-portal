@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
@@ -77,6 +77,11 @@ const PartnersReferrals = ({ onNavigate }) => {
   const [codeCopied, setCodeCopied]       = useState(false)
   const [linkCopied, setLinkCopied]       = useState(false)
   const [inviteCopied, setInviteCopied]   = useState(null)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteModalPulsing, setInviteModalPulsing] = useState(false)
+  const [msgCopied, setMsgCopied] = useState(false)
+  const pulseTimerRef = useRef(null)
+  const pulseAnimRef  = useRef(null)
 
   const referralUrl     = referralCode ? `qerxel.com/join?ref=${referralCode}` : ''
   const fullReferralUrl = `https://${referralUrl}`
@@ -218,6 +223,27 @@ const PartnersReferrals = ({ onNavigate }) => {
 
   const copyCode = () => navigator.clipboard.writeText(referralCode).then(() => { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000) })
   const copyLink = () => navigator.clipboard.writeText(fullReferralUrl).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) })
+
+  const copyInviteMsg = () => {
+    const p = partners.find(p => p.sentCount > 0) || partners[0]
+    const n = outboundTotal
+    const msg = `Hi ${p?.name || 'there'} — I've been using Qerxel AI to handle my missed calls and have already referred ${n} enquir${n === 1 ? 'y' : 'ies'} your way. I thought you'd find it useful too, and your first month is free on me. If you sign up using my code it also makes you my overspill partner — so your AI starts sending callers back to me too. Sign up at https://${referralUrl || 'qerxel.com/join'}`
+    navigator.clipboard.writeText(msg).then(() => { setMsgCopied(true); setTimeout(() => setMsgCopied(false), 2500) })
+  }
+
+  // Show invite modal when referrals exist
+  useEffect(() => {
+    if (loading || outboundTotal === 0) return
+    if (localStorage.getItem('qx_partner_invite_dismissed')) return
+    const t = setTimeout(() => {
+      setShowInviteModal(true)
+      pulseTimerRef.current = setTimeout(() => {
+        setInviteModalPulsing(true)
+        pulseAnimRef.current = setTimeout(() => setInviteModalPulsing(false), 900)
+      }, 10000)
+    }, 700)
+    return () => { clearTimeout(t); clearTimeout(pulseTimerRef.current); clearTimeout(pulseAnimRef.current) }
+  }, [loading, outboundTotal])
 
   if (loading) return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading partners…</div>
 
@@ -467,6 +493,78 @@ const PartnersReferrals = ({ onNavigate }) => {
           )}
         </div>
       </div>
+
+      {/* ── PARTNER INVITE MODAL ──────────────────────────────────────────── */}
+      <style>{`@keyframes invitePulse { 0%{box-shadow:0 0 0 0 rgba(240,165,0,0.7)} 70%{box-shadow:0 0 0 24px rgba(240,165,0,0)} 100%{box-shadow:0 0 0 0 rgba(240,165,0,0)} }`}</style>
+      {showInviteModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '1rem' }}
+          onClick={() => setShowInviteModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(135deg, #4a2d6e 0%, #3a2057 100%)',
+              borderRadius: 20,
+              padding: '2rem',
+              maxWidth: 460,
+              width: '100%',
+              boxShadow: '0 24px 60px rgba(94,59,135,0.45)',
+              position: 'relative',
+              animation: inviteModalPulsing ? 'invitePulse 0.9s ease-out' : 'none',
+            }}
+          >
+            <button onClick={() => setShowInviteModal(false)}
+              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '1.2rem', lineHeight: 1 }}>×</button>
+
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', color: '#f0a500', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.5rem' }}>
+              💡 You've been referring business their way
+            </div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.15rem', color: 'white', marginBottom: '0.5rem', lineHeight: 1.25 }}>
+              Why not invite them to Qerxel?
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+              They get their first month free — and automatically become your overspill partner, so their AI starts sending callers back to you.
+            </div>
+
+            {/* Message preview */}
+            <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '0.85rem 1rem', marginBottom: '1.1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.45rem' }}>Message ready to copy</div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.72)', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
+                {(() => {
+                  const p = partners.find(p => p.sentCount > 0) || partners[0]
+                  const n = outboundTotal
+                  return `"Hi ${p?.name || 'there'} — I've been using Qerxel AI for my missed calls and have already referred ${n} enquir${n === 1 ? 'y' : 'ies'} your way. Your first month is free on me — and if you sign up using my code, you automatically become my overspill partner so your AI starts sending callers back to me too."`
+                })()}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.1rem', flexWrap: 'wrap' }}>
+              <button onClick={copyInviteMsg}
+                style={{ flex: 1, padding: '0.7rem 1rem', background: msgCopied ? '#3db87a' : '#f0a500', color: msgCopied ? 'white' : '#1a0533', border: 'none', borderRadius: 10, fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'background 0.2s' }}>
+                {msgCopied ? '✓ Copied to clipboard' : 'Copy message'}
+              </button>
+              {referralCode && (
+                <button onClick={copyLink}
+                  style={{ flex: 1, padding: '0.7rem 1rem', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                  {linkCopied ? '✓ Link copied' : 'Copy invite link'}
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowInviteModal(false)}
+                style={{ padding: '0.35rem 0.85rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Send later
+              </button>
+              <button onClick={() => { localStorage.setItem('qx_partner_invite_dismissed', '1'); setShowInviteModal(false) }}
+                style={{ padding: '0.35rem 0.85rem', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: 'rgba(255,255,255,0.3)', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Don't show again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

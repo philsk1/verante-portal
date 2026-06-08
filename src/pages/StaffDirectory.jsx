@@ -232,55 +232,40 @@ export default function StaffDirectory({ onNavigate }) {
 
       <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
 
-        {/* ── Staff card grid ─────────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* ── Staff list (left column) ─────────────────────────────────────── */}
+        <div style={{ width: 260, flexShrink: 0 }}>
           {staff.length === 0 && !adding ? (
-            <div style={{ background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', padding: '3rem 2rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>👥</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>No team members yet</div>
-              <div style={{ fontSize: '0.82rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '1rem' }}>Add your first team member to enable staff routing and column calendar view.</div>
+            <div style={{ background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', padding: '2rem 1.25rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.75rem', marginBottom: '0.65rem' }}>👥</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>No team members yet</div>
+              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '1rem', lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
               {!isDemo && !isPreview && (
-                <button onClick={() => setAdding(true)} style={{ padding: '0.5rem 1.25rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                <button onClick={() => setAdding(true)} style={{ padding: '0.45rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                   Add first member
                 </button>
               )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
               {staff.map(member => {
                 const av = avatarColour(member.name)
                 const isSelected = selected === member.id
                 return (
                   <div key={member.id} onClick={() => openProfile(member)}
-                    style={{ background: 'white', borderRadius: 12, border: `1.5px solid ${isSelected ? '#5e3b87' : 'rgba(94,59,135,0.1)'}`, padding: '1rem', cursor: 'pointer', transition: 'all 0.15s', opacity: member.active === false ? 0.5 : 1, boxShadow: isSelected ? '0 0 0 3px rgba(94,59,135,0.12)' : '0 2px 6px rgba(0,0,0,0.05)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.6rem' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: av.bg, color: av.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', flexShrink: 0, position: 'relative' }}>
+                    style={{ background: isSelected ? '#f0ebf8' : 'white', borderRadius: 10, border: `1.5px solid ${isSelected ? '#5e3b87' : 'rgba(94,59,135,0.1)'}`, padding: '0.65rem 0.85rem', cursor: 'pointer', transition: 'all 0.15s', opacity: member.active === false ? 0.5 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: av.bg, color: av.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.82rem', flexShrink: 0, position: 'relative' }}>
                         {initials(member.name)}
-                        <span style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: member.active === false ? '#d1d5db' : '#3db87a', border: '2px solid white' }} />
+                        <span style={{ position: 'absolute', bottom: -2, right: -2, width: 9, height: 9, borderRadius: '50%', background: member.active === false ? '#d1d5db' : '#3db87a', border: '2px solid white' }} />
                       </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</div>
-                        {member.role && <div style={{ fontSize: '0.75rem', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.role}</div>}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</div>
+                        {member.role && <div style={{ fontSize: '0.72rem', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.role}</div>}
                       </div>
+                      {staffCallCounts[member.id] > 0 && (
+                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#5e3b87', background: '#f0ebf8', borderRadius: 4, padding: '0.1rem 0.3rem', flexShrink: 0 }}>{staffCallCounts[member.id]}</span>
+                      )}
                     </div>
-                    {Array.isArray(member.specialist_services) && member.specialist_services.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', marginBottom: '0.2rem' }}>
-                        {member.specialist_services.slice(0, 3).map((s, i) => (
-                          <span key={i} style={{ fontSize: '0.65rem', background: av.bg, color: av.text, borderRadius: 4, padding: '0.1rem 0.35rem' }}>{s}</span>
-                        ))}
-                        {member.specialist_services.length > 3 && (
-                          <span style={{ fontSize: '0.65rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>+{member.specialist_services.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-                    {member.phone && <div style={{ fontSize: '0.72rem', color: '#bbb', marginTop: '0.35rem' }}>{member.phone}</div>}
-                    {staffCallCounts[member.id] > 0 && (
-                      <div style={{ marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
-                          {staffCallCounts[member.id]} mention{staffCallCounts[member.id] !== 1 ? 's' : ''} in calls
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )
               })}
@@ -321,8 +306,15 @@ export default function StaffDirectory({ onNavigate }) {
         </div>
 
         {/* ── Profile detail panel ────────────────────────────────────────── */}
-        {draft && (
-          <div style={{ width: 320, flexShrink: 0, background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 4px 24px rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 780, overflow: 'hidden' }}>
+        {!draft ? (
+          <div style={{ flex: 1, minWidth: 0, background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+            <div style={{ textAlign: 'center', color: '#ccc' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>←</div>
+              <div style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif" }}>Select a team member</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex: 1, minWidth: 0, background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 4px 24px rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Panel header */}
             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.07)', display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
               {(() => { const av = avatarColour(draft.name); return (

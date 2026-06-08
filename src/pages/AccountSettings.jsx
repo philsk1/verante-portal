@@ -775,18 +775,6 @@ const AccountSettings = ({ onNavigate }) => {
     )}
     <div>
 
-      {/* Business Profile entry card */}
-      <div
-        onClick={() => onNavigate('profile')}
-        style={{ ...s.section, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', marginBottom: '0.5rem', borderLeft: '3px solid #5e3b87', background: '#faf9fc' }}
-      >
-        <div>
-          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Business Profile</div>
-          <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.15rem', fontFamily: "'DM Sans', sans-serif" }}>Business info, staff, services catalogue, partner details</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-
       {/* Plan & Billing */}
       <div style={s.section}>
         <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
@@ -837,13 +825,13 @@ const AccountSettings = ({ onNavigate }) => {
         ) : (
           <button
             onClick={() => setShowPlanSelector(true)}
-            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.75rem 1rem', border: '1.5px dashed rgba(94,59,135,0.25)', borderRadius: 10, background: '#faf9fc', cursor: 'pointer', textAlign: 'left' }}
+            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '1rem 1.25rem', border: 'none', borderRadius: 12, background: '#f0a500', cursor: 'pointer', textAlign: 'left', boxShadow: '0 4px 16px rgba(240,165,0,0.35)' }}
           >
             <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#5e3b87', marginBottom: '0.15rem' }}>Build your Qerxel</div>
-              <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Choose Answer, Listen and Calendar independently — see live pricing</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a0533', marginBottom: '0.2rem' }}>Choose your services</div>
+              <div style={{ fontSize: '0.775rem', color: 'rgba(26,5,51,0.65)', fontFamily: "'DM Sans', sans-serif" }}>Pick Answer, Listen and Calendar — see live pricing</div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a0533" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         )}
       </div>
@@ -931,14 +919,6 @@ const AccountSettings = ({ onNavigate }) => {
             Request a complete export of your call logs, leads, partner network, and account data. We'll email it to your account address within 24 hours.
           </p>
           <button style={s.ghostBtn} onClick={handleExportData}>Request data export</button>
-        </div>
-
-        <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: '1.25rem' }}>
-          <div style={{ fontWeight: 500, fontSize: '0.875rem', color: '#b91c1c', marginBottom: '0.3rem' }}>Delete my data</div>
-          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
-            Permanently delete all call records, leads, and account data. This cannot be undone.
-          </p>
-          <button style={s.cancelBtn} onClick={() => { setShowDeleteModal(true); setDeleteConfirm(false) }}>Delete my data</button>
         </div>
 
         <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', fontSize: '0.8rem', color: '#888' }}>
@@ -1038,15 +1018,33 @@ const AccountSettings = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Cancel */}
-      <div style={s.dangerSection}>
-        <h3 style={{ ...s.sectionTitle, marginBottom: '0.3rem' }} data-help="Cancelling stops your AI answering calls at the end of your current billing period. Your account data — call logs, leads, partner network — is retained for 90 days before being deleted. You can reactivate within that window without losing anything.">Cancel Subscription</h3>
-        <p style={{ ...s.sectionSubtitle, marginBottom: '1rem' }}>
-          Your AI will stop taking calls at the end of your billing period. Your data is retained for 90 days.
-        </p>
-        <button style={s.cancelBtn} onClick={() => { setShowCancelModal(true); setCancelConfirm(false) }}>
-          Cancel subscription
-        </button>
+      {/* Danger Zone */}
+      <div style={{ ...s.section, border: '1px solid rgba(185,28,28,0.2)', background: '#fffafa' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <h3 style={{ ...s.sectionTitle, color: '#b91c1c', margin: 0 }}>Danger Zone</h3>
+        </div>
+        <p style={{ ...s.sectionSubtitle, marginBottom: '1.25rem' }}>These actions are irreversible. Take care.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+          <div style={{ padding: '1rem', background: 'white', borderRadius: 10, border: '1px solid rgba(185,28,28,0.12)' }}>
+            <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', marginBottom: '0.3rem', fontFamily: "'DM Sans', sans-serif" }} data-help="Cancelling stops your AI answering calls at the end of your current billing period. Your account data — call logs, leads, partner network — is retained for 90 days before being deleted. You can reactivate within that window without losing anything.">Cancel subscription</div>
+            <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+              Your AI stops at end of billing period. Data retained 90 days.
+            </p>
+            <button style={s.cancelBtn} onClick={() => { setShowCancelModal(true); setCancelConfirm(false) }}>
+              Cancel subscription
+            </button>
+          </div>
+
+          <div style={{ padding: '1rem', background: 'white', borderRadius: 10, border: '1px solid rgba(185,28,28,0.12)' }}>
+            <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.3rem', fontFamily: "'DM Sans', sans-serif" }}>Delete my data</div>
+            <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+              Permanently removes all call records, leads and account data.
+            </p>
+            <button style={s.cancelBtn} onClick={() => { setShowDeleteModal(true); setDeleteConfirm(false) }}>Delete my data</button>
+          </div>
+        </div>
       </div>
 
       {/* Retention modal */}

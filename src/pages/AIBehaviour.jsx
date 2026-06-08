@@ -8,9 +8,21 @@ import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const CALL_MODES = [
-  { id: 'strict',   label: 'Strict',   desc: 'Short, efficient calls. Captures key details in fewer turns and closes quickly.' },
-  { id: 'balanced', label: 'Balanced', desc: 'Standard — enough turns to qualify the enquiry and collect contact details.' },
-  { id: 'open',     label: 'Open',     desc: 'More conversational. Gives callers more space before closing or escalating.' },
+  { id: 'strict',   label: 'Efficient', desc: 'Focused calls — captures the key details and closes without unnecessary back-and-forth.' },
+  { id: 'balanced', label: 'Balanced',  desc: 'Standard — enough turns to qualify the enquiry and collect contact details.' },
+  { id: 'open',     label: 'Relaxed',   desc: 'More space for conversation. Callers can talk through their need before you close or escalate.' },
+]
+
+const CONVERSATION_STYLES = [
+  { id: 'efficient', triage: 'strict',   tone: 'formal', label: 'Efficient',
+    toneNote: 'Professional register', desc: 'Gets straight to the point. Captures key details quickly and closes without unnecessary back-and-forth.',
+    border: '#ef4444', bg: '#fecaca', text: '#991b1b', dot: '#ef4444', passiveBg: '#fff5f5', passiveBorder: 'rgba(239,68,68,0.15)' },
+  { id: 'balanced',  triage: 'balanced', tone: 'warm',   label: 'Balanced',
+    toneNote: 'Friendly & natural',    desc: 'Standard pace — qualifies the enquiry and collects contact details in a natural, warm way.',
+    border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8', passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.15)' },
+  { id: 'relaxed',   triage: 'open',     tone: 'warm',   label: 'Relaxed',
+    toneNote: 'Warm & conversational', desc: 'More space for conversation. Callers can talk through their need before you close or escalate.',
+    border: '#3db87a', bg: '#bbf7d0', text: '#166534', dot: '#3db87a', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.15)' },
 ]
 
 const TRIAGE_COLOUR = {
@@ -528,12 +540,18 @@ const AIBehaviour = ({ onNavigate }) => {
   const [generatorNotes, setGeneratorNotes] = useState('')
   const [generatingGreeting, setGeneratingGreeting] = useState(false)
 
+  // Number blocking
+  const [blockedNumbers, setBlockedNumbers] = useState([])
+  const [numberDraft, setNumberDraft] = useState('')
+  const [numberSaving, setNumberSaving] = useState(false)
+
   // Provisional booking
   const [provisionalBookingEnabled, setProvisionalBookingEnabled] = useState(false)
   const [provisionalBookingRule, setProvisionalBookingRule] = useState('')
   const [bookingSlotsToOffer, setBookingSlotsToOffer] = useState(2)
   const [bookingBufferMins, setBookingBufferMins] = useState(30)
   const [bookingConfirmationWindowMins, setBookingConfirmationWindowMins] = useState(120)
+  const [bookingConfWindowUnit, setBookingConfWindowUnit] = useState('hours') // mins | hours | days
 
   // Overage voice preference
   const [overageVoicePref, setOverageVoicePref] = useState('premium')
@@ -574,7 +592,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -604,6 +622,11 @@ const AIBehaviour = ({ onNavigate }) => {
           setBookingBufferMins(tenant.booking_buffer_mins ?? 30)
           setBookingConfirmationWindowMins(tenant.booking_confirmation_window_mins ?? 120)
           setOverageVoicePref(tenant.overage_voice_preference || 'premium')
+          setBlockedNumbers(tenant.blocked_phone_numbers || [])
+          const confMins = tenant.booking_confirmation_window_mins ?? 120
+          if (confMins % 1440 === 0 && confMins >= 1440) setBookingConfWindowUnit('days')
+          else if (confMins % 60 === 0 && confMins >= 60) setBookingConfWindowUnit('hours')
+          else setBookingConfWindowUnit('mins')
           setUrgentOutcomes(Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0 ? tenant.urgent_outcomes : ['escalated'])
           if (tenant.emergency_keywords) {
             setKeywords(Array.isArray(tenant.emergency_keywords)
@@ -676,6 +699,7 @@ const AIBehaviour = ({ onNavigate }) => {
       booking_confirmation_window_mins: bookingConfirmationWindowMins,
       overage_voice_preference: overageVoicePref,
       sms_followup_message: smsFollowupMessage.trim() || null,
+      blocked_phone_numbers: blockedNumbers,
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
@@ -765,7 +789,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
   // Derive current state labels for status hero
   const modeInfo   = TRIAGE_COLOUR[triageMode] || TRIAGE_COLOUR.balanced
-  const modeLabel  = CALL_MODES.find(m => m.id === triageMode)?.label || 'Balanced'
+  const activeStyle = CONVERSATION_STYLES.find(s => s.triage === triageMode) || CONVERSATION_STYLES[1]
   const outcomeLabels = { booking: 'Books appointments', quote: 'Discusses & quotes', custom: 'Custom outcome' }
   const outcomeLabel  = outcomeLabels[businessOutcomeType] || 'Discusses & quotes'
 
@@ -798,17 +822,13 @@ const AIBehaviour = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Right — mode + tone + outcome badges */}
+          {/* Right — style + outcome badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {/* Mode badge */}
+            {/* Style badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(255,255,255,0.12)' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: modeInfo.dot }} />
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'white', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.06em' }}>{modeLabel}</span>
-            </div>
-            {/* Tone badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>{toneRegister === 'warm' ? '☀️' : '🎩'}</span>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'white', fontFamily: "'DM Sans', sans-serif", textTransform: 'capitalize' }}>{toneRegister}</span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'white', fontFamily: "'DM Sans', sans-serif" }}>{activeStyle.label}</span>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>· {activeStyle.toneNote}</span>
             </div>
             {/* Outcome badge */}
             <div style={{ background: 'rgba(240,165,0,0.22)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(240,165,0,0.3)' }}>
@@ -818,39 +838,39 @@ const AIBehaviour = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Global Call Handling */}
+      {/* ── Call Style & Outcome ─────────────────────────────────────────────── */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle}>Call Handling</h3>
-        <p style={s.sectionSubtitle}>Global defaults — overridden per call type below.</p>
+        <h3 style={s.sectionTitle} data-help="Conversation style controls both the pace of your calls and the language register your AI uses. These are global defaults — you can override them per call type below.">Conversation style</h3>
+        <p style={s.sectionSubtitle}>How your AI sounds and how it manages the flow of every call. Choose the style that fits your business.</p>
 
-        {/* Row 1: Tone + Outcome type side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
-          <div>
-            <label style={s.label} data-help="Your assistant's tone. Warm is friendly and natural. Formal is professional and precise — suits solicitors, accountants, formal practices.">Assistant tone</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {['warm', 'formal'].map(tone => (
-                <button key={tone} onClick={() => setToneRegister(tone)} style={{
-                  padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.7rem', marginBottom: '1.5rem' }}>
+          {CONVERSATION_STYLES.map(style => {
+            const active = triageMode === style.triage
+            return (
+              <button key={style.id}
+                onClick={() => { setTriageMode(style.triage); setToneRegister(style.tone) }}
+                style={{
+                  textAlign: 'left', padding: '0.85rem 1rem', borderRadius: 12, cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
-                  border: toneRegister === tone ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.18)',
-                  background: toneRegister === tone ? '#ddd6fe' : '#f5f3ff',
+                  border: active ? `2px solid ${style.border}` : `1.5px solid ${style.passiveBorder}`,
+                  background: active ? style.bg : style.passiveBg,
+                  transition: 'all 0.15s',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                    <div style={{ width: 13, height: 13, borderRadius: '50%', border: toneRegister === tone ? '4px solid #5e3b87' : '1.5px solid #ccc', flexShrink: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: toneRegister === tone ? '#4a2d6e' : '#1a1a1a' }}>{tone === 'warm' ? 'Warm' : 'Formal'}</div>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45, fontStyle: 'italic', paddingLeft: '1.3rem' }}>
-                    "{previewGreeting(tone, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '0.4rem', lineHeight: 1.4 }}>"Please allow me" is locked — it protects call quality.</div>
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
+                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: active ? style.dot : 'transparent', border: active ? `none` : `2px solid ${style.dot}`, flexShrink: 0, opacity: active ? 1 : 0.5 }} />
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: active ? style.text : '#1a1a1a' }}>{style.label}</div>
+                </div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: active ? style.text : '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem', paddingLeft: '1.4rem' }}>{style.toneNote}</div>
+                <div style={{ fontSize: '0.75rem', color: active ? style.text : '#777', lineHeight: 1.5, paddingLeft: '1.4rem', opacity: active ? 0.85 : 1 }}>{style.desc}</div>
+              </button>
+            )
+          })}
+        </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
           <div>
             <label style={s.label} data-help="Tells your AI what a successful call looks like. This shapes how it closes every conversation.">Successful call outcome</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {[
                 { id: 'booking', label: 'I take bookings and appointments', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.25)', activeBg: '#bbf7d0', activeBorder: '#3db87a', activeText: '#166534' },
                 { id: 'quote',   label: 'I discuss, quote, and arrange',    passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.2)',   activeBg: '#bfdbfe', activeBorder: '#1d4ed8', activeText: '#1e3a8a' },
@@ -859,12 +879,11 @@ const AIBehaviour = ({ onNavigate }) => {
                 const on = businessOutcomeType === opt.id
                 return (
                   <button key={opt.id} onClick={() => setBusinessOutcomeType(opt.id)} style={{
-                    width: '100%', textAlign: 'left', padding: '0.65rem 0.85rem',
+                    width: '100%', textAlign: 'left', padding: '0.6rem 0.8rem',
                     borderRadius: '8px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     fontSize: '0.8125rem', fontWeight: on ? 600 : 400,
                     border: `${on ? '2px' : '1.5px'} solid ${on ? opt.activeBorder : opt.passiveBorder}`,
-                    background: on ? opt.activeBg : opt.passiveBg,
-                    color: on ? opt.activeText : '#555',
+                    background: on ? opt.activeBg : opt.passiveBg, color: on ? opt.activeText : '#555',
                   }}>{opt.label}</button>
                 )
               })}
@@ -878,52 +897,42 @@ const AIBehaviour = ({ onNavigate }) => {
                 />
               )}
             </div>
+          </div>
 
-            <label style={s.label} data-help="When the AI cannot resolve a call — Escalate transfers to you live. Hard close wraps up politely and offers a callback.">When AI cannot resolve</label>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div>
+            <label style={s.label} data-help="When the AI cannot resolve a call — Escalate transfers to you live. Hard close wraps up politely and offers a callback.">When AI can't resolve</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <button onClick={() => setEscalationPref('escalate')} style={{
-                padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
+                textAlign: 'left', padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: escalationPref === 'escalate' ? 600 : 400,
                 border: escalationPref === 'escalate' ? '2px solid #f0a500' : '1.5px solid rgba(240,165,0,0.3)',
                 background: escalationPref === 'escalate' ? '#fde68a' : '#fffbeb',
                 color: escalationPref === 'escalate' ? '#78460a' : '#92610a',
-              }}>Escalate to me</button>
+              }}>
+                <div>Escalate to me</div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 400, marginTop: '0.15rem', opacity: 0.75 }}>Transfer the call to you live</div>
+              </button>
               <button onClick={() => setEscalationPref('hard_close')} style={{
-                padding: '0.5rem 1.1rem', borderRadius: '8px', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 500,
+                textAlign: 'left', padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: escalationPref === 'hard_close' ? 600 : 400,
                 border: escalationPref === 'hard_close' ? '2px solid #94a3b8' : '1.5px solid rgba(148,163,184,0.35)',
                 background: escalationPref === 'hard_close' ? '#f1f5f9' : '#f8fafc',
                 color: escalationPref === 'hard_close' ? '#475569' : '#64748b',
-              }}>Hard close</button>
+              }}>
+                <div>Hard close</div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 400, marginTop: '0.15rem', opacity: 0.75 }}>Wrap up politely, offer a callback</div>
+              </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Row 2: Call mode */}
-        <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Call mode controls the pace and depth of every conversation. Strict = short and efficient. Balanced = standard. Open = relaxed and conversational.">Default call mode</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
-          {CALL_MODES.map(mode => {
-            const tc = TRIAGE_COLOUR[mode.id]
-            const active = triageMode === mode.id
-            return (
-              <button key={mode.id} onClick={() => setTriageMode(mode.id)} style={{
-                padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-                border: active ? `2px solid ${tc.border}` : `1.5px solid ${tc.passiveBorder}`,
-                background: active ? tc.bg : tc.passiveBg,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
-                  <div style={{ width: 13, height: 13, borderRadius: '50%', border: active ? `4px solid ${tc.dot}` : `2px solid ${tc.dot}`, flexShrink: 0, opacity: active ? 1 : 0.4 }} />
-                  <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: active ? tc.text : '#333' }}>{mode.label}</div>
-                </div>
-                <div style={{ fontSize: '0.72rem', color: active ? tc.text : '#666', lineHeight: 1.45, paddingLeft: '1.25rem', opacity: active ? 0.85 : 1 }}>{mode.desc}</div>
-              </button>
-            )
-          })}
-        </div>
+      {/* ── Response & urgency ───────────────────────────────────────────────── */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Configure how quickly you respond to urgent calls, how your AI closes conversations, and what qualifies as urgent in your Listen inbox.">Response & urgency</h3>
+        <p style={s.sectionSubtitle}>Callback commitments, urgency thresholds, and what surfaces in your Urgent inbox.</p>
 
-        {/* Row 3: Urgent + Call return side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
           <div>
             <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="If a caller sounds urgent, how quickly can you respond? This promise is made to the caller.">Urgent call response</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
@@ -944,7 +953,7 @@ const AIBehaviour = ({ onNavigate }) => {
           </div>
 
           <div>
-            <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Your AI says this when closing a call: 'Please allow me to take your details — [your name] will call you back [this].'">Call return preference</label>
+            <label style={{ ...s.label, marginBottom: '0.4rem' }} data-help="Your AI says this when closing a call: 'Please allow me to take your details — [your name] will call you back [this].'">Call return note</label>
             <input
               style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.8125rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
               value={callbackPrefNote}
@@ -954,8 +963,7 @@ const AIBehaviour = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Row 3b: Urgent outcomes for Listen inbox */}
-        <div style={{ marginBottom: '1rem' }} data-help="Choose which call types appear in the Urgent tab of your Listen inbox. Escalated means the caller said it was urgent. You can also flag bookings or leads as urgent so they surface immediately.">
+        <div style={{ paddingTop: '1rem', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: tier !== 'free' ? '1.25rem' : 0 }} data-help="Choose which call outcomes appear in the Urgent tab of your Listen inbox.">
           <label style={{ ...s.label, marginBottom: '0.5rem' }}>What counts as Urgent in your Listen inbox?</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
             {[
@@ -965,11 +973,8 @@ const AIBehaviour = ({ onNavigate }) => {
               { id: 'referred_out',  label: 'Referred out' },
             ].map(opt => {
               const on = urgentOutcomes.includes(opt.id)
-              const toggle = () => setUrgentOutcomes(prev =>
-                on ? prev.filter(x => x !== opt.id) : [...prev, opt.id]
-              )
               return (
-                <button key={opt.id} onClick={toggle} style={{
+                <button key={opt.id} onClick={() => setUrgentOutcomes(prev => on ? prev.filter(x => x !== opt.id) : [...prev, opt.id])} style={{
                   padding: '0.3rem 0.75rem', borderRadius: '999px', border: `1.5px solid ${on ? '#b91c1c' : 'rgba(94,59,135,0.15)'}`,
                   background: on ? '#fef2f2' : 'white', color: on ? '#b91c1c' : '#888',
                   fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: on ? 600 : 400,
@@ -988,21 +993,19 @@ const AIBehaviour = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Row 4: Overage voice — 2 col */}
         {tier !== 'free' && (
-          <div data-help="When your included minutes run out, your AI keeps going. Choose whether to stay on Premium (18p/min) or drop to Standard voice (14p/min).">
-            <label style={{ ...s.label, marginBottom: '0.4rem' }}>When you run over your included minutes</label>
+          <div style={{ paddingTop: '1rem', borderTop: '1px solid rgba(94,59,135,0.06)' }} data-help="When your included minutes run out, your AI keeps going. Choose whether to stay on Premium (18p/min) or drop to Standard voice (14p/min).">
+            <label style={{ ...s.label, marginBottom: '0.5rem' }}>When you run over your included minutes</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               {[
-                { id: 'premium', title: 'Stay on Premium — 18p/min', desc: 'Same quality your callers expect. No change.', activeBorder: '#5e3b87', activeBg: '#ddd6fe', activeText: '#4a2d6e', activeDot: '#5e3b87', passiveBg: '#f5f3ff', passiveBorder: 'rgba(94,59,135,0.2)' },
+                { id: 'premium',  title: 'Stay on Premium — 18p/min',  desc: 'Same quality your callers expect.', activeBorder: '#5e3b87', activeBg: '#ddd6fe', activeText: '#4a2d6e', activeDot: '#5e3b87', passiveBg: '#f5f3ff', passiveBorder: 'rgba(94,59,135,0.2)' },
                 { id: 'standard', title: 'Switch to Standard — 14p/min', desc: 'Save 4p/min. Returns to Premium at renewal.', activeBorder: '#3db87a', activeBg: '#bbf7d0', activeText: '#166534', activeDot: '#3db87a', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.2)' },
               ].map(opt => {
                 const on = overageVoicePref === opt.id
                 return (
                   <button key={opt.id} onClick={() => setOverageVoicePref(opt.id)} style={{
                     display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
-                    padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif",
+                    padding: '0.65rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     border: on ? `2px solid ${opt.activeBorder}` : `1.5px solid ${opt.passiveBorder}`,
                     background: on ? opt.activeBg : opt.passiveBg,
                   }}>
@@ -1204,7 +1207,46 @@ const AIBehaviour = ({ onNavigate }) => {
             </div>
           </div>
         ) : (
-          <p style={{ fontSize: '0.85rem', color: '#aaa' }}>Number blocking management coming soon.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {blockedNumbers.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {blockedNumbers.map(num => (
+                  <div key={num} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.85rem', background: '#fff5f5', border: '1px solid rgba(185,28,28,0.15)', borderRadius: 8 }}>
+                    <span style={{ fontSize: '0.875rem', color: '#334155', fontFamily: 'monospace' }}>{num}</span>
+                    <button
+                      onClick={() => setBlockedNumbers(prev => prev.filter(n => n !== num))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', fontSize: '1rem', lineHeight: 1, padding: '0 0.25rem' }}
+                      title="Remove"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="tel"
+                value={numberDraft}
+                onChange={e => setNumberDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && numberDraft.trim()) {
+                    const n = numberDraft.trim()
+                    if (!blockedNumbers.includes(n)) setBlockedNumbers(prev => [...prev, n])
+                    setNumberDraft('')
+                  }
+                }}
+                placeholder="+44 7700 900000"
+                style={{ ...s.textarea, flex: 1, fontFamily: 'monospace', minHeight: 'unset', resize: 'none', padding: '0.55rem 0.85rem' }}
+              />
+              <button
+                onClick={() => {
+                  const n = numberDraft.trim()
+                  if (n && !blockedNumbers.includes(n)) { setBlockedNumbers(prev => [...prev, n]); setNumberDraft('') }
+                }}
+                style={{ padding: '0.55rem 1rem', background: '#5e3b87', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500 }}
+              >Add</button>
+            </div>
+            <p style={s.hint}>Type a number and press Enter or Add. Changes save with the main Save button.</p>
+          </div>
         )}
       </div>
 
@@ -1257,31 +1299,50 @@ const AIBehaviour = ({ onNavigate }) => {
 
                 <div>
                   <label style={s.label}>Slots to offer</label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {[1, 2, 3].map(n => (
-                      <button key={n} onClick={() => setBookingSlotsToOffer(n)} style={{ ...s.pairBtn(bookingSlotsToOffer === n), minWidth: '52px' }}>{n}</button>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                    <button onClick={() => setBookingSlotsToOffer(v => Math.max(1, v - 1))} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderRight: 'none', borderRadius: '8px 0 0 8px', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>−</button>
+                    <div style={{ width: 52, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(94,59,135,0.25)', fontSize: '0.925rem', fontWeight: 600, color: '#1a1a1a', background: '#fff' }}>{bookingSlotsToOffer}</div>
+                    <button onClick={() => setBookingSlotsToOffer(v => Math.min(5, v + 1))} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderLeft: 'none', borderRadius: '0 8px 8px 0', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>+</button>
                   </div>
                   <p style={s.hint}>How many available slots your AI offers the caller to choose from.</p>
                 </div>
 
                 <div>
                   <label style={s.label}>Booking buffer</label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {[15, 30, 45, 60].map(n => (
-                      <button key={n} onClick={() => setBookingBufferMins(n)} style={{ ...s.pairBtn(bookingBufferMins === n), minWidth: '52px' }}>{n} min</button>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                    <button onClick={() => setBookingBufferMins(v => Math.max(5, v - 5))} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderRight: 'none', borderRadius: '8px 0 0 8px', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>−</button>
+                    <div style={{ width: 72, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(94,59,135,0.25)', fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', background: '#fff' }}>{bookingBufferMins} min</div>
+                    <button onClick={() => setBookingBufferMins(v => Math.min(480, v + 5))} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderLeft: 'none', borderRadius: '0 8px 8px 0', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>+</button>
                   </div>
                   <p style={s.hint}>Minimum gap between now and the earliest slot your AI can offer.</p>
                 </div>
 
                 <div>
                   <label style={s.label}>Confirmation window</label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {[{ label: '1 hour', value: 60 }, { label: '2 hours', value: 120 }, { label: 'Same day', value: 1440 }].map(opt => (
-                      <button key={opt.value} onClick={() => setBookingConfirmationWindowMins(opt.value)} style={s.pairBtn(bookingConfirmationWindowMins === opt.value)}>{opt.label}</button>
-                    ))}
-                  </div>
+                  {(() => {
+                    const unitMult = bookingConfWindowUnit === 'days' ? 1440 : bookingConfWindowUnit === 'hours' ? 60 : 1
+                    const displayVal = Math.round(bookingConfirmationWindowMins / unitMult) || 1
+                    const setDisplayVal = n => setBookingConfirmationWindowMins(Math.max(1, n) * unitMult)
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                          <button onClick={() => setDisplayVal(displayVal - 1)} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderRight: 'none', borderRadius: '8px 0 0 8px', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>−</button>
+                          <div style={{ width: 52, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(94,59,135,0.25)', fontSize: '0.925rem', fontWeight: 600, color: '#1a1a1a', background: '#fff' }}>{displayVal}</div>
+                          <button onClick={() => setDisplayVal(displayVal + 1)} style={{ width: 36, height: 36, border: '1px solid rgba(94,59,135,0.25)', borderLeft: 'none', borderRadius: '0 8px 8px 0', background: '#fff', cursor: 'pointer', fontSize: '1.1rem', color: '#5e3b87' }}>+</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          {['mins', 'hours', 'days'].map(u => (
+                            <button key={u} onClick={() => {
+                              const curMult = bookingConfWindowUnit === 'days' ? 1440 : bookingConfWindowUnit === 'hours' ? 60 : 1
+                              const newMult = u === 'days' ? 1440 : u === 'hours' ? 60 : 1
+                              setBookingConfirmationWindowMins(Math.max(newMult, Math.round(bookingConfirmationWindowMins / curMult) * newMult))
+                              setBookingConfWindowUnit(u)
+                            }} style={{ padding: '0.3rem 0.7rem', borderRadius: 6, border: bookingConfWindowUnit === u ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.2)', background: bookingConfWindowUnit === u ? '#f4effe' : '#fff', color: bookingConfWindowUnit === u ? '#5e3b87' : '#555', fontSize: '0.8rem', cursor: 'pointer', fontWeight: bookingConfWindowUnit === u ? 600 : 400 }}>{u}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
                   <p style={s.hint}>How long the caller has to confirm before the provisional slot is released.</p>
                 </div>
 
@@ -1294,7 +1355,10 @@ const AIBehaviour = ({ onNavigate }) => {
             <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
               <label style={s.label} data-help="Connect your calendar so your AI can check availability and make provisional bookings. Supports Google Calendar, Apple Calendar, Outlook, Fastmail, and any CalDAV-compatible service.">Calendar integration</label>
               <p style={s.hint}>Read availability · Write provisional bookings · Supports Google, Apple, Outlook, Fastmail, and all CalDAV providers.</p>
-              <p style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.25rem' }}>Calendar connection coming soon.</p>
+              <button
+                onClick={() => onNavigate && onNavigate('integrations')}
+                style={{ marginTop: '0.5rem', padding: '0.55rem 1.1rem', background: '#5e3b87', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500 }}
+              >Connect calendar in Integrations →</button>
             </div>
           </>
         )}

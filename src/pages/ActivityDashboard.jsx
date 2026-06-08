@@ -559,6 +559,12 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
+  const [partnerCount, setPartnerCount] = useState(-1)
+  const [staffCount, setStaffCount]     = useState(-1)
+  const [catalogueCount, setCatalogueCount] = useState(-1)
+  const [listenTier, setListenTier]     = useState('none')
+  const [calendarTier, setCalendarTier] = useState('entry')
+  const [featureNoticeClosed, setFeatureNoticeClosed] = useState(false)
 
   // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
@@ -594,7 +600,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode')
+          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier')
           .eq('id', tid)
           .maybeSingle()
 
@@ -605,11 +611,13 @@ const ActivityDashboard = ({ onNavigate }) => {
           setTriageMode(tenant.triage_mode || 'balanced')
           setVoicePref(tenant.overage_voice_preference || 'premium')
           setHolidayMode(tenant.holiday_mode || false)
+          setListenTier(tenant.listen_tier || 'none')
+          setCalendarTier(tenant.calendar_tier || 'entry')
         }
 
         const monthIso = startOfMonth().toISOString()
 
-        const [callRes, leadRes, refRes] = await Promise.all([
+        const [callRes, leadRes, refRes, pCountRes, sCountRes, cCountRes] = await Promise.all([
           supabase
             .from('call_logs')
             .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, full_name)')
@@ -633,11 +641,18 @@ const ActivityDashboard = ({ onNavigate }) => {
             .gte('created_at', startOfDaysAgo(7).toISOString())
             .order('created_at', { ascending: false })
             .limit(50),
+
+          supabase.from('referral_partners').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+          supabase.from('staff_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+          supabase.from('catalogue_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
         ])
 
         setCalls(callRes.data || [])
         setLeads(leadRes.data || [])
         setReferrals(refRes.data || [])
+        setPartnerCount(pCountRes.count ?? 0)
+        setStaffCount(sCountRes.count ?? 0)
+        setCatalogueCount(cCountRes.count ?? 0)
 
         try {
           const { data: integrations } = await supabase
@@ -1599,6 +1614,83 @@ const ActivityDashboard = ({ onNavigate }) => {
               ))}
             </div>
 
+          </div>
+        )
+      })()}
+
+      {/* ── FEATURE DISCOVERY NOTICE ─────────────────────────────────────────── */}
+      {(() => {
+        if (isDemo || isPreview || loading || calls.length === 0 || featureNoticeClosed) return null
+        try {
+          const stored = localStorage.getItem('qx_features_notice')
+          if (stored) {
+            const { dismissed, snoozedUntil } = JSON.parse(stored)
+            if (dismissed) return null
+            if (snoozedUntil && new Date(snoozedUntil) > new Date()) return null
+          }
+        } catch { /* ignore */ }
+
+        const features = [
+          partnerCount === 0   && { id: 'partners',  icon: '🤝', label: 'Referral partner network',   desc: 'Your AI can refer out-of-scope callers to trusted partners — and when they reciprocate, their AI sends callers back to you.',     tab: 'referrals' },
+          staffCount === 0     && { id: 'team',       icon: '👥', label: 'Team & staff routing',       desc: 'Add your team so the AI routes calls to the right person and displays each specialist\'s skills.',                             tab: 'team'      },
+          catalogueCount === 0 && { id: 'catalogue',  icon: '📋', label: 'Services catalogue',         desc: 'List your services and prices so the AI quotes accurately, upsells intelligently, and qualifies enquiries faster.',            tab: 'profile'   },
+          listenTier === 'none' && { id: 'listen',    icon: '🎙️', label: 'Call transcripts',           desc: 'Review every conversation word-for-word — find missed opportunities, quality-check your AI, spot patterns.',                  tab: 'listen'    },
+          calendarTier === 'entry' && { id: 'calendar', icon: '📅', label: 'Smart calendar booking',  desc: 'Let the AI book appointments directly into your diary and send automated reminders to callers.',                               tab: 'calendar'  },
+        ].filter(Boolean)
+
+        if (features.length < 2) return null
+
+        return (
+          <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', marginBottom: '1.5rem', overflow: 'hidden' }}>
+            <div style={{ background: 'linear-gradient(135deg, #f0ebf8, #fef3d9)', padding: '1rem 1.25rem 0.85rem', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#3a2057', marginBottom: '0.15rem' }}>
+                    💡 Features you haven't explored yet
+                  </div>
+                  <div style={{ fontSize: '0.775rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>
+                    Qerxel has {features.length} active feature{features.length !== 1 ? 's' : ''} you're not using — each one adds value from day one.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {features.slice(0, 4).map((f, i) => (
+                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.25rem', borderBottom: i < Math.min(features.length, 4) - 1 ? '1px solid rgba(94,59,135,0.04)' : 'none' }}>
+                  <span style={{ fontSize: '1.25rem', flexShrink: 0, width: 28, textAlign: 'center' }}>{f.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.15rem' }}>{f.label}</div>
+                    <div style={{ fontSize: '0.775rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45 }}>{f.desc}</div>
+                  </div>
+                  <button
+                    onClick={() => onNavigate && onNavigate(f.tab)}
+                    style={{ flexShrink: 0, padding: '0.38rem 0.85rem', background: '#f0ebf8', color: '#5e3b87', border: 'none', borderRadius: 8, fontSize: '0.775rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Show me →
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(94,59,135,0.05)', background: '#faf9fc' }}>
+              <button
+                onClick={() => {
+                  const until = new Date(); until.setDate(until.getDate() + 7)
+                  localStorage.setItem('qx_features_notice', JSON.stringify({ snoozedUntil: until.toISOString() }))
+                  setFeatureNoticeClosed(true)
+                }}
+                style={{ padding: '0.35rem 0.85rem', background: 'none', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, color: '#aaa', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Remind me next week
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('qx_features_notice', JSON.stringify({ dismissed: true }))
+                  setFeatureNoticeClosed(true)
+                }}
+                style={{ padding: '0.35rem 0.85rem', background: '#f0ebf8', border: 'none', borderRadius: 7, color: '#5e3b87', fontSize: '0.775rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Got it, all noted
+              </button>
+            </div>
           </div>
         )
       })()}
