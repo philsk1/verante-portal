@@ -539,6 +539,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [voicePref, setVoicePref] = useState('premium')
   const [selectedCall, setSelectedCall] = useState(null)
   const [selectedLead, setSelectedLead] = useState(null)
+  const [calledOutcome, setCalledOutcome] = useState(null) // null | 'picking'
   const [leadNotes, setLeadNotes] = useState('')
   const [leadNotesSaving, setLeadNotesSaving] = useState(false)
   const [connectedIntegrations, setConnectedIntegrations] = useState(new Set())
@@ -685,6 +686,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   useEffect(() => {
     setLeadNotes(selectedLead?.notes || '')
     setCallTranscript(null)
+    setCalledOutcome(null)
     if (!selectedLead?.call_log_id || isDemo || isPreview) return
     setCallTranscriptLoading(true)
     supabase
@@ -2012,58 +2014,92 @@ const ActivityDashboard = ({ onNavigate }) => {
               </div>
 
               {/* Sticky footer */}
-              <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {(!lead.status || lead.status === 'new') && (
+              <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
+
+                {/* Outcome picker — shown after "I have called" */}
+                {calledOutcome === 'picking' && (
+                  <div style={{ padding: '0.85rem 1.75rem', background: '#f4effe', borderBottom: '1px solid rgba(94,59,135,0.08)', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>What happened?</span>
+                    <button onClick={() => { updateLeadStatus(lead, 'converted'); setSelectedLead(null) }}
+                      style={{ padding: '0.45rem 0.85rem', border: '1.5px solid #3db87a', borderRadius: 7, background: '#e6f9ef', color: '#1a6640', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      Won ✓
+                    </button>
+                    <button onClick={() => setSelectedLead(null)}
+                      style={{ padding: '0.45rem 0.85rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      No answer — still open
+                    </button>
+                    <button onClick={() => { updateLeadStatus(lead, 'lost'); setSelectedLead(null) }}
+                      style={{ padding: '0.45rem 0.85rem', border: '1.5px solid #cbd5e1', borderRadius: 7, background: '#f8fafc', color: '#64748b', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      Not a fit
+                    </button>
+                  </div>
+                )}
+
+                {/* Main action row */}
+                <div style={{ padding: '1rem 1.75rem', display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* I have called — dials + asks outcome */}
+                  {phone && (
+                    <button
+                      onClick={() => {
+                        window.location.href = `tel:${phone}`
+                        updateLeadStatus(lead, 'contacted')
+                        setCalledOutcome('picking')
+                      }}
+                      style={{ padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      I have called
+                    </button>
+                  )}
+                  {/* Mark as Contacted — for non-call contact (email, WhatsApp, etc.) */}
+                  {(!lead.status || lead.status === 'new') && !phone && (
+                    <button
+                      onClick={() => markContacted(lead)}
+                      style={{ padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      Mark as Contacted
+                    </button>
+                  )}
+                  {/* Book appointment */}
                   <button
-                    onClick={() => markContacted(lead)}
-                    style={{ padding: '0.5rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    Mark as Contacted
+                    onClick={() => { setSelectedLead(null); onNavigate && onNavigate('calendar', { title: name, notes: phone ? `Lead · ${phone}` : 'Lead captured' }) }}
+                    style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Book appointment
                   </button>
-                )}
-                {phone && (
-                  <a href={`tel:${phone}`}
-                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    Call back
-                  </a>
-                )}
-                <button
-                  onClick={() => { setSelectedLead(null); onNavigate && onNavigate('calendar', { title: name, notes: phone ? `Lead · ${phone}` : 'Lead captured' }) }}
-                  style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                  Book appointment
-                </button>
-                {lead.call_log_id && onNavigate && (
-                  <button
-                    onClick={() => { setSelectedLead(null); onNavigate('listen', { callId: lead.call_log_id }) }}
-                    style={{ padding: '0.5rem 1rem', border: '1px solid rgba(61,184,122,0.35)', borderRadius: 8, background: '#f0fdf4', color: '#1e7a4a', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    View transcript
+                  {/* Transcript */}
+                  {lead.call_log_id && onNavigate && (
+                    <button
+                      onClick={() => { setSelectedLead(null); onNavigate('listen', { callId: lead.call_log_id }) }}
+                      style={{ padding: '0.5rem 1rem', border: '1px solid rgba(61,184,122,0.35)', borderRadius: 8, background: '#f0fdf4', color: '#1e7a4a', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      View transcript
+                    </button>
+                  )}
+                  {/* Invoicing */}
+                  {connectedIntegrations.has('freeagent') && <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />}
+                  {connectedIntegrations.has('xero') && <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />}
+                  {connectedIntegrations.has('stripe') && <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />}
+                  {connectedIntegrations.size === 0 && onNavigate && (
+                    <button
+                      onClick={() => { setSelectedLead(null); onNavigate('integrations') }}
+                      style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, background: 'white', color: '#7c5ab8', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      Connect invoicing →
+                    </button>
+                  )}
+                  {/* Won / Lost */}
+                  {(!lead.status || lead.status === 'new' || lead.status === 'contacted') && calledOutcome !== 'picking' && (
+                    <button onClick={() => { updateLeadStatus(lead, 'converted'); setSelectedLead(null) }}
+                      style={{ padding: '0.5rem 1rem', border: '1px solid #3db87a', borderRadius: 8, background: '#e6f9ef', color: '#1a6640', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      Won ✓
+                    </button>
+                  )}
+                  {lead.status !== 'lost' && calledOutcome !== 'picking' && (
+                    <button onClick={() => { updateLeadStatus(lead, 'lost'); setSelectedLead(null) }}
+                      style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#64748b', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      Lost
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedLead(null)}
+                    style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    Dismiss
                   </button>
-                )}
-                {connectedIntegrations.has('freeagent') && <FreeAgentInvoiceButton leadId={lead.id} tenantId={tenantId} />}
-                {connectedIntegrations.has('xero') && <XeroInvoiceButton leadId={lead.id} tenantId={tenantId} />}
-                {connectedIntegrations.has('stripe') && <StripePaymentButton tenantId={tenantId} leadId={lead.id} leadName={name} />}
-                {connectedIntegrations.size === 0 && (
-                  <button
-                    onClick={() => { setSelectedLead(null); onNavigate && onNavigate('integrations') }}
-                    style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, background: 'white', color: '#aaaaaa', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    Connect invoicing →
-                  </button>
-                )}
-                {(!lead.status || lead.status === 'new' || lead.status === 'contacted') && (
-                  <button onClick={() => { updateLeadStatus(lead, 'converted'); setSelectedLead(null) }}
-                    style={{ padding: '0.5rem 1rem', border: '1px solid #3db87a', borderRadius: 8, background: '#e6f9ef', color: '#1a6640', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    Won ✓
-                  </button>
-                )}
-                {lead.status !== 'lost' && (
-                  <button onClick={() => { updateLeadStatus(lead, 'lost'); setSelectedLead(null) }}
-                    style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#64748b', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                    Lost
-                  </button>
-                )}
-                <button onClick={() => setSelectedLead(null)}
-                  style={{ marginLeft: 'auto', padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.12)', borderRadius: 8, background: 'white', color: '#aaaaaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Dismiss
-                </button>
+                </div>
               </div>
 
             </motion.div>
