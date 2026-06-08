@@ -128,17 +128,21 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
     const raw = demo.calls || []
-    setCalls(raw.map(c => ({
-      id:               c.id,
-      created_at:       c.created_at,
-      duration_seconds: c.duration_seconds,
-      call_outcome:     c.call_outcome,
-      ai_summary:       c.ai_summary,
-      caller_phone:     c.callers?.phone_number || c.caller_number || null,
-      caller_name:      c.caller_name || null,
-      transcript:       c.transcript || null,
-      callback_flagged: c.callback_flagged || false,
-    })))
+    setCalls(prev => {
+      // Preserve any callback_flagged toggles the user made locally this session
+      const localFlags = new Map(prev.map(c => [c.id, c.callback_flagged]))
+      return raw.map(c => ({
+        id:               c.id,
+        created_at:       c.created_at,
+        duration_seconds: c.duration_seconds,
+        call_outcome:     c.call_outcome,
+        ai_summary:       c.ai_summary,
+        caller_phone:     c.callers?.phone_number || c.caller_number || null,
+        caller_name:      c.caller_name || null,
+        transcript:       c.transcript || null,
+        callback_flagged: localFlags.has(c.id) ? localFlags.get(c.id) : (c.callback_flagged || false),
+      }))
+    })
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
@@ -187,7 +191,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
     if (transcriptRef.current) transcriptRef.current.scrollTop = 0
   }, [selected?.id])
 
-  // ── Auto-advance to first populated tab if current is empty ──────────────────
+  // ── Auto-advance to first populated tab — initial load only, not on flag toggles ──
   useEffect(() => {
     if (loading || calls.length === 0 || prefill?.callId) return
     const getCount = (t) => t.id === 'urgent'
@@ -198,7 +202,9 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       const firstPopulated = TABS.find(t => getCount(t) > 0)
       if (firstPopulated) setActiveTab(firstPopulated.id)
     }
-  }, [loading, calls, urgentOutcomes])
+  // Deliberately excludes `calls` — we only want this to run when loading completes
+  // or urgentOutcomes changes, NOT every time a flag is toggled.
+  }, [loading, urgentOutcomes])
 
   // ── Flag toggle ──────────────────────────────────────────────────────────────
   const toggleFlag = async (callId, e) => {
@@ -410,7 +416,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                       title={selected.callback_flagged ? 'Remove from Call Back list' : 'Add to your Call Back list'}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: 6, border: `1px solid ${selected.callback_flagged ? 'rgba(94,59,135,0.3)' : 'rgba(200,200,200,0.5)'}`, background: selected.callback_flagged ? '#f3f1f7' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 500, color: selected.callback_flagged ? '#5e3b87' : '#bbb', transition: 'all 0.15s' }}>
                       <FlagIcon active={selected.callback_flagged} />
-                      {selected.callback_flagged ? 'In Call Back' : 'Flag for Call Back'}
+                      {selected.callback_flagged ? 'Remove from Call Back' : 'Add to Call Back'}
                     </button>
                     <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>×</button>
                   </div>
