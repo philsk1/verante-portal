@@ -12,6 +12,7 @@ import AccountSettings from './AccountSettings'
 import Integrations from './Integrations'
 import CalendarTab from './Calendar'
 import StaffDirectory from './StaffDirectory'
+import ListenTab from './ListenTab'
 import HelpMascot from '../components/HelpMascot'
 import DemoBanner from '../components/DemoBanner'
 
@@ -360,9 +361,8 @@ const Portal = () => {
       id: 'listen',
       label: 'Listen',
       dot: '#3db87a',
-      locked: true,
       tabs: [
-        { id: 'listen', label: 'Real-time assist', icon: <IcoListen />, locked: true },
+        { id: 'listen', label: 'Listen', icon: <IcoListen /> },
       ],
     },
     {
@@ -390,20 +390,7 @@ const Portal = () => {
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
-      case 'listen': return (
-        <div style={{ background: 'white', borderRadius: 16, padding: '2.5rem 2rem', border: '0.5px solid rgba(61,184,122,0.15)', textAlign: 'center', maxWidth: 540, margin: '0 auto' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f0fdf4', border: '1.5px solid rgba(61,184,122,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#3db87a' }}>
-            <IcoListen />
-          </div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.5rem' }}>Qerxel Listen</div>
-          <div style={{ fontSize: '0.875rem', color: '#666', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif", marginBottom: '1.5rem' }}>
-            Real-time call listening with on-screen AI assist. Your AI surfaces the right information as the conversation happens — product details, availability, notes — without the caller knowing.
-          </div>
-          <div style={{ display: 'inline-block', padding: '0.4rem 1rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.3)', borderRadius: 20, fontSize: '0.78rem', fontWeight: 600, color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>
-            Coming in a future release
-          </div>
-        </div>
-      )
+      case 'listen': return <ListenTab />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
           <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Coming soon.</p>
