@@ -179,7 +179,12 @@ const DemoPortalInner = ({ businessId }) => {
         </div>
 
         {/* ── Content ─────────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <div style={{
+          flex: 1, minWidth: 0,
+          overflowY: activeTab === 'listen' ? 'hidden' : 'auto',
+          display: activeTab === 'listen' ? 'flex' : 'block',
+          flexDirection: activeTab === 'listen' ? 'column' : undefined,
+        }}>
           {demo.loading ? (
             <div style={{ padding: '3rem 2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading demo data…</div>
           ) : (

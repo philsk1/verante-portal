@@ -834,8 +834,11 @@ const Portal = () => {
 
         {/* Scrollable page content */}
         <div style={{
-          flex: 1, overflowY: 'auto',
-          padding: isMobile ? '1rem 1rem 5rem' : '2rem',
+          flex: 1,
+          overflowY: activeTab === 'listen' ? 'hidden' : 'auto',
+          display: activeTab === 'listen' ? 'flex' : 'block',
+          flexDirection: activeTab === 'listen' ? 'column' : undefined,
+          padding: activeTab === 'listen' ? 0 : (isMobile ? '1rem 1rem 5rem' : '2rem'),
           background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
         }}>
           {(() => {
