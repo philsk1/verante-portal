@@ -1092,7 +1092,7 @@ const AIBehaviour = ({ onNavigate }) => {
         <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, padding: '0.85rem 1rem', marginBottom: '1.25rem' }}>
           <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Your system greeting</div>
           <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
-            "{previewGreeting(toneRegister, businessName, leadContactName, businessOutcomeType, bookingLink, callbackPrefNote)}"
+            "{previewGreeting(toneRegister, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
           </div>
           <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Updates automatically with your Tone and Outcome settings above.</div>
         </div>
