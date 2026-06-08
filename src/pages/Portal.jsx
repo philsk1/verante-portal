@@ -726,18 +726,19 @@ const Portal = () => {
             </div>
           </div>
 
-          {/* Collapse toggle */}
+          {/* Collapse toggle — fixed so it stays at viewport midpoint when page scrolls */}
           <button
             onClick={() => setSidebarCollapsed(c => !c)}
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             style={{
-              position: 'absolute', right: -12, top: '50%', transform: 'translateY(-50%)',
+              position: 'fixed', left: sidebarW - 12, top: '50%', transform: 'translateY(-50%)',
               width: 24, height: 24, borderRadius: '50%',
               background: 'white', border: '1px solid rgba(94,59,135,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', zIndex: 20,
+              cursor: 'pointer', zIndex: 30,
               boxShadow: '0 2px 8px rgba(94,59,135,0.15)',
               color: '#5e3b87', padding: 0,
+              transition: 'left 0.22s ease',
             }}
           >
             {sidebarCollapsed ? <IcoChevronRight /> : <IcoChevronLeft />}
