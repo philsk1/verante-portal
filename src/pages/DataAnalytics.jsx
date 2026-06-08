@@ -399,7 +399,7 @@ const DataAnalytics = ({ onNavigate }) => {
         const [callRes, leadRes] = await Promise.all([
           supabase
             .from('call_logs')
-            .select('id, created_at, duration, triage_outcome')
+            .select('id, created_at, duration_seconds, call_outcome')
             .eq('tenant_id', tid)
             .limit(5000),
 
@@ -415,15 +415,15 @@ const DataAnalytics = ({ onNavigate }) => {
         setTotalCalls(calls.length)
         setTotalLeads(leads.length)
 
-        const withDuration = calls.filter(c => c.duration > 0)
+        const withDuration = calls.filter(c => c.duration_seconds > 0)
         const avgSecs = withDuration.length > 0
-          ? Math.round(withDuration.reduce((s, c) => s + c.duration, 0) / withDuration.length)
+          ? Math.round(withDuration.reduce((s, c) => s + c.duration_seconds, 0) / withDuration.length)
           : 0
         setAvgDurationSecs(avgSecs)
 
         const outcomes = {}
         calls.forEach(c => {
-          const k = c.triage_outcome || 'unknown'
+          const k = c.call_outcome || 'unknown'
           outcomes[k] = (outcomes[k] || 0) + 1
         })
         setOutcomeBreakdown(outcomes)
