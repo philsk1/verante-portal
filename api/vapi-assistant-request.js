@@ -10,11 +10,11 @@ const WEBHOOK_URL = 'https://qerxel-portal.vercel.app/api/vapi-webhook'
 
 // Fetch all tenant data needed to build the system prompt
 async function fetchTenantData(tenantId) {
-  const [tenantRes, servicesRes, partnerServicesRes, callRulesRes, partnersRes, specialtiesRes] =
+  const [tenantRes, servicesRes, partnerServicesRes, callRulesRes, partnersRes, specialtiesRes, staffRes] =
     await Promise.all([
       supabase
         .from('tenants')
-        .select('business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, callback_preference_note, urgent_callback_mins, additional_instructions')
+        .select('id, business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, urgent_callback_mins, additional_instructions, subcategory_id, blocked_phone_numbers, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins')
         .eq('id', tenantId)
         .maybeSingle(),
       supabase.from('services').select('service_name').eq('tenant_id', tenantId),
@@ -22,6 +22,7 @@ async function fetchTenantData(tenantId) {
       supabase.from('call_handling_rules').select('call_type, mode, booking_link, callback, email, email_address, instructions').eq('tenant_id', tenantId),
       supabase.from('referral_partners').select('id, partner_name, contact_phone').eq('tenant_id', tenantId),
       supabase.from('referral_service_map').select('partner_id, service_keyword'),
+      supabase.from('staff_profiles').select('id, name, role, specialist_services, phone, direct_line_did, active').eq('tenant_id', tenantId),
     ])
 
   const partners = (partnersRes.data || []).map(p => {
@@ -31,12 +32,24 @@ async function fetchTenantData(tenantId) {
     return { ...p, business_name: p.partner_name, business_phone: p.contact_phone, specialties: specs }
   })
 
+  let isSensitive = false
+  if (tenantRes.data?.subcategory_id) {
+    const { data: sub } = await supabase
+      .from('business_type_subcategories')
+      .select('is_sensitive')
+      .eq('id', tenantRes.data.subcategory_id)
+      .maybeSingle()
+    isSensitive = sub?.is_sensitive === true
+  }
+
   return {
     tenant:          tenantRes.data,
     services:        (servicesRes.data || []).map(s => s.service_name),
     partnerServices: (partnerServicesRes.data || []).map(s => s.banned_item),
     callRules:       callRulesRes.data || [],
     partners,
+    staff:           staffRes.data || [],
+    isSensitive,
   }
 }
 

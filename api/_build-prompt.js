@@ -113,6 +113,7 @@ const SENSITIVE_INSTRUCTION = `This business operates under professional confide
 
 export function buildSystemPrompt(data) {
   const { tenant, services, partnerServices, callRules, partners, staff, isSensitive } = data
+  const blockedNumbers = Array.isArray(tenant.blocked_phone_numbers) ? tenant.blocked_phone_numbers.filter(Boolean) : []
 
   const rulesByType = {}
   for (const r of callRules) rulesByType[r.call_type] = r
@@ -237,6 +238,7 @@ Take their name, organisation, and reason. Confirm someone will be in touch.
 ━━━ FILTERS ━━━
 ${filters.length ? filters.join('\n') : 'Standard behaviour.'}
 Spam or automated calls: → triage_outcome = "spam"
+${blockedNumbers.length ? `\nBLOCKED NUMBERS — if the caller's number matches any of the following, end the call immediately and politely:\n${blockedNumbers.map(n => `  • ${n}`).join('\n')}\nSay: "I'm sorry, we're unable to take calls from this number." → triage_outcome = "spam"` : ''}
 
 ${keywords.length ? `━━━ EMERGENCY KEYWORDS ━━━
 If you hear: ${keywords.join(', ')}

@@ -57,7 +57,7 @@ const ANSWER_TIERS = [
     minutes: 1000,
     concurrent: 3,
     features: ['1,000 min/month included', '3+ concurrent calls', 'Staff extension routing', 'No referral network cap'],
-    badge: null,
+    badge: 'Contact us',
   },
 ]
 
@@ -399,10 +399,17 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
               Back
             </button>
           )}
-          <button onClick={handleContinue}
-            style={{ padding: '0.65rem 1.6rem', border: 'none', borderRadius: 8, background: '#f0a500', color: '#1a0533', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-            Continue with this plan →
-          </button>
+          {answer === 'enterprise' ? (
+            <a href="mailto:hello@qerxel.app?subject=Enterprise enquiry"
+              style={{ padding: '0.65rem 1.6rem', border: 'none', borderRadius: 8, background: '#5e3b87', color: 'white', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              Talk to us about Enterprise →
+            </a>
+          ) : (
+            <button onClick={handleContinue}
+              style={{ padding: '0.65rem 1.6rem', border: 'none', borderRadius: 8, background: '#f0a500', color: '#1a0533', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              Continue with this plan →
+            </button>
+          )}
         </div>
       </div>
     </div>
