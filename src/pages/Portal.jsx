@@ -437,17 +437,18 @@ const Portal = () => {
   const sidebarW = sidebarCollapsed ? 60 : 260
 
   return (
-    <div style={{ height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
       <style>{`@keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }`}</style>
 
       {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
       {!isMobile && (
         <aside style={{
-          position: 'fixed',
-          left: 0,
+          position: 'sticky',
           top: 0,
-          bottom: 0,
+          alignSelf: 'flex-start',
+          height: '100vh',
           width: sidebarW,
+          flexShrink: 0,
           background: '#5e3b87',
           display: 'flex',
           flexDirection: 'column',
@@ -804,7 +805,7 @@ const Portal = () => {
       )}
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <div style={{ marginLeft: isMobile ? 0 : sidebarW, transition: 'margin-left 0.22s ease', display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', ...(activeTab === 'listen' && { height: '100vh', overflow: 'hidden' }) }}>
 
         {/* Demo banner */}
         {preview.isDemo && (
@@ -855,10 +856,11 @@ const Portal = () => {
           </div>
         )}
 
-        {/* Scrollable page content */}
+        {/* Page content — window scrolls naturally; Listen gets its own internal scroll */}
         <div style={{
           flex: 1,
-          overflowY: activeTab === 'listen' ? 'hidden' : 'auto',
+          minHeight: 0,
+          overflowY: activeTab === 'listen' ? 'hidden' : 'visible',
           display: activeTab === 'listen' ? 'flex' : 'block',
           flexDirection: activeTab === 'listen' ? 'column' : undefined,
           padding: activeTab === 'listen' ? 0 : (isMobile ? '1rem 1rem 5rem' : '2rem'),

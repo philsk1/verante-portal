@@ -82,15 +82,16 @@ const DemoPortalInner = ({ businessId }) => {
       )}
 
       {/* Body: sidebar + content */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex' }}>
 
         {/* ── Sidebar ─────────────────────────────────────────────────────── */}
         <div style={{
-          width: sidebarW, minHeight: '100%',
+          width: sidebarW, height: '100vh',
+          position: 'sticky', top: 0, alignSelf: 'flex-start',
           background: 'linear-gradient(180deg, #5e3b87 0%, #4a2d6e 100%)',
           display: 'flex', flexDirection: 'column',
           transition: 'width 0.22s cubic-bezier(.4,0,.2,1)',
-          position: 'relative', flexShrink: 0, overflow: 'hidden',
+          flexShrink: 0, overflow: 'hidden',
           boxShadow: '2px 0 12px rgba(58,32,87,0.18)',
         }}>
 
@@ -185,9 +186,10 @@ const DemoPortalInner = ({ businessId }) => {
         {/* ── Content ─────────────────────────────────────────────────────── */}
         <div style={{
           flex: 1, minWidth: 0,
-          overflowY: activeTab === 'listen' ? 'hidden' : 'auto',
+          overflowY: activeTab === 'listen' ? 'hidden' : 'visible',
           display: activeTab === 'listen' ? 'flex' : 'block',
           flexDirection: activeTab === 'listen' ? 'column' : undefined,
+          ...(activeTab === 'listen' && { height: '100vh' }),
         }}>
           {demo.loading ? (
             <div style={{ padding: '3rem 2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading demo data…</div>
