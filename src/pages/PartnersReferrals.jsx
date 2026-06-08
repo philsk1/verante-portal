@@ -77,7 +77,7 @@ const Input = ({ style, ...props }) => (
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const PartnersReferrals = () => {
+const PartnersReferrals = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -91,6 +91,7 @@ const PartnersReferrals = () => {
   const [partners, setPartners]             = useState([])
   const [partnerSpecialties, setPartnerSpecialties] = useState({})
   const [outboundCount, setOutboundCount]   = useState(0)
+  const [outboundThisMonth, setOutboundThisMonth] = useState(0)
   const [draft, setDraft]                   = useState({ name: '', phone: '', specialty: '' })
   const [adding, setAdding]                 = useState(false)
   const [codeCopied, setCodeCopied]         = useState(false)
@@ -116,6 +117,8 @@ const PartnersReferrals = () => {
     ;(demo.partners || []).forEach(p => { if (p.specialty) specMap[p.id] = p.specialty })
     setPartnerSpecialties(specMap)
     setOutboundCount(demo.referrals?.length || 0)
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+    setOutboundThisMonth((demo.referrals || []).filter(r => new Date(r.created_at) >= monthStart).length)
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
@@ -154,6 +157,9 @@ const PartnersReferrals = () => {
         ;(specialtyRes.data || []).forEach(row => { if (!specMap[row.partner_id]) specMap[row.partner_id] = row.service_name })
         setPartnerSpecialties(specMap)
         setOutboundCount(logRes.count || 0)
+        const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+        const { count: monthCount } = await supabase.from('referral_log').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', monthStart.toISOString())
+        setOutboundThisMonth(monthCount || 0)
       } catch (err) {
         console.error('Partners load error:', err)
       } finally {
@@ -212,11 +218,18 @@ const PartnersReferrals = () => {
       {/* ── KPI TILES ─────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}
         data-help="At a glance: referrals sent by your AI, estimated value those referrals created, and free months earned from your referral code.">
-        <div style={{ background: '#bbf7d0', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(61,184,122,0.3)', textAlign: 'center' }}>
+        <button
+          onClick={() => onNavigate && onNavigate('dashboard')}
+          style={{ background: '#bbf7d0', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(61,184,122,0.3)', textAlign: 'center', cursor: onNavigate ? 'pointer' : 'default', transition: 'transform 0.15s, box-shadow 0.15s' }}
+          onMouseEnter={e => { if (onNavigate) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(61,184,122,0.2)' } }}
+          onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+        >
           <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#166534', lineHeight: 1, marginBottom: '0.25rem' }}>{outboundCount}</div>
           <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#1e7a4a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referrals sent</div>
-          <div style={{ fontSize: '0.68rem', color: '#166534', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>Partners obligated</div>
-        </div>
+          <div style={{ fontSize: '0.68rem', color: '#166534', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>
+            {outboundThisMonth > 0 ? `${outboundThisMonth} this month →` : 'Partners obligated'}
+          </div>
+        </button>
         <div style={{ background: '#fde68a', borderRadius: '14px', padding: '1.1rem 1rem', border: '1px solid rgba(240,165,0,0.4)', textAlign: 'center' }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '2rem', fontWeight: 700, color: '#78460a', lineHeight: 1, marginBottom: '0.25rem' }}>£{estimatedValue.toLocaleString()}</div>
           <div style={{ fontSize: '0.69rem', fontWeight: 700, color: '#92610a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Est. value generated</div>

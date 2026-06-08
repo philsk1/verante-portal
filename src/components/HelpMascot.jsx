@@ -131,8 +131,9 @@ const TAB_LABELS = {
 
 let dialogueCounter = 0
 
-const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
+const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAlert = null }) => {
   const [blink, setBlink]             = useState(false)
+  const [alertDismissed, setAlertDismissed] = useState(false)
 
   // Vera hover mode
   const [helpMode, setHelpMode]       = useState(false)
@@ -169,7 +170,13 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
     setBubbleVisible(false)
     setZones([])
     setDialogues([])
+    setAlertDismissed(false)
   }, [activeTab])
+
+  // Reset dismissed state when the alert message changes
+  useEffect(() => {
+    setAlertDismissed(false)
+  }, [veraAlert])
 
   // Toggle body class so CSS can highlight all [data-help] elements
   useEffect(() => {
@@ -321,9 +328,17 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '' }) => {
         )}
 
         {/* Proactive speech — inline, fades in/out */}
-        {proactiveSpeech && (
+        {proactiveSpeech && !alertDismissed && (
           <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
             {proactiveSpeech}
+          </div>
+        )}
+
+        {/* Vera proactive alert — pattern-driven, persists until dismissed */}
+        {veraAlert && !alertDismissed && !proactiveSpeech && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 340, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
+            <span style={{ flex: 1 }}>{veraAlert}</span>
+            <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
           </div>
         )}
       </div>

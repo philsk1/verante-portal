@@ -19,7 +19,7 @@ const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).join('')
 
 const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', birthday: '', specialist_services: '', direct_line_did: '', private_notes: '', active: true }
 
-export default function StaffDirectory() {
+export default function StaffDirectory({ onNavigate }) {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -29,6 +29,8 @@ export default function StaffDirectory() {
   const [tenantId, setTenantId] = useState(null)
   const [staff, setStaff]       = useState([])
   const [loading, setLoading]   = useState(true)
+  const [uncontactedLeads, setUncontactedLeads] = useState(0)
+  const [staffCallCounts, setStaffCallCounts]   = useState({})
   const [selected, setSelected] = useState(null) // id of open profile
   const [draft, setDraft]       = useState(null) // edited copy
   const [saving, setSaving]     = useState(false)
@@ -61,6 +63,23 @@ export default function StaffDirectory() {
           .select('id, name, role, phone, email, address, birthday, specialist_services, direct_line_did, private_notes, active, colour')
           .eq('tenant_id', tid).order('name')
         setStaff(data || [])
+
+        // Cross-tab: uncontacted leads count
+        const { count: lc } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).or('status.is.null,status.eq.new')
+        setUncontactedLeads(lc || 0)
+
+        // Cross-tab: name mentions in recent AI summaries (last 30 days)
+        const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30)
+        const { data: recentCalls } = await supabase.from('call_logs').select('ai_summary').eq('tenant_id', tid).gte('created_at', monthAgo.toISOString()).not('ai_summary', 'is', null)
+        const summaries = (recentCalls || []).map(c => (c.ai_summary || '').toLowerCase())
+        const counts = {}
+        ;(data || []).forEach(member => {
+          if (!member.name) return
+          const firstName = member.name.trim().split(' ')[0].toLowerCase()
+          if (firstName.length < 3) return
+          counts[member.id] = summaries.filter(s => s.includes(firstName)).length
+        })
+        setStaffCallCounts(counts)
       } finally {
         setLoading(false)
       }
@@ -171,6 +190,22 @@ export default function StaffDirectory() {
 
   return (
     <div data-help="Your team directory — full profiles, contact details, skills and private notes. Click any card to view or edit.">
+
+      {/* Cross-tab: uncontacted leads banner */}
+      {uncontactedLeads > 0 && onNavigate && (
+        <button
+          onClick={() => onNavigate('dashboard')}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '1rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.35)', borderLeft: '4px solid #f0a500', borderRadius: 12, padding: '0.75rem 1rem', cursor: 'pointer', boxSizing: 'border-box' }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8125rem', color: '#78460a' }}>
+              {uncontactedLeads} lead{uncontactedLeads !== 1 ? 's' : ''} waiting for follow-up
+            </span>
+            <span style={{ fontSize: '0.72rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>— see on dashboard →</span>
+          </span>
+        </button>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
         <div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.15rem', fontWeight: 700, color: '#1a1a1a', margin: '0 0 0.1rem' }}>Team</h2>
@@ -221,6 +256,13 @@ export default function StaffDirectory() {
                       <div style={{ fontSize: '0.7rem', background: av.bg, color: av.text, borderRadius: 5, padding: '0.15rem 0.4rem', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.specialist_services}</div>
                     )}
                     {member.phone && <div style={{ fontSize: '0.72rem', color: '#bbb', marginTop: '0.35rem' }}>{member.phone}</div>}
+                    {staffCallCounts[member.id] > 0 && (
+                      <div style={{ marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
+                          {staffCallCounts[member.id]} mention{staffCallCounts[member.id] !== 1 ? 's' : ''} in calls
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )
               })}

@@ -199,6 +199,8 @@ const Portal = () => {
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   const [baseTier, setBaseTier] = useState('light')
   const [demoInitialising, setDemoInitialising] = useState(false)
+  const [triageMode, setTriageMode] = useState('balanced')
+  const [uncontactedCount, setUncontactedCount] = useState(0)
 
   const navigate = useNavigate()
 
@@ -230,7 +232,7 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
@@ -242,8 +244,17 @@ const Portal = () => {
         setNotifyDailySummary(tenant.notify_daily_summary === true)
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
         setBaseTier(tenant.subscription_tier || 'light')
+        setTriageMode(tenant.triage_mode || 'balanced')
         if (tenant.is_demo) preview.setIsDemo(true)
       }
+
+      // Count uncontacted leads for sidebar badge
+      const { count: leadCount } = await supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', membership.tenant_id)
+        .or('status.is.null,status.eq.new')
+      setUncontactedCount(leadCount || 0)
 
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
@@ -374,8 +385,8 @@ const Portal = () => {
       case 'ai':           return <AIBehaviour onNavigate={setActiveTab} />
       case 'dashboard':    return <ActivityDashboard onNavigate={handleNavigate} />
       case 'analytics':    return <DataAnalytics onNavigate={handleNavigate} />
-      case 'referrals':    return <PartnersReferrals />
-      case 'team':         return <StaffDirectory />
+      case 'referrals':    return <PartnersReferrals onNavigate={handleNavigate} />
+      case 'team':         return <StaffDirectory onNavigate={handleNavigate} />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
@@ -416,6 +427,7 @@ const Portal = () => {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
+      <style>{`@keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }`}</style>
 
       {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
       {!isMobile && (
@@ -581,18 +593,36 @@ const Portal = () => {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a' }} />
                 </div>
               ) : (
-                <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3db87a', flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Available</span>
+                <div style={{ padding: '0.55rem 0.9rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3db87a', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Available</span>
+                      {triageMode && triageMode !== 'balanced' && (
+                        <span style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: 4, background: triageMode === 'aggressive' ? 'rgba(239,68,68,0.22)' : 'rgba(240,165,0,0.22)', color: triageMode === 'aggressive' ? '#fca5a5' : '#fcd34d', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                          {triageMode === 'aggressive' ? 'Strict' : triageMode === 'lenient' ? 'Open' : triageMode}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => saveHolidayToggle(true)}
+                      style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                      title="Set to away"
+                    >
+                      Away?
+                    </button>
                   </div>
-                  <button
-                    onClick={() => saveHolidayToggle(true)}
-                    style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}
-                    title="Set to away"
-                  >
-                    Going away?
-                  </button>
+                  {uncontactedCount > 0 && (
+                    <button
+                      onClick={() => setActiveTab('dashboard')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0, animation: 'urgentPulse 2s ease-in-out infinite' }} />
+                      <span style={{ fontSize: '0.65rem', color: 'rgba(240,165,0,0.9)', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+                        {uncontactedCount} lead{uncontactedCount !== 1 ? 's' : ''} to follow up
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -817,14 +847,20 @@ const Portal = () => {
           padding: isMobile ? '1rem 1rem 5rem' : '2rem',
           background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
         }}>
-          {activeTab !== 'calendar' && (
-            <HelpMascot
-              activeTab={activeTab}
-              businessName={displayName}
-              tenantId={activeTenantId}
-              contextKey={TAB_CONTEXT[activeTab]}
-            />
-          )}
+          {(() => {
+            const veraAlert = (() => {
+              if (activeTab === 'dashboard' || activeTab === 'analytics') {
+                if (holidayMode) return '🌙 Vera: Holiday mode is on — your AI is paused. Disable it in Settings when you\'re back.'
+                if (uncontactedCount >= 5) return `⚡ Vera: ${uncontactedCount} leads are waiting. The first hour matters most — callers who aren't called back often move on.`
+                if (uncontactedCount >= 2) return `💡 Vera: ${uncontactedCount} leads need a follow-up. A quick call now could convert them.`
+              }
+              if (activeTab === 'referrals' && uncontactedCount >= 3) return `💡 Vera: You have ${uncontactedCount} uncalled leads on your dashboard. Partners bring more value when you close the ones you have.`
+              if (activeTab === 'team' && uncontactedCount > 0) return `💡 Vera: ${uncontactedCount} lead${uncontactedCount !== 1 ? 's' : ''} waiting on the dashboard. Your team might be able to help with follow-up calls.`
+              return null
+            })()
+            const mascot = <HelpMascot activeTab={activeTab} businessName={displayName} tenantId={activeTenantId} contextKey={TAB_CONTEXT[activeTab]} veraAlert={veraAlert} />
+            return activeTab !== 'calendar' ? mascot : null
+          })()}
           {renderTab()}
           {activeTab === 'calendar' && (
             <HelpMascot
@@ -832,6 +868,7 @@ const Portal = () => {
               businessName={displayName}
               tenantId={activeTenantId}
               contextKey={TAB_CONTEXT[activeTab]}
+              veraAlert={null}
             />
           )}
         </div>

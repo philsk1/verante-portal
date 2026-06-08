@@ -449,7 +449,7 @@ const LEAD_STATUS_ACCENT = {
   lost:      { border: '#cbd5e1', bg: '#f1f5f9' },
 }
 
-const LeadCard = ({ lead, onClick }) => {
+const LeadCard = ({ lead, onClick, onWon, onLost }) => {
   const [hovered, setHovered] = useState(false)
   const name = lead.lead_contact_name || lead.callers?.phone_number || 'Unknown'
   const urgent = isUrgentLead(lead.created_at) && (!lead.status || lead.status === 'new')
@@ -496,6 +496,18 @@ const LeadCard = ({ lead, onClick }) => {
             Call back
           </a>
         )}
+        {onWon && (
+          <button onClick={e => { e.stopPropagation(); onWon(lead) }}
+            style={{ padding: '0.22rem 0.65rem', border: '1px solid #3db87a', borderRadius: 5, background: '#e6f9ef', color: '#1a6640', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            Won ✓
+          </button>
+        )}
+        {onLost && (
+          <button onClick={e => { e.stopPropagation(); onLost(lead) }}
+            style={{ padding: '0.22rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: 5, background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            Lost
+          </button>
+        )}
         <button onClick={onClick}
           style={{ padding: '0.22rem 0.65rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 5, background: 'white', color: '#5e3b87', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
           View →
@@ -533,6 +545,16 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [notesSaved, setNotesSaved] = useState(false)
   const [tileStates, setTileStates] = useState({ status: 'half', calls: 'half', leads: 'half', charts: 'icon' })
   const setTile = (id, state) => setTileStates(prev => ({ ...prev, [id]: state }))
+  const [holidayMode, setHolidayMode] = useState(false)
+  const [pipelineView, setPipelineView] = useState(false)
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+  const [qcName, setQcName] = useState('')
+  const [qcPhone, setQcPhone] = useState('')
+  const [qcNotes, setQcNotes] = useState('')
+  const [qcOutcome, setQcOutcome] = useState('lead_captured')
+  const [qcSaving, setQcSaving] = useState(false)
+  const [callTranscript, setCallTranscript] = useState(null)
+  const [callTranscriptLoading, setCallTranscriptLoading] = useState(false)
 
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
@@ -572,7 +594,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, tier, triage_mode, overage_voice_preference')
+          .select('business_name, included_minutes, tier, triage_mode, overage_voice_preference, holiday_mode')
           .eq('id', tid)
           .maybeSingle()
 
@@ -582,6 +604,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           setTier(tenant.tier || 'standard')
           setTriageMode(tenant.triage_mode || 'balanced')
           setVoicePref(tenant.overage_voice_preference || 'premium')
+          setHolidayMode(tenant.holiday_mode || false)
         }
 
         const monthIso = startOfMonth().toISOString()
@@ -597,7 +620,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
           supabase
             .from('leads')
-            .select('id, created_at, status, lead_contact_name, notes, ai_summary, callers(phone_number)')
+            .select('id, created_at, status, lead_contact_name, notes, ai_summary, call_log_id, callers(phone_number)')
             .eq('tenant_id', tid)
             .gte('created_at', startOfDaysAgo(30).toISOString())
             .order('created_at', { ascending: false })
@@ -643,9 +666,22 @@ const ActivityDashboard = ({ onNavigate }) => {
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
-  // Sync notes when lead modal opens
+  // Sync notes + fetch transcript when lead modal opens
   useEffect(() => {
     setLeadNotes(selectedLead?.notes || '')
+    setCallTranscript(null)
+    if (!selectedLead?.call_log_id || isDemo || isPreview) return
+    setCallTranscriptLoading(true)
+    supabase
+      .from('call_logs')
+      .select('transcript')
+      .eq('id', selectedLead.call_log_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCallTranscript(data?.transcript || null)
+        setCallTranscriptLoading(false)
+      })
+      .catch(() => setCallTranscriptLoading(false))
   }, [selectedLead?.id])
 
   const saveLeadNotes = async (value) => {
@@ -672,6 +708,67 @@ const ActivityDashboard = ({ onNavigate }) => {
     }
   }
 
+  const updateLeadStatus = async (lead, status) => {
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status } : l))
+    if (selectedLead?.id === lead.id) setSelectedLead(prev => ({ ...prev, status }))
+    if (isDemo || isPreview) return
+    try {
+      await supabase.from('leads').update({ status }).eq('id', lead.id)
+    } catch {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: lead.status } : l))
+    }
+  }
+
+  const submitQuickCapture = async () => {
+    if (!qcName.trim() && !qcPhone.trim()) return
+    if (isDemo || isPreview || !tenantId) return
+    setQcSaving(true)
+    try {
+      let callerId = null
+      if (qcPhone.trim()) {
+        const { data: existing } = await supabase.from('callers').select('id').eq('phone_number', qcPhone.trim()).maybeSingle()
+        if (existing) {
+          callerId = existing.id
+        } else {
+          const { data: nc } = await supabase.from('callers').insert({ phone_number: qcPhone.trim() }).select().maybeSingle()
+          callerId = nc?.id || null
+        }
+      }
+      const { data: callLog } = await supabase.from('call_logs').insert({
+        tenant_id:        tenantId,
+        caller_id:        callerId,
+        caller_phone:     qcPhone.trim() || null,
+        call_outcome:     qcOutcome,
+        ai_summary:       qcNotes.trim() ? `Manual entry: ${qcNotes.trim()}` : null,
+        duration_seconds: 0,
+      }).select().maybeSingle()
+
+      if (qcOutcome === 'lead_captured' || qcOutcome === 'booked') {
+        const { data: newLead } = await supabase.from('leads').insert({
+          tenant_id:         tenantId,
+          caller_id:         callerId,
+          call_log_id:       callLog?.id || null,
+          lead_contact_name: qcName.trim() || null,
+          status:            'new',
+          notes:             qcNotes.trim() || null,
+        }).select('id, created_at, status, lead_contact_name, notes, ai_summary, call_log_id, callers(phone_number)').maybeSingle()
+        if (newLead) setLeads(prev => [newLead, ...prev])
+      }
+
+      if (callLog) setCalls(prev => [{
+        ...callLog,
+        callers: callerId ? { phone_number: qcPhone.trim() } : null,
+      }, ...prev])
+
+      setQcName(''); setQcPhone(''); setQcNotes(''); setQcOutcome('lead_captured')
+      setQuickCaptureOpen(false)
+    } catch (err) {
+      console.error('Quick capture failed:', err)
+    } finally {
+      setQcSaving(false)
+    }
+  }
+
   // ── computed stats ──────────────────────────────────────────────────────────
 
   const today = startOfToday()
@@ -690,36 +787,67 @@ const ActivityDashboard = ({ onNavigate }) => {
   const actionableLeads = leads.filter(l => !l.status || l.status === 'new')
   const recentCalls = calls.slice(0, 5)
 
-  // ── recommendation ──────────────────────────────────────────────────────────
+  // ── proactive alerts ─────────────────────────────────────────────────────────
 
-  let reco
-  if (actionableLeads.length > 0) {
-    reco = {
-      title: `${actionableLeads.length} lead${actionableLeads.length > 1 ? 's' : ''} waiting for follow-up`,
-      body: 'Leads contacted within 24 hours convert at three times the rate of those left a week.',
-      actionLabel: 'View leads',
-      onAction: () => {},
-    }
-  } else if (minutesPct > 80 && minutesUsed > 0) {
-    reco = {
-      title: `${minutesPct}% of your monthly minutes used`,
-      body: 'You are approaching your monthly limit. Upgrade now to avoid missed calls at month end.',
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const staleLeads = leads.filter(l => (!l.status || l.status === 'new') && (Date.now() - new Date(l.created_at).getTime()) > DAY_MS)
+
+  const alerts = []
+
+  if (holidayMode) {
+    alerts.push({
+      type: 'warning',
+      icon: '🌙',
+      title: 'AI is paused — holiday mode on',
+      body: 'Calls are not being answered. Disable holiday mode to resume.',
+      actionLabel: 'Disable',
+      onAction: () => onNavigate && onNavigate('settings'),
+      borderColor: '#f0a500', bg: '#fffbeb',
+    })
+  }
+  if (staleLeads.length > 0) {
+    alerts.push({
+      type: 'urgent',
+      icon: '⚡',
+      title: `${staleLeads.length} lead${staleLeads.length !== 1 ? 's' : ''} unreturned for 24h+`,
+      body: 'Response rate drops sharply after the first day. These callers may already be looking elsewhere.',
+      actionLabel: 'View',
+      onAction: () => setPipelineView(false),
+      borderColor: '#ef4444', bg: '#fef2f2',
+    })
+  }
+  if (!holidayMode && minutesPct > 80 && minutesUsed > 0) {
+    alerts.push({
+      type: 'info',
+      icon: '📊',
+      title: `${minutesPct}% of monthly minutes used`,
+      body: minutesPct >= 100 ? 'Overage rates now apply to every call.' : 'You are approaching your monthly limit. Upgrade to avoid overage charges.',
       actionLabel: 'Review plan',
-      onAction: () => onNavigate && onNavigate('account'),
-    }
-  } else if (callsThisMonth === 0) {
-    reco = {
-      title: 'Your AI is ready to take its first call',
-      body: 'Share your AI-powered number with customers to start capturing leads automatically.',
-      actionLabel: 'View setup',
-      onAction: () => onNavigate && onNavigate('account'),
-    }
-  } else {
-    reco = {
-      title: `Your AI handled ${callsThisMonth} call${callsThisMonth !== 1 ? 's' : ''} this month`,
-      body: 'Everything is running smoothly. Grow your referral network to increase inbound leads.',
-      actionLabel: 'Manage partners',
-      onAction: () => onNavigate && onNavigate('referrals'),
+      onAction: () => onNavigate && onNavigate('settings'),
+      borderColor: minutesPct >= 100 ? '#ef4444' : '#f0a500', bg: minutesPct >= 100 ? '#fef2f2' : '#fffbeb',
+    })
+  }
+  if (alerts.length === 0) {
+    if (callsThisMonth === 0) {
+      alerts.push({
+        type: 'tip',
+        icon: '📞',
+        title: 'Your AI is ready to take its first call',
+        body: 'Share your AI-powered number with customers to start capturing leads automatically.',
+        actionLabel: 'View setup',
+        onAction: () => onNavigate && onNavigate('settings'),
+        borderColor: '#5e3b87', bg: '#f0ebf8',
+      })
+    } else {
+      alerts.push({
+        type: 'tip',
+        icon: '✅',
+        title: `AI handled ${callsThisMonth} call${callsThisMonth !== 1 ? 's' : ''} this month — all clear`,
+        body: 'Everything is running smoothly. Grow your referral network to drive more inbound leads.',
+        actionLabel: 'Manage partners',
+        onAction: () => onNavigate && onNavigate('referrals'),
+        borderColor: '#3db87a', bg: '#f0fdf4',
+      })
     }
   }
 
@@ -1208,8 +1336,63 @@ const ActivityDashboard = ({ onNavigate }) => {
                 {actionableLeads.length}
               </span>
             )}
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem' }}>
+              <button
+                onClick={() => setPipelineView(v => !v)}
+                title={pipelineView ? 'Card view' : 'Pipeline view'}
+                style={{ padding: '0.15rem 0.5rem', borderRadius: 5, border: `1px solid ${pipelineView ? '#5e3b87' : 'rgba(94,59,135,0.2)'}`, background: pipelineView ? '#f0ebf8' : 'white', color: pipelineView ? '#5e3b87' : '#aaa', fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textTransform: 'none', letterSpacing: 0 }}>
+                {pipelineView ? '⊞ Cards' : '▦ Pipeline'}
+              </button>
+              <button
+                onClick={() => setQuickCaptureOpen(true)}
+                title="Log a call you took manually"
+                style={{ padding: '0.15rem 0.5rem', borderRadius: 5, border: '1px solid rgba(94,59,135,0.2)', background: 'white', color: '#5e3b87', fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textTransform: 'none', letterSpacing: 0 }}>
+                + Log call
+              </button>
+            </span>
           </div>
-          {actionableLeads.length === 0 ? (
+
+          {pipelineView ? (
+            (() => {
+              const pipelineCols = [
+                { key: 'new',       label: 'New',       color: '#3db87a', bg: '#e6f9ef' },
+                { key: 'contacted', label: 'Contacted', color: '#1d4ed8', bg: '#eff6ff' },
+                { key: 'converted', label: 'Won',       color: '#5e3b87', bg: '#f0ebf8' },
+                { key: 'lost',      label: 'Lost',      color: '#64748b', bg: '#f1f5f9' },
+              ]
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
+                  {pipelineCols.map(col => {
+                    const colLeads = leads.filter(l => col.key === 'new' ? (!l.status || l.status === 'new') : l.status === col.key)
+                    return (
+                      <div key={col.key} style={{ background: col.bg, borderRadius: 12, padding: '0.6rem 0.5rem', border: `1px solid ${col.color}22` }}>
+                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: "'DM Sans', sans-serif" }}>
+                          {col.label}
+                        </div>
+                        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: col.color, lineHeight: 1, marginBottom: 8 }}>
+                          {colLeads.length}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {colLeads.slice(0, 3).map(l => (
+                            <button key={l.id}
+                              onClick={() => setSelectedLead(l)}
+                              style={{ background: 'white', border: 'none', borderRadius: 6, padding: '0.3rem 0.4rem', cursor: 'pointer', textAlign: 'left', fontSize: '0.68rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+                              {l.lead_contact_name || l.callers?.phone_number || '?'}
+                            </button>
+                          ))}
+                          {colLeads.length > 3 && (
+                            <span style={{ fontSize: '0.6rem', color: col.color, fontFamily: "'DM Sans', sans-serif", paddingLeft: 2 }}>
+                              +{colLeads.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()
+          ) : actionableLeads.length === 0 ? (
             <div style={s.section}>
               <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear as soon as your AI captures them." />
             </div>
@@ -1221,7 +1404,12 @@ const ActivityDashboard = ({ onNavigate }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
                 >
-                  <LeadCard lead={lead} onClick={() => setSelectedLead(lead)} />
+                  <LeadCard
+                    lead={lead}
+                    onClick={() => setSelectedLead(lead)}
+                    onWon={() => updateLeadStatus(lead, 'converted')}
+                    onLost={() => updateLeadStatus(lead, 'lost')}
+                  />
                 </motion.div>
               ))}
               {actionableLeads.length > 5 && (
@@ -1392,14 +1580,23 @@ const ActivityDashboard = ({ onNavigate }) => {
 
             </div>
 
-            {/* Recommendation */}
-            <div style={{ marginBottom: '1.25rem' }}>
-              <RecoCard
-                title={reco.title}
-                body={reco.body}
-                actionLabel={reco.actionLabel}
-                onAction={reco.onAction}
-              />
+            {/* Proactive alerts */}
+            <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              {alerts.map((alert, i) => (
+                <div key={i} style={{ background: alert.bg, borderRadius: 14, borderLeft: `4px solid ${alert.borderColor}`, padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                  <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{alert.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.15rem', fontFamily: "'DM Sans', sans-serif" }}>{alert.title}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#666', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>{alert.body}</div>
+                  </div>
+                  {alert.actionLabel && (
+                    <button onClick={alert.onAction}
+                      style={{ flexShrink: 0, padding: '0.4rem 0.85rem', background: alert.borderColor, color: alert.type === 'warning' || alert.type === 'info' ? '#1a0533' : 'white', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                      {alert.actionLabel}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
 
           </div>
@@ -1408,6 +1605,94 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* Pulse keyframe */}
       <style>{pulseStyle}</style>
+
+      {/* ── QUICK CAPTURE MODAL ───────────────────────────────────────────────── */}
+      <AnimatePresence>
+      {quickCaptureOpen && (
+        <motion.div
+          key="qc-modal"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? 0 : '1rem' }}
+          onClick={e => { if (e.target === e.currentTarget) setQuickCaptureOpen(false) }}
+        >
+          <motion.div
+            initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+            animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+            exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ background: 'white', borderRadius: isMobile ? '20px 20px 0 0' : 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 60px rgba(94,59,135,0.18)', overflow: 'hidden' }}
+          >
+            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid rgba(94,59,135,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a' }}>Log a call manually</div>
+                <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Record a call you answered yourself</div>
+              </div>
+              <button onClick={() => setQuickCaptureOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '1.25rem', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: '1.25rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Contact name</label>
+                <input
+                  value={qcName}
+                  onChange={e => setQcName(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 8, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Phone number (optional)</label>
+                <input
+                  value={qcPhone}
+                  onChange={e => setQcPhone(e.target.value)}
+                  placeholder="e.g. 07700 900000"
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 8, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Outcome</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {[
+                    { val: 'lead_captured', label: 'Lead' },
+                    { val: 'booked',        label: 'Booked' },
+                    { val: 'other',         label: 'Other' },
+                  ].map(opt => (
+                    <button key={opt.val} onClick={() => setQcOutcome(opt.val)}
+                      style={{ flex: 1, padding: '0.45rem 0', borderRadius: 7, border: `1.5px solid ${qcOutcome === opt.val ? '#5e3b87' : 'rgba(94,59,135,0.18)'}`, background: qcOutcome === opt.val ? '#f0ebf8' : 'white', color: qcOutcome === opt.val ? '#5e3b87' : '#666', fontSize: '0.8rem', fontWeight: qcOutcome === opt.val ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Notes (optional)</label>
+                <textarea
+                  value={qcNotes}
+                  onChange={e => setQcNotes(e.target.value)}
+                  placeholder="What did they need? What was agreed?"
+                  rows={3}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 8, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', lineHeight: 1.55, resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setQuickCaptureOpen(false)}
+                style={{ padding: '0.5rem 1rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 8, background: 'white', color: '#aaa', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Cancel
+              </button>
+              <button
+                onClick={submitQuickCapture}
+                disabled={qcSaving || (!qcName.trim() && !qcPhone.trim())}
+                style={{ padding: '0.5rem 1.25rem', background: qcSaving || (!qcName.trim() && !qcPhone.trim()) ? '#f5d98a' : '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: qcSaving ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                {qcSaving ? 'Saving…' : 'Log call'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+      </AnimatePresence>
 
       {/* ── CALL DETAIL MODAL ─────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -1616,6 +1901,22 @@ const ActivityDashboard = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {/* Section 5 — Conversation transcript */}
+                {(callTranscriptLoading || callTranscript) && (
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>Conversation</div>
+                    {callTranscriptLoading ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#aaa', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif" }}>
+                        <Skel h={12} w={40} /> Loading transcript…
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.8125rem', color: '#444', lineHeight: 1.75, whiteSpace: 'pre-wrap', background: '#f8f6fc', borderRadius: 10, padding: '0.85rem 1rem', maxHeight: 240, overflowY: 'auto', fontFamily: "'DM Sans', sans-serif", border: '0.5px solid rgba(94,59,135,0.08)' }}>
+                        {callTranscript}
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </div>
 
               {/* Sticky footer */}
@@ -1646,6 +1947,18 @@ const ActivityDashboard = ({ onNavigate }) => {
                     onClick={() => { setSelectedLead(null); onNavigate && onNavigate('integrations') }}
                     style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, background: 'white', color: '#aaaaaa', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                     Connect invoicing →
+                  </button>
+                )}
+                {(!lead.status || lead.status === 'new' || lead.status === 'contacted') && (
+                  <button onClick={() => { updateLeadStatus(lead, 'converted'); setSelectedLead(null) }}
+                    style={{ padding: '0.5rem 1rem', border: '1px solid #3db87a', borderRadius: 8, background: '#e6f9ef', color: '#1a6640', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Won ✓
+                  </button>
+                )}
+                {lead.status !== 'lost' && (
+                  <button onClick={() => { updateLeadStatus(lead, 'lost'); setSelectedLead(null) }}
+                    style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#64748b', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                    Lost
                   </button>
                 )}
                 <button onClick={() => setSelectedLead(null)}
