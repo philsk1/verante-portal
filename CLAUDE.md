@@ -305,6 +305,37 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - New tier structure proposed (not yet confirmed/implemented): Starter £19 / Essential £39 / Professional £65 / Business £99 / Enterprise £199. Listen Standard included from Essential upward.
 - Component architecture instruction: build every component as a self-contained unit with clearly defined props. No hardcoded layout relationships between siblings. Wrapping not rebuilding for future tile system.
 
+### Done — Session 16 (2026-06-08) — Schema audit + demo fix + Listen tab
+
+**Schema mismatch audit (all production tables):**
+- [x] `api/vapi-assistant-request.js` — banned_services→banned_item, referral_partners→partner_name/contact_phone, referral_service_map→service_keyword. Partners normalised so _build-prompt.js still works.
+- [x] `api/vapi-sync.js` — same fixes (done prior session)
+- [x] `api/vapi-webhook.js` — partner lookup fixed
+- [x] `api/notify-daily-cost.js` — tier→subscription_tier, referral join fixed
+- [x] `src/pages/ActivityDashboard.jsx` — tier→subscription_tier, partner join fixed
+- [x] `src/pages/DataAnalytics.jsx` — duration/triage_outcome→duration_seconds/call_outcome
+- [x] `src/pages/PartnersReferrals.jsx` — all partner/referral column names corrected + normalised
+- [x] `src/pages/BusinessProfile.jsx` — banned_services.service_name→banned_item on select+insert+load
+- [x] `leads` table — added call_log_id, lead_contact_name, status columns (webhook inserts were silently failing)
+- [x] `tenants` table — added vapi_phone_number_id, vapi_phone_number, listen_tier, calendar_tier
+
+**Demo system:**
+- [x] Demo login completely rebuilt — `DemoLogin.jsx` now checks `demo_users` table + localStorage only (no Supabase auth). Old system was signing users into real Supabase accounts and dumping them in `/portal`.
+- [x] `App.jsx` — all new demo routes wired: `/demo/select`, `/demo/tier/:id`, `/demo/portal/:id/:tier`, `/demo/performance` (none were in the router before)
+- [x] `demo_users` table — consolidated to single account: finsolsoffice@gmail.com / Liverpool1!
+- [x] `.claude/settings.json` — permissions opened up (Bash/PowerShell/WebFetch/WebSearch all allowed)
+
+**Staff specialities:**
+- [x] `StaffDirectory.jsx` — specialist_services replaced free text with tag picker. Catalogue items show as clickable violet chips. Custom skills added via Enter key as green tags. Cards show individual tag chips.
+- [x] `api/_build-prompt.js` — joins specialist_services array cleanly for AI prompt
+- [x] Demo staff specialist_services updated to match catalogue names exactly (chips highlight correctly)
+
+**Listen tab:**
+- [x] `src/pages/ListenTab.jsx` — full transcript archive. Status bar, outcome filter pills, search, two-panel layout (call list left, transcript right). Chat bubble rendering for parseable transcripts. Graceful empty states.
+- [x] Portal.jsx Listen unlocked — no longer shows "coming soon" placeholder
+- [x] DemoPortal.jsx — Listen added to NAV
+- [x] `demo_call_logs.transcript` column added. 8 sample transcripts seeded across Hargreaves (b01), Elegant Hair (b02), Nationwide Recruitment (b09), JB Sports (b10).
+
 ### Done — Session 15 (2026-06-07) — Team tab + Calendar + cursor fix
 
 - [x] `StaffDirectory.jsx` — Team tab: card grid with avatar initials (colour-coded by name, active dot), slide-in detail panel. Fields: name, role, phone, email, address, birthday, specialist services, direct line DID, private notes. Add/edit/remove. DemoContext wired — demo businesses show their staff.
@@ -320,10 +351,9 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
 - [ ] Confirm new tier pricing when ready to update portal
 - [ ] Vera rename — pending Philip choosing a name
-- [ ] Run pending migrations (vapi_phone_number_id, vapi_phone_number, listen_tier, calendar_tier) when needed
 
-### DB — all migrations applied (2026-06-07)
-All columns and tables are live. See "Pending migrations" above for next batch.
+### DB — all migrations applied (2026-06-08)
+All columns and tables are live. No pending migrations.
 
 ---
 
