@@ -77,8 +77,8 @@ const LISTEN_TIERS = [
     name: 'Standard',
     price: 0,
     priceLabel: '3p/min',
-    usageLabel: 'Billed per minute of live call',
-    features: ['Real-time transcription', 'Intent detection', 'Date → calendar link', 'Post-call summary'],
+    usageLabel: 'Per minute of live call',
+    features: ['Real-time transcription', 'Intent detection', 'Call logged for every call', 'Lead auto-logged on selection', 'Date → calendar link', 'Post-call summary'],
     badge: null,
     requiresAnswer: true,
   },
@@ -87,7 +87,7 @@ const LISTEN_TIERS = [
     name: 'Advanced',
     price: 0,
     priceLabel: '4p/min',
-    usageLabel: 'Billed per minute of live call',
+    usageLabel: 'Per minute of live call',
     features: ['Everything in Standard', 'Live catalogue card surfacing', 'Competitor intelligence lookup', 'Booking trigger voice command'],
     badge: 'Full Assist',
     requiresAnswer: true,
@@ -108,9 +108,9 @@ const CALENDAR_TIERS = [
   {
     id: 'multi',
     name: 'Multi-staff',
-    price: 15,
-    priceLabel: '£15/mo',
-    usageLabel: '',
+    price: 5,
+    priceLabel: '£5/mo',
+    usageLabel: '+ £2/staff member',
     features: ['Unlimited staff profiles', 'Team column view + staff filter', 'Service-driven slot generation', 'Work schedules per staff', 'Reminder cadence (48h/24h/1h)', 'Waitlist + intake capture', 'Recurring series booking'],
     badge: null,
     alwaysFree: false,
@@ -145,7 +145,7 @@ const PACKAGES = [
     name: 'Team',
     tagline: 'Multi-staff calendar + booking engine',
     answer: 'standard', listen: 'standard', calendar: 'multi',
-    priceLabel: '£64/mo + usage',
+    priceLabel: '£54/mo + £2/staff',
     colour: '#059669',
     bg: '#f0fdf4',
     border: 'rgba(5,150,105,0.25)',
@@ -155,7 +155,7 @@ const PACKAGES = [
     name: 'Enterprise',
     tagline: 'Full platform, every feature',
     answer: 'enterprise', listen: 'advanced', calendar: 'multi',
-    priceLabel: '£264/mo + usage',
+    priceLabel: '£254/mo + £2/staff',
     colour: '#f0a500',
     bg: '#fffbeb',
     border: 'rgba(240,165,0,0.3)',
@@ -172,16 +172,19 @@ const PRODUCT_COLOURS = {
 
 function priceBreakdown(answer, listen, calendar) {
   const a = ANSWER_TIERS.find(t => t.id === answer)
-  const c = CALENDAR_TIERS.find(t => t.id === calendar)
-  const fixed = (a?.price || 0) + (calendar === 'multi' ? 15 : 0)
+  const fixed = (a?.price || 0) + (calendar === 'multi' ? 5 : 0)
   const listenLabel = listen === 'none' ? '' : listen === 'standard' ? '+ 3p/min Listen' : '+ 4p/min Listen'
-  return { fixed, listenLabel, answerOverage: a?.usageLabel || '' }
+  const calendarNote = calendar === 'multi' ? '+ £2/staff' : ''
+  return { fixed, listenLabel, answerOverage: a?.usageLabel || '', calendarNote }
 }
 
 // ─── Tier card ────────────────────────────────────────────────────────────────
 function TierCard({ tier, selected, onClick, locked, product }) {
+  const [expanded, setExpanded] = useState(false)
   const pc = PRODUCT_COLOURS[product]
   const isSelected = selected === tier.id
+  const showAll = expanded || tier.features.length <= 3
+  const hidden = tier.features.length - 3
 
   return (
     <button
@@ -200,6 +203,7 @@ function TierCard({ tier, selected, onClick, locked, product }) {
         transition: 'border-color 0.15s, background 0.15s',
         boxShadow: isSelected ? `0 0 0 3px ${pc.border.replace('0.2)', '0.15)')}` : 'none',
         marginBottom: '0.5rem',
+        overflow: 'hidden',
       }}
     >
       {tier.badge && (
@@ -207,26 +211,34 @@ function TierCard({ tier, selected, onClick, locked, product }) {
           {tier.badge}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.3rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
           <span style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${isSelected ? pc.dot : '#ccc'}`, background: isSelected ? pc.dot : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {isSelected && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'white' }} />}
           </span>
-          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.text : '#1a1a1a' }}>{tier.name}</span>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.text : '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tier.name}</span>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.dot : '#1a1a1a' }}>{tier.priceLabel}</div>
-          {tier.usageLabel && <div style={{ fontSize: '0.65rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{tier.usageLabel}</div>}
+          {tier.usageLabel && <div style={{ fontSize: '0.65rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>{tier.usageLabel}</div>}
         </div>
       </div>
       <ul style={{ margin: 0, padding: '0 0 0 1.25rem', listStyle: 'none' }}>
-        {tier.features.slice(0, 3).map((f, i) => (
+        {(showAll ? tier.features : tier.features.slice(0, 3)).map((f, i) => (
           <li key={i} style={{ fontSize: '0.72rem', color: isSelected ? pc.text : '#666', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.55, display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
             <span style={{ color: isSelected ? pc.dot : '#ccc', flexShrink: 0, marginTop: 1 }}>✓</span>{f}
           </li>
         ))}
-        {tier.features.length > 3 && (
-          <li style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>+{tier.features.length - 3} more</li>
+        {hidden > 0 && (
+          <li style={{ marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+              style={{ fontSize: '0.68rem', color: isSelected ? pc.dot : '#5e3b87', fontFamily: "'DM Sans', sans-serif", background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 2 }}
+            >
+              {expanded ? '− Show less' : `+ ${hidden} more`}
+            </button>
+          </li>
         )}
       </ul>
     </button>
@@ -289,7 +301,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
     if (listenLocked && listen !== 'none') setListen('none')
   }, [listenLocked])
 
-  const { fixed, listenLabel, answerOverage } = priceBreakdown(answer, listen, calendar)
+  const { fixed, listenLabel, answerOverage, calendarNote } = priceBreakdown(answer, listen, calendar)
 
   const handleContinue = () => {
     if (onSelect) onSelect({ answer, listen, calendar })
@@ -312,41 +324,6 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
           </div>
           <div style={{ fontSize: '0.9375rem', color: '#666', lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>
             Three products. Pick what you need. Calendar is always free.
-          </div>
-        </div>
-
-        {/* Quick packages */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.65rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}>
-            Quick start — or customise below
-          </div>
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {PACKAGES.map(pkg => {
-              const isActive = activePackage === pkg.id
-              return (
-                <button
-                  key={pkg.id}
-                  onClick={() => applyPackage(pkg)}
-                  style={{
-                    padding: '0.7rem 1.1rem',
-                    borderRadius: 10,
-                    border: `${isActive ? '2px' : '1.5px'} solid ${isActive ? pkg.colour : 'rgba(0,0,0,0.12)'}`,
-                    background: isActive ? pkg.bg : 'white',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    minWidth: 160,
-                    flex: '1 1 160px',
-                    maxWidth: 210,
-                    transition: 'all 0.15s',
-                    boxShadow: isActive ? `0 0 0 3px ${pkg.border}` : 'none',
-                  }}
-                >
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: isActive ? pkg.colour : '#1a1a1a', marginBottom: '0.1rem' }}>{pkg.name}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem', lineHeight: 1.4 }}>{pkg.tagline}</div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: isActive ? pkg.colour : '#444', fontFamily: "'DM Sans', sans-serif" }}>{pkg.priceLabel}</div>
-                </button>
-              )
-            })}
           </div>
         </div>
 
@@ -394,6 +371,11 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             {listenLabel && (
               <span style={{ fontSize: '0.8125rem', color: '#1d4ed8', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
                 {listenLabel}
+              </span>
+            )}
+            {calendarNote && (
+              <span style={{ fontSize: '0.8125rem', color: '#059669', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
+                {calendarNote}
               </span>
             )}
             {answerOverage && answer !== 'free' && (
