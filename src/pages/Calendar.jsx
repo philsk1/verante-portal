@@ -271,10 +271,21 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
   const [expanded, setExpanded] = useState(null) // staffId of open card
 
   useEffect(() => {
+    if (isDemo) {
+      const map = {}
+      staff.forEach(s => {
+        map[s.id] = {}
+        for (let d = 0; d < 7; d++) map[s.id][d] = { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+      })
+      setSchedules(map)
+      setLoading(false)
+      return
+    }
     if (!tenantId) return
     const load = async () => {
       const { data } = await supabase.from('staff_availability')
         .select('staff_profile_id, day_of_week, start_time, end_time, active')
+        .in('staff_profile_id', staff.map(s => s.id))
       const map = {}
       staff.forEach(s => {
         map[s.id] = {}
@@ -389,7 +400,7 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview }) {
 }
 
 // ─── Booking rules tab ───────────────────────────────────────────────────────
-function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview }) {
+function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview, onPortalNavigate }) {
   // edits: { [id]: { apply_minutes, processing_minutes, overlap_start_mins, overlap_end_mins } }
   const [edits, setEdits] = useState({})
   const [saving, setSaving] = useState(null)
@@ -577,8 +588,15 @@ function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview }) {
       )}
 
       {catalogue.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem' }}>
-          No services in your catalogue yet. Add them in Business Profile → Services & Products, then configure booking rules here.
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📋</div>
+          <div style={{ fontSize: '0.875rem', color: '#aaa', marginBottom: '1rem' }}>No services in your catalogue yet.</div>
+          <button
+            onClick={() => onPortalNavigate?.('profile')}
+            style={{ padding: '0.55rem 1.25rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Go to Business Profile → Services
+          </button>
         </div>
       )}
     </div>
@@ -1661,7 +1679,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
       {/* ── Booking rules sub-tab ────────────────────────────────────────────── */}
       {activeSubTab === 'booking-rules' && (
-        <BookingRulesTab tenantId={tenantId} catalogue={catalogue} isDemo={isDemo} isPreview={isPreview} />
+        <BookingRulesTab tenantId={tenantId} catalogue={catalogue} isDemo={isDemo} isPreview={isPreview} onPortalNavigate={onPortalNavigate} />
       )}
 
       {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}

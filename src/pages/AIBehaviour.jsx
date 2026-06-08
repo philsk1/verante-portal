@@ -1085,51 +1085,32 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Greeting Message */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your greeting is the first thing every caller hears. The system default is professionally written and works for any business. Personalise it here if you'd like something more specific to how you sound.">Greeting Message</h3>
-        <p style={s.sectionSubtitle}>Your AI uses the system greeting by default — crafted to work for any business. Personalise it here if you'd like something more specific to how you sound.</p>
+        <h3 style={s.sectionTitle} data-help="Your greeting is the first thing every caller hears. The core greeting is set by Qerxel and always includes your business name, the fact the AI is a virtual assistant, and what will happen next. You can add something to the end — a language note, a recording notice, a tagline — but the critical structure stays in place.">Greeting Message</h3>
+        <p style={s.sectionSubtitle}>Qerxel sets the core greeting — it always includes the right structure for your business. You can add a line to the end if you'd like something more specific.</p>
 
-        {showProtectedModal && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'white', borderRadius: '12px', padding: '1.75rem', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-              <div style={{ fontWeight: 600, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.75rem' }}>Edit with care</div>
-              <p style={{ fontSize: '0.875rem', color: '#444', lineHeight: 1.6, marginBottom: '1.25rem' }}>
-                This content directly affects how your AI handles every call. Edit with care — if you change your mind at any time and want to return to the original text click Restore Default.
-              </p>
-              <button onClick={() => setShowProtectedModal(false)} style={{ background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: '8px', padding: '0.6rem 1.25rem', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Got it</button>
-            </div>
+        {/* System greeting preview — read only */}
+        <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, padding: '0.85rem 1rem', marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Your system greeting</div>
+          <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
+            "{previewGreeting(toneRegister, businessName, leadContactName, businessOutcomeType, bookingLink, callbackPrefNote)}"
           </div>
-        )}
+          <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Updates automatically with your Tone and Outcome settings above.</div>
+        </div>
 
+        <label style={s.label}>Add something to the end? (optional)</label>
+        <p style={s.hint}>e.g. "Calls may be recorded for training." · "We also speak Spanish." · "A member of the team will call you back within the hour."</p>
         <textarea
           style={s.textarea}
           value={greetingMessage}
-          onFocus={() => { if (!greetingModalShown) { setShowProtectedModal(true); setGreetingModalShown(true) } }}
           onChange={e => setGreetingMessage(e.target.value)}
-          placeholder="Leave blank to use the system greeting based on your tone and outcome type settings above."
+          placeholder="Leave blank — the system greeting works on its own."
+          rows={2}
         />
-        <div style={{ marginTop: '0.5rem' }}>
-          <button style={s.ghost} onClick={() => {
-            if (!greetingMessage || window.confirm('Restore the system default greeting? Your custom greeting will be removed.')) setGreetingMessage('')
-          }}>Restore Default</button>
-        </div>
-
-        <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
-          <label style={s.label}>Want to personalise it?</label>
-          <p style={s.hint}>Tell us anything about your business or how you'd like to sound — we'll write it for you.</p>
-          <textarea
-            style={{ ...s.textarea, marginBottom: '0.75rem' }}
-            value={generatorNotes}
-            onChange={e => setGeneratorNotes(e.target.value)}
-            placeholder="e.g. We're a family-run plumbing business, friendly but efficient. Callers are usually homeowners with an urgent job."
-          />
-          <button
-            style={generatingGreeting || !generatorNotes.trim() ? s.saveBtnDisabled : s.saveBtn}
-            onClick={generateGreeting}
-            disabled={generatingGreeting || !generatorNotes.trim()}
-          >
-            {generatingGreeting ? 'Writing…' : 'Write my greeting'}
-          </button>
-        </div>
+        {greetingMessage && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <button style={s.ghost} onClick={() => setGreetingMessage('')}>Remove addition</button>
+          </div>
+        )}
       </div>
 
       {/* Save main settings */}

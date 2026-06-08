@@ -55,8 +55,6 @@ function buildCallTypeSection(type, tenant, rulesByType) {
 // ── Greeting builder ──────────────────────────────────────────────────────────
 
 function buildGreeting(tenant) {
-  if (tenant.greeting_message) return tenant.greeting_message
-
   const name = tenant.business_name || 'this business'
   const owner = tenant.lead_contact_name || tenant.business_name || 'the owner'
   const tone = tenant.tone_register || 'warm'
@@ -75,11 +73,13 @@ function buildGreeting(tenant) {
     resolution = `I'll be taking a brief note so ${owner} can call you back to discuss what you need.`
   }
 
-  if (tone === 'formal') {
-    return `Good morning. You have reached ${name}. ${owner} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${owner}'s personal attention. How may I assist you?`
-  }
+  const base = tone === 'formal'
+    ? `Good morning. You have reached ${name}. ${owner} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${owner}'s personal attention. How may I assist you?`
+    : `Good morning, ${name}. ${owner} is busy — I'm their virtual assistant. ${resolution} How can I help you?`
 
-  return `Good morning, ${name}. ${owner} is busy — I'm their virtual assistant. ${resolution} How can I help you?`
+  // Tenant can only append to the system greeting — critical elements always remain
+  const addition = tenant.greeting_message?.trim()
+  return addition ? `${base} ${addition}` : base
 }
 
 // ── "Please allow me" through-line ───────────────────────────────────────────

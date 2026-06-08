@@ -226,9 +226,13 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   }
 
   // ── Filtered list for active tab ─────────────────────────────────────────────
-  const urgentFilter = c => urgentOutcomes.includes(c.call_outcome)
+  const urgentFilter   = c => urgentOutcomes.includes(c.call_outcome)
+  // Always derive callback from ref (source of truth) — avoids state batching divergence
+  const callbackFilter = c => localFlagsRef.current.has(c.id)
+    ? localFlagsRef.current.get(c.id)
+    : (c.callback_flagged || false)
   const tabDef   = TABS.find(t => t.id === activeTab)
-  const effectiveFilter = activeTab === 'urgent' ? urgentFilter : tabDef.filter
+  const effectiveFilter = activeTab === 'urgent' ? urgentFilter : activeTab === 'callback' ? callbackFilter : tabDef.filter
   const tabCalls = calls.filter(effectiveFilter)
   const visible  = activeTab === 'log' && search
     ? tabCalls.filter(c => {
@@ -244,7 +248,9 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   TABS.forEach(t => {
     tabCounts[t.id] = t.id === 'urgent'
       ? calls.filter(urgentFilter).length
-      : calls.filter(t.filter).length
+      : t.id === 'callback'
+        ? calls.filter(callbackFilter).length
+        : calls.filter(t.filter).length
   })
 
   return (

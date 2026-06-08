@@ -804,7 +804,7 @@ const Portal = () => {
       )}
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <div style={{ marginLeft: isMobile ? 0 : sidebarW, transition: 'margin-left 0.22s ease', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ marginLeft: isMobile ? 0 : sidebarW, transition: 'margin-left 0.22s ease', display: 'flex', flexDirection: 'column', height: '100vh' }}>
 
         {/* Demo banner */}
         {preview.isDemo && (
