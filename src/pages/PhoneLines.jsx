@@ -118,7 +118,7 @@ function OfferPage({ tenantId, businessName, email }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' }}>
         {[
           { icon: '📞', title: 'Dedicated UK number', body: 'A real business number for your clients. Works from day one.' },
-          { icon: '🔄', title: 'Keep your number', body: 'Already have a number? We'll port it across — no disruption.' },
+          { icon: '🔄', title: 'Keep your number', body: "Already have a number? We'll port it across — no disruption." },
           { icon: '🔌', title: 'Works with anything', body: 'Forwards to any phone. Works with Qerxel AI or completely standalone.' },
         ].map(v => (
           <div key={v.title} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem' }}>
