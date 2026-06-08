@@ -594,14 +594,14 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, tier, triage_mode, overage_voice_preference, holiday_mode')
+          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode')
           .eq('id', tid)
           .maybeSingle()
 
         if (tenant) {
           setBusinessName(tenant.business_name || '')
           setIncludedMinutes(tenant.included_minutes || 250)
-          setTier(tenant.tier || 'standard')
+          setTier(tenant.subscription_tier || 'standard')
           setTriageMode(tenant.triage_mode || 'balanced')
           setVoicePref(tenant.overage_voice_preference || 'premium')
           setHolidayMode(tenant.holiday_mode || false)
@@ -628,7 +628,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
           supabase
             .from('referral_log')
-            .select('id, created_at, referral_partners(business_name)')
+            .select('id, created_at, referral_partners(partner_name)')
             .eq('tenant_id', tid)
             .gte('created_at', startOfDaysAgo(7).toISOString())
             .order('created_at', { ascending: false })
@@ -1056,7 +1056,7 @@ const ActivityDashboard = ({ onNavigate }) => {
               <div style={s.sectionTitle}>Referrals today</div>
               {referralsToday.map((ref, i) => (
                 <div key={ref.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", padding: '0.4rem 0', borderBottom: i < referralsToday.length - 1 ? '1px solid rgba(94,59,135,0.06)' : 'none', color: '#1a1a1a' }}>
-                  <span>{ref.referral_partners?.business_name || 'Partner'}</span>
+                  <span>{ref.referral_partners?.partner_name || ref.referral_partners?.business_name || 'Partner'}</span>
                   <span style={{ color: '#aaa' }}>{formatTime(ref.created_at)}</span>
                 </div>
               ))}
@@ -1440,7 +1440,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
               {referralsToday.map((ref, i) => {
-                const partnerName = ref.referral_partners?.business_name || 'Partner'
+                const partnerName = ref.referral_partners?.partner_name || ref.referral_partners?.business_name || 'Partner'
                 return (
                   <motion.div key={ref.id}
                     initial={{ opacity: 0, y: 10 }}

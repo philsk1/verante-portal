@@ -143,18 +143,18 @@ const PartnersReferrals = ({ onNavigate }) => {
           setReferralCode(tenant.referral_code || '')
           setCreditMonths(tenant.credit_balance_months || 0)
         }
-        const partnerRes = await supabase.from('referral_partners').select('id, business_name, business_phone').eq('tenant_id', tid).order('created_at', { ascending: true })
-        const loaded = partnerRes.data || []
+        const partnerRes = await supabase.from('referral_partners').select('id, partner_name, contact_phone').eq('tenant_id', tid).order('created_at', { ascending: true })
+        const loaded = (partnerRes.data || []).map(p => ({ ...p, business_name: p.partner_name, business_phone: p.contact_phone }))
         setPartners(loaded)
         const partnerIds = loaded.map(p => p.id)
         const [specialtyRes, logRes] = await Promise.all([
           partnerIds.length > 0
-            ? supabase.from('referral_service_map').select('partner_id, service_name').in('partner_id', partnerIds)
+            ? supabase.from('referral_service_map').select('partner_id, service_keyword').in('partner_id', partnerIds)
             : Promise.resolve({ data: [] }),
           supabase.from('referral_log').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
         ])
         const specMap = {}
-        ;(specialtyRes.data || []).forEach(row => { if (!specMap[row.partner_id]) specMap[row.partner_id] = row.service_name })
+        ;(specialtyRes.data || []).forEach(row => { if (!specMap[row.partner_id]) specMap[row.partner_id] = row.service_keyword })
         setPartnerSpecialties(specMap)
         setOutboundCount(logRes.count || 0)
         const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
@@ -175,12 +175,12 @@ const PartnersReferrals = ({ onNavigate }) => {
     if (!name || !tenantId) return
     setAdding(true)
     const { data: newPartner, error } = await supabase.from('referral_partners')
-      .insert({ tenant_id: tenantId, business_name: name, business_phone: draft.phone.trim() || null })
-      .select().maybeSingle()
+      .insert({ tenant_id: tenantId, partner_name: name, contact_phone: draft.phone.trim() || null })
+      .select('id, partner_name, contact_phone').maybeSingle()
     if (!error && newPartner) {
-      setPartners(prev => [...prev, newPartner])
+      setPartners(prev => [...prev, { ...newPartner, business_name: newPartner.partner_name, business_phone: newPartner.contact_phone }])
       if (draft.specialty.trim()) {
-        const { error: specError } = await supabase.from('referral_service_map').insert({ partner_id: newPartner.id, service_name: draft.specialty.trim() })
+        const { error: specError } = await supabase.from('referral_service_map').insert({ partner_id: newPartner.id, service_keyword: draft.specialty.trim() })
         if (!specError) setPartnerSpecialties(prev => ({ ...prev, [newPartner.id]: draft.specialty.trim() }))
       }
       setDraft({ name: '', phone: '', specialty: '' })
