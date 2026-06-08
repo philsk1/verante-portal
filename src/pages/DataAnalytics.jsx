@@ -392,6 +392,8 @@ const DataAnalytics = ({ onNavigate }) => {
     setAvgDurationSecs(withDur.length ? Math.round(withDur.reduce((s, c) => s + c.duration, 0) / withDur.length) : 0)
     const outcomes = {}
     calls.forEach(c => { const k = c.call_outcome || c.triage_outcome || 'unknown'; outcomes[k] = (outcomes[k] || 0) + 1 })
+    // Use referral_log count as referred_out source — matches Partners tab
+    outcomes.referred_out = (demo.referrals || []).length
     setOutcomeBreakdown(outcomes)
     const byDay = [0, 0, 0, 0, 0, 0, 0]
     calls.forEach(c => { byDay[new Date(c.created_at).getDay()]++ })
