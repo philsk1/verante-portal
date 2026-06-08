@@ -159,20 +159,44 @@ const Step1BusinessDetails = ({ data, update }) => (
   <div>
     <h2 style={heading}>About your business</h2>
     <p style={sub}>The basics — this is how your AI assistant will introduce and represent your business on every call.</p>
-    {[
-      { label: 'Business name',          field: 'business_name',     type: 'text',  hint: 'The name your customers know you by.' },
-      { label: 'Your name',              field: 'lead_contact_name', type: 'text',  hint: 'The owner or main contact callers would ask for.' },
-      { label: 'Business address',       field: 'business_address',  type: 'text',  hint: 'Your main address. Used for context — not read out on calls.' },
-      { label: 'Business phone',         field: 'business_phone',    type: 'tel',   hint: 'The number callers will ring.' },
-      { label: 'Business email',         field: 'business_email',    type: 'email', hint: 'Where lead notifications will be sent.' },
-      { label: 'Booking link (optional)',field: 'booking_link',      type: 'url',   hint: 'A link to your online booking page if you have one.' },
-    ].map(({ label: lbl, field, type, hint: h }) => (
-      <div key={field} style={{ marginBottom: '1.25rem' }}>
-        <label style={label}>{lbl}</label>
-        <p style={hint}>{h}</p>
-        <input type={type} value={data[field]} onChange={e => update(field, e.target.value)} style={input} />
-      </div>
-    ))}
+    {/* Business name + Your name — side by side */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+      {[
+        { label: 'Business name',    field: 'business_name',     type: 'text',  hint: 'The name your customers know you by.' },
+        { label: 'Your name',        field: 'lead_contact_name', type: 'text',  hint: 'The owner or main contact callers would ask for.' },
+      ].map(({ label: lbl, field, type, hint: h }) => (
+        <div key={field}>
+          <label style={label}>{lbl}</label>
+          <p style={hint}>{h}</p>
+          <input type={type} value={data[field]} onChange={e => update(field, e.target.value)} style={input} />
+        </div>
+      ))}
+    </div>
+    {/* Address — full width */}
+    <div style={{ marginBottom: '1.25rem' }}>
+      <label style={label}>Business address</label>
+      <p style={hint}>Your main address. Used for context — not read out on calls.</p>
+      <input type="text" value={data.business_address} onChange={e => update('business_address', e.target.value)} style={input} />
+    </div>
+    {/* Phone + Email — side by side */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+      {[
+        { label: 'Business phone', field: 'business_phone', type: 'tel',   hint: 'The number callers will ring.' },
+        { label: 'Business email', field: 'business_email', type: 'email', hint: 'Where lead notifications will be sent.' },
+      ].map(({ label: lbl, field, type, hint: h }) => (
+        <div key={field}>
+          <label style={label}>{lbl}</label>
+          <p style={hint}>{h}</p>
+          <input type={type} value={data[field]} onChange={e => update(field, e.target.value)} style={input} />
+        </div>
+      ))}
+    </div>
+    {/* Booking link — full width */}
+    <div style={{ marginBottom: '1.25rem' }}>
+      <label style={label}>Booking link (optional)</label>
+      <p style={hint}>A link to your online booking page if you have one.</p>
+      <input type="url" value={data.booking_link} onChange={e => update('booking_link', e.target.value)} style={input} />
+    </div>
     <div style={{ marginBottom: '1.25rem' }}>
       <label style={label}>Describe your business in one or two sentences</label>
       <p style={hint}>What makes you stand out? e.g. "A mobile hairdresser specialising in weddings and proms across South London."</p>
@@ -311,16 +335,23 @@ const Step4Partners = ({ partners, onChange }) => {
             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Partner {i + 1}</span>
             <button onClick={() => removePartner(i)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: '1.25rem', lineHeight: 1 }}>×</button>
           </div>
-          {[
-            { lbl: 'Name or business name', field: 'name', type: 'text' },
-            { lbl: 'What they do', field: 'trade', type: 'text' },
-            { lbl: 'Phone number', field: 'phone', type: 'tel' },
-          ].map(({ lbl, field, type }) => (
-            <div key={field} style={{ marginBottom: '0.625rem' }}>
-              <label style={{ ...label, fontSize: '0.75rem' }}>{lbl}</label>
-              <input type={type} value={p[field]} onChange={e => updatePartner(i, field, e.target.value)} style={{ ...input, padding: '0.5rem 0.625rem' }} />
-            </div>
-          ))}
+          {/* Name + Phone side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
+            {[
+              { lbl: 'Name or business name', field: 'name', type: 'text' },
+              { lbl: 'Phone number', field: 'phone', type: 'tel' },
+            ].map(({ lbl, field, type }) => (
+              <div key={field}>
+                <label style={{ ...label, fontSize: '0.75rem' }}>{lbl}</label>
+                <input type={type} value={p[field]} onChange={e => updatePartner(i, field, e.target.value)} style={{ ...input, padding: '0.5rem 0.625rem' }} />
+              </div>
+            ))}
+          </div>
+          {/* Trade — full width */}
+          <div style={{ marginBottom: '0.625rem' }}>
+            <label style={{ ...label, fontSize: '0.75rem' }}>What they do</label>
+            <input type="text" value={p.trade} onChange={e => updatePartner(i, 'trade', e.target.value)} style={{ ...input, padding: '0.5rem 0.625rem' }} />
+          </div>
         </div>
       ))}
       <button onClick={addPartner}

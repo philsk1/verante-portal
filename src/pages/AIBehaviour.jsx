@@ -1134,12 +1134,12 @@ const AIBehaviour = ({ onNavigate }) => {
       </div>
 
       {/* Lead Follow-up SMS */}
-      <div style={s.section} data-help="When SMS follow-up is on, your AI texts every captured lead within seconds of the call ending. The caller knows immediately that their enquiry was received. Leave the message blank to use the auto-generated version.">
+      <div style={s.section} data-help="SMS follow-up only fires when a genuine lead is captured — the caller gave their contact details and asked about your services. Spam, filtered calls, and out-of-scope enquiries never receive an SMS. Because the caller provided their number willingly during the call, consent is clear. Leave the message blank to use the auto-generated version.">
         <h3 style={s.sectionTitle}>Lead Follow-up</h3>
-        <p style={s.sectionSubtitle}>Send an automatic SMS to every caller whose lead is captured — confirms receipt instantly.</p>
+        <p style={s.sectionSubtitle}>When your AI captures a genuine lead — caller left their name and number — it can text them immediately to confirm receipt. Only fires on real enquiries, not spam or filtered calls.</p>
         <ToggleRow
-          label="SMS follow-up to leads"
-          desc="Text the caller within seconds of hanging up. Uses your Qerxel number."
+          label="SMS follow-up to captured leads"
+          desc="Text the caller within seconds of hanging up. Only sent when a lead is actually captured. Uses your Qerxel number."
           checked={smsFollowupEnabled}
           onChange={v => { setSmsFollowupEnabled(v); saveToggle('sms_followup_enabled', v) }}
           last={!smsFollowupEnabled}

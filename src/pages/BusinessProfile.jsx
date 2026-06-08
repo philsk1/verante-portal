@@ -1005,14 +1005,15 @@ const BusinessProfile = () => {
                   placeholder="Role or title" />
               </div>
               <div style={s.addFormGrid}>
-                <input style={s.addInput} value={staffDraft.specialist_services}
-                  onChange={e => setStaffDraft(d => ({ ...d, specialist_services: e.target.value }))}
-                  placeholder="Specialist services — e.g. Gas safe, Commercial only" />
                 <input style={s.addInput} value={staffDraft.phone} onChange={e => setStaffDraft(d => ({ ...d, phone: e.target.value }))}
                   placeholder="Mobile (optional)" type="tel" />
                 <input style={s.addInput} value={staffDraft.direct_line_did} onChange={e => setStaffDraft(d => ({ ...d, direct_line_did: e.target.value }))}
                   placeholder="Direct line DID — e.g. 020 7946 0001" type="tel" />
               </div>
+              <input style={{ ...s.addInput, width: '100%', boxSizing: 'border-box', marginBottom: '0.5rem' }}
+                value={staffDraft.specialist_services}
+                onChange={e => setStaffDraft(d => ({ ...d, specialist_services: e.target.value }))}
+                placeholder="Specialist services — e.g. Gas safe, Commercial only" />
               <button
                 style={!staffDraft.name.trim() || staffAdding ? s.addBtnDisabled : s.addBtn}
                 onClick={addStaff}
