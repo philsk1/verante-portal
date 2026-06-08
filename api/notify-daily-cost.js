@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   // All tenants with a business email
   const { data: tenants } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email, billing_model, tier, monthly_cost_limit')
+    .select('id, business_name, business_email, billing_model, subscription_tier, monthly_cost_limit, included_minutes')
     .not('business_email', 'is', null)
 
   let sent = 0
@@ -63,20 +63,21 @@ export default async function handler(req, res) {
     // Yesterday's leads
     const { data: yLeads } = await supabase
       .from('leads')
-      .select('lead_contact_name, caller_name, phone_number, caller_number, created_at')
+      .select('lead_contact_name, caller_name, created_at')
       .eq('tenant_id', tenant.id)
       .gte('created_at', yesterdayStart.toISOString())
       .lt('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
 
     // Yesterday's referrals
-    const { data: yRefs } = await supabase
+    const { data: rawRefs } = await supabase
       .from('referral_log')
-      .select('caller_name, partner_name, created_at')
+      .select('created_at, referral_partners(partner_name)')
       .eq('tenant_id', tenant.id)
       .gte('created_at', yesterdayStart.toISOString())
       .lt('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
+    const yRefs = (rawRefs || []).map(r => ({ ...r, partner_name: r.referral_partners?.partner_name || '' }))
 
     const minutesYesterday = Math.round(yCalls.reduce((s, c) => s + (c.duration_seconds || 0), 0) / 60)
     const leadsCount     = (yLeads || []).length
@@ -117,7 +118,7 @@ export default async function handler(req, res) {
         .lt('created_at', todayStart.toISOString())
 
       const minutesMonth   = Math.round((mCalls || []).reduce((s, c) => s + (c.duration_seconds || 0), 0) / 60)
-      const includedMinutes = INCLUDED_MINUTES[tenant.tier] || 0
+      const includedMinutes = tenant.included_minutes || INCLUDED_MINUTES[tenant.subscription_tier] || 0
 
       const { subject, html } = emailDailySummary({
         businessName:    tenant.business_name,
@@ -129,7 +130,7 @@ export default async function handler(req, res) {
         escalatedCount,
         minutesUsed:     minutesMonth,
         includedMinutes,
-        tier:            tenant.tier,
+        tier:            tenant.subscription_tier,
         leads:           yLeads || [],
         referrals:       yRefs  || [],
       })
