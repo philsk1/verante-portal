@@ -492,7 +492,8 @@ const DataAnalytics = ({ onNavigate }) => {
     load()
   }, [user, isPreview])
 
-  const leadRate = pct(outcomeBreakdown.lead_captured || 0, totalCalls)
+  const leadCapturedCount = outcomeBreakdown.lead_captured || 0
+  const leadRate = pct(leadCapturedCount, totalCalls)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
   // ── recommendation ────────────────────────────────────────────────────────
@@ -559,7 +560,6 @@ const DataAnalytics = ({ onNavigate }) => {
         const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
 
         const bookedCount       = outcomeBreakdown.booked || 0
-        const leadCapturedCount = outcomeBreakdown.lead_captured || 0
         const referredOutCount  = outcomeBreakdown.referred_out || 0
         const filteredCount     = (outcomeBreakdown.filtered || 0) + (outcomeBreakdown.spam || 0) + (outcomeBreakdown.hard_close || 0)
 
@@ -846,12 +846,12 @@ const DataAnalytics = ({ onNavigate }) => {
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7c5ab8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Calls handled</div>
               </div>
               <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.25rem' }}>{totalLeads}</div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads created</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.25rem' }}>{leadCapturedCount}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads captured</div>
               </div>
             </div>
             <p style={{ fontSize: '0.8rem', color: '#888', margin: 0, lineHeight: 1.6 }}>
-              A lead is created when your AI captures enough to act on — a name, number, or clear request. Filtered calls, spam, referred enquiries, and hard closes don't generate a lead record.
+              A lead is captured when your AI identifies enough intent to act on — a name, number, or clear request. Filtered calls, spam, referred enquiries, and hard closes don't count. The follow-up section below tracks the {totalLeads} leads in your CRM pipeline.
             </p>
           </div>
 
