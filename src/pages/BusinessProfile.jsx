@@ -535,7 +535,7 @@ const BusinessProfile = () => {
 
         const [svcRes, bannedRes, clientRes, staffRes, catRes] = await Promise.all([
           supabase.from('services').select('id,service_name').eq('tenant_id', tid),
-          supabase.from('banned_services').select('id,service_name').eq('tenant_id', tid),
+          supabase.from('banned_services').select('id,banned_item').eq('tenant_id', tid),
           supabase
             .from('caller_tenant_relationships')
             .select('id, notes, callers(id, name, phone_number)')
@@ -554,7 +554,7 @@ const BusinessProfile = () => {
         ])
 
         setServices(svcRes.data || [])
-        setPartnerServices(bannedRes.data || [])
+        setPartnerServices((bannedRes.data || []).map(b => ({ ...b, service_name: b.banned_item })))
         setClients(clientRes.data || [])
         if (staffRes.error) setStaffError(true)
         else setStaff(staffRes.data || [])
@@ -621,8 +621,8 @@ const BusinessProfile = () => {
   const addPartnerService = async (name) => {
     if (isDemo || isPreview || !tenantId) return
     const { data, error } = await supabase.from('banned_services')
-      .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
-    if (!error && data) setPartnerServices(prev => [...prev, data])
+      .insert({ tenant_id: tenantId, banned_item: name }).select().maybeSingle()
+    if (!error && data) setPartnerServices(prev => [...prev, { ...data, service_name: data.banned_item }])
   }
 
   const removePartnerService = async (i) => {

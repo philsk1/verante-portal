@@ -18,23 +18,23 @@ async function fetchTenantData(tenantId) {
         .eq('id', tenantId)
         .maybeSingle(),
       supabase.from('services').select('service_name').eq('tenant_id', tenantId),
-      supabase.from('banned_services').select('service_name').eq('tenant_id', tenantId),
+      supabase.from('banned_services').select('banned_item').eq('tenant_id', tenantId),
       supabase.from('call_handling_rules').select('call_type, mode, booking_link, callback, email, email_address, instructions').eq('tenant_id', tenantId),
-      supabase.from('referral_partners').select('id, business_name, business_phone').eq('tenant_id', tenantId),
-      supabase.from('referral_service_map').select('partner_id, service_name'),
+      supabase.from('referral_partners').select('id, partner_name, contact_phone').eq('tenant_id', tenantId),
+      supabase.from('referral_service_map').select('partner_id, service_keyword'),
     ])
 
   const partners = (partnersRes.data || []).map(p => {
     const specs = (specialtiesRes.data || [])
       .filter(s => s.partner_id === p.id)
-      .map(s => s.service_name)
-    return { ...p, specialties: specs }
+      .map(s => s.service_keyword)
+    return { ...p, business_name: p.partner_name, business_phone: p.contact_phone, specialties: specs }
   })
 
   return {
     tenant:          tenantRes.data,
     services:        (servicesRes.data || []).map(s => s.service_name),
-    partnerServices: (partnerServicesRes.data || []).map(s => s.service_name),
+    partnerServices: (partnerServicesRes.data || []).map(s => s.banned_item),
     callRules:       callRulesRes.data || [],
     partners,
   }
