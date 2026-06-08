@@ -186,10 +186,12 @@ export default function StaffDirectory({ onNavigate }) {
       {opts.textarea ? (
         <textarea value={draft[key] || ''} onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
           rows={opts.rows || 3} placeholder={opts.placeholder || ''}
+          autoComplete="off" data-1p-ignore="true" data-lpignore="true"
           style={{ ...inp(), resize: 'vertical', lineHeight: 1.5 }} />
       ) : (
         <input type={opts.type || 'text'} value={draft[key] || ''} placeholder={opts.placeholder || ''}
           onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
+          autoComplete="off" data-1p-ignore="true" data-lpignore="true"
           style={inp()} />
       )}
     </div>
@@ -289,6 +291,7 @@ export default function StaffDirectory({ onNavigate }) {
                     <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem', fontFamily: "'DM Sans', sans-serif" }}>{f.label}</label>
                     <input type={f.type || 'text'} value={addDraft[f.key]} onChange={e => setAddDraft(d => ({ ...d, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
+                      autoComplete="off" data-1p-ignore="true" data-lpignore="true"
                       style={{ width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.65rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none' }} />
                   </div>
                 ))}
@@ -350,17 +353,18 @@ export default function StaffDirectory({ onNavigate }) {
                 <div>
                   {lbl('Full name', true)}
                   <input type="text" value={draft.name || ''} placeholder="e.g. Sandra Swift"
-                    onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inp()} />
+                    onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                    autoComplete="off" data-1p-ignore="true" data-lpignore="true" style={inp()} />
                 </div>
                 <div>
                   {lbl('Role / title')}
                   <input type="text" value={draft.role || ''} placeholder="e.g. Office & Accounts"
-                    onChange={e => setDraft(d => ({ ...d, role: e.target.value }))} style={inp()} />
+                    onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                    autoComplete="off" data-1p-ignore="true" data-lpignore="true" style={inp()} />
                 </div>
               </div>
               {field('email', 'Email address', { type: 'email', placeholder: 'name@example.com' })}
               {field('address', 'Home address', { placeholder: 'Street, City, Postcode' })}
-              {field('birthday', 'Birthday', { type: 'date' })}
 
               {/* Professional section */}
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0.85rem 0 0.65rem', fontFamily: "'DM Sans', sans-serif" }}>Professional</div>
@@ -370,12 +374,14 @@ export default function StaffDirectory({ onNavigate }) {
                 <div>
                   {lbl('Direct line DID')}
                   <input type="tel" value={draft.direct_line_did || ''} placeholder="020 7946 0001"
-                    onChange={e => setDraft(d => ({ ...d, direct_line_did: e.target.value }))} style={inp()} />
+                    onChange={e => setDraft(d => ({ ...d, direct_line_did: e.target.value }))}
+                    autoComplete="off" data-1p-ignore="true" data-lpignore="true" style={inp()} />
                 </div>
                 <div>
                   {lbl('Direct mobile')}
                   <input type="tel" value={draft.phone || ''} placeholder="07700 000000"
-                    onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} style={inp()} />
+                    onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
+                    autoComplete="off" data-1p-ignore="true" data-lpignore="true" style={inp()} />
                 </div>
               </div>
 
