@@ -166,14 +166,15 @@ api/vapi-sync.js                    — patches Vapi assistant on AI Behaviour s
 api/_build-prompt.js                — system prompt builder (Layer 1–3)
 api/vera-chat.js                    — Vera dialogue (Claude Haiku)
 api/greeting-generator.js           — greeting generator (Claude Haiku)
-qerxel-handoff-V10.md             — full product spec, tier detail, AI architecture
+QERXEL-HANDOFF-V12.md              — full product spec, tier detail, AI architecture
 supabase_rls.sql                    — idempotent RLS script (safe to re-run)
 demo_seed.sql                       — demo data seed (safe to re-run)
 src/context/DemoContext.jsx         — demo data provider (fetches demo_* tables)
 src/context/PreviewContext.jsx      — enterPreview/exitPreview/isPreview for owner mode
 src/pages/Calendar.jsx              — Qerxel Calendar tab (react-big-calendar, DnD, appointment modal)
-src/pages/Integrations.jsx          — Integrations tab (module framework, 19 coming-soon cards)
-supabase_migrations_session4.sql    — all session 4+5 migrations (run before testing Calendar/Stripe)
+src/pages/Integrations.jsx          — Integrations tab (module framework)
+src/pages/ListenTab.jsx             — transcript archive (/portal listen tab)
+src/pages/StaffDirectory.jsx        — team tab (card grid, slide-in panel, tag picker)
 src/pages/DemoLogin.jsx             — demo login (/demo/login)
 src/pages/BusinessSelector.jsx      — 10 business cards (/demo/select)
 src/pages/TierSelector.jsx          — tier selection (/demo/tier/:id)
@@ -332,9 +333,12 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 
 **Listen tab:**
 - [x] `src/pages/ListenTab.jsx` — full transcript archive. Status bar, outcome filter pills, search, two-panel layout (call list left, transcript right). Chat bubble rendering for parseable transcripts. Graceful empty states.
-- [x] Portal.jsx Listen unlocked — no longer shows "coming soon" placeholder
+- [x] `ActivityDashboard.jsx` — "View transcript" button in lead modal → cross-tab navigate to Listen with `callId` prefill
+- [x] Portal.jsx — Listen unlocked, `listenPrefill` state, `handleNavigate` extended, `TAB_CONTEXT.listen = 'listen.first_visit'`
 - [x] DemoPortal.jsx — Listen added to NAV
-- [x] `demo_call_logs.transcript` column added. 8 sample transcripts seeded across Hargreaves (b01), Elegant Hair (b02), Nationwide Recruitment (b09), JB Sports (b10).
+- [x] `demo_call_logs.transcript` column added. Sample transcripts seeded for 8 businesses: b01 (Hargreaves Plumbing ×4), b02 (Elegant Hair ×2), b03 (Greenfield ×2), b05 (Paws & Claws ×2), b06 (Premier Mortgage ×2), b07 (Valley View B&B ×2), b09 (Nationwide ×2), b10 (JB Sports ×2)
+- [x] `vera_speeches` — `listen.first_visit` speech seeded. `context_key` column confirmed (not `speech_key`).
+- [x] `QERXEL-HANDOFF-V12.md` — completely rewritten and trimmed to current state (session history collapsed into build inventory)
 
 ### Done — Session 15 (2026-06-07) — Team tab + Calendar + cursor fix
 

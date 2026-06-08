@@ -219,6 +219,7 @@ const Portal = () => {
     ai:           'ai_behaviour.first_visit',
     analytics:    'analytics.first_visit',
     referrals:    'referrals.first_visit',
+    listen:       'listen.first_visit',
     team:         'team.first_visit',
     calendar:     'calendar.first_visit',
     integrations: 'integrations.first_visit',
