@@ -492,7 +492,7 @@ const DataAnalytics = ({ onNavigate }) => {
     load()
   }, [user, isPreview])
 
-  const leadRate = pct(totalLeads, totalCalls)
+  const leadRate = pct(outcomeBreakdown.lead_captured || 0, totalCalls)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
 
   // ── recommendation ────────────────────────────────────────────────────────
