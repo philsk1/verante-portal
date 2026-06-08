@@ -17,7 +17,10 @@ const AVATAR_PALETTE = [
 const avatarColour = (name = '') => AVATAR_PALETTE[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_PALETTE.length]
 const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
 
-const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', birthday: '', specialist_services: '', direct_line_did: '', private_notes: '', active: true }
+const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', birthday: '', specialist_services: [], direct_line_did: '', private_notes: '', active: true }
+
+const normaliseSpecs = (val) =>
+  Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [])
 
 export default function StaffDirectory({ onNavigate }) {
   const { user } = useAuth()
@@ -26,8 +29,9 @@ export default function StaffDirectory({ onNavigate }) {
   const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
-  const [tenantId, setTenantId] = useState(null)
-  const [staff, setStaff]       = useState([])
+  const [tenantId, setTenantId]       = useState(null)
+  const [staff, setStaff]             = useState([])
+  const [catalogueItems, setCatalogueItems] = useState([])
   const [loading, setLoading]   = useState(true)
   const [uncontactedLeads, setUncontactedLeads] = useState(0)
   const [staffCallCounts, setStaffCallCounts]   = useState({})
@@ -41,7 +45,8 @@ export default function StaffDirectory({ onNavigate }) {
 
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
-    setStaff(demo.staff || [])
+    setStaff((demo.staff || []).map(s => ({ ...s, specialist_services: normaliseSpecs(s.specialist_services) })))
+    setCatalogueItems((demo.services || []).map(s => ({ id: s.id, name: s.name || s.service_name, category: s.category })))
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.loading])
 
@@ -59,10 +64,16 @@ export default function StaffDirectory({ onNavigate }) {
           tid = m.tenant_id
         }
         setTenantId(tid)
-        const { data } = await supabase.from('staff_profiles')
-          .select('id, name, role, phone, email, address, birthday, specialist_services, direct_line_did, private_notes, active, colour')
-          .eq('tenant_id', tid).order('name')
-        setStaff(data || [])
+        const [staffRes, catRes] = await Promise.all([
+          supabase.from('staff_profiles')
+            .select('id, name, role, phone, email, address, birthday, specialist_services, direct_line_did, private_notes, active, colour')
+            .eq('tenant_id', tid).order('name'),
+          supabase.from('catalogue_items')
+            .select('id, name, category').eq('tenant_id', tid).eq('active', true).order('name'),
+        ])
+        const data = staffRes.data
+        setStaff((data || []).map(s => ({ ...s, specialist_services: normaliseSpecs(s.specialist_services) })))
+        setCatalogueItems(catRes.data || [])
 
         // Cross-tab: uncontacted leads count
         const { count: lc } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).or('status.is.null,status.eq.new')
@@ -106,7 +117,7 @@ export default function StaffDirectory({ onNavigate }) {
       email: fields.email || null,
       address: fields.address || null,
       birthday: fields.birthday || null,
-      specialist_services: fields.specialist_services || null,
+      specialist_services: Array.isArray(fields.specialist_services) && fields.specialist_services.length > 0 ? fields.specialist_services : null,
       direct_line_did: fields.direct_line_did || null,
       private_notes: fields.private_notes || null,
       active: fields.active,
@@ -252,8 +263,15 @@ export default function StaffDirectory({ onNavigate }) {
                         {member.role && <div style={{ fontSize: '0.75rem', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.role}</div>}
                       </div>
                     </div>
-                    {member.specialist_services && (
-                      <div style={{ fontSize: '0.7rem', background: av.bg, color: av.text, borderRadius: 5, padding: '0.15rem 0.4rem', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.specialist_services}</div>
+                    {Array.isArray(member.specialist_services) && member.specialist_services.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', marginBottom: '0.2rem' }}>
+                        {member.specialist_services.slice(0, 3).map((s, i) => (
+                          <span key={i} style={{ fontSize: '0.65rem', background: av.bg, color: av.text, borderRadius: 4, padding: '0.1rem 0.35rem' }}>{s}</span>
+                        ))}
+                        {member.specialist_services.length > 3 && (
+                          <span style={{ fontSize: '0.65rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>+{member.specialist_services.length - 3}</span>
+                        )}
+                      </div>
                     )}
                     {member.phone && <div style={{ fontSize: '0.72rem', color: '#bbb', marginTop: '0.35rem' }}>{member.phone}</div>}
                     {staffCallCounts[member.id] > 0 && (
@@ -344,7 +362,60 @@ export default function StaffDirectory({ onNavigate }) {
 
               {/* Professional section */}
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0.85rem 0 0.65rem', fontFamily: "'DM Sans', sans-serif" }}>Professional</div>
-              {field('specialist_services', 'Specialist services / skills', { placeholder: 'e.g. Colour, Extensions, Gas safe' })}
+              {/* Tag picker for specialist services */}
+              <div style={{ marginBottom: '0.9rem' }}>
+                {lbl('Specialist services / skills')}
+                {catalogueItems.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.5rem' }}>
+                    {catalogueItems.map(item => {
+                      const active = (draft.specialist_services || []).includes(item.name)
+                      return (
+                        <button key={item.id} onClick={() => {
+                          if (isDemo || isPreview) return
+                          setDraft(d => {
+                            const curr = d.specialist_services || []
+                            return { ...d, specialist_services: active ? curr.filter(n => n !== item.name) : [...curr, item.name] }
+                          })
+                        }}
+                          style={{ padding: '0.22rem 0.6rem', borderRadius: 20, border: 'none', cursor: isDemo || isPreview ? 'default' : 'pointer', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, background: active ? '#5e3b87' : '#f0ebf8', color: active ? 'white' : '#5e3b87', transition: 'all 0.15s' }}>
+                          {item.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", background: '#faf9fc', borderRadius: 8, padding: '0.5rem 0.65rem', marginBottom: '0.5rem' }}>
+                    Add services in Business Profile to enable tag selection.
+                  </div>
+                )}
+                {/* Custom skills not in catalogue */}
+                {(draft.specialist_services || []).filter(s => !catalogueItems.some(c => c.name === s)).map((tag, i) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.18rem 0.5rem', borderRadius: 20, background: '#e6f5ee', color: '#1e7a4a', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", marginRight: '0.3rem', marginBottom: '0.3rem' }}>
+                    {tag}
+                    {!isDemo && !isPreview && (
+                      <button onClick={() => setDraft(d => ({ ...d, specialist_services: (d.specialist_services || []).filter(s => s !== tag) }))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e7a4a', fontSize: '0.85rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center' }}>×</button>
+                    )}
+                  </span>
+                ))}
+                {!isDemo && !isPreview && (
+                  <input type="text" placeholder="+ custom skill, press Enter"
+                    style={{ ...inp(), fontSize: '0.78rem', marginTop: '0.25rem' }}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return
+                      const val = e.target.value.trim()
+                      if (!val) return
+                      setDraft(d => {
+                        const curr = d.specialist_services || []
+                        if (curr.includes(val)) return d
+                        return { ...d, specialist_services: [...curr, val] }
+                      })
+                      e.target.value = ''
+                      e.preventDefault()
+                    }}
+                  />
+                )}
+              </div>
               {field('direct_line_did', 'Direct line DID', { type: 'tel', placeholder: '020 7946 0001' })}
 
               {/* Private notes */}

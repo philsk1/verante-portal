@@ -139,7 +139,8 @@ export function buildSystemPrompt(data) {
     ? staff.filter(s => s.active !== false).map(s => {
         const parts = [`  • ${s.name}`]
         if (s.role) parts.push(`(${s.role})`)
-        if (s.specialist_services) parts.push(`— specialist: ${s.specialist_services}`)
+        const specs = Array.isArray(s.specialist_services) ? s.specialist_services.join(', ') : s.specialist_services
+        if (specs) parts.push(`— specialist: ${specs}`)
         if (s.direct_line_did) parts.push(`— direct line: ${s.direct_line_did}`)
         return parts.join(' ')
       }).join('\n')
