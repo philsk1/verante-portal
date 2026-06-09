@@ -175,6 +175,7 @@ src/pages/Calendar.jsx              — Qerxel Calendar tab (react-big-calendar,
 src/pages/Integrations.jsx          — Integrations tab (module framework)
 src/pages/ListenTab.jsx             — transcript archive (/portal listen tab)
 src/pages/StaffDirectory.jsx        — team tab (card grid, slide-in panel, tag picker)
+src/pages/OwnerSelector.jsx          — owner tenant selector (/owner/select) — auto-redirect on owner login
 src/pages/DemoLogin.jsx             — demo login (/demo/login)
 src/pages/BusinessSelector.jsx      — 10 business cards (/demo/select)
 src/pages/TierSelector.jsx          — tier selection (/demo/tier/:id)
@@ -381,6 +382,19 @@ admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator
 - [x] `supabase_listen_columns.sql` — consolidated migration for transcript, callback_flagged, notify prefs, referral columns. Run this in Supabase SQL editor.
 - [x] Deployed to production.
 
+### Done — Session 19 (2026-06-09) — Owner selector + visual fixes
+
+- [x] `OwnerSelector.jsx` — full-page tenant selector at `/owner/select`. Cards show tier badge, feature bullets (Listen, Schedule, provisional booking, SMS, spam filter), mode tags (triage, outcome goal, PAYG). Owner login auto-redirects here.
+- [x] `Portal.jsx` — owner redirect: uses `?ownerPreview=<id>&ownerName=<name>` URL param instead of PreviewContext (fixes race condition where enterPreview + navigate fired simultaneously). Sidebar owner dropdown/controls removed entirely.
+- [x] Preview banner updated: "← Change business" link navigates back to `/owner/select`.
+- [x] `api/admin.js` — expanded tenant SELECT to include listen_tier, calendar_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo.
+- [x] `supabase_owner_rls.sql` — owner RLS bypass policies for finsolsoffice@gmail.com across 13 tables. **Already run via management API.**
+- [x] AIBehaviour — CONVERSATION_STYLES[0] ('Efficient' preset) was still pink; now amber `#fcbe03` matching TRIAGE_COLOUR.strict.
+- [x] Portal sidebar — "Build your Qerxel" card: title 0.9rem Syne 700, subtitle 0.75rem, text centred.
+- [x] Test accounts: 12 real Supabase auth accounts covering all visual states. Password: `Qerxel2026!`. Seed scripts: `seed-test-accounts.mjs`, `seed-two-accounts.mjs`.
+- [x] Cross-functional warnings across 5 tabs: booking link missing (Dashboard + AIBehaviour), PAYG + no daily summary (AccountSettings), banned item / partner specialty overlap (PartnersReferrals), staff DID + offline status (StaffDirectory).
+- [x] Listen tab gating: hidden when `listen_tier === 'none'`, compact `＋ Add Listen` upsell strip in sidebar.
+
 ### Remaining (user actions required)
 - [ ] Run `supabase_listen_columns.sql` in Supabase SQL editor (all outstanding column additions — idempotent, safe to re-run)
 - [ ] Stripe setup: create products/prices in Stripe Dashboard, set webhook endpoint to `https://verrante-portal.vercel.app/api/stripe-webhook`, add 7 Vercel env vars (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_LIGHT, STRIPE_PRICE_STANDARD, STRIPE_PRICE_PROFESSIONAL, STRIPE_PRICE_ENTERPRISE, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -400,6 +414,9 @@ admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator
 - `tenants.referral_code` text UNIQUE
 - `tenants.credit_balance_months` integer DEFAULT 0
 
+### DB — already run this session
+- `supabase_owner_rls.sql` — owner bypass SELECT policies on 13 tables ✅ run 2026-06-09
+
 ---
 
 ## Working Conventions
@@ -413,4 +430,6 @@ admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator
 - **`data-help` attributes** on all section headings and key UI elements.
 - **Demo tables** prefixed `demo_`. Never join to production tables.
 - **Save guards** — always `if (isDemo || isPreview || !tenantId) return` on all mutations.
+- **Owner preview** — passes selection via `?ownerPreview=<id>&ownerName=<name>` URL param (NOT via PreviewContext directly — race condition). Portal.jsx reads params in init(), calls enterPreview(), then cleans URL. RLS bypass: `supabase_owner_rls.sql` (already run).
+- **Running SQL** — use management API: `POST https://api.supabase.com/v1/projects/kkrsvkxkefijmtbwykzv/database/query` with `Authorization: Bearer <SUPABASE_PAT>`. SUPABASE_PAT is in `.env.local`.
 - **End of session:** Update "Current Build State" above, commit, push.
