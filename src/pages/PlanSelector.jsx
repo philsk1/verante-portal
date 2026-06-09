@@ -311,7 +311,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
   }
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#f7f6f9', padding: '2rem 1.5rem 6rem', boxSizing: 'border-box' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#f7f6f9', padding: '2rem 1.5rem 6rem', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
         {/* Header */}
