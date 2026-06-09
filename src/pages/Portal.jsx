@@ -283,8 +283,14 @@ const Portal = () => {
 
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
-        // Redirect to selector page unless already in preview mode
-        if (!preview.isPreview) {
+        const params = new URLSearchParams(window.location.search)
+        const previewId   = params.get('ownerPreview')
+        const previewName = params.get('ownerName') || ''
+        if (previewId) {
+          // Came from OwnerSelector — commit preview and clean the URL
+          preview.enterPreview(previewId, decodeURIComponent(previewName))
+          navigate('/portal', { replace: true })
+        } else if (!preview.isPreview) {
           navigate('/owner/select', { replace: true })
           return
         }
@@ -699,29 +705,6 @@ const Portal = () => {
           {/* ── Bottom controls ─────────────────────────────────────────────── */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
 
-            {/* Owner quick links */}
-            {isOwner && !sidebarCollapsed && (
-              <div style={{ padding: '0.6rem 1rem 0', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                <button
-                  onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
-                  style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, cursor: 'pointer', padding: '0.25rem 0.5rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', transition: 'color 0.15s' }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.85)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
-                >
-                  Switch tenant
-                </button>
-                <a
-                  href="/demo/login"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', textDecoration: 'none', textAlign: 'center', padding: '0.15rem 0', fontFamily: "'DM Sans', sans-serif" }}
-                  onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
-                  onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}
-                >
-                  Demo businesses →
-                </a>
-              </div>
-            )}
 
             {/* Business name */}
             {!sidebarCollapsed && (

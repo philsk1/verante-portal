@@ -63,8 +63,7 @@ const OwnerSelector = () => {
   }, [user])
 
   const select = (tenant) => {
-    preview.enterPreview(tenant.id, tenant.business_name)
-    navigate('/portal')
+    navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}`)
   }
 
   const handleSignOut = async () => {
