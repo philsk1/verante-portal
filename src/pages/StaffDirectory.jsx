@@ -344,6 +344,14 @@ export default function StaffDirectory({ onNavigate }) {
               <button onClick={closeProfile} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px', marginLeft: '0.25rem' }}>×</button>
             </div>
 
+            {/* DID offline warning */}
+            {draft.active !== false && draft.direct_line_did && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', margin: '0 0 0', padding: '0.5rem 0.75rem', background: '#fffbeb', borderBottom: '1px solid rgba(240,165,0,0.3)', fontSize: '0.75rem', color: '#78460a', lineHeight: 1.45 }}>
+                <span style={{ flexShrink: 0 }}>⚠</span>
+                <span>This team member has a direct line configured. Setting them offline will affect how your AI routes calls to them.</span>
+              </div>
+            )}
+
             {/* Panel body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
               {/* Contact section */}

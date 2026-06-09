@@ -897,6 +897,12 @@ const AIBehaviour = ({ onNavigate }) => {
                 />
               )}
             </div>
+            {businessOutcomeType === 'booking' && !bookingLink && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.6rem', padding: '0.6rem 0.75rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.78rem', color: '#78460a', lineHeight: 1.45 }}>
+                <span style={{ flexShrink: 0, marginTop: '0.05rem' }}>⚠</span>
+                <span>No booking link set — your AI will mention taking bookings but callers won't have anywhere to go. Add a link in <strong>Business Profile → Booking Link</strong>.</span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -1270,6 +1276,13 @@ const AIBehaviour = ({ onNavigate }) => {
                 <span style={{ position: 'absolute', top: 3, left: provisionalBookingEnabled ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
               </button>
             </div>
+
+            {provisionalBookingEnabled && !bookingLink && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.5rem', padding: '0.6rem 0.75rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.78rem', color: '#78460a', lineHeight: 1.45 }}>
+                <span style={{ flexShrink: 0, marginTop: '0.05rem' }}>⚠</span>
+                <span>Provisional booking is on but no booking link is configured. The AI will offer slots but callers won't be able to confirm. Add a link in <strong>Business Profile → Booking Link</strong>.</span>
+              </div>
+            )}
 
             {provisionalBookingEnabled && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

@@ -999,6 +999,13 @@ const AccountSettings = ({ onNavigate, onPlanChange }) => {
           ))}
         </div>
 
+        {billingModel === 'payg' && !notifyDailySummary && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1rem', padding: '0.6rem 0.75rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.78rem', color: '#78460a', lineHeight: 1.45 }}>
+            <span style={{ flexShrink: 0, marginTop: '0.05rem' }}>⚠</span>
+            <span>You're on PAYG billing. Without daily summaries you won't receive cost alerts and could face an unexpected bill at month end.</span>
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button style={notifySaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveNotifications} disabled={notifySaving}>
             {notifySaving ? 'Saving…' : 'Save preferences'}

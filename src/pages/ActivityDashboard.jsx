@@ -547,6 +547,8 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [tileStates, setTileStates] = useState({ status: 'half', calls: 'half', leads: 'half', charts: 'icon' })
   const setTile = (id, state) => setTileStates(prev => ({ ...prev, [id]: state }))
   const [holidayMode, setHolidayMode] = useState(false)
+  const [outcomeType, setOutcomeType] = useState('')
+  const [outcomeBookingLink, setOutcomeBookingLink] = useState('')
   const [pipelineView, setPipelineView] = useState(false)
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [qcName, setQcName] = useState('')
@@ -607,7 +609,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier')
+          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier, business_outcome_type, booking_link')
           .eq('id', tid)
           .maybeSingle()
 
@@ -620,6 +622,8 @@ const ActivityDashboard = ({ onNavigate }) => {
           setHolidayMode(tenant.holiday_mode || false)
           setListenTier(tenant.listen_tier || 'none')
           setCalendarTier(tenant.calendar_tier || 'entry')
+          setOutcomeType(tenant.business_outcome_type || '')
+          setOutcomeBookingLink(tenant.booking_link || '')
         }
 
         const monthIso = startOfMonth().toISOString()
@@ -840,6 +844,17 @@ const ActivityDashboard = ({ onNavigate }) => {
       actionLabel: 'View',
       onAction: () => setPipelineView(false),
       borderColor: '#ef4444', bg: '#fef2f2',
+    })
+  }
+  if (!holidayMode && outcomeType === 'booking' && !outcomeBookingLink) {
+    alerts.push({
+      type: 'warning',
+      icon: '🔗',
+      title: 'Booking link missing',
+      body: 'Your AI is set to take bookings but no booking link is configured. Callers will be told you take bookings with nowhere to go.',
+      actionLabel: 'Fix in AI settings',
+      onAction: () => onNavigate && onNavigate('ai'),
+      borderColor: '#f0a500', bg: '#fffbeb',
     })
   }
   if (!holidayMode && minutesPct > 80 && minutesUsed > 0) {

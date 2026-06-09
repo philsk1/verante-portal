@@ -74,6 +74,7 @@ const PartnersReferrals = ({ onNavigate }) => {
   const [outboundThisMonth, setOutboundThisMonth] = useState(0)
   const [draft, setDraft]                 = useState({ name: '', phone: '', specialty: '' })
   const [adding, setAdding]               = useState(false)
+  const [bannedItems, setBannedItems]     = useState([])
   const [codeCopied, setCodeCopied]       = useState(false)
   const [linkCopied, setLinkCopied]       = useState(false)
   const [inviteCopied, setInviteCopied]   = useState(null)
@@ -132,11 +133,13 @@ const PartnersReferrals = ({ onNavigate }) => {
         }
         setTenantId(tid)
 
-        const [tenantRes, partnerRes, logRes] = await Promise.all([
+        const [tenantRes, partnerRes, logRes, bannedRes] = await Promise.all([
           supabase.from('tenants').select('referral_code, credit_balance_months, business_name').eq('id', tid).maybeSingle(),
           supabase.from('referral_partners').select('id, partner_name, contact_phone, inbound_count').eq('tenant_id', tid).order('created_at', { ascending: true }),
           supabase.from('referral_log').select('partner_id').eq('tenant_id', tid),
+          supabase.from('banned_services').select('banned_item').eq('tenant_id', tid),
         ])
+        setBannedItems((bannedRes.data || []).map(b => b.banned_item.toLowerCase()))
 
         if (tenantRes.data) {
           let code = tenantRes.data.referral_code || ''
@@ -311,6 +314,22 @@ const PartnersReferrals = ({ onNavigate }) => {
             </span>
           )}
         </div>
+
+        {/* overlap warning — partner specialty matches a banned service */}
+        {(() => {
+          const conflicts = partners.filter(p =>
+            p.specialty && bannedItems.some(b => p.specialty.toLowerCase().includes(b) || b.includes(p.specialty.toLowerCase()))
+          )
+          if (!conflicts.length) return null
+          return (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.6rem 0.75rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.78rem', color: '#78460a', lineHeight: 1.45 }}>
+              <span style={{ flexShrink: 0, marginTop: '0.05rem' }}>⚠</span>
+              <span>
+                {conflicts.map(p => p.name).join(', ')} {conflicts.length === 1 ? 'specialises' : 'specialise'} in a service you've marked as out-of-scope in Business Profile. Your AI may refer callers for work you don't want to take.
+              </span>
+            </div>
+          )
+        })()}
 
         {/* column headers */}
         {partners.length > 0 && (
