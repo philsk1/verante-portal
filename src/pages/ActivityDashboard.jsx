@@ -572,13 +572,18 @@ const ActivityDashboard = ({ onNavigate }) => {
   useEffect(() => {
     if (!demo?.isDemo || demo.loading || !demo.business) return
     const biz = demo.business
-    setTier(demo.tier || 'standard')
+    const demoTier = demo.tier || 'standard'
+    setTier(demoTier)
     setBusinessName(biz.business_name || '')
     setIncludedMinutes(biz.included_minutes || 250)
     setTriageMode(biz.triage_mode || 'balanced')
     setCalls(demo.calls || [])
     setLeads(demo.leads || [])
     setReferrals(demo.referrals || [])
+    // Hub strip: infer listen/calendar availability from tier
+    const hasProfessional = ['professional', 'enterprise', 'bespoke'].includes(demoTier)
+    setListenTier(hasProfessional ? 'standard' : 'none')
+    setCalendarTier('entry')
     setLoading(false)
   }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
 

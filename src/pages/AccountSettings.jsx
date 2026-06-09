@@ -495,6 +495,7 @@ const AccountSettings = ({ onNavigate }) => {
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [tenantCreatedAt, setTenantCreatedAt] = useState(null)
   const [vapiPhone, setVapiPhone] = useState(null)
+  const [phoneCopied, setPhoneCopied] = useState(false)
   const [feedbackShown, setFeedbackShown] = useState(false)
   const [partnerCount, setPartnerCount] = useState(0)
   const [outboundCount, setOutboundCount] = useState(0)
@@ -787,10 +788,10 @@ const AccountSettings = ({ onNavigate }) => {
               <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.4rem' }}>Callers who ring this number reach your AI</div>
             </div>
             <button
-              onClick={() => { navigator.clipboard.writeText(vapiPhone); }}
-              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: 8, padding: '0.5rem 1rem', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              onClick={() => { navigator.clipboard.writeText(vapiPhone); setPhoneCopied(true); setTimeout(() => setPhoneCopied(false), 2000) }}
+              style={{ background: phoneCopied ? 'rgba(61,184,122,0.2)' : 'rgba(255,255,255,0.12)', border: `1px solid ${phoneCopied ? 'rgba(61,184,122,0.5)' : 'rgba(255,255,255,0.25)'}`, color: 'white', borderRadius: 8, padding: '0.5rem 1rem', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
             >
-              Copy number
+              {phoneCopied ? '✓ Copied' : 'Copy number'}
             </button>
           </div>
         </div>

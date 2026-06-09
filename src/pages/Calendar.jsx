@@ -855,6 +855,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [view, setView] = useState('week')
   const [teamMode, setTeamMode] = useState(false)
   const [staffFilter, setStaffFilter] = useState('') // '' = all, staffId = single staff
+  const [statusFilter, setStatusFilter] = useState('') // '' = all, 'provisional' etc
   const [smartView, setSmartView] = useState(true) // auto-adapt based on staff count
   const hasAutoAdapted = useRef(false)
   const [activeSubTab, setActiveSubTab] = useState('appointments')
@@ -1000,9 +1001,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     // Unassigned column removed — all bookings require a staff member
     return staff.map(s => ({ id: s.id, title: s.name }))
   }, [teamMode, staff, staffFilter])
-  const visibleEvents = staffFilter
-    ? events.filter(e => e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
-    : events
+  const visibleEvents = events
+    .filter(e => !staffFilter || e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
+    .filter(e => !statusFilter || e.status === statusFilter)
 
   // Smart view label shown in legend
   const smartViewLabel = useMemo(() => {
@@ -1604,7 +1605,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         {/* Sub-tabs */}
         <div style={{ display: 'flex', gap: 0, background: '#f0ebf8', borderRadius: 9, padding: 3, flexShrink: 0 }}>
           {subTabs.map(tab => (
-            <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel() }}
+            <button key={tab.id} onClick={() => { setActiveSubTab(tab.id); closePanel(); setStatusFilter('') }}
               style={{ padding: '0.28rem 0.75rem', borderRadius: 7, border: 'none', background: activeSubTab === tab.id ? '#5e3b87' : 'transparent', color: activeSubTab === tab.id ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: activeSubTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
               {tab.label}
             </button>
@@ -1642,16 +1643,17 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
       {/* ── Attention bar ─────────────────────────────────────────────────────── */}
       {activeSubTab === 'appointments' && upcomingProvisional.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.9rem', background: '#fffbf0', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, marginBottom: '0.75rem' }}>
+        <div
+          onClick={() => setStatusFilter(statusFilter === 'provisional' ? '' : 'provisional')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.9rem', background: statusFilter === 'provisional' ? '#fef3d9' : '#fffbf0', border: `1px solid ${statusFilter === 'provisional' ? '#f0a500' : 'rgba(240,165,0,0.3)'}`, borderRadius: 8, marginBottom: '0.75rem', cursor: 'pointer', transition: 'all 0.15s' }}
+        >
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.8rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+          <span style={{ fontSize: '0.8rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flex: 1 }}>
             {upcomingProvisional.length} provisional {upcomingProvisional.length === 1 ? 'appointment needs' : 'appointments need'} confirmation
           </span>
-          {todayEvts.length > 0 && (
-            <span style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginLeft: 'auto' }}>
-              {todayEvts.length} today
-            </span>
-          )}
+          <span style={{ fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, color: statusFilter === 'provisional' ? '#5e3b87' : '#f0a500', background: statusFilter === 'provisional' ? '#ede8f5' : 'rgba(240,165,0,0.12)', padding: '0.15rem 0.5rem', borderRadius: 4 }}>
+            {statusFilter === 'provisional' ? '✕ Clear filter' : 'Show only'}
+          </span>
         </div>
       )}
 

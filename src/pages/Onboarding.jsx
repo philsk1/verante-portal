@@ -937,17 +937,18 @@ const Onboarding = () => {
             {[
               { label: 'Business name', value: data.business_name },
               { label: 'Owner',         value: data.lead_contact_name },
-              { label: 'Address',       value: data.business_address },
               { label: 'Phone',         value: data.business_phone },
               { label: 'Email',         value: data.business_email },
               { label: 'Booking link',  value: data.booking_link },
               { label: 'About',         value: data.business_context },
-              { label: 'Area covered',  value: data.area_covered },
-              { label: 'Refers out',    value: data.refer_out },
-              { label: "Won't touch",   value: data.wont_touch },
-              { label: 'Services',      value: data.services.filter(s => s.service_name.trim()).map(s => s.service_name).join(', ') },
-              { label: 'Partners',      value: data.partners.filter(p => p.name.trim()).map(p => p.name).join(', ') },
-              { label: 'Billing',       value: data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },
+              ...(data.product !== 'calendar' ? [
+                { label: 'Area covered',  value: data.area_covered },
+                { label: 'Refers out',    value: data.refer_out },
+                { label: "Won't touch",   value: data.wont_touch },
+                { label: 'Partners',      value: data.partners.filter(p => p.name.trim()).map(p => p.name).join(', ') },
+              ] : []),
+              { label: data.product === 'calendar' ? 'Appointment types' : 'Services', value: data.services.filter(s => s.service_name.trim()).map(s => s.service_name).join(', ') },
+              { label: 'Billing', value: data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },
             ].filter(item => item.value).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
                 <span style={{ fontSize: '0.8rem', color: '#aaa', flexShrink: 0, marginRight: '1rem' }}>{item.label}</span>
