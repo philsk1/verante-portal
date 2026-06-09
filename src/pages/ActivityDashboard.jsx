@@ -962,7 +962,7 @@ const ActivityDashboard = ({ onNavigate }) => {
       : minutesPct >= 80
       ? { label: 'Near limit', color: '#b07a00', dot: '#f0a500' }
       : { label: 'Active', color: '#1e7a4a', dot: '#3db87a' }
-    const triageColors = { strict: { color: '#6b2049', bg: '#f7cee3' }, balanced: { color: '#1e3a8a', bg: '#bfdbfe' }, open: { color: '#166534', bg: '#bbf7d0' } }
+    const triageColors = { strict: { color: '#78460a', bg: '#fef3c7' }, balanced: { color: '#1e3a8a', bg: '#bfdbfe' }, open: { color: '#166534', bg: '#bbf7d0' } }
     const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
     const triage = { label: triageLabels[triageMode] || 'Balanced', ...(triageColors[triageMode] || triageColors.balanced) }
     const week7 = getDayBuckets(7, calls)
@@ -1327,7 +1327,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const triageLabels = { strict: 'Strict', balanced: 'Balanced', open: 'Open' }
         const triageColors = {
-          strict:   { color: '#6b2049', bg: '#f7cee3' },
+          strict:   { color: '#78460a', bg: '#fef3c7' },
           balanced: { color: '#1e3a8a', bg: '#bfdbfe' },
           open:     { color: '#166534', bg: '#bbf7d0' },
         }

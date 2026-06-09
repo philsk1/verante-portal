@@ -26,7 +26,7 @@ const CONVERSATION_STYLES = [
 ]
 
 const TRIAGE_COLOUR = {
-  strict:   { border: '#9e4770', bg: '#f7cee3', text: '#6b2049', dot: '#9e4770', passiveBg: '#fdf0f7', passiveBorder: 'rgba(158,71,112,0.18)' },
+  strict:   { border: '#fcbe03', bg: '#fef3c7', text: '#78460a', dot: '#fcbe03', passiveBg: '#fffbeb', passiveBorder: 'rgba(252,190,3,0.25)' },
   balanced: { border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8', passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.18)' },
   open:     { border: '#3db87a', bg: '#bbf7d0', text: '#166634', dot: '#3db87a', passiveBg: '#f0fdf4', passiveBorder: 'rgba(61,184,122,0.18)' },
 }
