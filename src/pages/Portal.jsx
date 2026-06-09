@@ -368,7 +368,6 @@ const Portal = () => {
       label: 'Answer',
       dot: '#f0a500',
       tabs: [
-        { id: 'lines',     label: 'Lines',     icon: <IcoPhone /> },
         { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
         { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
         { id: 'ai',        label: 'Answer AI', icon: <IcoAI /> },
@@ -402,6 +401,7 @@ const Portal = () => {
         { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
         { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
         { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
+        { id: 'lines',        label: 'Lines',            icon: <IcoPhone /> },
       ],
     },
   ]
