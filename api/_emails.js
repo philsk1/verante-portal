@@ -275,6 +275,31 @@ export function emailDailySummary({
   }
 }
 
+// Welcome email — fired once after tenant completes onboarding
+export function emailWelcome({ businessName, ownerName, tier, portalUrl }) {
+  const tierLabel = { free: 'Free', light: 'Light', standard: 'Standard', professional: 'Professional', enterprise: 'Enterprise', bespoke: 'Bespoke' }[tier] || 'Standard'
+  return {
+    subject: `Welcome to Qerxel, ${ownerName || businessName} — your AI is ready`,
+    html: wrap(`
+      <p>Hi ${ownerName || businessName},</p>
+      <p>You're set up. Your AI is configured and ready to handle calls for <strong>${businessName}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Plan</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${tierLabel}</td></tr>
+      </table>
+      <p style="font-size:0.875rem;color:#444;margin-bottom:0.5rem;"><strong>Your next steps:</strong></p>
+      <ol style="font-size:0.875rem;color:#444;line-height:1.8;padding-left:1.25rem;margin:0 0 1.25rem;">
+        <li>Your Qerxel phone number will appear in your Account Settings once provisioned.</li>
+        <li>Point your missed calls to your Qerxel number — via voicemail divert or call forwarding.</li>
+        <li>Review your AI settings in <strong>Answer AI</strong> — tone, outcome type, urgent callback.</li>
+        <li>Add your services and team in <strong>Business Profile</strong>.</li>
+      </ol>
+      <div style="margin-top:1.5rem;">
+        <a href="${portalUrl}" style="display:inline-block;background:#f0a500;color:#1a0533;text-decoration:none;font-weight:700;font-size:0.875rem;padding:0.65rem 1.4rem;border-radius:8px;">Go to your portal →</a>
+      </div>
+    `),
+  }
+}
+
 // Urgent escalation alert — fires immediately when a call is escalated
 export function emailUrgentEscalation({ businessName, callerName, callerPhone, summary, callbackMins, portalUrl }) {
   const callerLabel = callerName && callerPhone
