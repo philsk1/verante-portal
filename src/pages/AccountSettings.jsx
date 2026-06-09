@@ -823,7 +823,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   return (
     <>
     {showPlanSelector && (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 300, overflowY: 'auto', background: '#f7f6f9' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 300, overflowY: 'auto', overflowX: 'hidden', background: '#f7f6f9' }}>
         <PlanSelector
           currentAnswer={tier}
           currentCalendar={calendarTier}

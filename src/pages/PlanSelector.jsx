@@ -216,7 +216,7 @@ function TierCard({ tier, selected, onClick, locked, product }) {
           <span style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${isSelected ? pc.dot : '#ccc'}`, background: isSelected ? pc.dot : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {isSelected && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'white' }} />}
           </span>
-          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.text : '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tier.name}</span>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.text : '#1a1a1a' }}>{tier.name}</span>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: isSelected ? pc.dot : '#1a1a1a' }}>{tier.priceLabel}</div>
