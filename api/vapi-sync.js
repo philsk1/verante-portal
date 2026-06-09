@@ -8,12 +8,23 @@ const supabase = createClient(
 
 const VAPI_API = 'https://api.vapi.ai'
 
+function getVoiceConfig(tenant) {
+  const pref = tenant?.overage_voice_preference || 'standard'
+  if (pref === 'premium') {
+    if (process.env.CARTESIA_PREMIUM_VOICE_ID) {
+      return { provider: 'cartesia', voiceId: process.env.CARTESIA_PREMIUM_VOICE_ID }
+    }
+    return { provider: 'deepgram', voiceId: 'aura-luna-en' }
+  }
+  return { provider: 'deepgram', voiceId: 'aura-stella-en' }
+}
+
 async function fetchTenantData(tenantId) {
   const [tenantRes, servicesRes, partnerServicesRes, callRulesRes, partnersRes, specialtiesRes, staffRes, catalogueRes] =
     await Promise.all([
       supabase
         .from('tenants')
-        .select('id, vapi_assistant_id, business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, urgent_callback_mins, additional_instructions, subcategory_id, blocked_phone_numbers, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins')
+        .select('id, vapi_assistant_id, business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, urgent_callback_mins, additional_instructions, subcategory_id, blocked_phone_numbers, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
         .eq('id', tenantId)
         .maybeSingle(),
       supabase.from('services').select('service_name').eq('tenant_id', tenantId),
@@ -82,6 +93,7 @@ export default async function handler(req, res) {
       messages: [{ role: 'system', content: systemPrompt }],
       temperature: 0.4,
     },
+    voice: getVoiceConfig(data.tenant),
     analysisPlan,
   }
 
