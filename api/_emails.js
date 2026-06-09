@@ -300,6 +300,112 @@ export function emailUrgentEscalation({ businessName, callerName, callerPhone, s
   }
 }
 
+// Weekly performance report — subscription tenants
+export function emailWeeklySummary({
+  businessName, dateRange,
+  callsTotal, leadsCount, referralsCount, filteredCount, escalatedCount,
+  minutesUsed, includedMinutes, tier,
+  leads, referrals,
+}) {
+  const NEXT_TIER_LOCAL = {
+    light:        { label: 'Standard',     minutes: 250,  price: '£49' },
+    standard:     { label: 'Professional', minutes: 450,  price: '£69' },
+    professional: { label: 'Enterprise',   minutes: 1000, price: '£249' },
+  }
+  const pct = includedMinutes > 0 ? Math.round((minutesUsed / includedMinutes) * 100) : 0
+  const barWidth = Math.min(pct, 100)
+  const barColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f0a500' : '#5e3b87'
+  const next = NEXT_TIER_LOCAL[tier]
+
+  const leadRows = (leads || []).slice(0, 8).map(l => {
+    const date = new Date(l.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    return `<tr>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;">${l.lead_contact_name || l.caller_name || 'Unknown'}</td>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;color:#666;">${l.phone_number || l.caller_number || ''}</td>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;color:#aaa;text-align:right;">${date}</td>
+    </tr>`
+  }).join('')
+
+  const refRows = (referrals || []).slice(0, 5).map(r => {
+    const date = new Date(r.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    return `<tr>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;">${r.caller_name || 'Caller'}</td>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;color:#666;">→ ${r.partner_name || ''}</td>
+      <td style="padding:0.4rem 0;border-bottom:1px solid #f5f5f5;font-size:0.82rem;color:#aaa;text-align:right;">${date}</td>
+    </tr>`
+  }).join('')
+
+  const leadsSection = leadsCount > 0 ? `
+    <p style="margin:1.5rem 0 0.5rem;font-weight:600;color:#1a1a1a;font-size:0.875rem;">Leads from this week</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:0.5rem;">${leadRows}</table>
+    ${leadsCount > 8 ? `<p style="font-size:0.78rem;color:#aaa;margin:0;">+ ${leadsCount - 8} more in your portal</p>` : ''}
+  ` : ''
+
+  const refSection = referralsCount > 0 ? `
+    <p style="margin:1.5rem 0 0.5rem;font-weight:600;color:#1a1a1a;font-size:0.875rem;">Referrals made</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:0.5rem;">${refRows}</table>
+  ` : ''
+
+  const minutesSection = includedMinutes > 0 ? `
+    <div style="margin-top:1.5rem;">
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.35rem;">
+        <span style="color:#aaa;">Minutes this month</span>
+        <span style="font-weight:600;">${minutesUsed} of ${includedMinutes} min (${pct}%)</span>
+      </div>
+      <div style="height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;">
+        <div style="height:6px;width:${barWidth}%;background:${barColor};border-radius:3px;"></div>
+      </div>
+      ${pct >= 70 && next ? `<p style="font-size:0.78rem;color:#f0a500;margin:0.4rem 0 0;">You've used ${pct}% of your monthly minutes — upgrade to ${next.label} for ${next.minutes} min at ${next.price}/month.</p>` : ''}
+    </div>
+  ` : ''
+
+  const noCalls = callsTotal === 0
+    ? `<p style="color:#888;font-size:0.875rem;">No calls were handled this week. Your AI is ready and waiting.</p>`
+    : ''
+
+  return {
+    subject: callsTotal > 0
+      ? `Your week in review — ${callsTotal} call${callsTotal !== 1 ? 's' : ''}, ${leadsCount} lead${leadsCount !== 1 ? 's' : ''} — ${businessName}`
+      : `Weekly summary — ${businessName}`,
+    html: wrap(`
+      <p>Hi ${businessName},</p>
+      <p style="color:#666;font-size:0.875rem;margin-top:-0.5rem;">${dateRange}</p>
+      ${noCalls}
+      ${callsTotal > 0 ? `
+      <table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;">
+        <tr>
+          <td style="padding:0.5rem 0.75rem;background:#f7f6f9;border-radius:8px;text-align:center;width:25%;">
+            <div style="font-size:1.5rem;font-weight:700;color:#5e3b87;">${callsTotal}</div>
+            <div style="font-size:0.72rem;color:#888;margin-top:2px;">Calls</div>
+          </td>
+          <td style="width:4px;"></td>
+          <td style="padding:0.5rem 0.75rem;background:#f0fdf4;border-radius:8px;text-align:center;width:25%;">
+            <div style="font-size:1.5rem;font-weight:700;color:#166534;">${leadsCount}</div>
+            <div style="font-size:0.72rem;color:#888;margin-top:2px;">Leads</div>
+          </td>
+          <td style="width:4px;"></td>
+          <td style="padding:0.5rem 0.75rem;background:#eff6ff;border-radius:8px;text-align:center;width:25%;">
+            <div style="font-size:1.5rem;font-weight:700;color:#1e3a8a;">${referralsCount}</div>
+            <div style="font-size:0.72rem;color:#888;margin-top:2px;">Referred</div>
+          </td>
+          <td style="width:4px;"></td>
+          <td style="padding:0.5rem 0.75rem;background:#fff5f5;border-radius:8px;text-align:center;width:25%;">
+            <div style="font-size:1.5rem;font-weight:700;color:#991b1b;">${filteredCount}</div>
+            <div style="font-size:0.72rem;color:#888;margin-top:2px;">Filtered</div>
+          </td>
+        </tr>
+      </table>
+      ${leadsSection}
+      ${refSection}
+      ${minutesSection}
+      <div style="margin-top:1.75rem;">
+        <a href="https://verrante-portal.vercel.app" style="display:inline-block;background:#f0a500;color:#1a0533;text-decoration:none;font-weight:600;font-size:0.875rem;padding:0.625rem 1.25rem;border-radius:8px;">View in portal →</a>
+      </div>
+      ` : ''}
+    `),
+  }
+}
+
 // Notification 3 — monthly renewal
 export function emailRenewal({ businessName, includedMinutes }) {
   return {

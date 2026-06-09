@@ -950,6 +950,11 @@ const AIBehaviour = ({ onNavigate }) => {
                 <button key={opt.id} onClick={() => setUrgentEscalationMethod(opt.id)} style={s.pairBtn(urgentEscalationMethod === opt.id)}>{opt.label}</button>
               ))}
             </div>
+            {(urgentEscalationMethod === 'sms' || urgentEscalationMethod === 'both') && (
+              <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: '#888' }}>
+                Text sent to your Business Profile phone number
+              </div>
+            )}
           </div>
 
           <div>
