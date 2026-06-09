@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, email80pct, emailExhausted, emailDailyCost } from './_emails.js'
+import { sendEmail, email80pct, emailExhausted, emailDailyCost, emailNewLead } from './_emails.js'
 import { sendSms } from './_sms.js'
 
 const supabase = createClient(
@@ -157,6 +157,20 @@ export default async function handler(req, res) {
       lead_contact_name: analysis.structuredData?.caller_name || null,
       status:            'new',
     })
+
+    // Immediate lead notification to owner — if enabled
+    if (tenant.notify_new_lead !== false && tenant.business_email) {
+      const portalUrl = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/portal?tab=dashboard`
+      const { subject, html } = emailNewLead({
+        businessName: tenant.business_name || 'Your business',
+        callerName:   analysis.structuredData?.caller_name || null,
+        callerPhone:  callerNumber,
+        summary:      summary,
+        outcome,
+        callbackUrl:  portalUrl,
+      })
+      await sendEmail({ to: tenant.business_email, subject, html })
+    }
 
     // SMS follow-up — confirmation text to caller seconds after the call
     if (callerNumber && tenant.sms_followup_enabled) {

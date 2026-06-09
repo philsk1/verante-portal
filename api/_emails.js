@@ -118,6 +118,34 @@ export function emailDailyCost({ businessName, callsToday, leadsToday, minutesTo
   }
 }
 
+// Immediate lead notification — fires when AI captures a new lead
+export function emailNewLead({ businessName, callerName, callerPhone, summary, outcome, callbackUrl }) {
+  const outcomeLabel = outcome === 'booked' ? 'Booking request' : 'New lead'
+  const outcomeColor = outcome === 'booked' ? '#5e3b87' : '#f0a500'
+  const callerRow = callerPhone
+    ? `<tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Phone</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;"><a href="tel:${callerPhone}" style="color:#5e3b87;text-decoration:none;">${callerPhone}</a></td></tr>`
+    : ''
+  const nameRow = callerName
+    ? `<tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Name</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${callerName}</td></tr>`
+    : ''
+  const ctaBtn = callbackUrl
+    ? `<div style="margin-top:1.5rem;"><a href="${callbackUrl}" style="display:inline-block;background:#f0a500;color:#1a0533;padding:0.65rem 1.4rem;border-radius:8px;font-weight:700;font-size:0.875rem;text-decoration:none;">View lead in Qerxel →</a></div>`
+    : ''
+  return {
+    subject: `${outcomeLabel} — ${callerName || callerPhone || 'Unknown caller'} via ${businessName}`,
+    html: wrap(`
+      <div style="display:inline-block;background:${outcomeColor};color:${outcome === 'booked' ? 'white' : '#1a0533'};padding:0.25rem 0.65rem;border-radius:4px;font-size:0.75rem;font-weight:700;margin-bottom:1rem;">${outcomeLabel.toUpperCase()}</div>
+      <p>Your AI just captured a new enquiry for <strong>${businessName}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+        ${nameRow}
+        ${callerRow}
+        ${summary ? `<tr><td style="padding:0.5rem 0;color:#aaa;font-size:0.8rem;vertical-align:top;">Summary</td><td style="padding:0.5rem 0;font-weight:500;text-align:right;">${summary}</td></tr>` : ''}
+      </table>
+      ${ctaBtn}
+    `),
+  }
+}
+
 // Appointment reminder — 24h or 1h before
 export function emailAppointmentReminder({ businessName, appointment, hoursAhead }) {
   const start = new Date(appointment.start_time)
