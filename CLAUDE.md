@@ -368,20 +368,37 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
   - `vera-chat.js` + `support-chat.js` → `api/chat.js`
 
 **API function inventory (12/12):**
-admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator, integrations, notify, send, vapi-assistant-request, vapi-sync, vapi-webhook
+admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator, integrations, notify, stripe-webhook, vapi-assistant-request, vapi-sync, vapi-webhook
+
+### Done — Session 18 (2026-06-09) — Infrastructure fixes + voice wiring
+
+- [x] `vapi-assistant-request.js` + `vapi-sync.js` — both now read `overage_voice_preference` from tenant. `getVoiceConfig()` helper: premium → Cartesia (if `CARTESIA_PREMIUM_VOICE_ID` env set) or Deepgram aura-luna-en; standard → Deepgram aura-stella-en. Voice included in both dynamic assistant config and PATCH on AI Behaviour save.
+- [x] `api/stripe-webhook.js` (was `_stripe-webhook.js`) — renamed public so Stripe can reach the endpoint. Function slot freed by retiring `send.js`.
+- [x] `send.js` logic merged into `integrations.js` (action: send-welcome / send-review). `send.js` → `_send.js`. Callers in `Calendar.jsx` and `Onboarding.jsx` updated.
+- [x] `_remind-appointments.js` — refactored to export `runReminders()`. Wired into `notify.js` as `type=remind`. Reachable via `POST /api/notify?type=remind` with CRON_SECRET — ready for external hourly cron (n8n/Make.com). Vercel Hobby min interval is 1 day so can't add a 3rd native cron.
+- [x] `vapi-assistant-request.js` — hardcoded webhook URL fixed to use `SITE_URL` env var.
+- [x] Multiple broken private-route callers fixed (WhatsApp, Zapier, CalDAV, Xero/Stripe/FreeAgent all now routed through public handlers). No broken `/api/*` references remain in frontend.
+- [x] `supabase_listen_columns.sql` — consolidated migration for transcript, callback_flagged, notify prefs, referral columns. Run this in Supabase SQL editor.
+- [x] Deployed to production.
 
 ### Remaining (user actions required)
-- [ ] Run `supabase_notify_columns.sql` in Supabase SQL editor (notify preference columns)
-- [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
-- [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
+- [ ] Run `supabase_listen_columns.sql` in Supabase SQL editor (all outstanding column additions — idempotent, safe to re-run)
+- [ ] Stripe setup: create products/prices in Stripe Dashboard, set webhook endpoint to `https://verrante-portal.vercel.app/api/stripe-webhook`, add 7 Vercel env vars (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_LIGHT, STRIPE_PRICE_STANDARD, STRIPE_PRICE_PROFESSIONAL, STRIPE_PRICE_ENTERPRISE, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+- [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars. Xero redirect URI: `https://verrante-portal.vercel.app/api/freeagent-oauth?provider=xero`
+- [ ] Appointment reminders (hourly): set up n8n or Make.com to POST `https://verrante-portal.vercel.app/api/notify?type=remind` hourly with header `Authorization: Bearer <CRON_SECRET>`
+- [ ] Premium voice (Cartesia): if using Cartesia TTS, add `CARTESIA_PREMIUM_VOICE_ID` to Vercel env vars
 - [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
 - [ ] Confirm new tier pricing when ready to update portal
 - [ ] Vera rename — pending Philip choosing a name
 
-### DB — pending migration (run supabase_notify_columns.sql)
-- `notify_new_lead` boolean DEFAULT true
-- `notify_daily_summary` boolean DEFAULT true
-- `notify_weekly_report` boolean DEFAULT true
+### DB — pending migration (run supabase_listen_columns.sql — supersedes supabase_notify_columns.sql)
+- `call_logs.transcript` text
+- `call_logs.callback_flagged` boolean DEFAULT false
+- `tenants.notify_new_lead` boolean DEFAULT true
+- `tenants.notify_daily_summary` boolean DEFAULT true
+- `tenants.notify_weekly_report` boolean DEFAULT true
+- `tenants.referral_code` text UNIQUE
+- `tenants.credit_balance_months` integer DEFAULT 0
 
 ---
 
