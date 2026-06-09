@@ -144,11 +144,6 @@ const OwnerSelector = () => {
                   <TierBadge tier={t.subscription_tier} />
                 </div>
 
-                {/* Business type */}
-                {t.business_type && (
-                  <div style={{ fontSize: '0.76rem', color: '#888', marginTop: '-0.5rem' }}>{t.business_type}</div>
-                )}
-
                 {/* Feature bullets */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.75rem' }}>
                   <BulletRow
