@@ -600,22 +600,22 @@ const DataAnalytics = ({ onNavigate }) => {
 
             {/* Row 2 — outcome breakdown tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div style={{ background: '#ddd6fe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #5e3b87', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#5e3b87', lineHeight: 1, marginBottom: '0.2rem' }}>{bookedCount}</div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Booked</div>
-              </div>
-              <div style={{ background: '#bbf7d0', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #3db87a', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1e7a4a', lineHeight: 1, marginBottom: '0.2rem' }}>{leadCapturedCount}</div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3db87a', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Leads captured</div>
-              </div>
-              <div style={{ background: '#bfdbfe', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #1d4ed8', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#1d4ed8', lineHeight: 1, marginBottom: '0.2rem' }}>{referredOutCount}</div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Referred out</div>
-              </div>
-              <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '1rem', borderLeft: '3px solid #cbd5e1', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: '#64748b', lineHeight: 1, marginBottom: '0.2rem' }}>{filteredCount}</div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Filtered / spam</div>
-              </div>
+              {[
+                { count: bookedCount,      label: 'Booked',         color: '#5e3b87', bg: '#ddd6fe', border: '#5e3b87' },
+                { count: leadCapturedCount,label: 'Leads captured',  color: '#1e7a4a', bg: '#bbf7d0', border: '#3db87a' },
+                { count: referredOutCount, label: 'Referred out',    color: '#1d4ed8', bg: '#bfdbfe', border: '#1d4ed8' },
+                { count: filteredCount,    label: 'Filtered / spam', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' },
+              ].map(tile => (
+                <div key={tile.label}
+                  onClick={() => setDrillOpen('calls')}
+                  style={{ background: tile.bg, borderRadius: '12px', padding: '1rem', borderLeft: `3px solid ${tile.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'transform 0.1s', userSelect: 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: tile.color, lineHeight: 1, marginBottom: '0.2rem' }}>{tile.count}</div>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: tile.color, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>{tile.label}</div>
+                </div>
+              ))}
             </div>
           </>
         )

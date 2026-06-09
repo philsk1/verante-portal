@@ -282,6 +282,31 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
         </div>
       )}
 
+      {/* ── Quick stats ─────────────────────────────────────────────────────── */}
+      {calls.length > 0 && (() => {
+        const withTranscript = calls.filter(c => c.transcript).length
+        const captured = calls.filter(c => c.call_outcome === 'lead_captured' || c.call_outcome === 'booked').length
+        const referred = calls.filter(c => c.call_outcome === 'referred_out').length
+        const urgent = calls.filter(c => c.call_outcome === 'escalated').length
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem', flexShrink: 0 }}>
+            {[
+              { label: 'Calls', value: calls.length, color: '#5e3b87', bg: '#ede8f5' },
+              { label: 'Captured', value: captured, color: '#1e7a4a', bg: '#e6f5ee' },
+              { label: 'Referred', value: referred, color: '#1d4ed8', bg: '#eff6ff' },
+              urgent > 0
+                ? { label: 'Urgent', value: urgent, color: '#b91c1c', bg: '#fef2f2' }
+                : { label: 'Transcripts', value: withTranscript, color: '#888', bg: '#f5f5f5' },
+            ].map(s => (
+              <div key={s.label} style={{ background: s.bg, borderRadius: 8, padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.35rem', color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: s.color, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid rgba(94,59,135,0.08)', marginBottom: '1rem', flexShrink: 0, overflowX: 'auto' }}>
         {TABS.map(tab => {
