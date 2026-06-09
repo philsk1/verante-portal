@@ -275,6 +275,31 @@ export function emailDailySummary({
   }
 }
 
+// Urgent escalation alert — fires immediately when a call is escalated
+export function emailUrgentEscalation({ businessName, callerName, callerPhone, summary, callbackMins, portalUrl }) {
+  const callerLabel = callerName && callerPhone
+    ? `${callerName} — ${callerPhone}`
+    : callerName || callerPhone || 'Unknown caller'
+  const ctaBtn = portalUrl
+    ? `<div style="margin-top:1.5rem;"><a href="${portalUrl}" style="display:inline-block;background:#dc2626;color:#ffffff;padding:0.65rem 1.4rem;border-radius:8px;font-weight:700;font-size:0.875rem;text-decoration:none;">View in Qerxel →</a></div>`
+    : ''
+  return {
+    subject: `URGENT — Caller needs a response within ${callbackMins} min — ${businessName}`,
+    html: wrap(`
+      <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:0.75rem 1rem;border-radius:0 6px 6px 0;margin-bottom:1.25rem;">
+        <div style="font-weight:700;color:#dc2626;font-size:0.875rem;margin-bottom:0.2rem;">URGENT — Action required within ${callbackMins} minutes</div>
+        <div style="font-size:0.82rem;color:#991b1b;">Your AI has flagged this caller as requiring an urgent callback.</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+        <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Caller</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${callerLabel}</td></tr>
+        ${callerPhone ? `<tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Call back</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;"><a href="tel:${callerPhone}" style="color:#dc2626;text-decoration:none;">${callerPhone}</a></td></tr>` : ''}
+        ${summary ? `<tr><td style="padding:0.5rem 0;color:#aaa;font-size:0.8rem;vertical-align:top;">Need</td><td style="padding:0.5rem 0;font-weight:500;text-align:right;">${summary}</td></tr>` : ''}
+      </table>
+      ${ctaBtn}
+    `),
+  }
+}
+
 // Notification 3 — monthly renewal
 export function emailRenewal({ businessName, includedMinutes }) {
   return {

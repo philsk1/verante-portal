@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, email80pct, emailExhausted, emailDailyCost, emailNewLead } from './_emails.js'
+import { sendEmail, email80pct, emailExhausted, emailDailyCost, emailNewLead, emailUrgentEscalation } from './_emails.js'
 import { sendSms } from './_sms.js'
 
 const supabase = createClient(
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id, lead_contact_name, callback_preference_note, booking_link, sms_followup_enabled, sms_followup_message')
+    .select('id, business_name, business_email, business_phone, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id, lead_contact_name, callback_preference_note, booking_link, sms_followup_enabled, sms_followup_message')
     .eq('vapi_assistant_id', assistantId)
     .maybeSingle()
 
@@ -111,11 +111,29 @@ export default async function handler(req, res) {
     isSensitive = sub?.is_sensitive === true
   }
 
-  const notificationMessage = isUrgent
-    ? `URGENT — ${tenant.urgent_callback_mins ?? 60} minute response time requested\nCaller: ${callerName || 'Unknown'} · ${callerNumber || 'Unknown'}\nNeed: ${summary || 'No summary'}\nResolution: Escalated — ${tenant.urgent_escalation_method === 'sms' ? 'text' : tenant.urgent_escalation_method === 'email' ? 'email' : 'text + email'} sent`
-    : `${tenant.business_name || 'Your business'} — New call\nCaller: ${callerName || 'Unknown'} · ${callerNumber || 'Unknown'}\nNeed: ${summary || 'No summary'}\nResolution: ${outcome || 'Unknown'}`
+  // Urgent escalation — notify owner immediately via SMS and/or email
+  if (isUrgent) {
+    const method = tenant.urgent_escalation_method // 'sms', 'email', or null = both
+    const callbackMins = tenant.urgent_callback_mins ?? 60
+    const portalUrl = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/portal?tab=dashboard`
 
-  console.log('Notification:', notificationMessage)
+    if (method !== 'email' && tenant.business_phone) {
+      const smsBody = `URGENT via Qerxel — ${callerName || 'Unknown caller'}${callerNumber ? ` (${callerNumber})` : ''}: ${summary || 'No summary provided'}. Callback needed within ${callbackMins} min.`
+      await sendSms({ to: tenant.business_phone, message: smsBody })
+    }
+
+    if (method !== 'sms' && tenant.business_email) {
+      const { subject, html } = emailUrgentEscalation({
+        businessName: tenant.business_name || 'Your business',
+        callerName,
+        callerPhone: callerNumber,
+        summary,
+        callbackMins,
+        portalUrl,
+      })
+      await sendEmail({ to: tenant.business_email, subject, html })
+    }
+  }
 
   // Find or create caller record
   let callerId = null
