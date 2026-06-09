@@ -16,7 +16,7 @@ const CALL_MODES = [
 const CONVERSATION_STYLES = [
   { id: 'efficient', triage: 'strict',   tone: 'formal', label: 'Efficient',
     toneNote: 'Professional register', desc: 'Gets straight to the point. Captures key details quickly and closes without unnecessary back-and-forth.',
-    border: '#9e4770', bg: '#f7cee3', text: '#6b2049', dot: '#9e4770', passiveBg: '#fdf0f7', passiveBorder: 'rgba(158,71,112,0.15)' },
+    border: '#fcbe03', bg: '#fef3c7', text: '#78460a', dot: '#fcbe03', passiveBg: '#fffbeb', passiveBorder: 'rgba(252,190,3,0.25)' },
   { id: 'balanced',  triage: 'balanced', tone: 'warm',   label: 'Balanced',
     toneNote: 'Friendly & natural',    desc: 'Standard pace — qualifies the enquiry and collects contact details in a natural, warm way.',
     border: '#1d4ed8', bg: '#bfdbfe', text: '#1e3a8a', dot: '#1d4ed8', passiveBg: '#eff6ff', passiveBorder: 'rgba(29,78,216,0.15)' },

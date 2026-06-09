@@ -502,18 +502,18 @@ const Portal = () => {
                   <div key="_build_card" style={{ padding: '0.3rem 0.75rem 0.5rem' }}>
                     <button
                       onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
                       style={{
-                        width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-                        padding: '0.55rem 0.8rem', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+                        width: '100%', textAlign: 'center', background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+                        padding: '0.65rem 1rem', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
                       }}
                     >
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: '0.15rem' }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: '0.2rem' }}>
                         Build your Qerxel
                       </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.01em' }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.02em' }}>
                         Answer · Listen · Schedule
                       </div>
                     </button>
