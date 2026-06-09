@@ -64,12 +64,13 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
           callers: { full_name: c.caller_name, phone_number: c.caller_number },
         })))
 
-        // Shape leads for ActivityDashboard: expects lead_contact_name + callers join
+        // Shape leads for ActivityDashboard: expects lead_contact_name + callers join + ai_summary
         setLeads(rawLeads.map(l => ({
           ...l,
           created_at: shiftIso(l.created_at),
           lead_contact_name: l.caller_name,
           callers: { phone_number: l.caller_number },
+          ai_summary: [l.enquiry_type?.replace(/_/g, ' '), l.notes].filter(Boolean).join(' — ') || null,
         })))
 
         // Shape referrals for ActivityDashboard: expects referral_partners join { business_name }
