@@ -632,10 +632,10 @@ const AccountSettings = ({ onNavigate }) => {
     if (isDemo || isPreview || !tenantId) return
     setUpgradingTier(targetTier)
     try {
-      const res = await fetch('/api/stripe-checkout', {
+      const res = await fetch('/api/freeagent-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, targetTier }),
+        body: JSON.stringify({ type: 'stripe-checkout', tenantId, targetTier }),
       })
       const data = await res.json()
       if (data.mode === 'redirect') {

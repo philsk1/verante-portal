@@ -1117,7 +1117,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       if (panelMode === 'edit' && panelEvent) {
         const { data } = await supabase.from('appointments').update(basePayload).eq('id', panelEvent.id).select().maybeSingle()
         if (data) setEvents(prev => prev.map(e => e.id === panelEvent.id ? toEvent(data) : e))
-        fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: panelEvent.id, action: 'upsert' }) }).catch(() => {})
+        fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: panelEvent.id, caldavAction: 'upsert' }) }).catch(() => {})
       } else {
         const isRecurring = form.repeat_type !== 'none'
         const weekGap = form.repeat_type === 'fortnightly' ? 2 : 1
@@ -1145,7 +1145,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         if (data) {
           setEvents(prev => [...prev, ...data.map(toEvent)])
           data.forEach(appt => {
-            fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: appt.id, action: 'upsert' }) }).catch(() => {})
+            fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: appt.id, caldavAction: 'upsert' }) }).catch(() => {})
           })
         }
       }
@@ -1168,7 +1168,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       }
       await supabase.from('appointments').delete().eq('id', panelEvent.id)
       setEvents(prev => prev.filter(e => e.id !== panelEvent.id))
-      fetch('/api/caldav-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantId, appointmentId: panelEvent.id, action: 'delete' }) }).catch(() => {})
+      fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: panelEvent.id, caldavAction: 'delete' }) }).catch(() => {})
       closePanel()
     } catch (err) { console.error('Delete error:', err) }
     finally { setSaving(false) }

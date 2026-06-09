@@ -2249,10 +2249,10 @@ function XeroInvoiceButton({ leadId, tenantId }) {
   const handleCreate = async () => {
     setStatus('loading')
     try {
-      const res = await fetch('/api/xero-invoice', {
+      const res = await fetch('/api/freeagent-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, leadId }),
+        body: JSON.stringify({ type: 'xero', tenantId, leadId }),
       })
       const data = await res.json()
       if (data.invoiceUrl) { setInvoiceUrl(data.invoiceUrl); setStatus('done') }
@@ -2292,10 +2292,10 @@ function StripePaymentButton({ tenantId, leadId, leadName }) {
     if (!amount || parseFloat(amount) <= 0) return
     setStatus('loading')
     try {
-      const res = await fetch('/api/stripe-payment-link', {
+      const res = await fetch('/api/freeagent-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, leadId, amountPounds: amount, description: desc }),
+        body: JSON.stringify({ type: 'stripe-link', tenantId, leadId, amountPounds: amount, description: desc }),
       })
       const data = await res.json()
       if (data.checkoutUrl) { setPayUrl(data.checkoutUrl); setStatus('done') }
