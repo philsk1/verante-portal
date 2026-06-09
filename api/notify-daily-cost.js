@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   // All tenants with a business email
   const { data: tenants } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email, billing_model, subscription_tier, monthly_cost_limit, included_minutes')
+    .select('id, business_name, business_email, billing_model, subscription_tier, monthly_cost_limit, included_minutes, notify_daily_summary')
     .not('business_email', 'is', null)
 
   let sent = 0
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
       .lt('created_at', todayStart.toISOString())
 
     if (!yCalls || yCalls.length === 0) continue // silent day — skip
+    if (tenant.notify_daily_summary === false) continue // tenant opted out
 
     // Yesterday's leads
     const { data: yLeads } = await supabase

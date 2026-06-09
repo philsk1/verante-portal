@@ -529,6 +529,12 @@ const AccountSettings = ({ onNavigate }) => {
   const [upgradeSuccess, setUpgradeSuccess] = useState(false)
 
   // GDPR & Data
+  const [notifyNewLead, setNotifyNewLead] = useState(true)
+  const [notifyDailySummary, setNotifyDailySummary] = useState(true)
+  const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
+  const [notifySaving, setNotifySaving] = useState(false)
+  const [notifyToast, setNotifyToast] = useState({ msg: '', type: '' })
+
   const [dataRetentionDays, setDataRetentionDays] = useState(90)
   const [dataSaving, setDataSaving] = useState(false)
   const [dataToast, setDataToast] = useState({ msg: '', type: '' })
@@ -573,7 +579,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report')
           .eq('id', tid)
           .maybeSingle()
 
@@ -583,7 +589,7 @@ const AccountSettings = ({ onNavigate }) => {
           setTenantCreatedAt(tenant.created_at)
           setFeedbackShown(tenant.feedback_prompt_shown || false)
           setNotifyNewLead(tenant.notify_new_lead !== false)
-          setNotifyDailySummary(tenant.notify_daily_summary === true)
+          setNotifyDailySummary(tenant.notify_daily_summary !== false)
           setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
           setDataRetentionDays(tenant.data_retention_days ?? 90)
           setBillingModel(tenant.billing_model || 'subscription')
@@ -659,6 +665,23 @@ const AccountSettings = ({ onNavigate }) => {
     showAccountToast(error ? 'Could not save. Please try again.' : 'Details saved.', error ? 'error' : 'success')
   }
 
+
+  const showNotifyToast = (msg, type = 'success') => {
+    setNotifyToast({ msg, type })
+    setTimeout(() => setNotifyToast({ msg: '', type: '' }), 3500)
+  }
+
+  const saveNotifications = async () => {
+    if (isDemo || isPreview || !tenantId) return
+    setNotifySaving(true)
+    const { error } = await supabase.from('tenants').update({
+      notify_new_lead: notifyNewLead,
+      notify_daily_summary: notifyDailySummary,
+      notify_weekly_report: notifyWeeklyReport,
+    }).eq('id', tenantId)
+    setNotifySaving(false)
+    showNotifyToast(error ? 'Could not save. Please try again.' : 'Preferences saved.', error ? 'error' : 'success')
+  }
 
   const showDataToast = (msg, type = 'success') => {
     setDataToast({ msg, type })
@@ -888,6 +911,70 @@ const AccountSettings = ({ onNavigate }) => {
           </button>
           {accountToast.msg && (
             <span style={s.toast(accountToast.type)}>{accountToast.type === 'success' ? '✓' : '!'} {accountToast.msg}</span>
+          )}
+        </div>
+      </div>
+
+
+      {/* Notifications */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Notifications controls which emails Qerxel sends you — new leads, daily summaries, and weekly reports. Lead notifications fire immediately when your AI captures an enquiry.">Notifications</h3>
+        <p style={s.sectionSubtitle}>Choose what Qerxel emails you and when.</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
+          {[
+            {
+              key: 'notifyNewLead',
+              label: 'New lead captured',
+              desc: 'Immediate email when your AI captures a lead or booking request.',
+              value: notifyNewLead,
+              set: setNotifyNewLead,
+            },
+            {
+              key: 'notifyDailySummary',
+              label: 'Daily call summary',
+              desc: 'Morning email with yesterday\'s calls, leads, referrals, and minutes used.',
+              value: notifyDailySummary,
+              set: setNotifyDailySummary,
+            },
+            {
+              key: 'notifyWeeklyReport',
+              label: 'Weekly performance report',
+              desc: 'Monday morning summary of the past 7 days.',
+              value: notifyWeeklyReport,
+              set: setNotifyWeeklyReport,
+            },
+          ].map(item => (
+            <div key={item.key} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.1rem' }}>{item.label}</div>
+                <div style={{ fontSize: '0.75rem', color: '#888' }}>{item.desc}</div>
+              </div>
+              <button
+                onClick={() => item.set(v => !v)}
+                style={{
+                  flexShrink: 0, width: 40, height: 22, borderRadius: 999,
+                  background: item.value ? '#5e3b87' : '#e0d8ed',
+                  border: 'none', cursor: 'pointer', position: 'relative',
+                  transition: 'background 0.15s',
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3, left: item.value ? 21 : 3,
+                  width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s',
+                }} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button style={notifySaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveNotifications} disabled={notifySaving}>
+            {notifySaving ? 'Saving…' : 'Save preferences'}
+          </button>
+          {notifyToast.msg && (
+            <span style={s.toast(notifyToast.type)}>{notifyToast.type === 'success' ? '✓' : '!'} {notifyToast.msg}</span>
           )}
         </div>
       </div>
