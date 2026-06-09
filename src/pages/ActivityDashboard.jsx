@@ -1237,7 +1237,7 @@ const ActivityDashboard = ({ onNavigate }) => {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
 
         {/* Answer */}
-        <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: '3px solid #5e3b87', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(94,59,135,0.06)' }}>
+        <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: '3px solid #f0a500', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(240,165,0,0.06)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif", marginBottom: 3 }}>Answer</div>
             <div style={{ fontSize: '0.825rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>
@@ -1255,9 +1255,9 @@ const ActivityDashboard = ({ onNavigate }) => {
         </div>
 
         {/* Calendar */}
-        <div onClick={() => onNavigate?.('calendar')} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: `3px solid ${calendarTier !== 'none' ? '#5e3b87' : '#e0d8ed'}`, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(94,59,135,0.04)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
-          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(94,59,135,0.12)'}
-          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'}
+        <div onClick={() => onNavigate?.('calendar')} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: `3px solid ${calendarTier !== 'none' ? '#1d4ed8' : '#e0d8ed'}`, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(29,78,216,0.04)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(29,78,216,0.16)'}
+          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(29,78,216,0.04)'}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif", marginBottom: 3 }}>Calendar</div>
@@ -1275,9 +1275,9 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         {/* Listen */}
         <div onClick={() => listenTier !== 'none' ? onNavigate?.('listen') : null}
-          style={{ background: listenTier !== 'none' ? 'white' : '#faf9fc', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: `3px solid ${listenTier !== 'none' ? '#5e3b87' : '#e0d8ed'}`, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(94,59,135,0.04)', cursor: listenTier !== 'none' ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
-          onMouseEnter={e => listenTier !== 'none' && (e.currentTarget.style.boxShadow = '0 4px 16px rgba(94,59,135,0.12)')}
-          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'}
+          style={{ background: listenTier !== 'none' ? 'white' : '#faf9fc', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.08)', borderLeft: `3px solid ${listenTier !== 'none' ? '#3db87a' : '#e0d8ed'}`, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 2px 8px rgba(61,184,122,0.04)', cursor: listenTier !== 'none' ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
+          onMouseEnter={e => listenTier !== 'none' && (e.currentTarget.style.boxShadow = '0 4px 16px rgba(61,184,122,0.16)')}
+          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(61,184,122,0.04)'}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif", marginBottom: 3 }}>Listen</div>
