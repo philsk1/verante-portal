@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailDailyCost, emailDailySummary, emailWeeklySummary, emailRenewal } from './_emails.js'
+import { runReminders } from './_remind-appointments.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -132,6 +133,10 @@ export default async function handler(req, res) {
   const type = req.query?.type || 'daily'
   if (type === 'weekly') return runWeekly(res)
   if (type === 'renewal') return runRenewal(res)
+  if (type === 'remind') {
+    const result = await runReminders()
+    return res.status(200).json(result)
+  }
 
   // Daily: also run renewal on 1st of each month
   const today = new Date()

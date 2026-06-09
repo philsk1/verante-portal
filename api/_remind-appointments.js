@@ -9,9 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
-
+export async function runReminders() {
   const now = new Date()
 
   // 24h window: ±1h around the 24h mark
@@ -67,5 +65,11 @@ export default async function handler(req, res) {
     sent++
   }
 
-  return res.status(200).json({ sent, checked: { '24h': appts24.length, '1h': appts1h.length } })
+  return { sent, checked: { '24h': appts24.length, '1h': appts1h.length } }
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
+  const result = await runReminders()
+  return res.status(200).json(result)
 }
