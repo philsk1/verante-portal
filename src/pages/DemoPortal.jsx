@@ -55,6 +55,10 @@ const DemoPortalInner = ({ businessId }) => {
 
   const session = JSON.parse(localStorage.getItem('demo_session') || '{}')
 
+  const handlePlanChange = ({ calendar }) => {
+    if (demo.setCalendarTierOverride) demo.setCalendarTierOverride(calendar)
+  }
+
   const renderTab = () => {
     switch (activeTab) {
       case 'lines':     return <PhoneLines />
@@ -64,9 +68,9 @@ const DemoPortalInner = ({ businessId }) => {
       case 'analytics': return <DataAnalytics onNavigate={setActiveTab} />
       case 'referrals': return <PartnersReferrals />
       case 'listen':    return <ListenTab />
-      case 'calendar':  return <Calendar />
+      case 'calendar':  return <Calendar calendarTier={demo.calendarTier} />
       case 'team':      return <StaffDirectory />
-      case 'account':   return <AccountSettings onNavigate={setActiveTab} />
+      case 'account':   return <AccountSettings onNavigate={setActiveTab} onPlanChange={handlePlanChange} />
       default:          return null
     }
   }

@@ -481,7 +481,7 @@ const Toggle = ({ checked, onChange }) => (
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const AccountSettings = ({ onNavigate }) => {
+const AccountSettings = ({ onNavigate, onPlanChange }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -492,6 +492,8 @@ const AccountSettings = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true)
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
+  const [calendarTier, setCalendarTier] = useState('entry')
+  const [listenTier, setListenTier] = useState('none')
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [tenantCreatedAt, setTenantCreatedAt] = useState(null)
   const [vapiPhone, setVapiPhone] = useState(null)
@@ -554,6 +556,7 @@ const AccountSettings = ({ onNavigate }) => {
     const biz = demo.business
     setDisplayName(biz.business_name || '')
     setTier(demo.tier || 'light')
+    setCalendarTier(demo.calendarTier || 'entry')
     setPartnerCount((demo.partners || []).length)
     setLeadCount((demo.leads || []).length)
     setOutboundCount((demo.referrals || []).length)
@@ -579,13 +582,15 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier')
           .eq('id', tid)
           .maybeSingle()
 
         if (tenant) {
           setDisplayName(tenant.business_name || '')
           setTier(tenant.subscription_tier || 'light')
+          setCalendarTier(tenant.calendar_tier || 'entry')
+          setListenTier(tenant.listen_tier || 'none')
           setTenantCreatedAt(tenant.created_at)
           setFeedbackShown(tenant.feedback_prompt_shown || false)
           setNotifyNewLead(tenant.notify_new_lead !== false)
@@ -792,9 +797,17 @@ const AccountSettings = ({ onNavigate }) => {
   // Plan selector handler — upgrades Answer tier via Stripe, persists Listen/Calendar to Supabase
   const handlePlanSelect = async ({ answer, listen, calendar }) => {
     setShowPlanSelector(false)
-    if (isDemo || isPreview || !tenantId) return
+    if (isDemo) {
+      if (onPlanChange) onPlanChange({ answer, listen, calendar })
+      setCalendarTier(calendar)
+      setListenTier(listen)
+      return
+    }
+    if (isPreview || !tenantId) return
     // Persist Listen + Calendar product selections
     await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
+    setCalendarTier(calendar)
+    setListenTier(listen)
     // Trigger Answer tier upgrade if changed
     if (answer !== tier && answer !== 'free') {
       handleUpgrade(answer)
@@ -807,6 +820,10 @@ const AccountSettings = ({ onNavigate }) => {
       <div style={{ position: 'fixed', inset: 0, zIndex: 300, overflowY: 'auto', background: '#f7f6f9' }}>
         <PlanSelector
           currentAnswer={tier}
+          currentCalendar={calendarTier}
+          currentListen={listenTier}
+          currentStaffCount={(isDemo ? (demo?.staff || []) : []).length}
+          currentStaffNames={(isDemo ? (demo?.staff || []) : []).map(s => s.name)}
           onBack={() => setShowPlanSelector(false)}
           onSelect={handlePlanSelect}
         />

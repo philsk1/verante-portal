@@ -821,12 +821,14 @@ function ResourceHeader({ label, resource, staffList, events }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed }) {
+export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed, calendarTier: calendarTierProp }) {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
   const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = preview?.isPreview
+  // In demo, use prop (set by PlanSelector) then fall back to demo context; for real tenants ignore (team mode based on staff)
+  const effectiveCalendarTier = isDemo ? (calendarTierProp ?? demo?.calendarTier ?? 'entry') : 'multi'
   const isMobile = useIsMobile()
 
   // Inject overrides to collapse the empty all-day row and tighten header cells
@@ -947,7 +949,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   useEffect(() => {
     if (staff.length === 0 || hasAutoAdapted.current || !smartView) return
     hasAutoAdapted.current = true
-    if (staff.length <= 1) {
+    if (effectiveCalendarTier === 'entry' || staff.length <= 1) {
       setView('week')
       setTeamMode(false)
     } else if (staff.length === 2) {
@@ -957,7 +959,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       setView('day')
       setTeamMode(true)
     }
-  }, [staff.length, smartView])
+  }, [staff.length, smartView, effectiveCalendarTier])
 
   // ─── Service selection → auto-fill duration + processing ─────────────────────
   const handleServiceSelect = (serviceId) => {
@@ -1186,7 +1188,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const canSave = form.title.trim() && form.start && form.end && !saving
     && (!form.isSplit || (form.processing_start && form.processing_end))
 
-  const hasTeamMode = staff.length > 0
+  const hasTeamMode = staff.length > 0 && effectiveCalendarTier !== 'entry'
 
   // ─── Link to lead/contact history ────────────────────────────────────────────
   const clientHistory = panelEvent ? events.filter(e =>

@@ -7,6 +7,7 @@ export const useDemo = () => useContext(DemoContext)
 export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
   const [loading, setLoading] = useState(true)
   const [business, setBusiness] = useState(null)
+  const [calendarTierOverride, setCalendarTierOverride] = useState(null)
   const [calls, setCalls] = useState([])
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
@@ -123,12 +124,15 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
   }, [businessId])
 
   const tier = selectedTier || business?.tier || 'standard'
+  const calendarTier = calendarTierOverride ?? business?.calendar_tier ?? 'entry'
 
   const value = {
     isDemo: true,
     loading,
     business,
     tier,
+    calendarTier,
+    setCalendarTierOverride,
     calls,
     leads,
     referrals,

@@ -280,13 +280,15 @@ function ProductColumn({ product, title, subtitle, icon, tiers, selected, onSele
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function PlanSelector({ onBack, onSelect, currentAnswer, currentListen, currentCalendar }) {
+export default function PlanSelector({ onBack, onSelect, currentAnswer, currentListen, currentCalendar, currentStaffCount = 0, currentStaffNames = [] }) {
   const navigate = useNavigate()
 
   const [answer, setAnswer]     = useState(currentAnswer   || 'standard')
   const [listen, setListen]     = useState(currentListen   || 'standard')
   const [calendar, setCalendar] = useState(currentCalendar || 'entry')
   const [activePackage, setActivePackage] = useState(null)
+
+  const showDowngradeWarning = currentCalendar === 'multi' && calendar === 'entry' && currentStaffCount > 1
 
   const applyPackage = (pkg) => {
     setAnswer(pkg.answer)
@@ -362,7 +364,19 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
       </div>
 
       {/* ── Sticky footer ─────────────────────────────────────────────────── */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid rgba(94,59,135,0.1)', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', zIndex: 100, boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
+        {showDowngradeWarning && (
+          <div style={{ background: '#fffbeb', borderTop: '1px solid rgba(240,165,0,0.4)', padding: '0.6rem 2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '1rem' }}>⚠️</span>
+            <span style={{ fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+              <strong>Downgrading to Entry calendar</strong> — your calendar will switch to single-person view.
+              {currentStaffNames.length > 0 && (
+                <> Existing booking data for <strong>{currentStaffNames.slice(0, -1).join(', ')}{currentStaffNames.length > 1 ? ' and ' : ''}{currentStaffNames.slice(-1)}</strong> will be retained but won't appear in the calendar until you upgrade again.</>
+              )}
+            </span>
+          </div>
+        )}
+      <div style={{ background: 'white', borderTop: '1px solid rgba(94,59,135,0.1)', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a' }}>
@@ -411,6 +425,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             </button>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
