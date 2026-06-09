@@ -262,7 +262,7 @@ const Portal = () => {
         setHolidayMode(tenant.holiday_mode || false)
         setHolidayReturnDate(tenant.holiday_return_date || '')
         setNotifyNewLead(tenant.notify_new_lead !== false)
-        setNotifyDailySummary(tenant.notify_daily_summary === true)
+        setNotifyDailySummary(tenant.notify_daily_summary !== false)
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
         setBaseTier(tenant.subscription_tier || 'light')
         setTriageMode(tenant.triage_mode || 'balanced')
