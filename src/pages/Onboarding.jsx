@@ -848,10 +848,10 @@ const Onboarding = () => {
     }
 
     // Fire welcome email — fire and forget, don't block navigation
-    fetch('/api/send-welcome', {
+    fetch('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId: tenantData.id }),
+      body: JSON.stringify({ type: 'welcome', tenantId: tenantData.id }),
     }).catch(() => {})
 
     navigate('/portal')

@@ -1913,10 +1913,10 @@ function ReviewRequestButton({ tenantId, appointmentId, integrationId = 'google_
   const handleSend = async () => {
     setStatus('sending')
     try {
-      const res = await fetch('/api/send-review-request', {
+      const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, appointmentId, integrationId }),
+        body: JSON.stringify({ type: 'review', tenantId, appointmentId, integrationId }),
       })
       setStatus(res.ok ? 'sent' : 'error')
     } catch { setStatus('error') }

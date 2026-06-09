@@ -4,11 +4,11 @@
   ],
   "crons": [
     {
-      "path": "/api/notify-daily-cost",
+      "path": "/api/notify?type=daily",
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/notify-weekly-summary",
+      "path": "/api/notify?type=weekly",
       "schedule": "0 7 * * 1"
     }
   ]

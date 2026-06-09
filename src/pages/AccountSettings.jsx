@@ -754,10 +754,10 @@ const AccountSettings = ({ onNavigate }) => {
     setChatInput('')
     setChatWaiting(true)
     try {
-      const res = await fetch('/api/support-chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, messages: newMessages }),
+        body: JSON.stringify({ type: 'support', tenantId, messages: newMessages }),
       })
       const data = await res.json()
       setChatMessages(prev => [...prev, { role: 'ai', text: data.message || 'Something went wrong. Please try again.' }])

@@ -54,10 +54,10 @@ const VeraDialogue = ({ id, zoneText, zoneName, tabName, initialRect, onClose })
     setLoading(true)
 
     try {
-      const res = await fetch('/api/vera-chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zoneText, zoneName, tabName, messages: updated }),
+        body: JSON.stringify({ type: 'vera', zoneText, zoneName, tabName, messages: updated }),
       })
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'assistant', content: data.message || data.error }])
