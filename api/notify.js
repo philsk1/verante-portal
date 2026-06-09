@@ -1,9 +1,10 @@
 // Merged notify cron handler
-// ?type=daily — runs 07:00 UTC daily (was notify-daily-cost.js)
-// ?type=weekly — runs 07:00 UTC every Monday (was notify-weekly-summary.js)
+// ?type=daily  — runs 07:00 UTC daily; also fires renewal emails on 1st of month
+// ?type=weekly — runs 07:00 UTC every Monday
+// ?type=renewal — can also be triggered manually
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, emailDailyCost, emailDailySummary, emailWeeklySummary } from './_emails.js'
+import { sendEmail, emailDailyCost, emailDailySummary, emailWeeklySummary, emailRenewal } from './_emails.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -104,6 +105,25 @@ async function runWeekly(res) {
   return res.status(200).json({ sent })
 }
 
+async function runRenewal(res) {
+  const { data: tenants } = await supabase
+    .from('tenants')
+    .select('id, business_name, business_email, included_minutes, subscription_tier')
+    .not('business_email', 'is', null)
+    .not('subscription_tier', 'in', '("free","bespoke")')
+
+  let sent = 0
+  for (const tenant of tenants || []) {
+    if (!tenant.included_minutes || !tenant.business_email) continue
+    const { subject, html } = emailRenewal({ businessName: tenant.business_name, includedMinutes: tenant.included_minutes })
+    await sendEmail({ to: tenant.business_email, subject, html })
+    await supabase.from('tenants').update({ notify_80pct_sent_month: null, notify_exhausted_sent_month: null }).eq('id', tenant.id)
+    sent++
+  }
+  console.log(`Renewal emails sent: ${sent}`)
+  if (res) return res.status(200).json({ sent })
+}
+
 export default async function handler(req, res) {
   const authHeader = req.headers['authorization']
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -111,5 +131,12 @@ export default async function handler(req, res) {
   }
   const type = req.query?.type || 'daily'
   if (type === 'weekly') return runWeekly(res)
+  if (type === 'renewal') return runRenewal(res)
+
+  // Daily: also run renewal on 1st of each month
+  const today = new Date()
+  if (today.getUTCDate() === 1) {
+    runRenewal(null).catch(err => console.error('Renewal run error:', err.message))
+  }
   return runDaily(res)
 }
