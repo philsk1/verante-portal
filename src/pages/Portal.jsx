@@ -220,6 +220,7 @@ const Portal = () => {
   const [urgentOutcomes, setUrgentOutcomes] = useState(['escalated'])
   const [uncontactedCount, setUncontactedCount] = useState(0)
   const [listenTier, setListenTier] = useState('none')
+  const [planSelectorTrigger, setPlanSelectorTrigger] = useState(0)
 
   const navigate = useNavigate()
 
@@ -396,6 +397,8 @@ const Portal = () => {
       upsell: true,
       tabs: [],
     }]),
+    // Build your Qerxel card — always visible, direct route to PlanSelector
+    { id: '_build_card', buildCard: true, tabs: [] },
     {
       id: 'platform',
       label: '',
@@ -422,7 +425,7 @@ const Portal = () => {
       case 'team':         return <StaffDirectory onNavigate={handleNavigate} />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
-      case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} />
+      case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} triggerPlanSelector={planSelectorTrigger} />
       case 'listen': return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} urgentOutcomes={urgentOutcomes} />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
@@ -492,6 +495,32 @@ const Portal = () => {
           {/* Nav items — product-grouped */}
           <nav style={{ flex: 1, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden' }}>
             {PRODUCTS.map((product, pi) => {
+              // Build your Qerxel card — always visible when sidebar expanded
+              if (product.buildCard) {
+                if (sidebarCollapsed) return null
+                return (
+                  <div key="_build_card" style={{ padding: '0.3rem 0.75rem 0.5rem' }}>
+                    <button
+                      onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                      style={{
+                        width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                        padding: '0.55rem 0.8rem', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: '0.15rem' }}>
+                        Build your Qerxel
+                      </div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.01em' }}>
+                        Answer · Listen · Schedule
+                      </div>
+                    </button>
+                  </div>
+                )
+              }
+
               // Upsell strip — shown expanded only, in place of the Listen product group
               if (product.upsell) {
                 if (sidebarCollapsed) return null

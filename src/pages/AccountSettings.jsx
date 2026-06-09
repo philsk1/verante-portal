@@ -481,7 +481,7 @@ const Toggle = ({ checked, onChange }) => (
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange }) => {
+const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, triggerPlanSelector }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -549,6 +549,11 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange }) => {
 
   // Plan selector overlay
   const [showPlanSelector, setShowPlanSelector] = useState(false)
+
+  // Open PlanSelector when triggered from sidebar "Build your Qerxel" card
+  useEffect(() => {
+    if (triggerPlanSelector > 0) setShowPlanSelector(true)
+  }, [triggerPlanSelector])
 
   // ── Demo mode: inject from DemoContext ───────────────────────────────────────
   useEffect(() => {
