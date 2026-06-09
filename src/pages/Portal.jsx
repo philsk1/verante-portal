@@ -368,12 +368,10 @@ const Portal = () => {
       label: 'Answer',
       dot: '#f0a500',
       tabs: [
-        { id: 'lines',      label: 'Lines',     icon: <IcoPhone /> },
-        { id: 'dashboard',  label: 'Home',      icon: <IcoDashboard /> },
-        { id: 'analytics',  label: 'Analytics', icon: <IcoAnalytics /> },
-        { id: 'ai',         label: 'Answer AI', icon: <IcoAI /> },
-        { id: 'referrals',  label: 'Partners',  icon: <IcoPartners /> },
-        { id: 'team',       label: 'Team',       icon: <IcoPeople /> },
+        { id: 'lines',     label: 'Lines',     icon: <IcoPhone /> },
+        { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
+        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
+        { id: 'ai',        label: 'Answer AI', icon: <IcoAI /> },
       ],
     },
     {
@@ -382,9 +380,10 @@ const Portal = () => {
       dot: '#1d4ed8',
       tabs: [
         { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
+        { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
       ],
     },
-    // Listen only rendered when tenant has subscribed
+    // Listen — shown only when tenant has subscribed (no upsell strip — handled by Build card)
     ...(hasListen ? [{
       id: 'listen',
       label: 'Listen',
@@ -392,21 +391,17 @@ const Portal = () => {
       tabs: [
         { id: 'listen', label: 'Listen', icon: <IcoListen /> },
       ],
-    }] : [{
-      id: '_listen_upsell',
-      upsell: true,
-      tabs: [],
-    }]),
-    // Build your Qerxel card — always visible, direct route to PlanSelector
+    }] : []),
+    // Build your Qerxel — bridges daily tabs and admin tabs
     { id: '_build_card', buildCard: true, tabs: [] },
     {
-      id: 'platform',
-      label: '',
+      id: 'business',
+      label: 'Business',
       dot: null,
-      dividerOnly: true,
       tabs: [
-        { id: 'integrations', label: 'Integrations',      icon: <IcoIntegrations /> },
-        { id: 'profile',      label: 'Business Profile',  icon: <IcoBuilding /> },
+        { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
+        { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
+        { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
       ],
     },
   ]
@@ -604,8 +599,8 @@ const Portal = () => {
                   )
                 })}
 
-                {/* Divider after each product group (except last, and not before platform when upsell strip already adds one) */}
-                {!sidebarCollapsed && pi < PRODUCTS.length - 1 && !PRODUCTS[pi + 1]?.upsell && (
+                {/* Divider after each product group (except last, and not before/after the Build card which acts as its own divider) */}
+                {!sidebarCollapsed && pi < PRODUCTS.length - 1 && !PRODUCTS[pi + 1]?.buildCard && !PRODUCTS[pi]?.buildCard && (
                   <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
                 )}
               </div>
