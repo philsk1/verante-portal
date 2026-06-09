@@ -73,21 +73,21 @@ const Signup = () => {
           </p>
         )}
 
-        <form onSubmit={handleSignup}>
+        <form onSubmit={handleSignup} autoComplete="on">
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Full name</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required style={inputStyle} />
+            <input type="text" name="name" autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} required style={inputStyle} />
           </div>
 
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
+            <input type="email" id="email" name="username" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
           </div>
 
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Password</label>
             <div style={{ position: 'relative' }}>
-              <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required style={{ ...inputStyle, paddingRight: '2.5rem' }} />
+              <input type={showPw ? 'text' : 'password'} id="password" name="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required style={{ ...inputStyle, paddingRight: '2.5rem' }} />
               <button type="button" onClick={() => setShowPw(v => !v)} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#aaa', display: 'flex', alignItems: 'center' }}>
                 {showPw
                   ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -102,7 +102,7 @@ const Signup = () => {
               Referral code{' '}
               <span style={{ color: '#bbb', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
             </label>
-            <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value)} style={inputStyle} placeholder="e.g. AB12CD" />
+            <input type="text" autoComplete="off" value={referralCode} onChange={e => setReferralCode(e.target.value)} style={inputStyle} placeholder="e.g. AB12CD" />
           </div>
 
           <button

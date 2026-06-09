@@ -55,11 +55,14 @@ const Login = () => {
           </p>
         )}
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleLogin} autoComplete="on">
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '500', marginBottom: '0.35rem', color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email</label>
             <input
               type="email"
+              id="email"
+              name="username"
+              autoComplete="username"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
@@ -72,6 +75,9 @@ const Login = () => {
             <div style={{ position: 'relative' }}>
               <input
                 type={showPw ? 'text' : 'password'}
+                id="password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
