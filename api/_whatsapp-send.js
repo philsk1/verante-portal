@@ -9,54 +9,37 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
-
-  const { tenantId, to, message } = req.body
-  if (!tenantId || !to || !message) return res.status(400).json({ error: 'Missing fields' })
-
-  // Load tenant's WhatsApp credentials
+export async function sendWhatsApp({ tenantId, to, message }) {
   const { data: creds } = await supabase
     .from('tenant_integration_credentials')
     .select('credentials')
-    .eq('tenant_id', tenantId)
-    .eq('integration_id', 'whatsapp')
-    .maybeSingle()
+    .eq('tenant_id', tenantId).eq('integration_id', 'whatsapp').maybeSingle()
 
-  if (!creds?.credentials?.phone_number_id || !creds?.credentials?.access_token) {
-    return res.status(400).json({ error: 'WhatsApp not connected for this tenant' })
-  }
+  if (!creds?.credentials?.phone_number_id || !creds?.credentials?.access_token) return
 
   const { phone_number_id, access_token } = creds.credentials
-
-  // Sanitise number — strip spaces/dashes, ensure E.164 format (no leading +)
   const toClean = to.replace(/\D/g, '').replace(/^0/, '44')
 
-  try {
-    const response = await fetch(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: toClean,
-          type: 'text',
-          text: { body: message },
-        }),
-      }
-    )
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      console.error('WhatsApp send failed:', JSON.stringify(data))
-      return res.status(502).json({ error: 'WhatsApp API error', detail: data.error?.message })
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+    {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: toClean, type: 'text', text: { body: message } }),
     }
+  )
+  const data = await response.json()
+  if (!response.ok) console.error('WhatsApp send failed:', JSON.stringify(data))
+  return data
+}
 
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end()
+  const { tenantId, to, message } = req.body
+  if (!tenantId || !to || !message) return res.status(400).json({ error: 'Missing fields' })
+  try {
+    const data = await sendWhatsApp({ tenantId, to, message })
+    if (!data) return res.status(400).json({ error: 'WhatsApp not connected for this tenant' })
     return res.status(200).json({ sent: true, message_id: data.messages?.[0]?.id })
   } catch (err) {
     console.error('WhatsApp send error:', err.message)
