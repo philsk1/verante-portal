@@ -54,7 +54,7 @@ export default async function handler(req, res) {
         if (!tenantId || !targetTier) break
 
         await supabase.from('tenants').update({
-          tier:                    targetTier,
+          subscription_tier:       targetTier,
           billing_model:           'subscription',
           stripe_customer_id:      session.customer,
           stripe_subscription_id:  session.subscription,
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         if (!tier) break
 
         await supabase.from('tenants')
-          .update({ tier })
+          .update({ subscription_tier: tier })
           .eq('stripe_subscription_id', sub.id)
         break
       }
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
       case 'customer.subscription.deleted': {
         const sub = event.data.object
         await supabase.from('tenants').update({
-          tier:                    'free',
+          subscription_tier:       'free',
           billing_model:           'payg',
           stripe_subscription_id:  null,
         }).eq('stripe_subscription_id', sub.id)

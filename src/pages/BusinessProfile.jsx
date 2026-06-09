@@ -841,6 +841,21 @@ const BusinessProfile = () => {
           <Field label="Business email" value={details.business_email} onChange={v => setDetails(p => ({ ...p, business_email: v }))} type="email" />
           <Field label="Booking link" value={details.booking_link} onChange={v => setDetails(p => ({ ...p, booking_link: v }))} placeholder="https://" />
         </div>
+        {tenantId && (
+          <div style={{ marginTop: '-0.25rem', padding: '0.65rem 0.9rem', background: '#f5f3ff', borderRadius: '8px', border: '1px solid rgba(94,59,135,0.12)', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.72rem', color: '#5e3b87', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Your Qerxel booking page:</span>
+            <a href={`/book/${tenantId}`} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", wordBreak: 'break-all' }}>
+              {`${window.location.origin}/book/${tenantId}`}
+            </a>
+            <button
+              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/book/${tenantId}`).catch(() => {})}
+              style={{ padding: '0.2rem 0.55rem', fontSize: '0.68rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+              Copy
+            </button>
+            <span style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>— share with clients or use above as booking link</span>
+          </div>
+        )}
         <Field label="Business address" value={details.business_address} onChange={v => setDetails(p => ({ ...p, business_address: v }))} />
         <TextareaField label="Opening hours" value={details.opening_hours} onChange={v => setDetails(p => ({ ...p, opening_hours: v }))} placeholder="e.g. Mon–Fri 8am–6pm, Sat 9am–1pm, closed Sunday" />
         <TextareaField label="About your business" value={details.business_context} onChange={v => setDetails(p => ({ ...p, business_context: v }))} placeholder="A short description of what you do — used by your AI to answer questions accurately." />
