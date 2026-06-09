@@ -774,6 +774,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           caller_id:         callerId,
           call_log_id:       callLog?.id || null,
           lead_contact_name: qcName.trim() || null,
+          ai_summary:        qcNotes.trim() ? `Manual entry: ${qcNotes.trim()}` : null,
           status:            'new',
           notes:             qcNotes.trim() || null,
         }).select('id, created_at, status, lead_contact_name, notes, ai_summary, call_log_id, callers(phone_number)').maybeSingle()

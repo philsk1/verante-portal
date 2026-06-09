@@ -173,6 +173,7 @@ export default async function handler(req, res) {
       caller_id:         callerId,
       call_log_id:       callLog?.id || null,
       lead_contact_name: analysis.structuredData?.caller_name || null,
+      ai_summary:        isSensitive ? null : summary,
       status:            'new',
     })
 
