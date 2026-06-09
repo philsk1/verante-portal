@@ -873,6 +873,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const closePanel = () => { setPanelMode(null); setPanelEvent(null) }
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }))
 
+  // Quick-access panel state
+  const [quickPanel, setQuickPanel] = useState(null) // null | 'services' | 'staff'
+  const [svcDraft, setSvcDraft] = useState({ name: '', duration_minutes: '', processing_minutes: '', price_from: '', price_to: '' })
+  const [svcAdding, setSvcAdding] = useState(false)
+  const [svcEditing, setSvcEditing] = useState(null)
+  const [svcEditDraft, setSvcEditDraft] = useState({})
+
   // ─── Consume prefill from Dashboard ────────────────────────────────────────
   useEffect(() => {
     if (!prefill) return
@@ -1523,6 +1530,45 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   const panelOpen = !!panelMode
 
+  // ─── Quick-panel: service CRUD ────────────────────────────────────────────────
+  const addService = async () => {
+    if (isDemo || isPreview || !tenantId || !svcDraft.name.trim()) return
+    setSvcAdding(true)
+    const { data } = await supabase.from('catalogue_items').insert({
+      tenant_id: tenantId,
+      item_type: 'service',
+      name: svcDraft.name.trim(),
+      duration_minutes: svcDraft.duration_minutes ? parseInt(svcDraft.duration_minutes) : null,
+      processing_minutes: svcDraft.processing_minutes ? parseInt(svcDraft.processing_minutes) : null,
+      price_from: svcDraft.price_from ? parseFloat(svcDraft.price_from) : null,
+      price_to: svcDraft.price_to ? parseFloat(svcDraft.price_to) : null,
+    }).select().maybeSingle()
+    setSvcAdding(false)
+    if (data) {
+      setCatalogue(prev => [...prev, data])
+      setSvcDraft({ name: '', duration_minutes: '', processing_minutes: '', price_from: '', price_to: '' })
+    }
+  }
+
+  const updateService = async (id) => {
+    if (isDemo || isPreview) return
+    const { data } = await supabase.from('catalogue_items').update({
+      name: svcEditDraft.name?.trim(),
+      duration_minutes: svcEditDraft.duration_minutes ? parseInt(svcEditDraft.duration_minutes) : null,
+      processing_minutes: svcEditDraft.processing_minutes ? parseInt(svcEditDraft.processing_minutes) : null,
+      price_from: svcEditDraft.price_from ? parseFloat(svcEditDraft.price_from) : null,
+      price_to: svcEditDraft.price_to ? parseFloat(svcEditDraft.price_to) : null,
+    }).eq('id', id).select().maybeSingle()
+    if (data) setCatalogue(prev => prev.map(s => s.id === id ? data : s))
+    setSvcEditing(null)
+  }
+
+  const deleteService = async (id) => {
+    if (isDemo || isPreview) return
+    await supabase.from('catalogue_items').delete().eq('id', id)
+    setCatalogue(prev => prev.filter(s => s.id !== id))
+  }
+
   const panelVariants = {
     hidden: { x: 32, opacity: 0 },
     visible: { x: 0, opacity: 1, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } },
@@ -1533,6 +1579,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     visible: { y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } },
     exit:   { y: '100%', transition: { duration: 0.2 } },
   }
+
+  // ─── Attention bar data ───────────────────────────────────────────────────────
+  const nowTime = new Date()
+  const todayStr = format(nowTime, 'yyyy-MM-dd')
+  const todayEvts = events.filter(e => format(new Date(e.start), 'yyyy-MM-dd') === todayStr)
+  const upcomingProvisional = events.filter(e => e.status === 'provisional' && new Date(e.start) >= nowTime)
 
   // ─── Sub-tab nav ──────────────────────────────────────────────────────────────
   const subTabs = [
@@ -1559,9 +1611,20 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           ))}
         </div>
 
-        {/* Status legend — only on appointments tab, pushed to the right */}
+        {/* Quick-access + status legend — appointments tab only */}
         {activeSubTab === 'appointments' && (
           <>
+            <div style={{ height: 16, width: 1, background: 'rgba(94,59,135,0.15)', flexShrink: 0 }} />
+            <button onClick={() => setQuickPanel(p => p === 'services' ? null : 'services')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: quickPanel === 'services' ? '#5e3b87' : 'white', color: quickPanel === 'services' ? 'white' : '#5e3b87', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s, color 0.15s' }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              Services
+            </button>
+            <button onClick={() => setQuickPanel(p => p === 'staff' ? null : 'staff')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: quickPanel === 'staff' ? '#5e3b87' : 'white', color: quickPanel === 'staff' ? 'white' : '#5e3b87', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s, color 0.15s' }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              Staff
+            </button>
             <div style={{ flex: 1 }} />
             {Object.entries(STATUS_LABELS).map(([status, label]) => (
               <span key={status} style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: 4, fontSize: '0.67rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
@@ -1576,6 +1639,21 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           </>
         )}
       </div>
+
+      {/* ── Attention bar ─────────────────────────────────────────────────────── */}
+      {activeSubTab === 'appointments' && upcomingProvisional.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.9rem', background: '#fffbf0', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, marginBottom: '0.75rem' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.8rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+            {upcomingProvisional.length} provisional {upcomingProvisional.length === 1 ? 'appointment needs' : 'appointments need'} confirmation
+          </span>
+          {todayEvts.length > 0 && (
+            <span style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginLeft: 'auto' }}>
+              {todayEvts.length} today
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── Appointments sub-tab ─────────────────────────────────────────────── */}
       {activeSubTab === 'appointments' && (
@@ -1686,6 +1764,143 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       {activeSubTab === 'settings' && (
         <CalendarSettingsTab tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} />
       )}
+
+      {/* ── Quick-access drawers (fixed right) ───────────────────────────────── */}
+      <AnimatePresence>
+        {quickPanel && (
+          <>
+            <motion.div key="qa-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => { setQuickPanel(null); setSvcEditing(null) }}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.3)', zIndex: 600 }}
+            />
+            <motion.div key="qa-drawer"
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 400, background: 'white', zIndex: 700, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 40px rgba(94,59,135,0.18)' }}
+            >
+              {quickPanel === 'services' ? (
+                /* ── Services panel ─────────────────────────────────────────── */
+                <>
+                  <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.05rem', color: '#1a1a1a' }}>Services</div>
+                      <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Appointment types available for booking</div>
+                    </div>
+                    <button onClick={() => { setQuickPanel(null); setSvcEditing(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '1.5rem', padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem' }}>
+                    {catalogue.filter(c => !c.item_type || c.item_type === 'service').length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '2.5rem 0', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No services yet — add one below.</div>
+                    )}
+                    {catalogue.filter(c => !c.item_type || c.item_type === 'service').map(svc => (
+                      <div key={svc.id} style={{ marginBottom: '0.75rem', padding: '0.85rem 1rem', background: '#faf9fc', borderRadius: 10, border: '1px solid rgba(94,59,135,0.08)' }}>
+                        {svcEditing === svc.id ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <input value={svcEditDraft.name ?? ''} onChange={e => setSvcEditDraft(d => ({ ...d, name: e.target.value }))}
+                              style={{ padding: '0.45rem 0.65rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 7, fontSize: '0.825rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', width: '100%' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
+                              <input value={svcEditDraft.duration_minutes ?? ''} onChange={e => setSvcEditDraft(d => ({ ...d, duration_minutes: e.target.value }))} placeholder="Dur (min)" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                              <input value={svcEditDraft.processing_minutes ?? ''} onChange={e => setSvcEditDraft(d => ({ ...d, processing_minutes: e.target.value }))} placeholder="Proc (min)" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                              <input value={svcEditDraft.price_from ?? ''} onChange={e => setSvcEditDraft(d => ({ ...d, price_from: e.target.value }))} placeholder="£ from" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                              <input value={svcEditDraft.price_to ?? ''} onChange={e => setSvcEditDraft(d => ({ ...d, price_to: e.target.value }))} placeholder="£ to" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                              <button onClick={() => updateService(svc.id)} style={{ flex: 1, padding: '0.4rem', border: 'none', borderRadius: 7, background: '#f0a500', color: '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Save</button>
+                              <button onClick={() => setSvcEditing(null)} style={{ padding: '0.4rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{svc.name}</div>
+                              <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                                {svc.duration_minutes && <span style={{ fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>⏱ {svc.duration_minutes}min{svc.processing_minutes ? ` + ${svc.processing_minutes}min` : ''}</span>}
+                                {(svc.price_from || svc.price_to) && <span style={{ fontSize: '0.72rem', color: '#92610a', fontFamily: "'DM Sans', sans-serif" }}>£{svc.price_from ?? ''}{svc.price_to && svc.price_to !== svc.price_from ? `–£${svc.price_to}` : ''}</span>}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.2rem', flexShrink: 0 }}>
+                              <button onClick={() => { setSvcEditing(svc.id); setSvcEditDraft({ name: svc.name, duration_minutes: svc.duration_minutes ?? '', processing_minutes: svc.processing_minutes ?? '', price_from: svc.price_from ?? '', price_to: svc.price_to ?? '' }) }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5e3b87', fontSize: '0.75rem', padding: '0.2rem 0.35rem', fontFamily: "'DM Sans', sans-serif" }}>Edit</button>
+                              <button onClick={() => deleteService(svc.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e05252', fontSize: '1rem', padding: '0.2rem 0.3rem', lineHeight: 1 }}>×</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, background: '#faf9fc' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>Add service</div>
+                    <input value={svcDraft.name} onChange={e => setSvcDraft(d => ({ ...d, name: e.target.value }))}
+                      placeholder="Service name (e.g. Haircut, Consultation)"
+                      onKeyDown={e => e.key === 'Enter' && addService()}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 8, fontSize: '0.825rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', marginBottom: '0.45rem' }}
+                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem', marginBottom: '0.55rem' }}>
+                      <input value={svcDraft.duration_minutes} onChange={e => setSvcDraft(d => ({ ...d, duration_minutes: e.target.value }))} placeholder="Dur (min)" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                      <input value={svcDraft.processing_minutes} onChange={e => setSvcDraft(d => ({ ...d, processing_minutes: e.target.value }))} placeholder="Proc (min)" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                      <input value={svcDraft.price_from} onChange={e => setSvcDraft(d => ({ ...d, price_from: e.target.value }))} placeholder="£ from" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                      <input value={svcDraft.price_to} onChange={e => setSvcDraft(d => ({ ...d, price_to: e.target.value }))} placeholder="£ to" type="number" min="0" style={{ padding: '0.4rem 0.45rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                    </div>
+                    <button onClick={addService} disabled={!svcDraft.name.trim() || svcAdding || isDemo || isPreview}
+                      style={{ width: '100%', padding: '0.5rem', border: 'none', borderRadius: 8, background: !svcDraft.name.trim() || svcAdding ? '#f5d98a' : '#f0a500', color: !svcDraft.name.trim() || svcAdding ? '#7a5c1a' : '#1a0533', fontSize: '0.825rem', fontWeight: 600, cursor: !svcDraft.name.trim() || svcAdding ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      {svcAdding ? 'Adding…' : '+ Add service'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* ── Staff panel ────────────────────────────────────────────── */
+                <>
+                  <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.05rem', color: '#1a1a1a' }}>Your Team</div>
+                      <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Staff available for appointments</div>
+                    </div>
+                    <button onClick={() => setQuickPanel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '1.5rem', padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem' }}>
+                    {staff.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '2.5rem 0', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No team members yet.</div>
+                    )}
+                    {staff.map(member => {
+                      const initials = (member.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      const colour = member.colour || '#5e3b87'
+                      return (
+                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', background: '#faf9fc', borderRadius: 10, border: '1px solid rgba(94,59,135,0.08)', marginBottom: '0.65rem' }}>
+                          <div style={{ width: 38, height: 38, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ color: 'white', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem' }}>{initials}</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{member.name}</div>
+                            {member.role && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{member.role}</div>}
+                            {Array.isArray(member.specialist_services) && member.specialist_services.length > 0 && (
+                              <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                                {member.specialist_services.slice(0, 3).map((s, i) => (
+                                  <span key={i} style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: '#ede8f5', color: '#5e3b87', borderRadius: 4, fontFamily: "'DM Sans', sans-serif" }}>{s}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {onPortalNavigate && (
+                    <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
+                      <button onClick={() => { setQuickPanel(null); onPortalNavigate('team') }}
+                        style={{ width: '100%', padding: '0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                        Manage team →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
