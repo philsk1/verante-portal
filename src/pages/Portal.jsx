@@ -219,6 +219,7 @@ const Portal = () => {
   const [triageMode, setTriageMode] = useState('balanced')
   const [urgentOutcomes, setUrgentOutcomes] = useState(['escalated'])
   const [uncontactedCount, setUncontactedCount] = useState(0)
+  const [listenTier, setListenTier] = useState('none')
 
   const navigate = useNavigate()
 
@@ -253,7 +254,7 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode, urgent_outcomes')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode, urgent_outcomes, listen_tier')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
@@ -267,6 +268,7 @@ const Portal = () => {
         setBaseTier(tenant.subscription_tier || 'light')
         setTriageMode(tenant.triage_mode || 'balanced')
         setUrgentOutcomes(Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0 ? tenant.urgent_outcomes : ['escalated'])
+        setListenTier(tenant.listen_tier || 'none')
         if (tenant.is_demo) preview.setIsDemo(true)
       }
 
@@ -356,7 +358,9 @@ const Portal = () => {
     }
   }
 
-  // Product-organised navigation
+  // Product-organised navigation — Listen only appears when subscribed
+  const hasListen = listenTier !== 'none'
+
   const PRODUCTS = [
     {
       id: 'answer',
@@ -379,14 +383,19 @@ const Portal = () => {
         { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
       ],
     },
-    {
+    // Listen only rendered when tenant has subscribed
+    ...(hasListen ? [{
       id: 'listen',
       label: 'Listen',
       dot: '#3db87a',
       tabs: [
         { id: 'listen', label: 'Listen', icon: <IcoListen /> },
       ],
-    },
+    }] : [{
+      id: '_listen_upsell',
+      upsell: true,
+      tabs: [],
+    }]),
     {
       id: 'platform',
       label: '',
@@ -413,7 +422,7 @@ const Portal = () => {
       case 'team':         return <StaffDirectory onNavigate={handleNavigate} />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
-      case 'settings':     return <AccountSettings onNavigate={setActiveTab} />
+      case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} />
       case 'listen': return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} urgentOutcomes={urgentOutcomes} />
       default: return (
         <div style={{ background: 'white', borderRadius: '10px', padding: '2rem', border: '0.5px solid rgba(94,59,135,0.1)' }}>
@@ -482,7 +491,28 @@ const Portal = () => {
 
           {/* Nav items — product-grouped */}
           <nav style={{ flex: 1, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden' }}>
-            {PRODUCTS.map((product, pi) => (
+            {PRODUCTS.map((product, pi) => {
+              // Upsell strip — shown expanded only, in place of the Listen product group
+              if (product.upsell) {
+                if (sidebarCollapsed) return null
+                return (
+                  <div key="_listen_upsell">
+                    <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
+                    <button
+                      onClick={() => setActiveTab('settings')}
+                      onMouseEnter={e => { e.currentTarget.querySelector('span').style.color = 'rgba(255,255,255,0.5)' }}
+                      onMouseLeave={e => { e.currentTarget.querySelector('span').style.color = 'rgba(255,255,255,0.28)' }}
+                      style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.45rem 1.25rem 0.35rem', textAlign: 'left' }}
+                    >
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.7rem', fontWeight: 400, color: 'rgba(255,255,255,0.28)', transition: 'color 0.15s', letterSpacing: '0.01em' }}>
+                        ＋ Add Listen
+                      </span>
+                    </button>
+                  </div>
+                )
+              }
+
+              return (
               <div key={product.id}>
                 {/* Product label */}
                 {!sidebarCollapsed && product.label && (
@@ -545,12 +575,13 @@ const Portal = () => {
                   )
                 })}
 
-                {/* Divider after each product group (except last) */}
-                {!sidebarCollapsed && pi < PRODUCTS.length - 1 && (
+                {/* Divider after each product group (except last, and not before platform when upsell strip already adds one) */}
+                {!sidebarCollapsed && pi < PRODUCTS.length - 1 && !PRODUCTS[pi + 1]?.upsell && (
                   <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
                 )}
               </div>
-            ))}
+              )
+            })}
           </nav>
 
           {/* ── Holiday widget ─────────────────────────────────────────────── */}

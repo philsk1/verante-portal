@@ -481,7 +481,7 @@ const Toggle = ({ checked, onChange }) => (
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const AccountSettings = ({ onNavigate, onPlanChange }) => {
+const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -808,6 +808,7 @@ const AccountSettings = ({ onNavigate, onPlanChange }) => {
     await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
     setCalendarTier(calendar)
     setListenTier(listen)
+    if (onListenTierChange) onListenTierChange(listen)
     // Trigger Answer tier upgrade if changed
     if (answer !== tier && answer !== 'free') {
       handleUpgrade(answer)
