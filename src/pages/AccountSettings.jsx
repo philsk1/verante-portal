@@ -705,8 +705,21 @@ const AccountSettings = ({ onNavigate }) => {
     showDataToast(error ? 'Could not save. Please try again.' : 'Data retention updated.', error ? 'error' : 'success')
   }
 
-  const handleExportData = () => {
-    showDataToast("We'll email your data export within 24 hours.", 'success')
+  const handleExportData = async () => {
+    if (isDemo || isPreview || !tenantId) {
+      showDataToast("Data export is not available in demo mode.", 'error')
+      return
+    }
+    showDataToast("Preparing your export — check your email shortly.", 'success')
+    try {
+      await fetch('/api/export-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId }),
+      })
+    } catch {
+      // Fire and forget — toast already shown
+    }
   }
 
   const handleDeleteConfirm = () => {

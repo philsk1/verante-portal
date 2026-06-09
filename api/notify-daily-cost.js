@@ -62,13 +62,14 @@ export default async function handler(req, res) {
     if (tenant.notify_daily_summary === false) continue // tenant opted out
 
     // Yesterday's leads
-    const { data: yLeads } = await supabase
+    const { data: yLeadsRaw } = await supabase
       .from('leads')
-      .select('lead_contact_name, caller_name, created_at')
+      .select('lead_contact_name, created_at, callers(phone_number)')
       .eq('tenant_id', tenant.id)
       .gte('created_at', yesterdayStart.toISOString())
       .lt('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
+    const yLeads = (yLeadsRaw || []).map(l => ({ ...l, phone_number: l.callers?.phone_number || '' }))
 
     // Yesterday's referrals
     const { data: rawRefs } = await supabase

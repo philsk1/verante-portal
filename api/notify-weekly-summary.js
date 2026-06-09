@@ -60,13 +60,14 @@ export default async function handler(req, res) {
 
     if (!wCalls || wCalls.length === 0) continue // silent week — skip
 
-    const { data: wLeads } = await supabase
+    const { data: wLeadsRaw } = await supabase
       .from('leads')
-      .select('lead_contact_name, caller_name, created_at')
+      .select('lead_contact_name, created_at, callers(phone_number)')
       .eq('tenant_id', tenant.id)
       .gte('created_at', weekStart.toISOString())
       .lt('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
+    const wLeads = (wLeadsRaw || []).map(l => ({ ...l, phone_number: l.callers?.phone_number || '' }))
 
     const { data: rawRefs } = await supabase
       .from('referral_log')
