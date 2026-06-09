@@ -133,13 +133,21 @@ const PartnersReferrals = ({ onNavigate }) => {
         setTenantId(tid)
 
         const [tenantRes, partnerRes, logRes] = await Promise.all([
-          supabase.from('tenants').select('referral_code, credit_balance_months').eq('id', tid).maybeSingle(),
+          supabase.from('tenants').select('referral_code, credit_balance_months, business_name').eq('id', tid).maybeSingle(),
           supabase.from('referral_partners').select('id, partner_name, contact_phone, inbound_count').eq('tenant_id', tid).order('created_at', { ascending: true }),
           supabase.from('referral_log').select('partner_id').eq('tenant_id', tid),
         ])
 
         if (tenantRes.data) {
-          setReferralCode(tenantRes.data.referral_code || '')
+          let code = tenantRes.data.referral_code || ''
+          if (!code && tid && !isDemo && !isPreview) {
+            // Auto-generate referral code from business name
+            const raw = tenantRes.data.business_name || 'QERXEL'
+            const base = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+            code = base || 'QERXEL'
+            await supabase.from('tenants').update({ referral_code: code }).eq('id', tid)
+          }
+          setReferralCode(code)
           setCreditMonths(tenantRes.data.credit_balance_months || 0)
         }
 
