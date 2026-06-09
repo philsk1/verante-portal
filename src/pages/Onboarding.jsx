@@ -3,13 +3,22 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 
-const steps = [
+const STEPS_ANSWER = [
+  'Choose product',
   'Your website',
   'Business type',
   'About your business',
   'Your services',
   'Your boundaries',
   'Your partners',
+  'Choose your plan',
+  'Review & launch',
+]
+
+const STEPS_CALENDAR = [
+  'Choose product',
+  'About your business',
+  'Appointment types',
   'Choose your plan',
   'Review & launch',
 ]
@@ -228,7 +237,7 @@ const Step1BusinessDetails = ({ data, update }) => (
   </div>
 )
 
-const Step2Services = ({ subcategoryId, services, onChange }) => {
+const Step2Services = ({ subcategoryId, services, onChange, labelOverride, subOverride }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -266,8 +275,8 @@ const Step2Services = ({ subcategoryId, services, onChange }) => {
 
   return (
     <div>
-      <h2 style={heading}>Your services</h2>
-      <p style={sub}>We've suggested services based on your business type. Edit, overwrite, or leave them as they are. Empty rows are ignored.</p>
+      <h2 style={heading}>{labelOverride || 'Your services'}</h2>
+      <p style={sub}>{subOverride || "We've suggested services based on your business type. Edit, overwrite, or leave them as they are. Empty rows are ignored."}</p>
       {loading ? (
         <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Loading suggestions...</p>
       ) : (
@@ -362,7 +371,39 @@ const Step4Partners = ({ partners, onChange }) => {
   )
 }
 
-// ─── step 0 — website scraping ───────────────────────────────────────────────
+// ─── step 0 — product choice ─────────────────────────────────────────────────
+
+const StepProductChoice = ({ product, onSelect }) => (
+  <div>
+    <h2 style={heading}>What are you setting up?</h2>
+    <p style={sub}>Choose your starting point. You can add more products later.</p>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginTop: '1.25rem' }}>
+      {[
+        { id: 'answer', icon: '📞', title: 'Answer', desc: 'AI answers calls, captures leads, and handles enquiries when you\'re busy.' },
+        { id: 'calendar', icon: '📅', title: 'Calendar', desc: 'Online booking, appointment management, and team scheduling.' },
+      ].map(p => (
+        <button key={p.id} onClick={() => onSelect(p.id)}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.6rem',
+            padding: '1.15rem', border: product === p.id ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)',
+            borderRadius: 12, background: product === p.id ? '#f3f0f9' : 'white',
+            cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', width: '100%',
+          }}>
+          <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{p.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: 4 }}>{p.title}</div>
+            <div style={{ fontSize: '0.78rem', color: '#888', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>{p.desc}</div>
+          </div>
+          {product === p.id && (
+            <div style={{ alignSelf: 'flex-end', fontSize: '0.65rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: "'DM Sans', sans-serif" }}>Selected ✓</div>
+          )}
+        </button>
+      ))}
+    </div>
+  </div>
+)
+
+// ─── step 0 (answer) — website scraping ──────────────────────────────────────
 
 const Step0Website = ({ data, update }) => {
   const [url, setUrl] = useState(data.websiteUrl || '')
@@ -645,6 +686,7 @@ const Onboarding = () => {
   }, [user])
 
   const [data, setData] = useState({
+    product: 'answer',
     selectedCategoryId: '',
     subcategory_id: '',
     business_name: '',
@@ -683,6 +725,8 @@ const Onboarding = () => {
       data.wont_touch ? `Work we won't take: ${data.wont_touch}` : '',
     ].filter(Boolean).join('\n\n')
 
+    const isCalendar = data.product === 'calendar'
+
     const { data: tenantData, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -694,11 +738,12 @@ const Onboarding = () => {
         booking_link: data.booking_link,
         business_context: businessContext,
         subcategory_id: data.subcategory_id || null,
-        business_outcome_type: data.business_outcome_type || 'quote',
+        business_outcome_type: isCalendar ? 'booked' : (data.business_outcome_type || 'quote'),
         referral_code: referralCode,
         billing_model: data.billing_model || 'subscription',
         subscription_tier: data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard'),
         monthly_cost_limit: data.billing_model === 'payg' ? (data.monthly_cost_limit || 20) : null,
+        calendar_tier: isCalendar ? 'entry' : 'entry',
         active: true,
       })
       .select()
@@ -712,21 +757,35 @@ const Onboarding = () => {
 
     const activeServices = data.services.filter(s => s.service_name.trim() !== '')
     if (activeServices.length > 0) {
-      const { error: servicesError } = await supabase.from('services').insert(
-        activeServices.map((s, i) => ({
-          tenant_id: tenantData.id,
-          service_name: s.service_name.trim(),
-          price_from: s.price_from ? Number(s.price_from) : null,
-          price_to: s.price_to ? Number(s.price_to) : null,
-          price_note: s.price_note || null,
-          active: true,
-          sort_order: i + 1,
-        }))
-      )
-      if (servicesError) {
-        setError(servicesError.message)
-        setLoading(false)
-        return
+      if (isCalendar) {
+        // Calendar path: appointment types go into catalogue_items
+        await supabase.from('catalogue_items').insert(
+          activeServices.map(s => ({
+            tenant_id: tenantData.id,
+            item_type: 'service',
+            name: s.service_name.trim(),
+            price_from: s.price_from ? Number(s.price_from) : null,
+            price_to: s.price_to ? Number(s.price_to) : null,
+            active: true,
+          }))
+        )
+      } else {
+        const { error: servicesError } = await supabase.from('services').insert(
+          activeServices.map((s, i) => ({
+            tenant_id: tenantData.id,
+            service_name: s.service_name.trim(),
+            price_from: s.price_from ? Number(s.price_from) : null,
+            price_to: s.price_to ? Number(s.price_to) : null,
+            price_note: s.price_note || null,
+            active: true,
+            sort_order: i + 1,
+          }))
+        )
+        if (servicesError) {
+          setError(servicesError.message)
+          setLoading(false)
+          return
+        }
       }
     }
 
@@ -791,7 +850,8 @@ const Onboarding = () => {
     navigate('/portal')
   }
 
-  const progressPct = ((step + 1) / steps.length) * 100
+  const activeSteps = data.product === 'calendar' ? STEPS_CALENDAR : STEPS_ANSWER
+  const progressPct = ((step + 1) / activeSteps.length) * 100
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem', fontFamily: "'DM Sans', sans-serif" }}>
@@ -809,9 +869,9 @@ const Onboarding = () => {
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
             <span style={{ fontSize: '0.75rem', color: '#aaa' }}>
-              Step <span style={{ color: '#f0a500', fontWeight: 600 }}>{step + 1}</span> of {steps.length}
+              Step <span style={{ color: '#f0a500', fontWeight: 600 }}>{step + 1}</span> of {activeSteps.length}
             </span>
-            <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{steps[step]}</span>
+            <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{activeSteps[step]}</span>
           </div>
           <div style={{ height: '3px', background: 'rgba(94,59,135,0.1)', borderRadius: '9999px' }}>
             <div style={{ height: '3px', background: '#5e3b87', borderRadius: '9999px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
@@ -819,8 +879,13 @@ const Onboarding = () => {
         </div>
 
         {/* Step content */}
-        {step === 0 && <Step0Website data={data} update={update} />}
-        {step === 1 && (
+        {step === 0 && (
+          <StepProductChoice product={data.product} onSelect={p => update('product', p)} />
+        )}
+
+        {/* ── Answer path ─────────────────────────────────────────────────── */}
+        {data.product === 'answer' && step === 1 && <Step0Website data={data} update={update} />}
+        {data.product === 'answer' && step === 2 && (
           <Step0BusinessType
             selectedCategoryId={data.selectedCategoryId}
             subcategoryId={data.subcategory_id}
@@ -831,25 +896,41 @@ const Onboarding = () => {
             }}
           />
         )}
-        {step === 2 && <Step1BusinessDetails data={data} update={update} />}
-        {step === 3 && (
+        {data.product === 'answer' && step === 3 && <Step1BusinessDetails data={data} update={update} />}
+        {data.product === 'answer' && step === 4 && (
           <Step2Services
             subcategoryId={data.subcategory_id}
             services={data.services}
             onChange={services => update('services', services)}
           />
         )}
-        {step === 4 && <Step3Boundaries data={data} update={update} />}
-        {step === 5 && (
+        {data.product === 'answer' && step === 5 && <Step3Boundaries data={data} update={update} />}
+        {data.product === 'answer' && step === 6 && (
           <Step4Partners
             partners={data.partners}
             onChange={partners => update('partners', partners)}
           />
         )}
-        {step === 6 && (
-          <Step5PlanSelection data={data} update={update} />
+        {data.product === 'answer' && step === 7 && <Step5PlanSelection data={data} update={update} />}
+
+        {/* ── Calendar path ────────────────────────────────────────────────── */}
+        {data.product === 'calendar' && step === 1 && <Step1BusinessDetails data={data} update={update} />}
+        {data.product === 'calendar' && step === 2 && (
+          <Step2Services
+            subcategoryId=""
+            services={data.services}
+            onChange={services => update('services', services)}
+            labelOverride="Appointment types"
+            subOverride="List your bookable services — e.g. Haircut, Consultation, 60-min massage."
+          />
         )}
-        {step === 7 && (
+        {data.product === 'calendar' && step === 3 && <Step5PlanSelection data={data} update={update} />}
+
+        {/* ── Shared: review & launch ─────────────────────────────────────── */}
+        {(
+          (data.product === 'answer' && step === 8) ||
+          (data.product === 'calendar' && step === 4)
+        ) && (
           <div>
             <h2 style={heading}>You're ready to launch</h2>
             <p style={sub}>Here's what we've set up for you.</p>
@@ -896,7 +977,7 @@ const Onboarding = () => {
           >
             Back
           </button>
-          {step < steps.length - 1 ? (
+          {step < activeSteps.length - 1 ? (
             <button
               onClick={() => setStep(s => s + 1)}
               style={{

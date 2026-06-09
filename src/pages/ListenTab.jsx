@@ -122,6 +122,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const [activeTab, setActiveTab] = useState('urgent')
   const [selected, setSelected]   = useState(null)
   const [search, setSearch]       = useState('')
+  const [holidayMode, setHolidayMode] = useState(false)
   const transcriptRef             = useRef(null)
   // Persists callback flags set this session — never wiped by reloads
   const localFlagsRef             = useRef(new Map())
@@ -161,12 +162,17 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           tid = m.tenant_id
         }
         setTenantId(tid)
-        const { data } = await supabase
-          .from('call_logs')
-          .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, transcript, callback_flagged')
-          .eq('tenant_id', tid)
-          .order('created_at', { ascending: false })
-          .limit(200)
+        const [callRes, tenantRes] = await Promise.all([
+          supabase
+            .from('call_logs')
+            .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, transcript, callback_flagged')
+            .eq('tenant_id', tid)
+            .order('created_at', { ascending: false })
+            .limit(200),
+          supabase.from('tenants').select('holiday_mode').eq('id', tid).maybeSingle(),
+        ])
+        if (tenantRes.data) setHolidayMode(tenantRes.data.holiday_mode || false)
+        const { data } = callRes
         setCalls((data || []).map(c => ({
           ...c,
           callback_flagged: localFlagsRef.current.has(c.id)
@@ -258,13 +264,23 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: '2rem', boxSizing: 'border-box' }}>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 1rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
-        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 3px rgba(61,184,122,0.25)' }} />
-        <span style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI is standing by — answering calls automatically</span>
-        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>
-          {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
-        </span>
-      </div>
+      {holidayMode ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 1rem', background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#7a5c00', fontWeight: 500 }}>AI is paused — holiday mode is on. New calls are not being answered.</span>
+          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+            {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
+          </span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 1rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 3px rgba(61,184,122,0.25)' }} />
+          <span style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI is active — answering calls automatically</span>
+          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>
+            {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
+          </span>
+        </div>
+      )}
 
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid rgba(94,59,135,0.08)', marginBottom: '1rem', flexShrink: 0, overflowX: 'auto' }}>
@@ -419,16 +435,23 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                       <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{fmtDuration(selected.duration_seconds)}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {(() => { const os = outcomeStyle(selected.call_outcome); return (
                       <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: 5, background: os.bg, color: os.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{os.label}</span>
                     )})()}
+                    {selected.caller_phone && (
+                      <a href={`tel:${selected.caller_phone}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        Call back
+                      </a>
+                    )}
                     <button
                       onClick={e => toggleFlag(selected.id, e)}
                       title={selected.callback_flagged ? 'Remove from Call Back list' : 'Add to your Call Back list'}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: 6, border: `1px solid ${selected.callback_flagged ? 'rgba(94,59,135,0.3)' : 'rgba(200,200,200,0.5)'}`, background: selected.callback_flagged ? '#f3f1f7' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 500, color: selected.callback_flagged ? '#5e3b87' : '#bbb', transition: 'all 0.15s' }}>
                       <FlagIcon active={selected.callback_flagged} />
-                      {selected.callback_flagged ? 'Remove from Call Back' : 'Add to Call Back'}
+                      {selected.callback_flagged ? 'In Call Back' : 'Call Back'}
                     </button>
                     <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>×</button>
                   </div>

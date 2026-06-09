@@ -494,6 +494,7 @@ const AccountSettings = ({ onNavigate }) => {
   const [tier, setTier] = useState('light')
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [tenantCreatedAt, setTenantCreatedAt] = useState(null)
+  const [vapiPhone, setVapiPhone] = useState(null)
   const [feedbackShown, setFeedbackShown] = useState(false)
   const [partnerCount, setPartnerCount] = useState(0)
   const [outboundCount, setOutboundCount] = useState(0)
@@ -571,7 +572,7 @@ const AccountSettings = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number')
           .eq('id', tid)
           .maybeSingle()
 
@@ -586,6 +587,7 @@ const AccountSettings = ({ onNavigate }) => {
           setDataRetentionDays(tenant.data_retention_days ?? 90)
           setBillingModel(tenant.billing_model || 'subscription')
           setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
+          setVapiPhone(tenant.vapi_phone_number || null)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -774,6 +776,25 @@ const AccountSettings = ({ onNavigate }) => {
       </div>
     )}
     <div>
+
+      {/* AI Phone Number */}
+      {vapiPhone && (
+        <div style={{ ...s.section, background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', border: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.35rem' }}>Your AI phone number</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: '#ffffff', letterSpacing: '0.04em', lineHeight: 1 }}>{vapiPhone}</div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.4rem' }}>Callers who ring this number reach your AI</div>
+            </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(vapiPhone); }}
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: 8, padding: '0.5rem 1rem', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Copy number
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Plan & Billing */}
       <div style={s.section}>

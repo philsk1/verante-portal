@@ -565,6 +565,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [catalogueCount, setCatalogueCount] = useState(-1)
   const [listenTier, setListenTier]     = useState('none')
   const [calendarTier, setCalendarTier] = useState('entry')
+  const [provisionalCount, setProvisionalCount] = useState(0)
   const [featureNoticeClosed, setFeatureNoticeClosed] = useState(false)
 
   // ── Demo mode: inject from DemoContext ────────────────────────────────────────
@@ -618,7 +619,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const monthIso = startOfMonth().toISOString()
 
-        const [callRes, leadRes, refRes, pCountRes, sCountRes, cCountRes] = await Promise.all([
+        const [callRes, leadRes, refRes, pCountRes, sCountRes, cCountRes, apptRes] = await Promise.all([
           supabase
             .from('call_logs')
             .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, full_name)')
@@ -646,6 +647,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           supabase.from('referral_partners').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
           supabase.from('staff_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
           supabase.from('catalogue_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+          supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'provisional').gte('start_time', new Date().toISOString()),
         ])
 
         setCalls(callRes.data || [])
@@ -654,6 +656,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         setPartnerCount(pCountRes.count ?? 0)
         setStaffCount(sCountRes.count ?? 0)
         setCatalogueCount(cCountRes.count ?? 0)
+        setProvisionalCount(apptRes.count ?? 0)
 
         try {
           const { data: integrations } = await supabase
@@ -1254,9 +1257,15 @@ const ActivityDashboard = ({ onNavigate }) => {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif", marginBottom: 3 }}>Calendar</div>
             <div style={{ fontSize: '0.825rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>View appointments →</div>
-            <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Bookings, schedules, rules</div>
+            {provisionalCount > 0 ? (
+              <div style={{ fontSize: '0.72rem', color: '#f0a500', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>
+                {provisionalCount} provisional need{provisionalCount === 1 ? 's' : ''} confirmation
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Bookings, schedules, rules</div>
+            )}
           </div>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a', flexShrink: 0 }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: provisionalCount > 0 ? '#f0a500' : '#3db87a', flexShrink: 0 }} />
         </div>
 
         {/* Listen */}
