@@ -464,55 +464,102 @@ const Portal = () => {
           zIndex: 10,
         }}>
 
-          {/* Logo */}
+          {/* Logo + status */}
           <div style={{
             height: 64,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-            padding: sidebarCollapsed ? 0 : '0 1.25rem',
+            justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+            padding: sidebarCollapsed ? 0 : '0 0.9rem 0 1.25rem',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
             flexShrink: 0,
             boxSizing: 'border-box',
           }}>
             {sidebarCollapsed ? (
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-                  Qerxel
-                </span>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: holidayMode ? '#f0a500' : '#3db87a', display: 'block' }} />
               </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                    Qerxel
+                  </span>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
+                </div>
+                {/* Status pill */}
+                <button
+                  onClick={() => saveHolidayToggle(!holidayMode)}
+                  title={holidayMode ? 'Click to go live' : 'Click to set away'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    background: holidayMode ? 'rgba(240,165,0,0.15)' : 'rgba(61,184,122,0.15)',
+                    border: `1px solid ${holidayMode ? 'rgba(240,165,0,0.35)' : 'rgba(61,184,122,0.3)'}`,
+                    borderRadius: 20, padding: '0.2rem 0.55rem', cursor: 'pointer',
+                    fontSize: '0.65rem', fontFamily: "'DM Sans', sans-serif",
+                    color: holidayMode ? '#f0a500' : 'rgba(255,255,255,0.8)',
+                    whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 500,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  {holidayMode
+                    ? <><IcoMoon /><span style={{ marginLeft: 3 }}>Away</span></>
+                    : <><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0 }} /><span style={{ marginLeft: 2 }}>Live</span></>
+                  }
+                </button>
+              </>
             )}
           </div>
+          {/* Return date strip — only when away */}
+          {holidayMode && !sidebarCollapsed && (
+            <div style={{ padding: '0.4rem 0.9rem', background: 'rgba(240,165,0,0.08)', borderBottom: '1px solid rgba(240,165,0,0.15)', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.2rem' }}>Return date (optional)</div>
+              <input
+                type="date"
+                value={holidayReturnDate}
+                onChange={e => saveReturnDate(e.target.value)}
+                style={{
+                  width: '100%', fontSize: '0.68rem', padding: '0.25rem 0.35rem', borderRadius: 4,
+                  border: '1px solid rgba(240,165,0,0.3)', background: 'rgba(0,0,0,0.2)',
+                  color: holidayReturnDate ? '#f0a500' : 'rgba(255,255,255,0.35)',
+                  fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', cursor: 'pointer', colorScheme: 'dark',
+                }}
+              />
+            </div>
+          )}
 
           {/* Nav items — product-grouped */}
-          <nav style={{ flex: 1, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden' }}>
+          <style>{`#qerxel-nav::-webkit-scrollbar { display: none }`}</style>
+          <nav id="qerxel-nav" style={{ flex: 1, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none' }}>
             {PRODUCTS.map((product, pi) => {
-              // Build your Qerxel card — always visible when sidebar expanded
+              // More products — slim amber upsell row
               if (product.buildCard) {
-                if (sidebarCollapsed) return null
                 return (
-                  <div key="_build_card" style={{ padding: '0.3rem 0.75rem 0.5rem' }}>
-                    <button
-                      onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
-                      style={{
-                        width: '100%', textAlign: 'center', background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-                        padding: '0.65rem 1rem', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
-                      }}
-                    >
-                      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: '0.2rem' }}>
-                        Build your Qerxel
-                      </div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.02em' }}>
-                        Answer · Listen · Schedule
-                      </div>
-                    </button>
-                  </div>
+                  <button
+                    key="_build_card"
+                    onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,165,0,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    title={sidebarCollapsed ? 'More products' : undefined}
+                    style={{
+                      width: '100%', height: 40, display: 'flex', alignItems: 'center',
+                      justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                      gap: '0.65rem',
+                      padding: sidebarCollapsed ? 0 : '0 1.25rem',
+                      border: 'none', borderLeft: '3px solid transparent',
+                      background: 'transparent', cursor: 'pointer',
+                      transition: 'background 0.12s',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.85rem', color: 'rgba(240,165,0,0.7)', flexShrink: 0, lineHeight: 1 }}>✦</span>
+                    {!sidebarCollapsed && (
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 400, color: 'rgba(240,165,0,0.65)', whiteSpace: 'nowrap' }}>
+                        More products
+                      </span>
+                    )}
+                  </button>
                 )
               }
 
@@ -595,6 +642,11 @@ const Portal = () => {
                           {tab.label}
                         </span>
                       )}
+                      {!sidebarCollapsed && tab.id === 'dashboard' && uncontactedCount > 0 && (
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f0a500', color: '#1a0533', borderRadius: 10, padding: '0.05rem 0.38rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+                          {uncontactedCount}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -608,80 +660,10 @@ const Portal = () => {
             })}
           </nav>
 
-          {/* ── Holiday widget ─────────────────────────────────────────────── */}
-          {holidayMode ? (
-            <div style={{
-              margin: sidebarCollapsed ? '0.5rem 0' : '0.5rem 0.75rem',
-              borderRadius: 10,
-              background: 'rgba(240,165,0,0.18)',
-              border: '1px solid rgba(240,165,0,0.35)',
-              overflow: 'hidden',
-              flexShrink: 0,
-              boxShadow: '0 0 12px rgba(240,165,0,0.2)',
-            }}>
-              {sidebarCollapsed ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.6rem 0' }}>
-                  <IcoMoon />
-                </div>
-              ) : (
-                <div style={{ padding: '0.75rem 0.9rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f0a500', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>
-                      <IcoMoon />
-                      Away mode
-                    </div>
-                    <Toggle checked={true} onChange={saveHolidayToggle} />
-                  </div>
-                  <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>Return date (optional)</div>
-                  <input
-                    type="date"
-                    value={holidayReturnDate}
-                    onChange={e => saveReturnDate(e.target.value)}
-                    style={{
-                      width: '100%', fontSize: '0.7rem', padding: '0.3rem 0.4rem', borderRadius: 5,
-                      border: '1px solid rgba(240,165,0,0.4)', background: 'rgba(0,0,0,0.25)',
-                      color: holidayReturnDate ? '#f0a500' : 'rgba(255,255,255,0.4)',
-                      fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', cursor: 'pointer',
-                      colorScheme: 'dark',
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{
-              margin: sidebarCollapsed ? '0.5rem 0' : '0.5rem 0.75rem',
-              borderRadius: 8,
-              background: 'rgba(61,184,122,0.1)',
-              border: '1px solid rgba(61,184,122,0.2)',
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}>
-              {sidebarCollapsed ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.55rem 0' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a' }} />
-                </div>
-              ) : (
-                <div style={{ padding: '0.55rem 0.9rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3db87a', flexShrink: 0 }} />
-                      <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Available</span>
-                      {triageMode && triageMode !== 'balanced' && (
-                        <span style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: 4, background: triageMode === 'aggressive' ? 'rgba(239,68,68,0.22)' : 'rgba(240,165,0,0.22)', color: triageMode === 'aggressive' ? '#fca5a5' : '#fcd34d', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                          {triageMode === 'aggressive' ? 'Strict' : triageMode === 'lenient' ? 'Open' : triageMode}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => saveHolidayToggle(true)}
-                      style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                      title="Set to away"
-                    >
-                      Away?
-                    </button>
-                  </div>
-                  {uncontactedCount > 0 && (
+          {/* ── Holiday widget removed — status now lives in header pill ── */}
+          {false && (
+            <div>
+              {uncontactedCount > 0 && (
                     <button
                       onClick={() => setActiveTab('dashboard')}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -691,8 +673,6 @@ const Portal = () => {
                         {uncontactedCount} lead{uncontactedCount !== 1 ? 's' : ''} to follow up
                       </span>
                     </button>
-                  )}
-                </div>
               )}
             </div>
           )}
