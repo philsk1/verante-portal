@@ -349,15 +349,39 @@ src/components/DemoBanner.jsx       — amber banner + inline tier switcher
 - [x] `Calendar.jsx` — all controls (nav, view switcher, Smart/Solo/Team, staff filter, + New) merged into react-big-calendar toolbar; external header = h2 + sub-tab pills only (~80px saved)
 - [x] All 6 portal tabs wired to DemoContext — demo businesses show real seeded data across all tabs
 
+### Done — Session 17 (2026-06-09) — Notifications + email pipeline + API consolidation
+
+- [x] Urgent escalation notifications: SMS to `business_phone` + email to `business_email` on escalated calls (was `console.log` only). `emailUrgentEscalation` template added to `_emails.js`.
+- [x] Notifications section in AccountSettings — toggles for new-lead email, daily summary, weekly report. Bug fixed: state vars were referenced but never declared.
+- [x] `notify_daily_summary` default corrected to `!== false` (truthy-by-default) everywhere — Portal.jsx was using `=== true`.
+- [x] Daily cron respects `notify_daily_summary === false` opt-out.
+- [x] Weekly summary cron (`api/notify.js?type=weekly`) — Monday 07:00 UTC. `emailWeeklySummary` template. Joins callers table so lead phone numbers appear in email.
+- [x] Daily cron callers join fix — lead phone numbers now appear in daily summary emails.
+- [x] GDPR data export: `api/export-data.js` — real CSV export of call logs, leads, referrals, partners, staff. AccountSettings button wired.
+- [x] Welcome email: `api/send.js?type=welcome` — fires after onboarding completion.
+- [x] `ai_summary` now saved to leads table in webhook (respects isSensitive). Quick Capture in dashboard also fixed.
+- [x] `supabase_notify_columns.sql` — migration for `notify_new_lead`, `notify_daily_summary`, `notify_weekly_report` boolean columns (default true).
+- [x] AIBehaviour: SMS destination hint shown below urgent escalation method buttons.
+- [x] API consolidation: 6 functions → 3 merged handlers to stay within Vercel Hobby 12-function limit:
+  - `notify-daily-cost.js` + `notify-weekly-summary.js` → `api/notify.js`
+  - `send-welcome.js` + `send-review-request.js` → `api/send.js`
+  - `vera-chat.js` + `support-chat.js` → `api/chat.js`
+
+**API function inventory (12/12):**
+admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator, integrations, notify, send, vapi-assistant-request, vapi-sync, vapi-webhook
+
 ### Remaining (user actions required)
+- [ ] Run `supabase_notify_columns.sql` in Supabase SQL editor (notify preference columns)
 - [ ] Stripe setup: products/prices in Dashboard, webhook endpoint, 7 Vercel env vars (see handover)
 - [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars
 - [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
 - [ ] Confirm new tier pricing when ready to update portal
 - [ ] Vera rename — pending Philip choosing a name
 
-### DB — all migrations applied (2026-06-08)
-All columns and tables are live. No pending migrations.
+### DB — pending migration (run supabase_notify_columns.sql)
+- `notify_new_lead` boolean DEFAULT true
+- `notify_daily_summary` boolean DEFAULT true
+- `notify_weekly_report` boolean DEFAULT true
 
 ---
 
