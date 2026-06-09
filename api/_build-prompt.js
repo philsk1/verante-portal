@@ -112,7 +112,7 @@ const SENSITIVE_INSTRUCTION = `This business operates under professional confide
 // ── Main prompt builder ───────────────────────────────────────────────────────
 
 export function buildSystemPrompt(data) {
-  const { tenant, services, partnerServices, callRules, partners, staff, isSensitive } = data
+  const { tenant, services, partnerServices, callRules, partners, staff, catalogue, isSensitive } = data
   const blockedNumbers = Array.isArray(tenant.blocked_phone_numbers) ? tenant.blocked_phone_numbers.filter(Boolean) : []
 
   const rulesByType = {}
@@ -121,7 +121,18 @@ export function buildSystemPrompt(data) {
   const name = tenant.business_name || 'this business'
   const tone = tenant.tone_register || 'warm'
 
-  const serviceBlock = services.length
+  // Use catalogue items when available — richer than plain services list
+  const catalogueItems = Array.isArray(catalogue) ? catalogue : []
+  const serviceBlock = catalogueItems.length
+    ? catalogueItems.map(item => {
+        const parts = [`  • ${item.name}`]
+        if (item.description) parts.push(`— ${item.description}`)
+        if (item.price_from && item.price_to) parts.push(`(£${item.price_from}–£${item.price_to})`)
+        else if (item.price_from) parts.push(`(from £${item.price_from})`)
+        if (item.duration_minutes) parts.push(`[${item.duration_minutes} min]`)
+        return parts.join(' ')
+      }).join('\n')
+    : services.length
     ? services.map(s => `  • ${s}`).join('\n')
     : '  (Services not yet configured — use your judgement based on business context.)'
 

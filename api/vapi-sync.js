@@ -9,7 +9,7 @@ const supabase = createClient(
 const VAPI_API = 'https://api.vapi.ai'
 
 async function fetchTenantData(tenantId) {
-  const [tenantRes, servicesRes, partnerServicesRes, callRulesRes, partnersRes, specialtiesRes, staffRes] =
+  const [tenantRes, servicesRes, partnerServicesRes, callRulesRes, partnersRes, specialtiesRes, staffRes, catalogueRes] =
     await Promise.all([
       supabase
         .from('tenants')
@@ -22,6 +22,7 @@ async function fetchTenantData(tenantId) {
       supabase.from('referral_partners').select('id, partner_name, contact_phone').eq('tenant_id', tenantId),
       supabase.from('referral_service_map').select('partner_id, service_keyword'),
       supabase.from('staff_profiles').select('id, name, role, specialist_services, phone, direct_line_did, active').eq('tenant_id', tenantId),
+      supabase.from('catalogue_items').select('name, description, price_from, price_to, duration_minutes, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
     ])
 
   const partners = (partnersRes.data || []).map(p => {
@@ -47,7 +48,8 @@ async function fetchTenantData(tenantId) {
     partnerServices: (partnerServicesRes.data || []).map(s => s.banned_item),
     callRules:       callRulesRes.data || [],
     partners,
-    staff: staffRes.data || [],
+    staff:           staffRes.data || [],
+    catalogue:       catalogueRes.data || [],
     isSensitive,
   }
 }
