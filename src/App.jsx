@@ -13,6 +13,7 @@ import DemoPortal from './pages/DemoPortal'
 import SalesPerformance from './pages/SalesPerformance'
 import PlanSelector from './pages/PlanSelector'
 import BookingPage from './pages/BookingPage'
+import OwnerSelector from './pages/OwnerSelector'
 
 const App = () => {
   return (
@@ -40,6 +41,13 @@ const App = () => {
           <Route path="/demo/tier/:businessId" element={<TierSelector />} />
           <Route path="/demo/portal/:businessId/:tier" element={<DemoPortal />} />
           <Route path="/demo/performance" element={<SalesPerformance />} />
+
+          {/* Owner tenant selector — protected, email-checked inside the component */}
+          <Route path="/owner/select" element={
+            <ProtectedRoute>
+              <OwnerSelector />
+            </ProtectedRoute>
+          } />
 
           <Route path="/plans" element={
             <ProtectedRoute>

@@ -283,17 +283,11 @@ const Portal = () => {
 
       if (user.email === 'finsolsoffice@gmail.com') {
         setIsOwner(true)
-        try {
-          const res = await fetch('/api/admin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userEmail: user.email }),
-          })
-          if (res.ok) {
-            const json = await res.json()
-            setAllTenants(json.tenants || [])
-          }
-        } catch {}
+        // Redirect to selector page unless already in preview mode
+        if (!preview.isPreview) {
+          navigate('/owner/select', { replace: true })
+          return
+        }
       }
 
       setChecking(false)
@@ -705,56 +699,27 @@ const Portal = () => {
           {/* ── Bottom controls ─────────────────────────────────────────────── */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
 
-            {/* Owner controls */}
+            {/* Owner quick links */}
             {isOwner && !sidebarCollapsed && (
-              <div style={{ padding: '0.75rem 1rem 0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {/* Tenant selector */}
-                <select
-                  value={preview.isPreview ? preview.previewTenantId : ''}
-                  onChange={e => {
-                    const tid = e.target.value
-                    if (!tid) { preview.exitPreview(); return }
-                    const t = allTenants.find(t => t.id === tid)
-                    preview.enterPreview(tid, t?.business_name || '')
-                    setActiveTab('dashboard')
-                  }}
-                  style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
+              <div style={{ padding: '0.6rem 1rem 0', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <button
+                  onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
+                  style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, cursor: 'pointer', padding: '0.25rem 0.5rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.85)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
                 >
-                  <option value="" style={{ background: '#5e3b87' }}>— Preview tenant —</option>
-                  {allTenants.map(t => (
-                    <option key={t.id} value={t.id} style={{ background: '#5e3b87' }}>{t.business_name}</option>
-                  ))}
-                </select>
-                {/* Tier override */}
-                <select
-                  value={preview.tierOverride || ''}
-                  onChange={e => preview.setTierOverride(e.target.value || null)}
-                  style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', background: preview.tierOverride ? 'rgba(240,165,0,0.2)' : 'rgba(255,255,255,0.1)', color: preview.tierOverride ? '#f0a500' : 'rgba(255,255,255,0.6)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
-                >
-                  <option value="" style={{ background: '#5e3b87' }}>— Tier view —</option>
-                  {['free', 'light', 'standard', 'professional', 'enterprise'].map(t => (
-                    <option key={t} value={t} style={{ background: '#5e3b87' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                  ))}
-                </select>
-                {/* Demo portal link */}
+                  Switch tenant
+                </button>
                 <a
                   href="/demo/login"
                   target="_blank"
                   rel="noreferrer"
-                  style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', textDecoration: 'none', textAlign: 'center', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif" }}
-                  onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.75)'}
-                  onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.4)'}
+                  style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', textDecoration: 'none', textAlign: 'center', padding: '0.15rem 0', fontFamily: "'DM Sans', sans-serif" }}
+                  onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                  onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}
                 >
                   Demo businesses →
                 </a>
-                {/* Init demo button */}
-                <button
-                  onClick={initDemoBusinesses}
-                  disabled={demoInitialising}
-                  style={{ fontSize: '0.65rem', color: demoInitialising ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.35)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, cursor: demoInitialising ? 'not-allowed' : 'pointer', padding: '0.2rem 0.4rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}
-                >
-                  {demoInitialising ? 'Initialising…' : 'Seed demo data'}
-                </button>
               </div>
             )}
 
@@ -879,12 +844,20 @@ const Portal = () => {
               <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Owner preview</span>
               {'  ·  '}{preview.previewBusinessName}
             </span>
-            <button
-              onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
-              style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
-            >
-              Exit preview
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <button
+                onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
+                style={{ background: 'none', border: 'none', color: 'rgba(26,5,51,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
+              >
+                ← Change business
+              </button>
+              <button
+                onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
+                style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Exit preview
+              </button>
+            </div>
           </div>
         )}
 
