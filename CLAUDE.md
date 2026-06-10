@@ -99,21 +99,135 @@ Locked sections: `blur(3px)` + `opacity 0.45` + absolute white badge.
 
 ---
 
+## Product Architecture — LOCKED 2026-06-10
+
+Three products. Two standalones. One augmentation layer.
+
+### Answer (standalone)
+AI answers missed calls, triages intent, captures leads, routes to booking or callback. Core product.
+
+### Schedule (standalone)
+Calendar and scheduling. **Basic tier always free** with any purchase. Multi-person scheduling is a paid add-on (£5/mo + £2 per additional person). Enterprise/Bespoke: multi-person included.
+Schedule is a deliberate Trojan horse — feature-rich beyond any competitor free offering, designed to hook buyers into the brand and upsell to Answer.
+
+### Listen (augmentation layer — requires Answer OR paid Schedule)
+Real-time AI screen copilot activated when the owner picks up a call themselves. Hears the live conversation, surfaces context on screen: creates bookings as they speak, shows customer history, checks staff availability, suggests catalogue items. Owner confirms with one tap.
+- With **Answer**: augments human-answered calls alongside AI-answered ones
+- With **Schedule**: augments inbound booking calls for calendar-only buyers
+- **Cannot stand alone** — requires telephony infrastructure from Answer or paid Schedule
+- Priced at ~£10/mo + 3–4p per minute (to be confirmed)
+- **Not available on free Schedule tier**
+- Future extension: Alexa/ambient device integration (V2)
+
+### The complete call handling system
+| Scenario | Product |
+|----------|---------|
+| Owner unavailable — AI answers | Answer |
+| Owner picks up — AI augments live | Listen |
+| Caller wants to book — live booking created on screen | Listen |
+
+---
+
 ## Portal Structure
 
-Shell: 260px collapsible violet sidebar (60px collapsed) → `#f7f6f9` content. Default tab: Dashboard. Nav is product-grouped (Answer / Calendar / Listen / platform).
+Shell: 260px collapsible violet sidebar (60px collapsed) → `#f7f6f9` content. Nav is product-grouped. Default tab: Dashboard (Answer) or Calendar (Schedule-only).
 
-| Tab | File | Status |
-|-----|------|--------|
-| Dashboard | `ActivityDashboard.jsx` | BUILT |
-| Analytics | `DataAnalytics.jsx` | BUILT |
-| Answer AI | `AIBehaviour.jsx` | BUILT |
-| Partners & Referrals | `PartnersReferrals.jsx` | BUILT |
-| Team | `StaffDirectory.jsx` | BUILT |
-| Calendar | `Calendar.jsx` | BUILT |
-| Integrations | `Integrations.jsx` | BUILT |
-| Account / Settings | `AccountSettings.jsx` | BUILT |
-| Business Profile | `BusinessProfile.jsx` | BUILT (under Settings breadcrumb) |
+### Navigation by purchase combination
+
+**Answer only:**
+```
+ANSWER
+  ├── Dashboard
+  ├── AI Settings
+  ├── Analytics
+  └── Partners & Referrals
+────────────────
+  Integrations
+  Business Profile
+  Account & Billing
+```
+
+**Answer + Listen:**
+```
+ANSWER
+  ├── Dashboard
+  ├── AI Settings
+  ├── Analytics
+  └── Partners & Referrals
+LISTEN
+  └── Transcripts / Live Copilot
+────────────────
+  Integrations
+  Business Profile
+  Account & Billing
+```
+
+**Answer + Schedule:**
+```
+ANSWER
+  ├── Dashboard
+  ├── AI Settings
+  ├── Analytics
+  └── Partners & Referrals
+SCHEDULE
+  ├── Calendar
+  └── Team
+────────────────
+  Integrations
+  Business Profile
+  Account & Billing
+```
+
+**Answer + Listen + Schedule:**
+```
+ANSWER
+  └── ...
+LISTEN
+  └── Transcripts / Live Copilot
+SCHEDULE
+  ├── Calendar
+  └── Team
+────────────────
+  Integrations · Business Profile · Account & Billing
+```
+
+**Schedule only (standalone entry point):**
+```
+SCHEDULE
+  ├── Calendar        ← they came for this
+  ├── Team            ← surprise
+  ├── Services        ← surprise
+  ├── Analytics       ← surprise
+  └── Partners        ← surprise
+────────────────
+  Integrations
+  Business Profile
+  Account & Billing   ← Answer visible here as upsell
+```
+
+### Nav rules
+- Product groups only render if that product is purchased
+- Locked products show as greyed group header with lock icon — clicking opens upgrade modal
+- Basic Schedule (free) always renders for any buyer — never locked
+- Multi-person Team features within Schedule locked unless multi-person add-on purchased
+- Listen locked on free Schedule tier
+- Active group stays open by default — no extra clicks for single-product buyers
+- Account & Billing tab is the silent salesperson — shows all products, one click to add
+
+### Tab inventory
+| Tab | File | Group | Status |
+|-----|------|-------|--------|
+| Dashboard | `ActivityDashboard.jsx` | Answer | BUILT |
+| AI Settings | `AIBehaviour.jsx` | Answer | BUILT |
+| Analytics | `DataAnalytics.jsx` | Answer | BUILT |
+| Partners & Referrals | `PartnersReferrals.jsx` | Answer | BUILT |
+| Calendar | `Calendar.jsx` | Schedule | BUILT |
+| Team | `StaffDirectory.jsx` | Schedule | BUILT — needs moving from Answer |
+| Services | `BusinessProfile.jsx` (catalogue section) | Schedule | BUILT — needs exposing as tab |
+| Listen | `ListenTab.jsx` | Listen | BUILT — needs live copilot mode |
+| Integrations | `Integrations.jsx` | Platform | BUILT |
+| Business Profile | `BusinessProfile.jsx` | Platform | BUILT |
+| Account & Billing | `AccountSettings.jsx` | Platform | BUILT |
 
 **Vera help mascot:** `src/components/HelpMascot.jsx` — violet owl, bobs top of every page. Click Vera → all `[data-help]` elements pulse amber (`.vera-hover-mode` body class). Hover any to get explanation bubble. "Need more help?" button opens glowing zone mode → click zone → draggable Claude Haiku dialogue panel. Label: "Click on Vera the owl / for suggestions" (12px, `#5e3b87`, italic).
 
@@ -394,6 +508,44 @@ admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator
 - [x] Test accounts: 12 real Supabase auth accounts covering all visual states. Password: `Qerxel2026!`. Seed scripts: `seed-test-accounts.mjs`, `seed-two-accounts.mjs`.
 - [x] Cross-functional warnings across 5 tabs: booking link missing (Dashboard + AIBehaviour), PAYG + no daily summary (AccountSettings), banned item / partner specialty overlap (PartnersReferrals), staff DID + offline status (StaffDirectory).
 - [x] Listen tab gating: hidden when `listen_tier === 'none'`, compact `＋ Add Listen` upsell strip in sidebar.
+
+### Action Plan — Session 20 (2026-06-10) — Nav restructure + product architecture
+
+**Priority 1 — Sidebar rebuild (Portal.jsx)**
+- [ ] Replace flat tab list with product-grouped nav: Answer / Listen / Schedule / Platform
+- [ ] Group headers with product label, active dot (amber), collapse/expand
+- [ ] Gate logic: render group only if product purchased (`answer_tier`, `listen_tier`, `schedule_tier` fields on tenant)
+- [ ] Locked state: greyed group header + lock icon + click → upgrade modal
+- [ ] Move Team tab from Answer group to Schedule group
+- [ ] Basic Schedule always renders (never locked) — multi-person features locked within Calendar
+
+**Priority 2 — Schedule-only experience (dazzle)**
+- [ ] When tenant has Schedule only: expose Calendar, Team, Services, Analytics, Partners as full nav
+- [ ] Services tab: extract catalogue section from BusinessProfile into standalone Schedule nav item
+- [ ] Analytics tab: surface staff/appointment analytics for Schedule-only buyers
+- [ ] Account & Billing: Answer shown as upsell product with one-click add
+
+**Priority 3 — Listen architecture decision (park until pricing confirmed)**
+- [ ] Confirm Listen pricing (£10/mo + 3–4p/min)
+- [ ] Confirm Listen-with-Schedule infrastructure (Twilio conference monitoring likely)
+- [ ] Build live copilot UI mode for Listen tab (separate from transcript archive mode)
+
+**Priority 4 — Pricing tier update**
+- [ ] Confirm final tier names and prices (new structure proposed but not locked)
+- [ ] Update PlanSelector, onboarding, AccountSettings, all tier references
+- [ ] Confirm Schedule multi-person pricing: £5/mo + £2/person
+- [ ] Confirm Vera's permanent name
+
+**Decisions already locked (do not revisit):**
+- Product-grouped sidebar nav ✅
+- Two standalones: Answer + Schedule ✅
+- Listen = augmentation layer, requires Answer or paid Schedule ✅
+- Schedule basic = always free ✅
+- Team tab belongs under Schedule ✅
+- Listen sits below Answer, above Schedule in nav ✅
+- Schedule-only nav is feature-rich (dazzle strategy) ✅
+
+---
 
 ### Remaining (user actions required)
 - [ ] Run `supabase_listen_columns.sql` in Supabase SQL editor (all outstanding column additions — idempotent, safe to re-run)
