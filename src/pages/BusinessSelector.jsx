@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../supabase'
 
 const TIER_STYLE = {
   light:        { label: 'Light',        color: '#666',    bg: '#f0f0f0' },
@@ -151,14 +150,19 @@ const BusinessSelector = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    supabase
-      .from('tenants')
-      .select('id, business_name, subscription_tier, credit_balance_months, included_minutes, triage_mode')
-      .eq('is_demo', true)
-      .order('subscription_tier', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) setLoadError(error.message)
-        setBusinesses(data || [])
+    fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'demo-businesses' }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) setLoadError(d.error)
+        setBusinesses(d.businesses || [])
+        setLoading(false)
+      })
+      .catch(err => {
+        setLoadError(err.message)
         setLoading(false)
       })
   }, [])
@@ -273,8 +277,8 @@ const BusinessSelector = () => {
                         <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#5e3b87' }}>{biz.included_minutes}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.65rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Credits</div>
-                        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#f0a500' }}>{biz.credit_balance_months || 0}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Triage</div>
+                        <div style={{ fontSize: '0.85rem', color: '#888', textTransform: 'capitalize', fontWeight: 500 }}>{biz.triage_mode || 'balanced'}</div>
                       </div>
                       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end' }}>
                         <span style={{ fontSize: '0.8rem', color: '#5e3b87', fontWeight: '500' }}>Select →</span>

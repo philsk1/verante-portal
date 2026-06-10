@@ -328,6 +328,17 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── demo-businesses — no auth required, service role bypasses RLS ──────────
+  if (action === 'demo-businesses') {
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, business_name, subscription_tier, included_minutes, triage_mode')
+      .eq('is_demo', true)
+      .order('subscription_tier', { ascending: true })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ businesses: data || [] })
+  }
+
   // ── owner-tenants ──────────────────────────────────────────────────────────
   if (userEmail !== undefined) {
     if (userEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
