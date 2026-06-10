@@ -11,6 +11,7 @@ const TIERS = [
 const EXP_LABELS = {
   'schedule-basic':               'Schedule — Solo',
   'schedule-multi':               'Schedule — Multi-Staff',
+  'schedule-listen':              'Schedule + Listen',
   'answer':                       'Answer only',
   'answer-schedule-multi':        'Answer + Schedule',
   'answer-listen':                'Answer + Listen',

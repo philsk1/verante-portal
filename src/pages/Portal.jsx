@@ -196,7 +196,7 @@ const Portal = () => {
     if (params.get('upgraded')) return 'settings'
     if (params.get('tab') === 'integrations') return 'integrations'
     const exp = params.get('exp')
-    if (exp === 'schedule-basic' || exp === 'schedule-multi') return 'calendar'
+    if (exp === 'schedule-basic' || exp === 'schedule-multi' || exp === 'schedule-listen') return 'calendar'
     return 'dashboard'
   })
   const [checking, setChecking] = useState(true)
@@ -372,6 +372,7 @@ const Portal = () => {
   const EXP_MAP = {
     'schedule-basic':               { answer: false, listen: false, scheduleMulti: false },
     'schedule-multi':               { answer: false, listen: false, scheduleMulti: true  },
+    'schedule-listen':              { answer: false, listen: true,  scheduleMulti: true  },
     'answer':                       { answer: true,  listen: false, scheduleMulti: false },
     'answer-schedule-multi':        { answer: true,  listen: false, scheduleMulti: true  },
     'answer-listen':                { answer: true,  listen: true,  scheduleMulti: false },
