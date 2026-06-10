@@ -26,6 +26,16 @@ const DemoLogin = () => {
         return
       }
 
+      // Sign in as the shared demo Supabase user so the real Portal shell works
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: 'demo@qerxel.app',
+        password: 'QerxelDemo2026!',
+      })
+      if (authErr) {
+        setError('Demo sign-in failed. Please try again.')
+        return
+      }
+
       localStorage.setItem('demo_session', JSON.stringify({
         id:    data.id,
         email: data.email,

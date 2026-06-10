@@ -83,7 +83,7 @@ const BusinessSelector = () => {
             {businesses.map(biz => (
               <button
                 key={biz.id}
-                onClick={() => navigate(`/demo/tier/${biz.id}`)}
+                onClick={() => navigate(`/portal?ownerPreview=${biz.id}&ownerName=${encodeURIComponent(biz.business_name)}`)}
                 style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.12)', borderRadius: '12px', padding: '1.5rem', cursor: 'pointer', textAlign: 'left', boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s', fontFamily: "'DM Sans', sans-serif" }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.25)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}

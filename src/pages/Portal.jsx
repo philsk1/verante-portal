@@ -201,6 +201,7 @@ const Portal = () => {
   const [businessName, setBusinessName] = useState('')
   const [tenantId, setTenantId] = useState(null)
   const [isOwner, setIsOwner] = useState(false)
+  const [isDemoUser, setIsDemoUser] = useState(false)
   const [allTenants, setAllTenants] = useState([])
   const [calendarPrefill, setCalendarPrefill] = useState(null)
   const [listenPrefill, setListenPrefill]     = useState(null)
@@ -284,17 +285,20 @@ const Portal = () => {
         .or('status.is.null,status.eq.new')
       setUncontactedCount(leadCount || 0)
 
-      if (user.email === 'finsolsoffice@gmail.com') {
-        setIsOwner(true)
+      const isOwnerEmail = user.email === 'finsolsoffice@gmail.com'
+      const _isDemoUser  = user.email === 'demo@qerxel.app'
+      if (_isDemoUser) setIsDemoUser(true)
+
+      if (isOwnerEmail || _isDemoUser) {
+        if (isOwnerEmail) setIsOwner(true)
         const params = new URLSearchParams(window.location.search)
         const previewId   = params.get('ownerPreview')
         const previewName = params.get('ownerName') || ''
         if (previewId) {
-          // Came from OwnerSelector — commit preview and clean the URL
           preview.enterPreview(previewId, decodeURIComponent(previewName))
           navigate('/portal', { replace: true })
         } else if (!preview.isPreview) {
-          navigate('/owner/select', { replace: true })
+          navigate(_isDemoUser ? '/demo/select' : '/owner/select', { replace: true })
           return
         }
       }
@@ -802,22 +806,24 @@ const Portal = () => {
         {preview.isPreview && (
           <div style={{ background: '#f0a500', color: '#1a0533', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', boxSizing: 'border-box', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
             <span style={{ fontWeight: 600 }}>
-              <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Owner preview</span>
+              <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{isDemoUser ? 'Demo' : 'Owner preview'}</span>
               {'  ·  '}{preview.previewBusinessName}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <button
-                onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
+                onClick={() => { preview.exitPreview(); navigate(isDemoUser ? '/demo/select' : '/owner/select') }}
                 style={{ background: 'none', border: 'none', color: 'rgba(26,5,51,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
               >
-                ← Change business
+                ← {isDemoUser ? 'All businesses' : 'Change business'}
               </button>
-              <button
-                onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
-                style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
-              >
-                Exit preview
-              </button>
+              {!isDemoUser && (
+                <button
+                  onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
+                  style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  Exit preview
+                </button>
+              )}
             </div>
           </div>
         )}
