@@ -146,16 +146,18 @@ const EXPERIENCES = [
 const BusinessSelector = () => {
   const [businesses, setBusinesses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [view, setView] = useState('businesses')
   const navigate = useNavigate()
 
   useEffect(() => {
     supabase
       .from('tenants')
-      .select('id, business_name, subscription_tier, listen_tier, credit_balance_months, included_minutes, triage_mode')
+      .select('id, business_name, subscription_tier, credit_balance_months, included_minutes, triage_mode')
       .eq('is_demo', true)
       .order('subscription_tier', { ascending: true })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) setLoadError(error.message)
         setBusinesses(data || [])
         setLoading(false)
       })
@@ -233,10 +235,16 @@ const BusinessSelector = () => {
         {view === 'businesses' && (
           loading ? (
             <div style={{ color: '#aaa', fontSize: '0.875rem' }}>Loading businesses…</div>
+          ) : loadError ? (
+            <div style={{ background: '#fff5f5', border: '1px solid #fca5a5', borderRadius: '8px', padding: '1rem 1.25rem', fontSize: '0.8rem', color: '#991b1b' }}>
+              Could not load businesses: {loadError}
+            </div>
+          ) : businesses.length === 0 ? (
+            <div style={{ color: '#aaa', fontSize: '0.875rem' }}>No demo businesses found. Make sure tenants have <code>is_demo = true</code> set in the database.</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
               {businesses.map(biz => {
-                const { hasListen, hasPaidSchedule } = getProducts(biz.subscription_tier, biz.listen_tier)
+                const { hasListen, hasPaidSchedule } = getProducts(biz.subscription_tier, null)
                 return (
                   <button
                     key={biz.id}
@@ -285,17 +293,21 @@ const BusinessSelector = () => {
             {EXPERIENCES.map((ex, i) => (
               <button
                 key={i}
-                onClick={() => sourceId && navigate(`/portal?ownerPreview=${sourceId}&ownerName=${encodeURIComponent(sourceName)}&exp=${ex.exp}`)}
-                disabled={!sourceId}
+                onClick={() => {
+                  const url = sourceId
+                    ? `/portal?ownerPreview=${sourceId}&ownerName=${encodeURIComponent(sourceName)}&exp=${ex.exp}`
+                    : `/portal?exp=${ex.exp}`
+                  navigate(url)
+                }}
                 style={{
                   background: 'white', border: '0.5px solid rgba(94,59,135,0.12)',
                   borderLeft: `3px solid ${ex.accent}`,
                   borderRadius: '10px', padding: '1.25rem',
-                  cursor: sourceId ? 'pointer' : 'default', textAlign: 'left',
+                  cursor: 'pointer', textAlign: 'left',
                   boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s',
                   fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', gap: '0.65rem',
                 }}
-                onMouseEnter={e => { if (sourceId) { e.currentTarget.style.boxShadow = '0 4px 18px rgba(94,59,135,0.12)' } }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 18px rgba(94,59,135,0.12)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)' }}
               >
                 <div>
