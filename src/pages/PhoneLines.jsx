@@ -26,8 +26,8 @@ const UK_AREAS = [
 ]
 
 const s = {
-  page: { padding: '2rem', maxWidth: 820, fontFamily: "'DM Sans', sans-serif" },
-  pageHeader: { marginBottom: '2rem' },
+  page: { padding: '0.25rem 2rem 2rem', maxWidth: 820, fontFamily: "'DM Sans', sans-serif" },
+  pageHeader: { marginBottom: '0.85rem' },
   h1: { fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.3rem' },
   sub: { fontSize: '0.875rem', color: '#888', margin: 0 },
   card: { background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1.5rem', marginBottom: '1.25rem' },

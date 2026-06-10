@@ -104,7 +104,7 @@ const VeraDialogue = ({ id, zoneText, zoneName, tabName, initialRect, onClose })
       >
         <div>
           <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 2 }}>
-            Vera · {tabName}
+            Q · {tabName}
           </div>
           <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'white', fontFamily: "'DM Sans', sans-serif" }}>
             {title}

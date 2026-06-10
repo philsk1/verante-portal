@@ -1668,14 +1668,14 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           ))}
         </div>
 
-        {/* Work Harder button — always visible */}
+        {/* Grow Profit button — always visible */}
         <button
           onClick={() => setWorkHarderOpen(true)}
           style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.8rem', background: '#f0a500', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0, boxShadow: '0 2px 8px rgba(240,165,0,0.35)', transition: 'transform 0.12s' }}
           onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)' }}
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
         >
-          ✦ Work harder
+          ✦ Grow profit
         </button>
 
         {/* Quick-access + status legend — appointments tab only */}
@@ -2098,7 +2098,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           onClick={e => { if (e.target === e.currentTarget) setWorkHarderOpen(false) }}>
           {/* Header */}
           <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.4rem' }}>Make this calendar work harder</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.4rem' }}>Grow your profit</div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: 'rgba(255,255,255,0.55)' }}>Choose what you want to understand about your business</div>
           </div>
           {/* 2×2 card grid */}

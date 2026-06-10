@@ -527,6 +527,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
+  const leadsZoneRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
@@ -1260,8 +1261,10 @@ const ActivityDashboard = ({ onNavigate }) => {
               {callsToday > 0 ? `${callsToday} call${callsToday !== 1 ? 's' : ''} today` : 'No calls today'}
             </div>
             {actionableLeads.length > 0 ? (
-              <div style={{ fontSize: '0.72rem', color: '#c0392b', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>
-                {actionableLeads.length} lead{actionableLeads.length !== 1 ? 's' : ''} need follow-up
+              <div
+                onClick={() => leadsZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                style={{ fontSize: '0.72rem', color: '#c0392b', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>
+                {actionableLeads.length} lead{actionableLeads.length !== 1 ? 's' : ''} need follow-up ↓
               </div>
             ) : callsThisMonth > 0 ? (
               <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>All leads handled</div>
@@ -1433,7 +1436,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         </div>
 
         {/* COL 2 — Leads requiring action */}
-        <div>
+        <div ref={leadsZoneRef}>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}
             data-help="Leads requiring action are people who called in and need a follow-up. The quicker you respond, the higher the conversion rate.">
             Leads requiring action
@@ -1519,9 +1522,10 @@ const ActivityDashboard = ({ onNavigate }) => {
                 </motion.div>
               ))}
               {actionableLeads.length > 5 && (
-                <div style={{ fontSize: '0.75rem', color: '#bbb', paddingLeft: '0.25rem' }}>
-                  +{actionableLeads.length - 5} more
-                </div>
+                <button onClick={() => setPipelineView(true)}
+                  style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600, background: 'none', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, padding: '0.3rem 0.65rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left' }}>
+                  +{actionableLeads.length - 5} more — view all →
+                </button>
               )}
             </div>
           )}

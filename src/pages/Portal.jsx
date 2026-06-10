@@ -221,6 +221,7 @@ const Portal = () => {
   const [uncontactedCount, setUncontactedCount] = useState(0)
   const [listenTier, setListenTier] = useState('none')
   const [planSelectorTrigger, setPlanSelectorTrigger] = useState(0)
+  const [teamOpenAdd, setTeamOpenAdd] = useState(false)
 
   const navigate = useNavigate()
 
@@ -230,6 +231,8 @@ const Portal = () => {
     else setCalendarPrefill(null)
     if (tabId === 'listen' && prefillData?.callId) setListenPrefill(prefillData)
     else if (tabId !== 'listen') setListenPrefill(null)
+    if (tabId === 'team' && prefillData?.openAdd) setTeamOpenAdd(true)
+    else if (tabId === 'team') setTeamOpenAdd(false)
   }
 
   const TAB_CONTEXT = {
@@ -417,7 +420,7 @@ const Portal = () => {
       case 'dashboard':    return <ActivityDashboard onNavigate={handleNavigate} />
       case 'analytics':    return <DataAnalytics onNavigate={handleNavigate} />
       case 'referrals':    return <PartnersReferrals onNavigate={handleNavigate} />
-      case 'team':         return <StaffDirectory onNavigate={handleNavigate} />
+      case 'team':         return <StaffDirectory onNavigate={handleNavigate} openAdd={teamOpenAdd} onOpenAddConsumed={() => setTeamOpenAdd(false)} />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} triggerPlanSelector={planSelectorTrigger} />
@@ -693,7 +696,7 @@ const Portal = () => {
               {[
                 { id: 'bell', icon: <IcoBell />, label: 'Notifications', action: () => setNotifPanelOpen(o => !o), active: notifPanelOpen },
                 { id: 'gear', icon: <IcoGear />, label: 'Settings', action: () => setActiveTab('settings'), active: activeTab === 'settings' },
-                { id: 'vera', icon: <IcoVera />, label: 'Ask Vera', action: () => document.getElementById('vera-trigger-btn')?.click(), active: false },
+                { id: 'vera', icon: <IcoVera />, label: 'Ask Q', action: () => document.getElementById('vera-trigger-btn')?.click(), active: false },
                 { id: 'signout', icon: <IcoSignOut />, label: 'Sign out', action: handleSignOut, active: false },
               ].map(item => (
                 <button
@@ -860,12 +863,12 @@ const Portal = () => {
           {(() => {
             const veraAlert = (() => {
               if (activeTab === 'dashboard' || activeTab === 'analytics') {
-                if (holidayMode) return '🌙 Vera: Holiday mode is on — your AI is paused. Disable it in Settings when you\'re back.'
-                if (uncontactedCount >= 5) return `⚡ Vera: ${uncontactedCount} leads are waiting. The first hour matters most — callers who aren't called back often move on.`
-                if (uncontactedCount >= 2) return `💡 Vera: ${uncontactedCount} leads need a follow-up. A quick call now could convert them.`
+                if (holidayMode) return '🌙 Q: Holiday mode is on — your AI is paused. Disable it in Settings when you\'re back.'
+                if (uncontactedCount >= 5) return `⚡ Q: ${uncontactedCount} leads are waiting. The first hour matters most — callers who aren't called back often move on.`
+                if (uncontactedCount >= 2) return `💡 Q: ${uncontactedCount} leads need a follow-up. A quick call now could convert them.`
               }
-              if (activeTab === 'referrals' && uncontactedCount >= 3) return `💡 Vera: You have ${uncontactedCount} uncalled leads on your dashboard. Partners bring more value when you close the ones you have.`
-              if (activeTab === 'team' && uncontactedCount > 0) return `💡 Vera: ${uncontactedCount} lead${uncontactedCount !== 1 ? 's' : ''} waiting on the dashboard. Your team might be able to help with follow-up calls.`
+              if (activeTab === 'referrals' && uncontactedCount >= 3) return `💡 Q: You have ${uncontactedCount} uncalled leads on your dashboard. Partners bring more value when you close the ones you have.`
+              if (activeTab === 'team' && uncontactedCount > 0) return `💡 Q: ${uncontactedCount} lead${uncontactedCount !== 1 ? 's' : ''} waiting on the dashboard. Your team might be able to help with follow-up calls.`
               return null
             })()
             const mascot = <HelpMascot activeTab={activeTab} businessName={displayName} tenantId={activeTenantId} contextKey={TAB_CONTEXT[activeTab]} veraAlert={veraAlert} />

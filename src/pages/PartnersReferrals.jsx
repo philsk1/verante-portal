@@ -324,9 +324,12 @@ const PartnersReferrals = ({ onNavigate }) => {
           return (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.6rem 0.75rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.78rem', color: '#78460a', lineHeight: 1.45 }}>
               <span style={{ flexShrink: 0, marginTop: '0.05rem' }}>⚠</span>
-              <span>
-                {conflicts.map(p => p.name).join(', ')} {conflicts.length === 1 ? 'specialises' : 'specialise'} in a service you've marked as out-of-scope in Business Profile. Your AI may refer callers for work you don't want to take.
-              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ marginBottom: '0.4rem' }}>{conflicts.map(p => p.name).join(', ')} {conflicts.length === 1 ? 'specialises' : 'specialise'} in a service you've marked as out-of-scope. Your AI may refer callers for work you don't want to take.</div>
+                <button onClick={() => onNavigate && onNavigate('profile')} style={{ padding: '0.25rem 0.65rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 5, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  → Review banned items in Business Profile
+                </button>
+              </div>
             </div>
           )
         })()}

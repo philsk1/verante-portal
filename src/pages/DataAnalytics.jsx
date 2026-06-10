@@ -907,8 +907,8 @@ const DataAnalytics = ({ onNavigate }) => {
               diagnosis = `Your AI is converting ${leadRate}% of calls into lead records. This could reflect the mix of calls you're receiving, your current conversation style, or enquiries that are genuinely out of scope. It's worth reviewing what types of calls are coming in before adjusting anything.`
               actions = [{ label: 'Review conversation style', nav: 'ai' }]
             } else if (totalLeads > 3 && uncontactedPct > 40) {
-              diagnosis = `Your AI is capturing leads. The gap is in follow-up — ${uncontacted} of ${totalLeads} captured leads (${uncontactedPct}%) haven't been contacted yet. The faster a lead is followed up, the higher the conversion rate. Automated SMS follow-up can close that window.`
-              actions = [{ label: 'Enable SMS follow-up', nav: 'ai' }]
+              diagnosis = `Your AI is capturing leads. The gap is in follow-up — ${uncontacted} of ${totalLeads} captured leads (${uncontactedPct}%) haven't been contacted yet. The faster a lead is followed up, the higher the conversion rate.`
+              actions = [{ label: 'View uncontacted leads', nav: 'dashboard' }, { label: 'Enable SMS follow-up', nav: 'ai' }]
             } else if (totalLeads > 0 && pct(leadsByStatus.converted || 0, totalLeads) < 15) {
               diagnosis = `Capture and follow-up look reasonable. The next lever is conversion — how the conversation develops once you make contact. This is a sales and fit question, not a technology one.`
             } else {

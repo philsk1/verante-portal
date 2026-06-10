@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import VeraDialogue from './VeraDialogue'
+import QBotIcon from './QBotIcon'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -46,43 +47,6 @@ const injectStyles = () => {
   document.head.appendChild(el)
 }
 
-// ─── Owl SVG ──────────────────────────────────────────────────────────────────
-
-const Owl = ({ w = 44, h = 72, blink = false }) => (
-  <svg width={w} height={h} viewBox="0 0 80 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="23" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(-18 23 8)" />
-    <ellipse cx="57" cy="8"  rx="7" ry="13" fill="#4a2d6e" transform="rotate(18 57 8)" />
-    <ellipse cx="40" cy="94" rx="21" ry="28" fill="#5e3b87" />
-    <path d="M22,78 C6,84 2,102 10,114 C16,110 20,100 26,90 Z" fill="#4a2d6e" />
-    <path d="M58,78 C74,84 78,102 70,114 C64,110 60,100 54,90 Z" fill="#4a2d6e" />
-    <ellipse cx="40" cy="100" rx="13" ry="18" fill="rgba(255,255,255,0.1)" />
-    <path d="M31,88 Q40,92 49,88"  stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" fill="none" />
-    <path d="M29,98 Q40,102 51,98" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" fill="none" />
-    <circle cx="40" cy="38" r="30" fill="#5e3b87" />
-    <ellipse cx="40" cy="40" rx="23" ry="20" fill="rgba(255,255,255,0.09)" />
-    <circle cx="27" cy="36" r="12" fill="#f0a500" />
-    <circle cx="27" cy="36" r="9"  fill="white" />
-    {blink
-      ? <ellipse cx="27" cy="36" rx="9" ry="2" fill="#5e3b87" />
-      : <><circle cx="28" cy="35" r="5.5" fill="#1a0533" /><circle cx="30" cy="33" r="1.8" fill="white" /></>}
-    <circle cx="53" cy="36" r="12" fill="#f0a500" />
-    <circle cx="53" cy="36" r="9"  fill="white" />
-    {blink
-      ? <ellipse cx="53" cy="36" rx="9" ry="2" fill="#5e3b87" />
-      : <><circle cx="54" cy="35" r="5.5" fill="#1a0533" /><circle cx="56" cy="33" r="1.8" fill="white" /></>}
-    <polygon points="40,47 35,57 45,57" fill="#f0a500" />
-    <line x1="33" y1="119" x2="33" y2="126" stroke="#f0a500" strokeWidth="2.5" strokeLinecap="round" />
-    <line x1="33" y1="126" x2="26" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <line x1="33" y1="126" x2="33" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <line x1="33" y1="126" x2="40" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <line x1="47" y1="119" x2="47" y2="126" stroke="#f0a500" strokeWidth="2.5" strokeLinecap="round" />
-    <line x1="47" y1="126" x2="40" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <line x1="47" y1="126" x2="47" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <line x1="47" y1="126" x2="54" y2="130" stroke="#f0a500" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="65" cy="14" r="5" fill="#f0a500" />
-  </svg>
-)
-
 // ─── Floating hover bubble ────────────────────────────────────────────────────
 
 const FloatingBubble = ({ text, rect, visible }) => {
@@ -102,7 +66,7 @@ const FloatingBubble = ({ text, rect, visible }) => {
       opacity: visible ? 1 : 0,
       transition: visible ? 'none' : 'opacity 0.15s ease-in',
     }}>
-      <div style={{ flexShrink: 0, lineHeight: 0 }}><Owl w={30} h={49} /></div>
+      <div style={{ flexShrink: 0, lineHeight: 0 }}><QBotIcon w={80} h={80} /></div>
       <div style={{
         position: 'relative', background: 'white',
         border: '1px solid rgba(94,59,135,0.2)', borderRadius: '10px',
@@ -111,7 +75,7 @@ const FloatingBubble = ({ text, rect, visible }) => {
       }}>
         <div style={{ position: 'absolute', left: -7, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '7px solid rgba(94,59,135,0.2)' }} />
         <div style={{ position: 'absolute', left: -5, top: 12, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: '6px solid white' }} />
-        <div style={{ fontSize: '0.7rem', fontWeight: '600', color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.25rem' }}>Vera explains</div>
+        <div style={{ fontSize: '0.7rem', fontWeight: '600', color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.25rem' }}>Q explains</div>
         <p style={{ margin: 0, fontSize: '0.8rem', color: '#1a1a1a', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>{text}</p>
       </div>
     </div>
@@ -132,7 +96,6 @@ const TAB_LABELS = {
 let dialogueCounter = 0
 
 const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAlert = null }) => {
-  const [blink, setBlink]             = useState(false)
   const [alertDismissed, setAlertDismissed] = useState(false)
 
   // Vera hover mode
@@ -151,16 +114,6 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
   const [proactiveVisible, setProactiveVisible] = useState(false)
 
   useEffect(() => { injectStyles() }, [])
-
-  // Blink
-  useEffect(() => {
-    const schedule = () => setTimeout(() => {
-      setBlink(true)
-      setTimeout(() => { setBlink(false); schedule() }, 180)
-    }, 5000 + Math.random() * 4000)
-    const t = schedule()
-    return () => clearTimeout(t)
-  }, [])
 
   // Reset modes on tab change
   useEffect(() => {
@@ -304,19 +257,31 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
           id="vera-trigger-btn"
           className="vera-idle"
           onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
-          style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0, opacity: helpMode ? 1 : 0.7, transition: 'opacity 0.15s' }}
-          title={helpMode ? 'Close Vera' : 'Ask Vera for help'}
+          style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0 }}
+          title={helpMode ? 'Close Q' : 'Ask Q for help'}
         >
-          <Owl w={28} h={46} blink={blink} />
+          <QBotIcon w={90} h={90} />
         </div>
 
         {/* Need more help button */}
         {!needHelpMode ? (
           <button
             onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
-            style={{ padding: '0.25rem 0.65rem', background: 'white', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '999px', fontSize: '0.72rem', color: '#5e3b87', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flexShrink: 0 }}
+            style={{
+              padding: '0.25rem 0.65rem',
+              background: helpMode ? '#f0a500' : 'white',
+              border: helpMode ? '1px solid #f0a500' : '1px solid rgba(94,59,135,0.2)',
+              borderRadius: '999px',
+              fontSize: '0.72rem',
+              color: helpMode ? '#1a0533' : '#5e3b87',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+              fontWeight: helpMode ? 600 : 500,
+              flexShrink: 0,
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+            }}
           >
-            Ask Vera
+            Ask Q
           </button>
         ) : (
           <button

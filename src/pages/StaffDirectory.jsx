@@ -22,7 +22,7 @@ const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', bi
 const normaliseSpecs = (val) =>
   Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [])
 
-export default function StaffDirectory({ onNavigate }) {
+export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed }) {
   const { user } = useAuth()
   const preview = usePreview()
   const demo = useDemo()
@@ -43,6 +43,13 @@ export default function StaffDirectory({ onNavigate }) {
   const [addDraft, setAddDraft] = useState(EMPTY_MEMBER)
   const [addSaving, setAddSaving] = useState(false)
   const [editingSkills, setEditingSkills] = useState(false)
+
+  useEffect(() => {
+    if (!openAdd || isDemo || isPreview) return
+    setAdding(true)
+    setSelected(null)
+    onOpenAddConsumed?.()
+  }, [openAdd])
 
   useEffect(() => {
     if (!demo?.isDemo || demo.loading) return
@@ -239,13 +246,18 @@ export default function StaffDirectory({ onNavigate }) {
         {/* ── Staff list (left column) ─────────────────────────────────────── */}
         <div style={{ width: 260, flexShrink: 0 }}>
           {staff.length === 0 && !adding ? (
-            <div style={{ background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', padding: '2rem 1.25rem', textAlign: 'center' }}>
+            <div
+              onClick={!isDemo && !isPreview ? () => setAdding(true) : undefined}
+              style={{ background: 'white', borderRadius: 14, border: '1.5px dashed rgba(94,59,135,0.18)', padding: '2rem 1.25rem', textAlign: 'center', cursor: (!isDemo && !isPreview) ? 'pointer' : 'default', transition: 'border-color 0.15s, background 0.15s' }}
+              onMouseEnter={e => { if (!isDemo && !isPreview) { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' } }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(94,59,135,0.18)'; e.currentTarget.style.background = 'white' }}
+            >
               <div style={{ fontSize: '1.75rem', marginBottom: '0.65rem' }}>👥</div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>No team members yet</div>
-              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '1rem', lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
+              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: !isDemo && !isPreview ? '1rem' : 0, lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
               {!isDemo && !isPreview && (
-                <button onClick={() => setAdding(true)} style={{ padding: '0.45rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Add first member
+                <button onClick={e => { e.stopPropagation(); setAdding(true) }} style={{ padding: '0.45rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  + Add first member
                 </button>
               )}
             </div>
@@ -443,8 +455,12 @@ export default function StaffDirectory({ onNavigate }) {
                         </div>
                       </>
                     ) : (
-                      <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.65rem' }}>
-                        Add services in Business Profile to enable quick selection here.
+                      <div style={{ marginBottom: '0.65rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.4rem' }}>No services in catalogue yet.</div>
+                        <button onClick={() => onNavigate && onNavigate('profile')}
+                          style={{ padding: '0.25rem 0.65rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 5, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                          → Add services in Business Profile
+                        </button>
                       </div>
                     )}
                     <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Custom skill</div>
