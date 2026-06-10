@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../supabase'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function recentAppts(events, days = 90) {
@@ -41,6 +42,33 @@ function timeSince(dateStr) {
 function pct(n, d) {
   if (!d) return 0
   return Math.round((n / d) * 100)
+}
+
+// Returns total available minutes for staffList over `days` days back from today,
+// using per-staff per-day-of-week schedules from availMap.
+// Falls back to Mon–Fri 09:00–18:00 if a staff member has no schedule configured.
+function computeAvailMins(staffList, availMap, days) {
+  const now = new Date()
+  const cutoff = new Date(now)
+  cutoff.setDate(cutoff.getDate() - days)
+  let total = 0
+  for (let cur = new Date(cutoff); cur <= now; cur.setDate(cur.getDate() + 1)) {
+    const dow = cur.getDay() // 0=Sun … 6=Sat
+    if (staffList.length === 0) {
+      if (dow >= 1 && dow <= 5) total += 9 * 60 // solo fallback Mon-Fri 9h
+    } else {
+      staffList.forEach(s => {
+        const slot     = availMap[s.id]?.[dow]
+        const isActive = slot ? slot.on : (dow >= 1 && dow <= 5)
+        if (!isActive) return
+        const [sh, sm] = (slot?.start || '09:00').split(':').map(Number)
+        const [eh, em] = (slot?.end   || '18:00').split(':').map(Number)
+        const mins = (eh * 60 + em) - (sh * 60 + sm)
+        if (mins > 0) total += mins
+      })
+    }
+  }
+  return total
 }
 
 // ─── Q Briefing panel ─────────────────────────────────────────────────────────
@@ -102,8 +130,10 @@ function Bar({ value, max, colour = '#5e3b87', height = 8 }) {
 }
 
 // ─── PAGE 1: Time ─────────────────────────────────────────────────────────────
-function TimePage({ events, staff, catalogue }) {
+function TimePage({ events, staff, catalogue, availability }) {
   const appts = useMemo(() => recentAppts(events, 30), [events])
+
+  const capacityMins30 = useMemo(() => computeAvailMins(staff, availability, 30), [staff, availability])
 
   const stats = useMemo(() => {
     const totalAppts = appts.length
@@ -113,10 +143,8 @@ function TimePage({ events, staff, catalogue }) {
     }, 0)
     const totalHours = totalMins / 60
 
-    // Capacity: assume 9h day × 22 working days × max(1, staff.length)
-    const staffCount = Math.max(1, staff.length)
-    const capacityHours = 9 * 22 * staffCount
-    const utilPct = pct(totalHours, capacityHours)
+    const capacityHours = Math.round(capacityMins30 / 60)
+    const utilPct = pct(totalHours, capacityHours || 1)
 
     // Revenue estimate
     const revEstimate = appts.reduce((sum, e) => {
@@ -164,8 +192,9 @@ function TimePage({ events, staff, catalogue }) {
 
   const dataSummary = useMemo(() => {
     const top = Object.entries(stats.bySvc).sort((a,b) => b[1].count - a[1].count).slice(0, 3).map(([n, s]) => `${n} (${s.count} appts)`).join(', ')
-    return `Last 30 days: ${stats.totalAppts} appointments, ${stats.totalHours}h booked out of ~${Math.round(9 * 22 * Math.max(1, staff.length))}h capacity (${stats.utilPct}% utilisation). Estimated revenue: £${Math.round(stats.revEstimate)}. Revenue per hour: £${Math.round(stats.revenuePerHour)}. Top services: ${top || 'none recorded'}.`
-  }, [stats, staff])
+    const capacityHours = Math.round(capacityMins30 / 60)
+    return `Last 30 days: ${stats.totalAppts} appointments, ${stats.totalHours}h booked out of ${capacityHours}h available capacity (${stats.utilPct}% utilisation). Estimated revenue: £${Math.round(stats.revEstimate)}. Revenue per hour: £${Math.round(stats.revenuePerHour)}. Top services: ${top || 'none recorded'}.`
+  }, [stats, capacityMins30])
 
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const maxDay = Math.max(...stats.byDay, 1)
@@ -180,7 +209,7 @@ function TimePage({ events, staff, catalogue }) {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', marginBottom: '1.75rem' }}>
         <StatCard label="Appointments" value={stats.totalAppts} sub="last 30 days" />
-        <StatCard label="Hours booked" value={`${stats.totalHours}h`} sub={`of ~${Math.round(9*22*Math.max(1,staff.length))}h capacity`} />
+        <StatCard label="Hours booked" value={`${stats.totalHours}h`} sub={`of ${Math.round(capacityMins30/60)}h available`} />
         <StatCard label="Utilisation" value={`${stats.utilPct}%`} sub="of available time" accent={stats.utilPct >= 70 ? '#3db87a' : stats.utilPct >= 45 ? '#f0a500' : '#e05252'} />
         <StatCard label="Est. revenue" value={fmtGbp(stats.revEstimate)} sub={stats.revenuePerHour > 0 ? `${fmtGbp(Math.round(stats.revenuePerHour))}/hr` : 'add prices to services'} />
       </div>
@@ -394,7 +423,7 @@ function ClientsPage({ events, catalogue }) {
 }
 
 // ─── PAGE 3: Team ─────────────────────────────────────────────────────────────
-function TeamPage({ events, staff, catalogue }) {
+function TeamPage({ events, staff, catalogue, availability }) {
   const appts = useMemo(() => recentAppts(events, 30), [events])
 
   const teamStats = useMemo(() => {
@@ -406,8 +435,8 @@ function TeamPage({ events, staff, catalogue }) {
         return sum + (cat?.price_from || 0)
       }, 0)
       const avgTicket = memberAppts.length > 0 ? revenue / memberAppts.length : 0
-      const capacityMins = 9 * 60 * 22
-      const utilPct = pct(totalMins, capacityMins)
+      const capacityMins = computeAvailMins([member], availability, 30)
+      const utilPct = capacityMins > 0 ? pct(totalMins, capacityMins) : 0
 
       const svcCounts = {}
       memberAppts.forEach(e => {
@@ -417,9 +446,9 @@ function TeamPage({ events, staff, catalogue }) {
       })
       const topService = Object.entries(svcCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—'
 
-      return { ...member, apptCount: memberAppts.length, totalMins, revenue, avgTicket, utilPct, topService }
+      return { ...member, apptCount: memberAppts.length, totalMins, revenue, avgTicket, utilPct, topService, capacityMins }
     })
-  }, [appts, staff, catalogue])
+  }, [appts, staff, catalogue, availability])
 
   const unassigned = appts.filter(e => !e.resource?.staff_profile_id)
   const maxRevenue = Math.max(...teamStats.map(m => m.revenue), 1)
@@ -478,7 +507,7 @@ function TeamPage({ events, staff, catalogue }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#888', flexShrink: 0 }}>Utilisation</span>
               <div style={{ flex: 1 }}>
-                <Bar value={member.totalMins} max={9 * 60 * 22} colour={member.utilPct >= 70 ? '#3db87a' : member.utilPct >= 45 ? '#f0a500' : '#e05252'} height={6} />
+                <Bar value={member.totalMins} max={member.capacityMins || 9 * 60 * 22} colour={member.utilPct >= 70 ? '#3db87a' : member.utilPct >= 45 ? '#f0a500' : '#e05252'} height={6} />
               </div>
             </div>
             {member.revenue > 0 && (
@@ -677,8 +706,42 @@ const PAGES = {
   money:   { label: 'Where is money being left on the table?', icon: '💡', colour: '#d97706' },
 }
 
-export default function CalendarIntelligence({ page, events, staff, catalogue, onClose, onBack }) {
+export default function CalendarIntelligence({ page, events, staff, catalogue, tenantId, onClose, onBack }) {
   const meta = PAGES[page] || PAGES.time
+
+  const [availability, setAvailability] = useState({})
+  const staffIds = useMemo(() => staff.map(s => s.id).join(','), [staff])
+
+  useEffect(() => {
+    if (!staff.length) return
+    if (!tenantId) {
+      // No tenant (shouldn't happen) — default all staff to Mon-Fri 09:00-18:00
+      const map = {}
+      staff.forEach(s => {
+        map[s.id] = {}
+        for (let d = 0; d < 7; d++) map[s.id][d] = { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+      })
+      setAvailability(map)
+      return
+    }
+    supabase
+      .from('staff_availability')
+      .select('staff_profile_id, day_of_week, start_time, end_time, active')
+      .in('staff_profile_id', staff.map(s => s.id))
+      .then(({ data }) => {
+        const map = {}
+        staff.forEach(s => {
+          map[s.id] = {}
+          for (let d = 0; d < 7; d++) {
+            const row = data?.find(r => r.staff_profile_id === s.id && r.day_of_week === d)
+            map[s.id][d] = row
+              ? { on: row.active, start: row.start_time.slice(0, 5), end: row.end_time.slice(0, 5) }
+              : { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+          }
+        })
+        setAvailability(map)
+      })
+  }, [tenantId, staffIds])
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#f7f6f9', zIndex: 3000, display: 'flex', flexDirection: 'column', overflowY: 'hidden' }}>
@@ -699,9 +762,9 @@ export default function CalendarIntelligence({ page, events, staff, catalogue, o
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', maxWidth: 960, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
-        {page === 'time'    && <TimePage    events={events} staff={staff} catalogue={catalogue} />}
+        {page === 'time'    && <TimePage    events={events} staff={staff} catalogue={catalogue} availability={availability} />}
         {page === 'clients' && <ClientsPage events={events} catalogue={catalogue} />}
-        {page === 'team'    && <TeamPage    events={events} staff={staff} catalogue={catalogue} />}
+        {page === 'team'    && <TeamPage    events={events} staff={staff} catalogue={catalogue} availability={availability} />}
         {page === 'money'   && <MoneyPage   events={events} staff={staff} catalogue={catalogue} />}
       </div>
     </div>
