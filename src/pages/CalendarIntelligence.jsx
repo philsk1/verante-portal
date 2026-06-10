@@ -50,6 +50,8 @@ function QBrief({ page, dataSummary }) {
 
   useEffect(() => {
     if (!dataSummary) { setLoading(false); return }
+    setLoading(true)
+    setMessage(null)
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,12 +60,12 @@ function QBrief({ page, dataSummary }) {
       .then(r => r.json())
       .then(d => { setMessage(d.message || null); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }, [dataSummary])
 
   return (
     <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', borderRadius: 14, padding: '1.1rem 1.4rem', display: 'flex', gap: '1rem', marginBottom: '1.75rem', boxShadow: '0 4px 20px rgba(94,59,135,0.25)' }}>
-      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.3rem', backdropFilter: 'blur(4px)' }}>
-        🦉
+      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.15rem', color: 'white', lineHeight: 1 }}>Q</span>
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>Q says</div>
@@ -178,7 +180,7 @@ function TimePage({ events, staff, catalogue }) {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', marginBottom: '1.75rem' }}>
         <StatCard label="Appointments" value={stats.totalAppts} sub="last 30 days" />
-        <StatCard label="Hours booked" value={`${stats.totalHours}h`} sub="of ~${Math.round(9*22*Math.max(1,staff.length))}h capacity" />
+        <StatCard label="Hours booked" value={`${stats.totalHours}h`} sub={`of ~${Math.round(9*22*Math.max(1,staff.length))}h capacity`} />
         <StatCard label="Utilisation" value={`${stats.utilPct}%`} sub="of available time" accent={stats.utilPct >= 70 ? '#3db87a' : stats.utilPct >= 45 ? '#f0a500' : '#e05252'} />
         <StatCard label="Est. revenue" value={fmtGbp(stats.revEstimate)} sub={stats.revenuePerHour > 0 ? `${fmtGbp(Math.round(stats.revenuePerHour))}/hr` : 'add prices to services'} />
       </div>
