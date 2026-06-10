@@ -195,6 +195,8 @@ const Portal = () => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('upgraded')) return 'settings'
     if (params.get('tab') === 'integrations') return 'integrations'
+    const exp = params.get('exp')
+    if (exp === 'schedule-basic' || exp === 'schedule-multi') return 'calendar'
     return 'dashboard'
   })
   const [checking, setChecking] = useState(true)
@@ -366,36 +368,61 @@ const Portal = () => {
     }
   }
 
-  const hasListen = listenTier !== 'none'
+  // exp= URL param lets the demo/preview mode force a specific product combination
+  const EXP_MAP = {
+    'schedule-basic':               { answer: false, listen: false, scheduleMulti: false },
+    'schedule-multi':               { answer: false, listen: false, scheduleMulti: true  },
+    'answer':                       { answer: true,  listen: false, scheduleMulti: false },
+    'answer-schedule-multi':        { answer: true,  listen: false, scheduleMulti: true  },
+    'answer-listen':                { answer: true,  listen: true,  scheduleMulti: false },
+    'answer-listen-schedule-multi': { answer: true,  listen: true,  scheduleMulti: true  },
+  }
+  const expParam = new URLSearchParams(window.location.search).get('exp')
+  const expOverride = expParam ? (EXP_MAP[expParam] ?? null) : null
+
+  const hasAnswer = expOverride ? expOverride.answer : true
+  // Enterprise/Bespoke always includes Listen even if listen_tier not explicitly set in DB
+  const hasListen = expOverride
+    ? expOverride.listen
+    : listenTier !== 'none' || ['enterprise', 'bespoke'].includes(baseTier)
+  const hasScheduleMulti = expOverride
+    ? expOverride.scheduleMulti
+    : ['professional', 'enterprise', 'bespoke'].includes(baseTier)
 
   const PRODUCTS = [
-    {
-      id: 'answer',
-      label: 'Answer',
-      dot: '#f0a500',
-      tabs: [
-        { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
-        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
-        { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
-        { id: 'referrals', label: 'Partners',  icon: <IcoPartners /> },
-      ],
-    },
-    {
-      id: 'listen',
-      label: 'Listen',
-      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
-      locked: !hasListen,
-      tabs: [
-        { id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen },
-      ],
-    },
+    ...(hasAnswer ? [
+      {
+        id: 'answer',
+        label: 'Answer',
+        dot: '#f0a500',
+        tabs: [
+          { id: 'dashboard', label: 'Home',        icon: <IcoDashboard /> },
+          { id: 'analytics', label: 'Analytics',   icon: <IcoAnalytics /> },
+          { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
+          { id: 'referrals', label: 'Partners',    icon: <IcoPartners /> },
+        ],
+      },
+      {
+        id: 'listen',
+        label: 'Listen',
+        dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
+        locked: !hasListen,
+        tabs: [
+          { id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen },
+        ],
+      },
+    ] : []),
     {
       id: 'schedule',
       label: 'Schedule',
       dot: '#60a5fa',
       tabs: [
-        { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
-        { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
+        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
+        { id: 'team',      label: 'Team',      icon: <IcoPeople />,   locked: !hasScheduleMulti },
+        ...(!hasAnswer ? [
+          { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
+          { id: 'referrals', label: 'Partners',  icon: <IcoPartners /> },
+        ] : []),
       ],
     },
     { id: '_build_card', buildCard: true, tabs: [] },
@@ -799,8 +826,8 @@ const Portal = () => {
           <DemoBanner businessName={displayName} baseTier={baseTier} />
         )}
 
-        {/* Preview banner */}
-        {preview.isPreview && (
+        {/* Preview banner — owner only (suppressed when isDemo handles it) */}
+        {preview.isPreview && !preview.isDemo && (
           <div style={{ background: '#f0a500', color: '#1a0533', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', boxSizing: 'border-box', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
             <span style={{ fontWeight: 600 }}>
               <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{isDemoUser ? 'Demo' : 'Owner preview'}</span>
