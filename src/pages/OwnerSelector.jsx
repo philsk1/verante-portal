@@ -83,6 +83,14 @@ const OwnerSelector = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <a
+            href="/owner/audit"
+            style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}
+            onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.9)'}
+            onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.55)'}
+          >
+            DB Audit →
+          </a>
+          <a
             href="/demo/login"
             target="_blank"
             rel="noreferrer"

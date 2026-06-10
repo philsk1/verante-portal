@@ -14,6 +14,7 @@ import SalesPerformance from './pages/SalesPerformance'
 import PlanSelector from './pages/PlanSelector'
 import BookingPage from './pages/BookingPage'
 import OwnerSelector from './pages/OwnerSelector'
+import OwnerAudit from './pages/OwnerAudit'
 
 const App = () => {
   return (
@@ -42,10 +43,15 @@ const App = () => {
           <Route path="/demo/portal/:businessId/:tier" element={<DemoPortal />} />
           <Route path="/demo/performance" element={<SalesPerformance />} />
 
-          {/* Owner tenant selector — protected, email-checked inside the component */}
+          {/* Owner routes — email-gated inside each component */}
           <Route path="/owner/select" element={
             <ProtectedRoute>
               <OwnerSelector />
+            </ProtectedRoute>
+          } />
+          <Route path="/owner/audit" element={
+            <ProtectedRoute>
+              <OwnerAudit />
             </ProtectedRoute>
           } />
 
