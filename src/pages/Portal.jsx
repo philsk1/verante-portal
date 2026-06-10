@@ -366,7 +366,6 @@ const Portal = () => {
     }
   }
 
-  // Product-organised navigation — Listen only appears when subscribed
   const hasListen = listenTier !== 'none'
 
   const PRODUCTS = [
@@ -377,35 +376,34 @@ const Portal = () => {
       tabs: [
         { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
         { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
-        { id: 'ai',        label: 'Answer AI', icon: <IcoAI /> },
+        { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
+        { id: 'referrals', label: 'Partners',  icon: <IcoPartners /> },
       ],
     },
     {
-      id: 'calendar',
-      label: 'Calendar',
-      dot: '#1d4ed8',
+      id: 'listen',
+      label: 'Listen',
+      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
+      locked: !hasListen,
+      tabs: [
+        { id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen },
+      ],
+    },
+    {
+      id: 'schedule',
+      label: 'Schedule',
+      dot: '#60a5fa',
       tabs: [
         { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
         { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
       ],
     },
-    // Listen — shown only when tenant has subscribed (no upsell strip — handled by Build card)
-    ...(hasListen ? [{
-      id: 'listen',
-      label: 'Listen',
-      dot: '#3db87a',
-      tabs: [
-        { id: 'listen', label: 'Listen', icon: <IcoListen /> },
-      ],
-    }] : []),
-    // Build your Qerxel — bridges daily tabs and admin tabs
     { id: '_build_card', buildCard: true, tabs: [] },
     {
-      id: 'business',
-      label: 'Business',
+      id: 'platform',
+      label: 'Platform',
       dot: null,
       tabs: [
-        { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
         { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
         { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
         { id: 'lines',        label: 'Lines',            icon: <IcoPhone /> },
@@ -600,8 +598,8 @@ const Portal = () => {
                       {product.label}
                     </span>
                     {product.locked && (
-                      <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.07)', borderRadius: 3, padding: '0.05rem 0.3rem', letterSpacing: '0.06em' }}>
-                        SOON
+                      <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'rgba(255,255,255,0.22)', background: 'rgba(255,255,255,0.07)', borderRadius: 3, padding: '0.05rem 0.3rem', letterSpacing: '0.06em' }}>
+                        + Add
                       </span>
                     )}
                   </div>
@@ -619,11 +617,10 @@ const Portal = () => {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => !isLocked && setActiveTab(tab.id)}
+                      onClick={() => isLocked ? (setPlanSelectorTrigger(t => t + 1), setActiveTab('settings')) : setActiveTab(tab.id)}
                       onMouseEnter={() => setHoveredNav(tab.id)}
                       onMouseLeave={() => setHoveredNav(null)}
-                      title={sidebarCollapsed ? tab.label : undefined}
-                      disabled={isLocked}
+                      title={sidebarCollapsed ? (isLocked ? `Add ${product.label}` : tab.label) : undefined}
                       style={{
                         width: '100%', height: 40,
                         display: 'flex', alignItems: 'center',
