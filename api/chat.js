@@ -97,10 +97,45 @@ Key Qerxel facts:
   }
 }
 
+async function handleIntel(body, res) {
+  const { page, dataSummary } = body
+  if (!page || !dataSummary) return res.status(400).json({ error: 'Missing required fields' })
+
+  const pageLabels = {
+    time:    'calendar utilisation and service margin',
+    clients: 'client value and retention',
+    team:    'team performance and productivity',
+    money:   'revenue gaps and margin opportunities',
+  }
+
+  const systemPrompt = `You are Q, a business intelligence advisor built into the Qerxel calendar. You help UK small business owners understand their numbers and take action.
+
+You are analysing: ${pageLabels[page] || 'business performance'}.
+
+Data summary:
+${dataSummary}
+
+Give a 3–5 sentence briefing as if you've just reviewed this data personally. Mention specific numbers from the summary. End with one concrete action they can take today. Direct, confident, no jargon. Like a trusted advisor who knows their business.`
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: 'Brief me.' }],
+    })
+    return res.status(200).json({ message: response.content[0].text })
+  } catch (err) {
+    console.error('intel-brief error:', err.message)
+    return res.status(500).json({ error: 'Could not reach AI. Please try again.' })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { type } = req.body || {}
   if (type === 'vera') return handleVera(req.body, res)
   if (type === 'support') return handleSupport(req.body, res)
+  if (type === 'intel') return handleIntel(req.body, res)
   return res.status(400).json({ error: 'Unknown type' })
 }
