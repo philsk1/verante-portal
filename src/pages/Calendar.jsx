@@ -119,6 +119,7 @@ const CalendarToolbar = ({
   // extra controls passed via closure
   staff, staffFilter, setStaffFilter,
   teamMode, setTeamMode, smartView, setSmartView, hasAutoAdapted, setView,
+  todayMode, setTodayMode, todayStaffIds,
   onNew, hasTeamMode,
 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
@@ -161,6 +162,12 @@ const CalendarToolbar = ({
             style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: smartView ? '#f0a500' : 'transparent', color: smartView ? '#1a0533' : '#5e3b87', fontSize: '0.75rem', fontWeight: smartView ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Smart
           </button>
+          {todayStaffIds?.size > 0 && todayStaffIds.size < (staff || []).length && (
+            <button onClick={() => { setTeamMode(true); setTodayMode(!todayMode); setStaffFilter(''); setView('day'); setSmartView(false) }}
+              style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: todayMode ? '#3db87a' : 'transparent', color: todayMode ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: todayMode ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              In today
+            </button>
+          )}
         </div>
         <select value={staffFilter} onChange={e => { setStaffFilter(e.target.value); if (e.target.value) { setTeamMode(false); setView('week'); setSmartView(false) } }}
           style={{ padding: '0.25rem 0.5rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 6, fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", color: staffFilter ? '#5e3b87' : '#888', background: staffFilter ? '#f5f3ff' : 'white', cursor: 'pointer', fontWeight: staffFilter ? 600 : 400, maxWidth: 110 }}>
@@ -863,6 +870,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState('week')
   const [teamMode, setTeamMode] = useState(false)
+  const [todayMode, setTodayMode] = useState(false)
+  const [todayStaffIds, setTodayStaffIds] = useState(new Set())
   const [staffFilter, setStaffFilter] = useState('') // '' = all, staffId = single staff
   const [statusFilter, setStatusFilter] = useState('') // '' = all, 'provisional' etc
   const [smartView, setSmartView] = useState(true) // auto-adapt based on staff count
@@ -944,12 +953,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       try {
         const [apptRes, staffRes, catRes] = await Promise.all([
           supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time'),
-          supabase.from('staff_profiles').select('id, name, role, colour, skills').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('staff_profiles').select('id, name, role, colour, skills, include_in_intel, overhead_hours_per_week').eq('tenant_id', tenantId).eq('active', true).order('name'),
           supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
+        const staffData = staffRes.data || []
         setEvents((apptRes.data || []).map(toEvent))
-        setStaff(staffRes.data || [])
+        setStaff(staffData)
         setCatalogue(catRes.data || [])
+        // Determine who is in today
+        if (staffData.length > 0) {
+          const { data: todayAvail } = await supabase
+            .from('staff_availability')
+            .select('staff_profile_id')
+            .in('staff_profile_id', staffData.map(s => s.id))
+            .eq('day_of_week', new Date().getDay())
+            .eq('active', true)
+          setTodayStaffIds(new Set((todayAvail || []).map(r => r.staff_profile_id)))
+        }
       } catch (err) {
         console.error('Calendar load error:', err)
       } finally {
@@ -1018,9 +1038,11 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff
   const resources = useMemo(() => {
     if (!teamMode || staff.length === 0 || staffFilter) return undefined
-    // Unassigned column removed — all bookings require a staff member
-    return staff.map(s => ({ id: s.id, title: s.name }))
-  }, [teamMode, staff, staffFilter])
+    const staffToShow = todayMode && todayStaffIds.size > 0
+      ? staff.filter(s => todayStaffIds.has(s.id))
+      : staff
+    return staffToShow.map(s => ({ id: s.id, title: s.name }))
+  }, [teamMode, staff, staffFilter, todayMode, todayStaffIds])
   const visibleEvents = events
     .filter(e => !staffFilter || e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
     .filter(e => !statusFilter || e.status === statusFilter)
@@ -1757,6 +1779,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                       teamMode={teamMode} setTeamMode={setTeamMode}
                       smartView={smartView} setSmartView={setSmartView}
                       hasAutoAdapted={hasAutoAdapted} setView={setView}
+                      todayMode={todayMode} setTodayMode={setTodayMode} todayStaffIds={todayStaffIds}
                       hasTeamMode={hasTeamMode}
                       onNew={() => {
                         const now = startOfHour(addHours(new Date(), 1))

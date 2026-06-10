@@ -44,9 +44,9 @@ function pct(n, d) {
   return Math.round((n / d) * 100)
 }
 
-// Returns total available minutes for staffList over `days` days back from today,
-// using per-staff per-day-of-week schedules from availMap.
-// Falls back to Mon–Fri 09:00–18:00 if a staff member has no schedule configured.
+// Returns total available minutes for staffList over `days` days back from today.
+// Deducts lunch break and pro-rated daily overhead from each staff member's day.
+// Falls back to Mon–Fri 09:00–18:00 if no schedule configured.
 function computeAvailMins(staffList, availMap, days) {
   const now = new Date()
   const cutoff = new Date(now)
@@ -55,7 +55,7 @@ function computeAvailMins(staffList, availMap, days) {
   for (let cur = new Date(cutoff); cur <= now; cur.setDate(cur.getDate() + 1)) {
     const dow = cur.getDay() // 0=Sun … 6=Sat
     if (staffList.length === 0) {
-      if (dow >= 1 && dow <= 5) total += 9 * 60 // solo fallback Mon-Fri 9h
+      if (dow >= 1 && dow <= 5) total += 9 * 60
     } else {
       staffList.forEach(s => {
         const slot     = availMap[s.id]?.[dow]
@@ -63,7 +63,14 @@ function computeAvailMins(staffList, availMap, days) {
         if (!isActive) return
         const [sh, sm] = (slot?.start || '09:00').split(':').map(Number)
         const [eh, em] = (slot?.end   || '18:00').split(':').map(Number)
-        const mins = (eh * 60 + em) - (sh * 60 + sm)
+        let mins = (eh * 60 + em) - (sh * 60 + sm)
+        // Deduct lunch break
+        mins -= (slot?.lunchMins || 0)
+        // Deduct daily overhead (overhead_hours_per_week ÷ working days in map)
+        const workingDays = availMap[s.id]
+          ? Object.values(availMap[s.id]).filter(d => d.on).length || 5
+          : 5
+        mins -= ((s.overhead_hours_per_week || 0) * 60) / workingDays
         if (mins > 0) total += mins
       })
     }
@@ -130,7 +137,7 @@ function Bar({ value, max, colour = '#5e3b87', height = 8 }) {
 }
 
 // ─── PAGE 1: Time ─────────────────────────────────────────────────────────────
-function TimePage({ events, staff, catalogue, availability }) {
+function TimePage({ events, staff, catalogue, availability, capacityTarget = 85 }) {
   const appts = useMemo(() => recentAppts(events, 30), [events])
 
   const capacityMins30 = useMemo(() => computeAvailMins(staff, availability, 30), [staff, availability])
@@ -210,7 +217,7 @@ function TimePage({ events, staff, catalogue, availability }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', marginBottom: '1.75rem' }}>
         <StatCard label="Appointments" value={stats.totalAppts} sub="last 30 days" />
         <StatCard label="Hours booked" value={`${stats.totalHours}h`} sub={`of ${Math.round(capacityMins30/60)}h available`} />
-        <StatCard label="Utilisation" value={`${stats.utilPct}%`} sub="of available time" accent={stats.utilPct >= 70 ? '#3db87a' : stats.utilPct >= 45 ? '#f0a500' : '#e05252'} />
+        <StatCard label="Utilisation" value={`${stats.utilPct}%`} sub={`target ${capacityTarget}%`} accent={stats.utilPct >= capacityTarget ? '#3db87a' : stats.utilPct >= capacityTarget * 0.85 ? '#f0a500' : '#e05252'} />
         <StatCard label="Est. revenue" value={fmtGbp(stats.revEstimate)} sub={stats.revenuePerHour > 0 ? `${fmtGbp(Math.round(stats.revenuePerHour))}/hr` : 'add prices to services'} />
       </div>
 
@@ -423,7 +430,7 @@ function ClientsPage({ events, catalogue }) {
 }
 
 // ─── PAGE 3: Team ─────────────────────────────────────────────────────────────
-function TeamPage({ events, staff, catalogue, availability }) {
+function TeamPage({ events, staff, catalogue, availability, capacityTarget = 85 }) {
   const appts = useMemo(() => recentAppts(events, 30), [events])
 
   const teamStats = useMemo(() => {
@@ -485,7 +492,7 @@ function TeamPage({ events, staff, catalogue, availability }) {
                 {member.role && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{member.role}</div>}
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.3rem', color: member.utilPct >= 70 ? '#3db87a' : member.utilPct >= 45 ? '#f0a500' : '#e05252' }}>{member.utilPct}%</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.3rem', color: member.utilPct >= capacityTarget ? '#3db87a' : member.utilPct >= capacityTarget * 0.85 ? '#f0a500' : '#e05252' }}>{member.utilPct}%</div>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.68rem', color: '#aaa' }}>utilisation</div>
               </div>
             </div>
@@ -507,7 +514,7 @@ function TeamPage({ events, staff, catalogue, availability }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#888', flexShrink: 0 }}>Utilisation</span>
               <div style={{ flex: 1 }}>
-                <Bar value={member.totalMins} max={member.capacityMins || 9 * 60 * 22} colour={member.utilPct >= 70 ? '#3db87a' : member.utilPct >= 45 ? '#f0a500' : '#e05252'} height={6} />
+                <Bar value={member.totalMins} max={member.capacityMins || 9 * 60 * 22} colour={member.utilPct >= capacityTarget ? '#3db87a' : member.utilPct >= capacityTarget * 0.85 ? '#f0a500' : '#e05252'} height={6} />
               </div>
             </div>
             {member.revenue > 0 && (
@@ -712,21 +719,27 @@ export default function CalendarIntelligence({ page, events, staff, catalogue, t
   const [availability, setAvailability] = useState({})
   const staffIds = useMemo(() => staff.map(s => s.id).join(','), [staff])
 
+  // Config panel state
+  const [configOpen, setConfigOpen]     = useState(false)
+  const [configTarget, setConfigTarget] = useState(85)
+  const [configStaff, setConfigStaff]   = useState({}) // staffId → { include, lunchMins, overheadHrs }
+  const [configSaving, setConfigSaving] = useState(false)
+
+  // Load availability
   useEffect(() => {
     if (!staff.length) return
     if (!tenantId) {
-      // No tenant (shouldn't happen) — default all staff to Mon-Fri 09:00-18:00
       const map = {}
       staff.forEach(s => {
         map[s.id] = {}
-        for (let d = 0; d < 7; d++) map[s.id][d] = { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+        for (let d = 0; d < 7; d++) map[s.id][d] = { on: d >= 1 && d <= 5, start: '09:00', end: '18:00', lunchMins: 0, lunchStart: '12:00' }
       })
       setAvailability(map)
       return
     }
     supabase
       .from('staff_availability')
-      .select('staff_profile_id, day_of_week, start_time, end_time, active')
+      .select('staff_profile_id, day_of_week, start_time, end_time, active, lunch_start, lunch_mins')
       .in('staff_profile_id', staff.map(s => s.id))
       .then(({ data }) => {
         const map = {}
@@ -735,13 +748,77 @@ export default function CalendarIntelligence({ page, events, staff, catalogue, t
           for (let d = 0; d < 7; d++) {
             const row = data?.find(r => r.staff_profile_id === s.id && r.day_of_week === d)
             map[s.id][d] = row
-              ? { on: row.active, start: row.start_time.slice(0, 5), end: row.end_time.slice(0, 5) }
-              : { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
+              ? { on: row.active, start: row.start_time.slice(0, 5), end: row.end_time.slice(0, 5), lunchMins: row.lunch_mins || 0, lunchStart: row.lunch_start?.slice(0, 5) || '12:00' }
+              : { on: d >= 1 && d <= 5, start: '09:00', end: '18:00', lunchMins: 0, lunchStart: '12:00' }
           }
         })
         setAvailability(map)
       })
   }, [tenantId, staffIds])
+
+  // Load tenant capacity target
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('tenants').select('capacity_target_pct').eq('id', tenantId).maybeSingle()
+      .then(({ data }) => { if (data?.capacity_target_pct) setConfigTarget(data.capacity_target_pct) })
+  }, [tenantId])
+
+  // Sync configStaff from staff + availability once both are ready
+  useEffect(() => {
+    if (!staff.length) return
+    const init = {}
+    staff.forEach(s => {
+      const firstActiveDay = availability[s.id]
+        ? Object.entries(availability[s.id]).find(([, v]) => v.on)
+        : null
+      init[s.id] = {
+        include:     s.include_in_intel !== false,
+        lunchMins:   firstActiveDay ? (firstActiveDay[1].lunchMins || 0) : 0,
+        lunchStart:  firstActiveDay ? (firstActiveDay[1].lunchStart || '12:00') : '12:00',
+        overheadHrs: s.overhead_hours_per_week || 0,
+      }
+    })
+    setConfigStaff(init)
+  }, [staffIds, availability])
+
+  const saveConfig = async () => {
+    if (!tenantId) return
+    setConfigSaving(true)
+    // Update tenant target
+    await supabase.from('tenants').update({ capacity_target_pct: Number(configTarget) }).eq('id', tenantId)
+    // Update each staff member
+    for (const s of staff) {
+      const cfg = configStaff[s.id]
+      if (!cfg) continue
+      await supabase.from('staff_profiles').update({
+        include_in_intel: cfg.include,
+        overhead_hours_per_week: Number(cfg.overheadHrs) || 0,
+      }).eq('id', s.id)
+      // Apply lunch to all active days
+      if (availability[s.id]) {
+        for (const [dow, slot] of Object.entries(availability[s.id])) {
+          if (!slot.on) continue
+          await supabase.from('staff_availability').update({
+            lunch_mins:  Number(cfg.lunchMins) || 0,
+            lunch_start: cfg.lunchStart || '12:00',
+          }).eq('staff_profile_id', s.id).eq('day_of_week', Number(dow))
+        }
+        // Refresh local availability with new lunch values
+        setAvailability(prev => {
+          const map = { ...prev, [s.id]: {} }
+          for (const [dow, slot] of Object.entries(prev[s.id] || {})) {
+            map[s.id][dow] = { ...slot, lunchMins: Number(cfg.lunchMins) || 0, lunchStart: cfg.lunchStart || '12:00' }
+          }
+          return map
+        })
+      }
+    }
+    setConfigSaving(false)
+    setConfigOpen(false)
+  }
+
+  // Only include staff flagged for intel in calculations
+  const intelStaff = useMemo(() => staff.filter(s => configStaff[s.id]?.include !== false), [staff, configStaff])
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#f7f6f9', zIndex: 3000, display: 'flex', flexDirection: 'column', overflowY: 'hidden' }}>
@@ -757,16 +834,157 @@ export default function CalendarIntelligence({ page, events, staff, catalogue, t
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</div>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#aaa', marginTop: 1 }}>Calendar Intelligence · last 30 days</div>
         </div>
+        {tenantId && (
+          <button onClick={() => setConfigOpen(true)} title="Efficiency settings" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+            ⚙ Configure
+          </button>
+        )}
         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '1.5rem', padding: '0 0.15rem', flexShrink: 0, lineHeight: 1 }}>×</button>
       </div>
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', maxWidth: 960, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
-        {page === 'time'    && <TimePage    events={events} staff={staff} catalogue={catalogue} availability={availability} />}
+        {page === 'time'    && <TimePage    events={events} staff={intelStaff} catalogue={catalogue} availability={availability} capacityTarget={configTarget} />}
         {page === 'clients' && <ClientsPage events={events} catalogue={catalogue} />}
-        {page === 'team'    && <TeamPage    events={events} staff={staff} catalogue={catalogue} availability={availability} />}
-        {page === 'money'   && <MoneyPage   events={events} staff={staff} catalogue={catalogue} />}
+        {page === 'team'    && <TeamPage    events={events} staff={intelStaff} catalogue={catalogue} availability={availability} capacityTarget={configTarget} />}
+        {page === 'money'   && <MoneyPage   events={events} staff={intelStaff} catalogue={catalogue} />}
       </div>
+
+      {/* ── Config panel ──────────────────────────────────────────────────────── */}
+      {configOpen && (
+        <>
+          <div onClick={() => setConfigOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 4000 }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, background: 'white', zIndex: 4001, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+            {/* Panel header */}
+            <div style={{ padding: '1.1rem 1.4rem', borderBottom: '1px solid rgba(94,59,135,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a' }}>Efficiency settings</div>
+              <button onClick={() => setConfigOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Panel body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.4rem' }}>
+
+              {/* Capacity target */}
+              <div style={{ marginBottom: '1.75rem' }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Capacity target</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#888', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                  Utilisation colour changes based on this. Green above, amber within 15%, red below.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <input
+                    type="number" min={10} max={100}
+                    value={configTarget}
+                    onChange={e => setConfigTarget(Math.min(100, Math.max(10, Number(e.target.value))))}
+                    style={{ width: 64, padding: '0.45rem 0.6rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.9rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', textAlign: 'center' }}
+                  />
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', color: '#888' }}>% target utilisation</span>
+                </div>
+              </div>
+
+              {/* Staff */}
+              {staff.length > 0 && (
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Staff</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#888', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                    Q tracks everyone in the calendar. Toggle off anyone you don't want in efficiency calculations.
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {staff.map(s => {
+                      const cfg = configStaff[s.id] || { include: true, lunchMins: 0, lunchStart: '12:00', overheadHrs: 0 }
+                      const initials = (s.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      const colour = s.colour || '#5e3b87'
+                      return (
+                        <div key={s.id} style={{ background: '#faf9fc', borderRadius: 10, padding: '0.85rem 1rem', border: cfg.include ? '1px solid rgba(94,59,135,0.15)' : '1px solid #eee', opacity: cfg.include ? 1 : 0.55 }}>
+                          {/* Staff row */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: cfg.include ? '0.85rem' : 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ color: 'white', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.72rem' }}>{initials}</span>
+                            </div>
+                            <div style={{ flex: 1, fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.85rem', color: '#1a1a1a' }}>{s.name}</div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', flexShrink: 0 }}>
+                              <div
+                                onClick={() => setConfigStaff(prev => ({ ...prev, [s.id]: { ...cfg, include: !cfg.include } }))}
+                                style={{ width: 36, height: 20, borderRadius: 10, background: cfg.include ? '#5e3b87' : '#ddd', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
+                              >
+                                <div style={{ position: 'absolute', top: 3, left: cfg.include ? 18 : 3, width: 14, height: 14, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                              </div>
+                              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#888' }}>Include</span>
+                            </label>
+                          </div>
+
+                          {cfg.include && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                              {/* Lunch */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 110, flexShrink: 0 }}>Lunch break</span>
+                                <input
+                                  type="number" min={0} max={120} placeholder="0"
+                                  value={cfg.lunchMins || ''}
+                                  onChange={e => setConfigStaff(prev => ({ ...prev, [s.id]: { ...cfg, lunchMins: e.target.value } }))}
+                                  style={{ width: 52, padding: '0.3rem 0.45rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}
+                                />
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#aaa' }}>min</span>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#aaa' }}>at</span>
+                                <input
+                                  type="time"
+                                  value={cfg.lunchStart || '12:00'}
+                                  onChange={e => setConfigStaff(prev => ({ ...prev, [s.id]: { ...cfg, lunchStart: e.target.value } }))}
+                                  style={{ padding: '0.3rem 0.45rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif" }}
+                                />
+                              </div>
+                              {/* Overhead */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 110, flexShrink: 0 }}>Other duties</span>
+                                <input
+                                  type="number" min={0} max={40} placeholder="0" step={0.5}
+                                  value={cfg.overheadHrs || ''}
+                                  onChange={e => setConfigStaff(prev => ({ ...prev, [s.id]: { ...cfg, overheadHrs: e.target.value } }))}
+                                  style={{ width: 52, padding: '0.3rem 0.45rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}
+                                />
+                                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', color: '#aaa', lineHeight: 1.35 }}>hrs/week — stock, admin, cleaning, etc.</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Solo mode (no staff) */}
+              {staff.length === 0 && (
+                <div style={{ marginBottom: '1.75rem' }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Other duties</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#888', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                    Hours per week that go to jobs that can't be billed — stock taking, cleaning, accounts, etc.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <input
+                      type="number" min={0} max={40} placeholder="0" step={0.5}
+                      value={configStaff['__solo__']?.overheadHrs || ''}
+                      onChange={e => setConfigStaff(prev => ({ ...prev, '__solo__': { ...(prev['__solo__'] || {}), overheadHrs: e.target.value } }))}
+                      style={{ width: 60, padding: '0.45rem 0.6rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.9rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#5e3b87', textAlign: 'center' }}
+                    />
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', color: '#888' }}>hours per week</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Save */}
+            <div style={{ padding: '1rem 1.4rem', borderTop: '1px solid rgba(94,59,135,0.1)', flexShrink: 0 }}>
+              <button
+                onClick={saveConfig}
+                disabled={configSaving}
+                style={{ width: '100%', padding: '0.7rem', background: configSaving ? '#f5d98a' : '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.9rem', fontWeight: 700, cursor: configSaving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+              >
+                {configSaving ? 'Saving…' : 'Save settings'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
