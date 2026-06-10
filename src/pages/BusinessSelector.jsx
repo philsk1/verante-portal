@@ -25,9 +25,10 @@ const BusinessSelector = () => {
 
   useEffect(() => {
     supabase
-      .from('demo_businesses')
-      .select('id, business_name, business_type, tier, lead_contact_name, credits_balance, included_minutes')
-      .order('tier', { ascending: true })
+      .from('tenants')
+      .select('id, business_name, subscription_tier, credit_balance_months, included_minutes, triage_mode')
+      .eq('is_demo', true)
+      .order('subscription_tier', { ascending: true })
       .then(({ data }) => {
         setBusinesses(data || [])
         setLoading(false)
@@ -91,10 +92,10 @@ const BusinessSelector = () => {
                   <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.0625rem', color: '#1a1a1a', lineHeight: 1.25, marginRight: '0.75rem' }}>
                     {biz.business_name}
                   </div>
-                  <TierBadge tier={biz.tier} />
+                  <TierBadge tier={biz.subscription_tier} />
                 </div>
 
-                <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1rem' }}>{biz.business_type}</div>
+                <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1rem', textTransform: 'capitalize' }}>{(biz.triage_mode || 'balanced')} triage · {biz.included_minutes} min/mo</div>
 
                 <div style={{ display: 'flex', gap: '1.5rem', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.85rem' }}>
                   <div>
@@ -103,7 +104,7 @@ const BusinessSelector = () => {
                   </div>
                   <div>
                     <div style={{ fontSize: '0.65rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.2rem' }}>Credits</div>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#f0a500' }}>{biz.credits_balance || 0}</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#f0a500' }}>{biz.credit_balance_months || 0}</div>
                   </div>
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end' }}>
                     <span style={{ fontSize: '0.8rem', color: '#5e3b87', fontWeight: '500' }}>Select →</span>

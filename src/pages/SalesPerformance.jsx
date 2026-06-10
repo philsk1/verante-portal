@@ -36,12 +36,16 @@ const SalesPerformance = () => {
     const load = async () => {
       setLoading(true)
       try {
-        const [bizRes, callRes, leadRes, refRes] = await Promise.all([
-          supabase.from('demo_businesses').select('id, business_name, business_type, tier, included_minutes'),
-          supabase.from('demo_call_logs').select('id, duration_seconds, triage_outcome, call_outcome, created_at'),
-          supabase.from('demo_leads').select('id, status'),
-          supabase.from('demo_referral_log').select('id'),
+        const { data: demoTenants } = await supabase.from('tenants').select('id, business_name, subscription_tier, included_minutes').eq('is_demo', true)
+        const demoIds = (demoTenants || []).map(t => t.id)
+
+        const [callRes, leadRes, refRes] = await Promise.all([
+          supabase.from('call_logs').select('id, duration_seconds, call_outcome, created_at').in('tenant_id', demoIds),
+          supabase.from('leads').select('id, lead_status, status').in('tenant_id', demoIds),
+          supabase.from('referral_log').select('id').in('tenant_id', demoIds),
         ])
+
+        const bizRes = { data: demoTenants || [] }
 
         const bizList = bizRes.data || []
         const calls   = callRes.data || []
@@ -51,7 +55,7 @@ const SalesPerformance = () => {
         const totalCalls    = calls.length
         const totalLeads    = leads.length
         const totalRefs     = refs.length
-        const convertedLeads = leads.filter(l => l.status === 'converted').length
+        const convertedLeads = leads.filter(l => l.lead_status === 'converted' || l.status === 'converted').length
 
         const withDuration  = calls.filter(c => c.duration_seconds > 0)
         const avgDuration   = withDuration.length
@@ -68,7 +72,7 @@ const SalesPerformance = () => {
 
         // By tier
         const tierCounts = { light: 0, standard: 0, professional: 0, enterprise: 0 }
-        bizList.forEach(b => { if (tierCounts[b.tier] !== undefined) tierCounts[b.tier]++ })
+        bizList.forEach(b => { if (tierCounts[b.subscription_tier] !== undefined) tierCounts[b.subscription_tier]++ })
 
         setStats({ totalCalls, totalLeads, totalRefs, convertedLeads, avgDuration, totalMins, leadRate, revenueProtected, tierCounts })
         setBusinesses(bizList)

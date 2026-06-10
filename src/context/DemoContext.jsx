@@ -15,36 +15,30 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
   const [staff, setStaff] = useState([])
   const [partners, setPartners] = useState([])
   const [appointments, setAppointments] = useState([])
-  const [pricingIntelligence, setPricingIntelligence] = useState([])
-  const [competitorIntelligence, setCompetitorIntelligence] = useState([])
 
   useEffect(() => {
     if (!businessId) return
     const load = async () => {
       setLoading(true)
       try {
-        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes, apptRes, pricingRes, competitorRes] = await Promise.all([
-          supabase.from('demo_businesses').select('*').eq('id', businessId).maybeSingle(),
-          supabase.from('demo_call_logs').select('*').eq('business_id', businessId)
-            .order('created_at', { ascending: false }).limit(500),
-          supabase.from('demo_leads').select('*').eq('business_id', businessId)
-            .order('created_at', { ascending: false }).limit(100),
-          supabase.from('demo_referral_log').select('*').eq('business_id', businessId)
-            .order('created_at', { ascending: false }).limit(100),
-          supabase.from('demo_services').select('*').eq('business_id', businessId),
-          supabase.from('demo_staff').select('*').eq('business_id', businessId),
-          supabase.from('demo_partners').select('*').eq('business_id', businessId),
-          supabase.from('demo_appointments').select('*').eq('business_id', businessId)
-            .order('start_time', { ascending: true }),
-          supabase.from('demo_pricing_intelligence').select('*').eq('business_id', businessId),
-          supabase.from('demo_competitor_intelligence').select('*').eq('business_id', businessId)
-            .order('mention_count', { ascending: false }),
+        const [bizRes, callRes, leadRes, refRes, svcRes, staffRes, partnerRes, apptRes] = await Promise.all([
+          supabase.from('tenants').select('*').eq('id', businessId).maybeSingle(),
+          supabase.from('call_logs').select('*, callers(full_name, phone_number)')
+            .eq('tenant_id', businessId).order('created_at', { ascending: false }).limit(500),
+          supabase.from('leads').select('*')
+            .eq('tenant_id', businessId).order('created_at', { ascending: false }).limit(100),
+          supabase.from('referral_log').select('*, referral_partners(partner_name)')
+            .eq('tenant_id', businessId).order('created_at', { ascending: false }).limit(100),
+          supabase.from('catalogue_items').select('*').eq('tenant_id', businessId),
+          supabase.from('staff_profiles').select('*').eq('tenant_id', businessId),
+          supabase.from('referral_partners').select('*').eq('tenant_id', businessId),
+          supabase.from('appointments').select('*')
+            .eq('tenant_id', businessId).order('start_time', { ascending: true }),
         ])
 
         setBusiness(bizRes.data)
 
-        // Normalize timestamps so demo always feels live — find most recent call and
-        // shift everything so that call appears ~30 minutes ago in the browser.
+        // Normalize timestamps so demo always feels live — shift most recent call to ~30 mins ago
         const rawCalls = callRes.data || []
         const rawLeads = leadRes.data || []
         const rawRefs  = refRes.data  || []
@@ -58,37 +52,39 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
         const shiftIso = (iso) =>
           shiftMs > 0 ? new Date(new Date(iso).getTime() + shiftMs).toISOString() : iso
 
-        // Shape calls for ActivityDashboard: expects callers join { full_name, phone_number }
+        // Shape calls — callers join provides full_name; fall back to phone
         setCalls(rawCalls.map(c => ({
           ...c,
           created_at: shiftIso(c.created_at),
-          callers: { full_name: c.caller_name, phone_number: c.caller_number },
+          callers: c.callers
+            ? c.callers
+            : { full_name: null, phone_number: c.caller_phone },
         })))
 
-        // Shape leads for ActivityDashboard: expects lead_contact_name + callers join + ai_summary
+        // Shape leads — real table has caller_name + caller_phone directly
         setLeads(rawLeads.map(l => ({
           ...l,
           created_at: shiftIso(l.created_at),
           lead_contact_name: l.caller_name,
-          callers: { phone_number: l.caller_number },
-          ai_summary: [l.enquiry_type?.replace(/_/g, ' '), l.notes].filter(Boolean).join(' — ') || null,
+          callers: { phone_number: l.caller_phone },
+          ai_summary: l.ai_summary || [l.enquiry_type?.replace(/_/g, ' '), l.notes].filter(Boolean).join(' — ') || null,
         })))
 
-        // Shape referrals for ActivityDashboard: expects referral_partners join { business_name }
+        // Shape referrals — join provides referral_partners.partner_name
         setReferrals(rawRefs.map(r => ({
           ...r,
           created_at: shiftIso(r.created_at),
-          referral_partners: { business_name: r.partner_name },
+          referral_partners: {
+            business_name: r.referral_partners?.partner_name || r.service_keyword || 'Partner',
+          },
         })))
 
-        setServices(svcRes.data || [])
-        // Map demo_staff.direct_line → direct_line_did to match staff_profiles column name
-        setStaff((staffRes.data || []).map(s => ({ ...s, direct_line_did: s.direct_line || s.direct_line_did || '' })))
+        // catalogue_items uses `name` — keep both for backward compat
+        setServices((svcRes.data || []).map(s => ({ ...s, service_name: s.name })))
+        setStaff((staffRes.data || []).map(s => ({ ...s, direct_line_did: s.direct_line_did || '' })))
         setPartners(partnerRes.data || [])
-        setPricingIntelligence(pricingRes.data || [])
-        setCompetitorIntelligence(competitorRes.data || [])
 
-        // Normalize appointments to the current week (Mon–Fri) so Calendar always looks live
+        // Normalize appointments to current week so Calendar looks live
         const rawAppts = apptRes.data || []
         if (rawAppts.length > 0) {
           const getMonday = (ms) => {
@@ -103,7 +99,6 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
           const weekShiftMs   = nowWeekStart - seedWeekStart
           setAppointments(rawAppts.map(a => ({
             ...a,
-            staff_profile_id: a.staff_id,
             start_time: weekShiftMs !== 0
               ? new Date(new Date(a.start_time).getTime() + weekShiftMs).toISOString()
               : a.start_time,
@@ -123,7 +118,7 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
     load()
   }, [businessId])
 
-  const tier = selectedTier || business?.tier || 'standard'
+  const tier = selectedTier || business?.subscription_tier || 'standard'
   const calendarTier = calendarTierOverride ?? business?.calendar_tier ?? 'entry'
 
   const value = {
@@ -140,9 +135,8 @@ export const DemoProvider = ({ businessId, tier: selectedTier, children }) => {
     staff,
     partners,
     appointments,
-    pricingIntelligence,
-    competitorIntelligence,
-    // DataAnalytics expects `duration` not `duration_seconds`
+    pricingIntelligence: [],
+    competitorIntelligence: [],
     analyticsCallData: calls.map(c => ({ ...c, duration: c.duration_seconds })),
     includedMinutes: business?.included_minutes || 250,
   }

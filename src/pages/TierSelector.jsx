@@ -68,13 +68,13 @@ const TierSelector = () => {
 
   useEffect(() => {
     supabase
-      .from('demo_businesses')
-      .select('id, business_name, business_type, tier')
+      .from('tenants')
+      .select('id, business_name, subscription_tier, triage_mode')
       .eq('id', businessId)
       .maybeSingle()
       .then(({ data }) => {
         setBusiness(data)
-        setSelected(data?.tier || 'standard')
+        setSelected(data?.subscription_tier || 'standard')
       })
   }, [businessId])
 
@@ -110,7 +110,7 @@ const TierSelector = () => {
               {business.business_name}
             </h1>
             <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
-              {business.business_type} · Choose which tier experience to preview
+              Choose which tier experience to preview
             </p>
           </div>
         )}
@@ -118,7 +118,7 @@ const TierSelector = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
           {TIERS.map(tier => {
             const isSelected = selected === tier.id
-            const isOwn = business?.tier === tier.id
+            const isOwn = business?.subscription_tier === tier.id
             return (
               <button
                 key={tier.id}
