@@ -1,7 +1,8 @@
-// POST { action: 'connect'|'disconnect'|'caldav-sync'|'send-welcome'|'send-review', tenantId, ... }
+// POST { action: 'connect'|'disconnect'|'caldav-sync'|'send-welcome'|'send-review'|'booking-confirm', tenantId, ... }
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, emailWelcome } from './_emails.js'
+import { sendEmail, emailWelcome, emailBookingConfirmation } from './_emails.js'
+import { sendSms } from './_sms.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -112,6 +113,71 @@ async function handleSendReview(body, res) {
   return res.status(200).json({ sent: true })
 }
 
+async function handleBookingConfirm(body, res) {
+  const { tenantId, clientName, clientPhone, clientEmail, serviceName, startTime, bookingRef } = body
+  if (!tenantId || !startTime) return res.status(400).json({ error: 'Missing required fields' })
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('business_name, business_phone, business_email, cancel_cutoff_hrs')
+    .eq('id', tenantId).maybeSingle()
+
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found' })
+
+  const start = new Date(startTime)
+  const dateStr = start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const timeStr = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const siteUrl = process.env.SITE_URL || 'https://verrante-portal.vercel.app'
+  const manageUrl = `${siteUrl}/book/${tenantId}`
+
+  const tasks = []
+
+  // Email to client
+  if (clientEmail) {
+    const { subject, html } = emailBookingConfirmation({
+      clientName: clientName || 'there',
+      businessName: tenant.business_name,
+      businessPhone: tenant.business_phone,
+      serviceName: serviceName || 'appointment',
+      dateStr, timeStr, bookingRef, manageUrl,
+      cancelCutoffHrs: tenant.cancel_cutoff_hrs ?? 24,
+    })
+    tasks.push(sendEmail({ to: clientEmail, subject, html }))
+  }
+
+  // SMS to client
+  if (clientPhone) {
+    const smsText = `Booking confirmed! ${serviceName || 'Your appointment'} on ${dateStr} at ${timeStr} with ${tenant.business_name}.${bookingRef ? ` Ref: ${bookingRef}.` : ''} To cancel or reschedule: ${manageUrl}`
+    tasks.push(sendSms({ to: clientPhone, message: smsText }))
+  }
+
+  // Notify tenant
+  if (tenant.business_email) {
+    tasks.push(sendEmail({
+      to: tenant.business_email,
+      subject: `New booking — ${serviceName || 'Appointment'}, ${clientName || 'Client'} on ${dateStr}`,
+      html: `<!DOCTYPE html><html><body style="font-family:'DM Sans',Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem 1rem;color:#1a1a1a;">
+        <div style="margin-bottom:1.5rem;"><span style="font-weight:700;color:#5e3b87;font-size:1.125rem;">Qerxel</span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f0a500;margin-left:3px;margin-bottom:8px;"></span></div>
+        <div style="display:inline-block;background:#5e3b87;color:white;padding:0.25rem 0.65rem;border-radius:4px;font-size:0.75rem;font-weight:700;margin-bottom:1rem;">NEW ONLINE BOOKING</div>
+        <p>A new booking has been made through your booking page.</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+          <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Client</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${clientName || '—'}</td></tr>
+          ${clientPhone ? `<tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Phone</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;"><a href="tel:${clientPhone}" style="color:#5e3b87;text-decoration:none;">${clientPhone}</a></td></tr>` : ''}
+          <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Service</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${serviceName || '—'}</td></tr>
+          <tr><td style="padding:0.5rem 0;border-bottom:1px solid #eee;color:#aaa;font-size:0.8rem;">Date</td><td style="padding:0.5rem 0;border-bottom:1px solid #eee;font-weight:600;text-align:right;">${dateStr}</td></tr>
+          <tr><td style="padding:0.5rem 0;color:#aaa;font-size:0.8rem;">Time</td><td style="padding:0.5rem 0;font-weight:600;text-align:right;">${timeStr}</td></tr>
+        </table>
+        <div style="margin-top:1.5rem;"><a href="${siteUrl}/portal" style="display:inline-block;background:#f0a500;color:#1a0533;text-decoration:none;font-weight:700;font-size:0.875rem;padding:0.65rem 1.4rem;border-radius:8px;">View in Qerxel →</a></div>
+        <hr style="border:none;border-top:1px solid #eee;margin:2rem 0 1rem;">
+        <p style="color:#aaa;font-size:0.8rem;margin:0;">Qerxel booking notification. Manage notifications in Account settings.</p>
+      </body></html>`,
+    }))
+  }
+
+  await Promise.allSettled(tasks)
+  return res.status(200).json({ sent: true })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -121,6 +187,7 @@ export default async function handler(req, res) {
   if (action === 'caldav-sync') return handleCaldavSync(req.body, res)
   if (action === 'send-welcome') return handleSendWelcome(req.body, res)
   if (action === 'send-review') return handleSendReview(req.body, res)
+  if (action === 'booking-confirm') return handleBookingConfirm(req.body, res)
 
   if (!integrationId) return res.status(400).json({ error: 'Missing integrationId' })
 

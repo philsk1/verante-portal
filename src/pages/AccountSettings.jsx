@@ -479,6 +479,42 @@ const Toggle = ({ checked, onChange }) => (
   </button>
 )
 
+// ─── Booking link row ─────────────────────────────────────────────────────────
+
+const BookingLinkRow = ({ tenantId }) => {
+  const [copied, setCopied] = useState(false)
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://verrante-portal.vercel.app'
+  const url = `${siteUrl}/book/${tenantId}`
+
+  const copy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 12, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.78rem', color: '#5e3b87', wordBreak: 'break-all', background: 'rgba(94,59,135,0.07)', borderRadius: 7, padding: '0.45rem 0.7rem' }}>
+          {url}
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+          <button onClick={copy} style={{ padding: '0.45rem 0.9rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 8, background: copied ? '#3db87a' : 'white', color: copied ? 'white' : '#5e3b87', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s', whiteSpace: 'nowrap' }}>
+            {copied ? '✓ Copied' : 'Copy link'}
+          </button>
+          <a href={url} target="_blank" rel="noopener noreferrer" style={{ padding: '0.45rem 0.9rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 8, background: 'white', color: '#5e3b87', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            Open →
+          </a>
+        </div>
+      </div>
+      <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.5 }}>
+        Share this on your website, Instagram bio, email signature, or anywhere clients might look. They can book without calling.
+      </div>
+    </div>
+  )
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, triggerPlanSelector }) => {
@@ -951,6 +987,15 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
         </div>
       </div>
 
+
+      {/* Booking Link */}
+      {tenantId && (
+        <div style={s.section}>
+          <h3 style={s.sectionTitle} data-help="Your Booking Link is the page where clients can book appointments directly. Share it on your website, social media, or add it to your email signature. Clients can choose a service, pick a date and time, and confirm their details — all without calling.">Booking Link</h3>
+          <p style={s.sectionSubtitle}>Share this link so clients can book online, 24/7.</p>
+          <BookingLinkRow tenantId={tenantId} />
+        </div>
+      )}
 
       {/* Notifications */}
       <div style={s.section}>

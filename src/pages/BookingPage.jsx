@@ -222,8 +222,25 @@ export default function BookingPage() {
       }).select().maybeSingle()
 
       if (err) throw err
-      setBookingRef(data?.id?.slice(0, 8).toUpperCase() || 'CONFIRMED')
+      const ref = data?.id?.slice(0, 8).toUpperCase() || 'CONFIRMED'
+      setBookingRef(ref)
       setStep(5)
+
+      // Fire confirmation notifications (non-blocking)
+      fetch('/api/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action:      'booking-confirm',
+          tenantId,
+          clientName:  form.name.trim(),
+          clientPhone: form.phone.trim(),
+          clientEmail: form.email.trim() || null,
+          serviceName: selectedService.name,
+          startTime:   start.toISOString(),
+          bookingRef:  ref,
+        }),
+      }).catch(() => {})
     } catch {
       alert('Could not confirm your booking. Please try again or call us directly.')
     } finally {
@@ -308,6 +325,43 @@ export default function BookingPage() {
       alert('Could not reschedule. Please call us directly.')
     } finally {
       setRescheduling(false)
+    }
+  }
+
+  // ── AI advisor widget state ────────────────────────────────────────────────
+  const [aiOpen, setAiOpen]           = useState(false)
+  const [aiMessages, setAiMessages]   = useState([])
+  const [aiInput, setAiInput]         = useState('')
+  const [aiLoading, setAiLoading]     = useState(false)
+  const [aiGreeted, setAiGreeted]     = useState(false)
+
+  const openAi = () => {
+    setAiOpen(true)
+    if (!aiGreeted) {
+      setAiMessages([{ role: 'assistant', content: `Hi! I can help you choose the right service or answer any questions about ${tenant?.business_name || 'us'}. What would you like to know?` }])
+      setAiGreeted(true)
+    }
+  }
+
+  const sendAiMessage = async () => {
+    const text = aiInput.trim()
+    if (!text || aiLoading) return
+    const next = [...aiMessages, { role: 'user', content: text }]
+    setAiMessages(next)
+    setAiInput('')
+    setAiLoading(true)
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'booking-assist', businessName: tenant?.business_name, services: catalogue, messages: next }),
+      })
+      const d = await r.json()
+      setAiMessages(prev => [...prev, { role: 'assistant', content: d.message || 'Sorry, I couldn\'t respond. Please try again.' }])
+    } catch {
+      setAiMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
+    } finally {
+      setAiLoading(false)
     }
   }
 
@@ -681,6 +735,71 @@ export default function BookingPage() {
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#bbb' }}>Qerxel</span>
         </div>
       </div>
+
+      {/* ── AI Advisor Widget ─────────────────────────────────────────────── */}
+      {catalogue.length > 0 && (
+        <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 1200, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
+
+          {/* Chat panel */}
+          {aiOpen && (
+            <div style={{ width: 340, background: 'white', borderRadius: 18, boxShadow: '0 8px 40px rgba(94,59,135,0.18), 0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 420 }}>
+              {/* Panel header */}
+              <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: 'white' }}>Ask our AI</div>
+                  <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.1rem' }}>{tenant?.business_name}</div>
+                </div>
+                <button onClick={() => setAiOpen(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'white', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+              </div>
+
+              {/* Messages */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {aiMessages.map((m, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                    <div style={{
+                      maxWidth: '82%', padding: '0.55rem 0.8rem', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                      background: m.role === 'user' ? '#5e3b87' : '#f5f3ff',
+                      color: m.role === 'user' ? 'white' : '#1a1a1a',
+                      fontSize: '0.82rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {aiLoading && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{ padding: '0.55rem 0.85rem', borderRadius: '14px 14px 14px 4px', background: '#f5f3ff', fontSize: '0.82rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+                      Thinking…
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div style={{ padding: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <input
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendAiMessage()}
+                  placeholder="Ask about services…"
+                  style={{ flex: 1, padding: '0.55rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.82rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
+                />
+                <button onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}
+                  style={{ padding: '0.55rem 0.9rem', borderRadius: 10, border: 'none', background: aiInput.trim() && !aiLoading ? '#5e3b87' : '#e9e3f3', color: aiInput.trim() && !aiLoading ? 'white' : '#aaa', fontWeight: 700, fontSize: '0.8rem', cursor: aiInput.trim() && !aiLoading ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+                  →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Toggle button */}
+          <button onClick={() => aiOpen ? setAiOpen(false) : openAi()}
+            style={{ background: aiOpen ? '#3a2057' : 'linear-gradient(135deg, #5e3b87 0%, #7c4fa0 100%)', color: 'white', border: 'none', borderRadius: 50, padding: '0.65rem 1.1rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', boxShadow: '0 4px 18px rgba(94,59,135,0.35)', display: 'flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>💬</span>
+            {aiOpen ? 'Close' : 'Ask our AI'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -131,11 +131,52 @@ Give a 3–5 sentence briefing as if you've just reviewed this data personally. 
   }
 }
 
+async function handleBookingAssist(body, res) {
+  const { businessName, services, messages } = body
+  if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
+
+  const serviceList = (services || []).map(s => {
+    const parts = [s.name]
+    if (s.description) parts.push(s.description)
+    if (s.duration_minutes) parts.push(`${s.duration_minutes} min`)
+    if (s.price_from) parts.push(s.price_to ? `£${s.price_from}–£${s.price_to}` : `from £${s.price_from}`)
+    return parts.join(' · ')
+  }).join('\n')
+
+  const systemPrompt = `You are the AI advisor for ${businessName || 'this salon'}. You help customers choose the right service or answer questions before booking.
+
+${serviceList ? `Services available:\n${serviceList}` : 'Service information is loading.'}
+
+Be warm, friendly, and concise. Keep replies to 2–4 sentences unless a detailed question is asked. If someone asks about hair problems, colour advice, or treatment recommendations, give genuinely helpful advice — this is what you're here for. If asked about pricing or timing and you have that information, share it. If a question is outside what you know, say so honestly and suggest they call or ask at their appointment. Never invent information not in the service list.`
+
+  const claudeMessages = messages
+    .map(m => ({ role: m.role === 'assistant' || m.role === 'ai' ? 'assistant' : 'user', content: m.content || m.text || '' }))
+    .filter(m => m.content)
+
+  if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
+    return res.status(400).json({ error: 'No valid message' })
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system: systemPrompt,
+      messages: claudeMessages,
+    })
+    return res.status(200).json({ message: response.content[0].text })
+  } catch (err) {
+    console.error('booking-assist error:', err.message)
+    return res.status(500).json({ error: 'AI unavailable. Please try again.' })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { type } = req.body || {}
   if (type === 'vera') return handleVera(req.body, res)
   if (type === 'support') return handleSupport(req.body, res)
   if (type === 'intel') return handleIntel(req.body, res)
+  if (type === 'booking-assist') return handleBookingAssist(req.body, res)
   return res.status(400).json({ error: 'Unknown type' })
 }

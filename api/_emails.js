@@ -431,6 +431,43 @@ export function emailWeeklySummary({
   }
 }
 
+// Booking confirmation — sent to client after successful online booking
+export function emailBookingConfirmation({ clientName, businessName, businessPhone, serviceName, dateStr, timeStr, bookingRef, manageUrl, cancelCutoffHrs }) {
+  const manageLink = manageUrl
+    ? `<p style="font-size:0.82rem;color:#666;margin-top:1rem;">Need to change your appointment? <a href="${manageUrl}" style="color:#5e3b87;font-weight:600;text-decoration:none;">Manage your booking →</a></p>`
+    : ''
+  const cutoffNote = cancelCutoffHrs > 0
+    ? `<p style="font-size:0.78rem;color:#aaa;margin-top:0.5rem;">Please give us at least ${cancelCutoffHrs} hours' notice if you need to cancel.</p>`
+    : ''
+  const phoneNote = businessPhone
+    ? `<p style="font-size:0.82rem;color:#666;">Questions? Call us on <a href="tel:${businessPhone}" style="color:#5e3b87;font-weight:600;text-decoration:none;">${businessPhone}</a>.</p>`
+    : ''
+  return {
+    subject: `Your booking is confirmed — ${serviceName} at ${businessName}`,
+    html: `<!DOCTYPE html><html><body style="font-family:'DM Sans',Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem 1rem;color:#1a1a1a;">
+      <div style="margin-bottom:1.5rem;">
+        <span style="font-weight:700;color:#5e3b87;font-size:1.125rem;">${businessName}</span>
+      </div>
+      <div style="width:56px;height:56px;border-radius:50%;background:#dcfce7;border:2px solid rgba(61,184,122,0.3);display:flex;align-items:center;justify-content:center;margin:0 0 1.25rem;font-size:1.5rem;">✓</div>
+      <h2 style="font-size:1.25rem;font-weight:700;color:#1a1a1a;margin:0 0 0.35rem;">Booking confirmed, ${clientName}!</h2>
+      <p style="color:#666;font-size:0.875rem;margin:0 0 1.5rem;">${businessName} will be in touch to confirm your appointment.</p>
+      <div style="background:#f5f3ff;border:1px solid rgba(94,59,135,0.15);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);color:#aaa;font-size:0.78rem;">Service</td><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);font-weight:600;text-align:right;color:#5e3b87;">${serviceName}</td></tr>
+          <tr><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);color:#aaa;font-size:0.78rem;">Date</td><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);font-weight:600;text-align:right;">${dateStr}</td></tr>
+          <tr><td style="padding:0.4rem 0;color:#aaa;font-size:0.78rem;">Time</td><td style="padding:0.4rem 0;font-weight:600;text-align:right;">${timeStr}</td></tr>
+        </table>
+        ${bookingRef ? `<p style="margin:0.65rem 0 0;font-size:0.72rem;color:#aaa;">Reference: <span style="font-family:monospace;letter-spacing:0.08em;color:#5e3b87;">${bookingRef}</span></p>` : ''}
+      </div>
+      ${manageLink}
+      ${cutoffNote}
+      ${phoneNote}
+      <hr style="border:none;border-top:1px solid #eee;margin:2rem 0 1rem;">
+      <p style="color:#aaa;font-size:0.75rem;margin:0;">Booking powered by Qerxel · <a href="${manageUrl || '#'}" style="color:#aaa;text-decoration:none;">Manage your booking</a></p>
+    </body></html>`,
+  }
+}
+
 // Notification 3 — monthly renewal
 export function emailRenewal({ businessName, includedMinutes }) {
   return {
