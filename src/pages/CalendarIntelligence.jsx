@@ -78,10 +78,14 @@ function computeAvailMins(staffList, availMap, days) {
   return total
 }
 
-// ─── Q Briefing panel ─────────────────────────────────────────────────────────
+// ─── Q Briefing panel (collapsible) ──────────────────────────────────────────
 function QBrief({ page, dataSummary }) {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState(null)
+  const storageKey = `qbrief-collapsed-${page}`
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(storageKey) === '1' } catch { return false }
+  })
 
   useEffect(() => {
     if (!dataSummary) { setLoading(false); return }
@@ -97,8 +101,28 @@ function QBrief({ page, dataSummary }) {
       .catch(() => setLoading(false))
   }, [dataSummary])
 
+  const toggle = () => {
+    const next = !collapsed
+    setCollapsed(next)
+    try { localStorage.setItem(storageKey, next ? '1' : '0') } catch {}
+  }
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+        <button onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.3rem 0.85rem 0.3rem 0.6rem', background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', border: 'none', borderRadius: 20, cursor: 'pointer', boxShadow: '0 2px 8px rgba(94,59,135,0.2)' }}>
+          <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: 'white', lineHeight: 1 }}>Q</span>
+          </div>
+          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>Show brief</span>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem' }}>▾</span>
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', borderRadius: 14, padding: '1.1rem 1.4rem', display: 'flex', gap: '1rem', marginBottom: '1.75rem', boxShadow: '0 4px 20px rgba(94,59,135,0.25)' }}>
+    <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', borderRadius: 14, padding: '1.1rem 1.4rem', display: 'flex', gap: '1rem', marginBottom: '1.75rem', boxShadow: '0 4px 20px rgba(94,59,135,0.25)', alignItems: 'flex-start' }}>
       <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
         <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.15rem', color: 'white', lineHeight: 1 }}>Q</span>
       </div>
@@ -111,6 +135,9 @@ function QBrief({ page, dataSummary }) {
           : <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif" }}>No data available yet — add some appointments and services to unlock insights.</div>
         }
       </div>
+      <button onClick={toggle} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, padding: '0.2rem 0.5rem', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '0.7rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0, marginTop: '0.15rem' }} title="Collapse">
+        ▲ hide
+      </button>
     </div>
   )
 }

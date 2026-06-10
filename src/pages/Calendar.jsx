@@ -1678,7 +1678,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       {/* ── Single compact top bar ───────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}
         data-help="Qerxel Calendar — create appointments manually, drag to reschedule, or let your AI create them from captured calls. Split appointments show processing gaps so you can book other clients during colour/drying time.">
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', margin: 0, flexShrink: 0 }}>Calendar</h2>
 
         {/* Sub-tabs */}
         <div style={{ display: 'flex', gap: 0, background: '#f0ebf8', borderRadius: 9, padding: 3, flexShrink: 0 }}>
@@ -1749,9 +1748,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       {activeSubTab === 'appointments' && (
         <>
 
-          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-            {/* Calendar grid */}
-            <div style={{ flex: 1, minWidth: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem', boxSizing: 'border-box' }}>
+          <div>
+            {/* Calendar grid — always full width; panel is a fixed overlay */}
+            <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem', boxSizing: 'border-box' }}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, color: '#aaa', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
                   Loading calendar…
@@ -1796,7 +1795,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   resources={resources}
                   resourceIdAccessor="id"
                   resourceTitleAccessor="title"
-                  style={{ height: panelOpen && !isMobile ? 640 : 680 }}
+                  style={{ height: 680 }}
                   scrollToTime={new Date(0, 0, 0, 7, 0, 0)}
                   min={new Date(0, 0, 0, 7, 0, 0)}
                   max={new Date(0, 0, 0, 21, 0, 0)}
@@ -1809,18 +1808,29 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               )}
             </div>
 
-            {/* Right panel (desktop) */}
-            {!isMobile && (
-              <AnimatePresence>
-                {panelOpen && (
-                  <motion.div key="right-panel" variants={panelVariants} initial="hidden" animate="visible" exit="exit"
-                    style={{ width: 320, flexShrink: 0, background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 4px 24px rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 660, overflow: 'hidden' }}>
+          </div>
+
+          {/* Right panel (desktop) — fixed overlay, doesn't affect calendar layout */}
+          {!isMobile && (
+            <AnimatePresence>
+              {panelOpen && (
+                <>
+                  <motion.div key="panel-backdrop"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    onClick={closePanel}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.22)', zIndex: 1099 }}
+                  />
+                  <motion.div key="right-panel"
+                    initial={{ x: 380 }} animate={{ x: 0 }} exit={{ x: 380 }}
+                    transition={{ type: 'spring', damping: 28, stiffness: 320, mass: 0.8 }}
+                    style={{ position: 'fixed', top: 0, right: 0, height: '100vh', width: 380, zIndex: 1100, background: 'white', boxShadow: '-6px 0 32px rgba(94,59,135,0.14)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {panelMode === 'view' ? renderViewPanel() : renderFormPanel()}
                   </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-          </div>
+                </>
+              )}
+            </AnimatePresence>
+          )}
 
           {/* Bottom drawer (mobile) */}
           {isMobile && (
