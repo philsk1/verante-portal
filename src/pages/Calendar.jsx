@@ -11,7 +11,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 
 const locales = { 'en-GB': enGB }
 const localizer = dateFnsLocalizer({
@@ -271,7 +270,7 @@ function scheduleSummary(sch) {
   return `${dayStr} · ${timeStr}`
 }
 
-function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate }) {
+function StaffScheduleTab({ tenantId, staff, isPreview, onPortalNavigate }) {
   const [schedules, setSchedules] = useState({}) // { staffId: { 0: {on,start,end}, ... } }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
@@ -279,16 +278,6 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate
   const [expanded, setExpanded] = useState(null) // staffId of open card
 
   useEffect(() => {
-    if (isDemo) {
-      const map = {}
-      staff.forEach(s => {
-        map[s.id] = {}
-        for (let d = 0; d < 7; d++) map[s.id][d] = { on: d >= 1 && d <= 5, start: '09:00', end: '18:00' }
-      })
-      setSchedules(map)
-      setLoading(false)
-      return
-    }
     if (!tenantId) return
     const load = async () => {
       const { data } = await supabase.from('staff_availability')
@@ -308,7 +297,7 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate
       setLoading(false)
     }
     load()
-  }, [tenantId, isDemo, staff.length])
+  }, [tenantId, staff.length])
 
   const toggle = (staffId, day) => {
     setSchedules(prev => ({ ...prev, [staffId]: { ...prev[staffId], [day]: { ...prev[staffId][day], on: !prev[staffId][day].on } } }))
@@ -318,7 +307,7 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate
   }
 
   const saveSchedule = async (staffId) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     setSaving(staffId)
     const days = schedules[staffId] || {}
     for (let d = 0; d < 7; d++) {
@@ -370,8 +359,8 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
                 {isOpen && (
-                  <button onClick={e => { e.stopPropagation(); saveSchedule(s.id) }} disabled={isSav || isDemo || isPreview}
-                    style={{ padding: '0.32rem 0.8rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600, cursor: (isSav || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  <button onClick={e => { e.stopPropagation(); saveSchedule(s.id) }} disabled={isSav || isPreview}
+                    style={{ padding: '0.32rem 0.8rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600, cursor: isSav ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                     {isSav ? 'Saving…' : isSaved ? '✓ Saved' : 'Save'}
                   </button>
                 )}
@@ -414,7 +403,7 @@ function StaffScheduleTab({ tenantId, staff, isDemo, isPreview, onPortalNavigate
 }
 
 // ─── Booking rules tab ───────────────────────────────────────────────────────
-function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview, onPortalNavigate }) {
+function BookingRulesTab({ tenantId, catalogue, isPreview, onPortalNavigate }) {
   // edits: { [id]: { apply_minutes, processing_minutes, overlap_start_mins, overlap_end_mins } }
   const [edits, setEdits] = useState({})
   const [saving, setSaving] = useState(null)
@@ -442,7 +431,7 @@ function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview, onPortalNavig
   }
 
   const save = async (id) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setSaving(id)
     const e = edits[id] || {}
     const service = catalogue.find(c => c.id === id)
@@ -618,7 +607,7 @@ function BookingRulesTab({ tenantId, catalogue, isDemo, isPreview, onPortalNavig
 }
 
 // ─── Calendar settings tab ────────────────────────────────────────────────────
-function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
+function CalendarSettingsTab({ tenantId, isPreview }) {
   const [bufferMins, setBufferMins] = useState(15)
   const [reminder48h, setReminder48h] = useState(true)
   const [reminder24h, setReminder24h] = useState(true)
@@ -653,7 +642,7 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
   }, [tenantId])
 
   const save = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setSaving(true)
     await supabase.from('tenants').update({
       booking_buffer_mins:   bufferMins,
@@ -783,8 +772,8 @@ function CalendarSettingsTab({ tenantId, isDemo, isPreview }) {
         <Row label="1-hour reminder"><Toggle val={reminder1h} set={setReminder1h} /></Row>
       </div>
 
-      <button onClick={save} disabled={saving || isDemo || isPreview}
-        style={{ alignSelf: 'flex-start', padding: '0.55rem 1.4rem', background: saved ? '#3db87a' : (saving || isDemo ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: (saving || isDemo) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+      <button onClick={save} disabled={saving || isPreview}
+        style={{ alignSelf: 'flex-start', padding: '0.55rem 1.4rem', background: saved ? '#3db87a' : (saving ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
       </button>
     </div>
@@ -838,11 +827,8 @@ function ResourceHeader({ label, resource, staffList, events }) {
 export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onPrefillConsumed, calendarTier: calendarTierProp }) {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = preview?.isPreview
-  // In demo, use prop (set by PlanSelector) then fall back to demo context; for real tenants ignore (team mode based on staff)
-  const effectiveCalendarTier = isDemo ? (calendarTierProp ?? demo?.calendarTier ?? 'entry') : 'multi'
+  const effectiveCalendarTier = 'multi'
   const isMobile = useIsMobile()
 
   // Inject overrides to collapse the empty all-day row and tighten header cells
@@ -925,29 +911,20 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return () => document.removeEventListener('keydown', h)
   }, [])
 
-  // ─── Demo data injection ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!demo?.isDemo || demo.loading) return
-    setStaff(demo.staff || [])
-    setEvents((demo.appointments || []).map(toEvent))
-    setCatalogue((demo.services || []).map(s => ({ ...s, apply_minutes: s.apply_minutes ?? 0, overlap_start_mins: s.overlap_start_mins ?? 0, overlap_end_mins: s.overlap_end_mins ?? 0 })))
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
-
   // ─── Load tenant ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (demo?.isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const getTid = async () => {
       if (isPreview) { setTenantId(preview.previewTenantId); return }
       const { data } = await supabase.from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
       if (data) setTenantId(data.tenant_id)
     }
     getTid()
-  }, [user, isPreview, demo?.isDemo])
+  }, [user, isPreview])
 
   // ─── Load appointments + staff + catalogue ──────────────────────────────────
   useEffect(() => {
-    if (demo?.isDemo || !tenantId) return
+    if (!tenantId) return
     const load = async () => {
       setLoading(true)
       try {
@@ -1118,23 +1095,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Drag/resize ─────────────────────────────────────────────────────────────
   const handleEventDrop = useCallback(async ({ event, start, end, resourceId }) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     if (resourceId !== undefined) updates.staff_profile_id = resourceId === 'unassigned' ? null : resourceId
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resourceId: resourceId ?? e.resourceId, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
-  }, [isDemo, isPreview])
+  }, [isPreview])
 
   const handleEventResize = useCallback(async ({ event, start, end }) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
-  }, [isDemo, isPreview])
+  }, [isPreview])
 
   // ─── Save (with recurring series support) ────────────────────────────────────
   const handleSave = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     if (!form.title.trim() || !form.start || !form.end) return
     if (form.isSplit && (!form.processing_start || !form.processing_end)) return
     setSaving(true)
@@ -1209,7 +1186,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
-    if (isDemo || isPreview || !panelEvent) return
+    if (isPreview || !panelEvent) return
     setSaving(true)
     try {
       const appt = panelEvent.resource
@@ -1226,7 +1203,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Mark completed ───────────────────────────────────────────────────────────
   const handleMarkCompleted = async () => {
-    if (isDemo || isPreview || !panelEvent) return
+    if (isPreview || !panelEvent) return
     const updates = { status: 'completed' }
     setEvents(prev => prev.map(e => e.id === panelEvent.id ? { ...e, resource: { ...e.resource, status: 'completed' } } : e))
     setPanelEvent(prev => prev ? { ...prev, resource: { ...prev.resource, status: 'completed' } } : prev)
@@ -1368,7 +1345,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           )}
 
           {/* Review requests */}
-          {status === 'completed' && !isDemo && !isPreview && (
+          {status === 'completed' && !isPreview && (
             <div>
               <Label>Review requests</Label>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: 4 }}>
@@ -1391,7 +1368,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Edit
           </button>
-          {!isDemo && !isPreview && (
+          {!isPreview && (
             <button onClick={handleDelete} disabled={saving}
               style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 7, background: 'white', color: '#e05252', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.6 : 1 }}>
               Delete
@@ -1577,7 +1554,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </div>
       )}
       <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        {panelMode === 'edit' && !isDemo && !isPreview && (
+        {panelMode === 'edit' && !isPreview && (
           <button onClick={handleDelete} disabled={saving}
             style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 7, background: 'white', color: '#e05252', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginRight: 'auto' }}>
             Delete
@@ -1587,8 +1564,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginLeft: panelMode === 'edit' ? 0 : 'auto' }}>
           Cancel
         </button>
-        <button onClick={handleSave} disabled={!canSave || isDemo || isPreview}
-          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || isDemo || isPreview) ? '#f5d98a' : '#f0a500', color: (!canSave || isDemo || isPreview) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || isDemo || isPreview) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+        <button onClick={handleSave} disabled={!canSave || isPreview}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || isPreview) ? '#f5d98a' : '#f0a500', color: (!canSave || isPreview) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || isPreview) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Saving…' : form.repeat_type !== 'none' ? `Book ${form.repeat_count} sessions` : 'Save'}
         </button>
       </div>
@@ -1599,7 +1576,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Quick-panel: service CRUD ────────────────────────────────────────────────
   const addService = async () => {
-    if (isDemo || isPreview || !tenantId || !svcDraft.name.trim()) return
+    if (isPreview || !tenantId || !svcDraft.name.trim()) return
     setSvcAdding(true)
     setSvcError(null)
     const { data, error } = await supabase.from('catalogue_items').insert({
@@ -1625,7 +1602,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   const updateService = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const draft = svcModal ? svcDraft : svcEditDraft
     const { data } = await supabase.from('catalogue_items').update({
       name: draft.name?.trim(),
@@ -1644,7 +1621,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   const deleteService = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     await supabase.from('catalogue_items').delete().eq('id', id)
     setCatalogue(prev => prev.filter(s => s.id !== id))
   }
@@ -1853,12 +1830,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
       {/* ── Staff schedules sub-tab ──────────────────────────────────────────── */}
       {activeSubTab === 'schedules' && (
-        <StaffScheduleTab tenantId={tenantId} staff={staff} isDemo={isDemo} isPreview={isPreview} onPortalNavigate={onPortalNavigate} />
+        <StaffScheduleTab tenantId={tenantId} staff={staff} isPreview={isPreview} onPortalNavigate={onPortalNavigate} />
       )}
 
       {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}
       {activeSubTab === 'settings' && (
-        <CalendarSettingsTab tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} />
+        <CalendarSettingsTab tenantId={tenantId} isPreview={isPreview} />
       )}
 
       {/* ── Quick-access drawers (fixed right) ───────────────────────────────── */}
@@ -1994,7 +1971,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                             style={{ flex: 1, padding: '0.6rem', border: 'none', borderRadius: 8, background: !svcDraft.name.trim() || svcAdding ? '#f5d98a' : '#f0a500', color: !svcDraft.name.trim() || svcAdding ? '#7a5c1a' : '#1a0533', fontSize: '0.875rem', fontWeight: 700, cursor: !svcDraft.name.trim() || svcAdding ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                             {svcAdding ? 'Saving…' : svcModal.mode === 'add' ? '+ Add service' : 'Save changes'}
                           </button>
-                          {svcModal.mode === 'edit' && !isDemo && !isPreview && (
+                          {svcModal.mode === 'edit' && !isPreview && (
                             <button onClick={() => { deleteService(svcModal.id); setSvcModal(null) }}
                               style={{ padding: '0.6rem 1rem', border: '1px solid rgba(220,80,80,0.25)', borderRadius: 8, background: 'white', color: '#e05252', fontSize: '0.825rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                               Remove

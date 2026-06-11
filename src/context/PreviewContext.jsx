@@ -7,7 +7,6 @@ export const PreviewProvider = ({ children }) => {
   const [previewTenantId, setPreviewTenantId]     = useState(null)
   const [previewBusinessName, setPreviewBusinessName] = useState('')
   const [tierOverride, setTierOverride]           = useState(null)
-  const [isDemo, setIsDemo]                       = useState(false)
 
   const value = {
     isPreview:           !!previewTenantId,
@@ -15,8 +14,6 @@ export const PreviewProvider = ({ children }) => {
     previewBusinessName,
     tierOverride,
     setTierOverride,
-    isDemo,
-    setIsDemo,
     enterPreview: (tid, name) => { setPreviewTenantId(tid); setPreviewBusinessName(name) },
     exitPreview:  ()          => { setPreviewTenantId(null); setPreviewBusinessName('') },
   }

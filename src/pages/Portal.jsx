@@ -15,7 +15,6 @@ import StaffDirectory from './StaffDirectory'
 import ListenTab from './ListenTab'
 import PhoneLines from './PhoneLines'
 import HelpMascot from '../components/HelpMascot'
-import DemoBanner from '../components/DemoBanner'
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -195,15 +194,12 @@ const Portal = () => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('upgraded')) return 'settings'
     if (params.get('tab') === 'integrations') return 'integrations'
-    const exp = params.get('exp')
-    if (exp === 'schedule-basic' || exp === 'schedule-multi' || exp === 'schedule-listen') return 'calendar'
     return 'dashboard'
   })
   const [checking, setChecking] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [tenantId, setTenantId] = useState(null)
   const [isOwner, setIsOwner] = useState(false)
-  const [isDemoUser, setIsDemoUser] = useState(false)
   const [allTenants, setAllTenants] = useState([])
   const [calendarPrefill, setCalendarPrefill] = useState(null)
   const [listenPrefill, setListenPrefill]     = useState(null)
@@ -218,7 +214,6 @@ const Portal = () => {
   const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   const [baseTier, setBaseTier] = useState('light')
-  const [demoInitialising, setDemoInitialising] = useState(false)
   const [triageMode, setTriageMode] = useState('balanced')
   const [urgentOutcomes, setUrgentOutcomes] = useState(['escalated'])
   const [uncontactedCount, setUncontactedCount] = useState(0)
@@ -261,7 +256,7 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, is_demo, triage_mode, urgent_outcomes, listen_tier')
+        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, triage_mode, urgent_outcomes, listen_tier')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
@@ -276,7 +271,6 @@ const Portal = () => {
         setTriageMode(tenant.triage_mode || 'balanced')
         setUrgentOutcomes(Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0 ? tenant.urgent_outcomes : ['escalated'])
         setListenTier(tenant.listen_tier || 'none')
-        if (tenant.is_demo) preview.setIsDemo(true)
       }
 
       // Count uncontacted leads for sidebar badge
@@ -288,11 +282,8 @@ const Portal = () => {
       setUncontactedCount(leadCount || 0)
 
       const isOwnerEmail = user.email === 'finsolsoffice@gmail.com'
-      const _isDemoUser  = user.email === 'demo@qerxel.app'
-      if (_isDemoUser) setIsDemoUser(true)
-
-      if (isOwnerEmail || _isDemoUser) {
-        if (isOwnerEmail) setIsOwner(true)
+      if (isOwnerEmail) {
+        setIsOwner(true)
         const params = new URLSearchParams(window.location.search)
         const previewId   = params.get('ownerPreview')
         const previewName = params.get('ownerName') || ''
@@ -300,7 +291,7 @@ const Portal = () => {
           preview.enterPreview(previewId, decodeURIComponent(previewName))
           navigate('/portal', { replace: true })
         } else if (!preview.isPreview) {
-          navigate(_isDemoUser ? '/demo/select' : '/owner/select', { replace: true })
+          navigate('/owner/select', { replace: true })
           return
         }
       }
@@ -331,7 +322,7 @@ const Portal = () => {
 
   const saveHolidayToggle = async (val) => {
     setHolidayMode(val)
-    if (!tenantId || preview.isPreview || preview.isDemo) return
+    if (!tenantId || preview.isPreview) return
     const { error } = await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
     if (error) {
       console.error('Holiday mode save failed:', error)
@@ -341,89 +332,46 @@ const Portal = () => {
 
   const saveReturnDate = async (val) => {
     setHolidayReturnDate(val)
-    if (!tenantId || preview.isPreview || preview.isDemo) return
+    if (!tenantId || preview.isPreview) return
     await supabase.from('tenants').update({ holiday_return_date: val || null }).eq('id', tenantId)
   }
 
   const saveNotification = async (field, val) => {
-    if (!tenantId || preview.isPreview || preview.isDemo) return
+    if (!tenantId || preview.isPreview) return
     await supabase.from('tenants').update({ [field]: val }).eq('id', tenantId)
   }
 
-  const initDemoBusinesses = async () => {
-    setDemoInitialising(true)
-    try {
-      const res = await fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerEmail: user.email, action: 'demo-init' }),
-      })
-      const json = await res.json()
-      if (json.ok) alert(`Demo initialised.\n\n${json.log.join('\n')}`)
-      else alert(`Error: ${json.error}\n\n${(json.log || []).join('\n')}`)
-    } catch (err) {
-      alert('Failed to initialise demo: ' + err.message)
-    } finally {
-      setDemoInitialising(false)
-    }
-  }
-
-  // exp= URL param lets the demo/preview mode force a specific product combination
-  const EXP_MAP = {
-    'schedule-basic':               { answer: false, listen: false, scheduleMulti: false },
-    'schedule-multi':               { answer: false, listen: false, scheduleMulti: true  },
-    'schedule-listen':              { answer: false, listen: true,  scheduleMulti: true  },
-    'answer':                       { answer: true,  listen: false, scheduleMulti: false },
-    'answer-schedule-multi':        { answer: true,  listen: false, scheduleMulti: true  },
-    'answer-listen':                { answer: true,  listen: true,  scheduleMulti: false },
-    'answer-listen-schedule-multi': { answer: true,  listen: true,  scheduleMulti: true  },
-  }
-  const expParam = new URLSearchParams(window.location.search).get('exp')
-  const expOverride = expParam ? (EXP_MAP[expParam] ?? null) : null
-
-  const hasAnswer = expOverride ? expOverride.answer : true
-  // Enterprise/Bespoke always includes Listen even if listen_tier not explicitly set in DB
-  const hasListen = expOverride
-    ? expOverride.listen
-    : listenTier !== 'none' || ['enterprise', 'bespoke'].includes(baseTier)
-  const hasScheduleMulti = expOverride
-    ? expOverride.scheduleMulti
-    : ['professional', 'enterprise', 'bespoke'].includes(baseTier)
+  const hasListen = listenTier !== 'none' || ['enterprise', 'bespoke'].includes(baseTier)
+  const hasScheduleMulti = ['professional', 'enterprise', 'bespoke'].includes(baseTier)
 
   const PRODUCTS = [
-    ...(hasAnswer ? [
-      {
-        id: 'answer',
-        label: 'Answer',
-        dot: '#f0a500',
-        tabs: [
-          { id: 'dashboard', label: 'Home',        icon: <IcoDashboard /> },
-          { id: 'analytics', label: 'Analytics',   icon: <IcoAnalytics /> },
-          { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
-          { id: 'referrals', label: 'Partners',    icon: <IcoPartners /> },
-        ],
-      },
-      {
-        id: 'listen',
-        label: 'Listen',
-        dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
-        locked: !hasListen,
-        tabs: [
-          { id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen },
-        ],
-      },
-    ] : []),
+    {
+      id: 'answer',
+      label: 'Answer',
+      dot: '#f0a500',
+      tabs: [
+        { id: 'dashboard', label: 'Home',        icon: <IcoDashboard /> },
+        { id: 'analytics', label: 'Analytics',   icon: <IcoAnalytics /> },
+        { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
+        { id: 'referrals', label: 'Partners',    icon: <IcoPartners /> },
+      ],
+    },
+    {
+      id: 'listen',
+      label: 'Listen',
+      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
+      locked: !hasListen,
+      tabs: [
+        { id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen },
+      ],
+    },
     {
       id: 'schedule',
       label: 'Schedule',
       dot: '#60a5fa',
       tabs: [
-        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
-        { id: 'team',      label: 'Team',      icon: <IcoPeople />,   locked: !hasScheduleMulti },
-        ...(!hasAnswer ? [
-          { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
-          { id: 'referrals', label: 'Partners',  icon: <IcoPartners /> },
-        ] : []),
+        { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
+        { id: 'team',     label: 'Team',     icon: <IcoPeople />, locked: !hasScheduleMulti },
       ],
     },
     { id: '_build_card', buildCard: true, tabs: [] },
@@ -822,33 +770,26 @@ const Portal = () => {
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', ...(activeTab === 'listen' && { height: '100vh', overflow: 'hidden' }) }}>
 
-        {/* Demo banner */}
-        {preview.isDemo && (
-          <DemoBanner businessName={displayName} baseTier={baseTier} />
-        )}
-
-        {/* Preview banner — owner only (suppressed when isDemo handles it) */}
-        {preview.isPreview && !preview.isDemo && (
+        {/* Owner preview banner */}
+        {preview.isPreview && (
           <div style={{ background: '#f0a500', color: '#1a0533', height: 38, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', boxSizing: 'border-box', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
             <span style={{ fontWeight: 600 }}>
-              <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{isDemoUser ? 'Demo' : 'Owner preview'}</span>
+              <span style={{ opacity: 0.65, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Owner preview</span>
               {'  ·  '}{preview.previewBusinessName}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <button
-                onClick={() => { preview.exitPreview(); navigate(isDemoUser ? '/demo/select' : '/owner/select') }}
+                onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
                 style={{ background: 'none', border: 'none', color: 'rgba(26,5,51,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
               >
-                ← {isDemoUser ? 'All businesses' : 'Change business'}
+                ← Change business
               </button>
-              {!isDemoUser && (
-                <button
-                  onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
-                  style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
-                >
-                  Exit preview
-                </button>
-              )}
+              <button
+                onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
+                style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Exit preview
+              </button>
             </div>
           </div>
         )}

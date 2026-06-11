@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -488,8 +487,6 @@ function previewGreeting(tone, name, owner, outcomeType, bLink, callbackNote) {
 const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -560,21 +557,7 @@ const AIBehaviour = ({ onNavigate }) => {
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
 
-  // ── Demo mode: inject AI settings from DemoContext ───────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || !demo.business) return
-    const biz = demo.business
-    setTier(demo.tier || 'light')
-    setBusinessName(biz.business_name || '')
-    setTriageMode(biz.triage_mode || 'balanced')
-    setToneRegister(biz.tone_register || 'warm')
-    setGreetingMessage(biz.greeting_message || '')
-    setBusinessOutcomeType(biz.business_outcome_type || 'callback')
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier])
-
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -678,7 +661,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveMainSettings = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setSaving(true)
     const { error } = await supabase.from('tenants').update({
       triage_mode: triageMode,
@@ -707,7 +690,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveRules = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setRulesSaving(true)
     const rows = CALL_TYPES.map(type => ({
       tenant_id:     tenantId,
@@ -736,7 +719,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveToggle = async (field, value) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -745,7 +728,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const addKeyword = async (word) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const trimmed = word.trim()
     if (!trimmed || !tenantId) return
     const updated = [...keywords, trimmed]
@@ -755,7 +738,6 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const removeKeyword = async (index) => {
-    if (isDemo) return
     const updated = keywords.filter((_, i) => i !== index)
     setKeywords(updated)
     await supabase.from('tenants').update({ emergency_keywords: updated.length ? updated : null }).eq('id', tenantId)

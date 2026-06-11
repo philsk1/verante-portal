@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -112,8 +111,6 @@ const FlagIcon = ({ active }) => (
 export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes = ['escalated'] }) {
   const { user }   = useAuth()
   const preview    = usePreview()
-  const demo       = useDemo()
-  const isDemo     = !!demo?.isDemo || !!preview?.isDemo
   const isPreview  = !!preview?.isPreview
 
   const [tenantId, setTenantId]   = useState(null)
@@ -127,29 +124,9 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   // Persists callback flags set this session — never wiped by reloads
   const localFlagsRef             = useRef(new Map())
 
-  // ── Demo load ────────────────────────────────────────────────────────────────
+  // ── Tenant load ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading) return
-    const raw = demo.calls || []
-    setCalls(raw.map(c => ({
-      id:               c.id,
-      created_at:       c.created_at,
-      duration_seconds: c.duration_seconds,
-      call_outcome:     c.call_outcome,
-      ai_summary:       c.ai_summary,
-      caller_phone:     c.callers?.phone_number || c.caller_number || null,
-      caller_name:      c.caller_name || null,
-      transcript:       c.transcript || null,
-      callback_flagged: localFlagsRef.current.has(c.id)
-        ? localFlagsRef.current.get(c.id)
-        : (c.callback_flagged || false),
-    })))
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
-
-  // ── Real tenant load ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (demo?.isDemo || (!user && !isPreview)) return
+    if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
       try {
@@ -226,7 +203,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
     localFlagsRef.current.set(callId, next)
     setCalls(prev => prev.map(c => c.id === callId ? { ...c, callback_flagged: next } : c))
     if (selected?.id === callId) setSelected(s => ({ ...s, callback_flagged: next }))
-    if (!isDemo && !isPreview && tenantId) {
+    if (!isPreview && tenantId) {
       await supabase.from('call_logs').update({ callback_flagged: next }).eq('id', callId)
     }
   }

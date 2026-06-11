@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 
 const useIsMobile = () => {
   const [m, setM] = useState(window.innerWidth <= 768)
@@ -359,8 +358,6 @@ const DrillPanel = ({ title, onClose, children }) => (
 const DataAnalytics = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -380,40 +377,7 @@ const DataAnalytics = ({ onNavigate }) => {
   const [leadsByStatus, setLeadsByStatus] = useState({ new: 0, contacted: 0, converted: 0, lost: 0 })
   const [durationBuckets, setDurationBuckets] = useState({ short: 0, medium: 0, long: 0 })
 
-  // ── Demo mode: compute analytics from DemoContext ─────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading) return
-    setTier(demo.tier || 'light')
-    const calls = demo.analyticsCallData || []
-    const leads = demo.leads || []
-    setTotalCalls(calls.length)
-    setTotalLeads(leads.length)
-    const withDur = calls.filter(c => c.duration > 0)
-    setAvgDurationSecs(withDur.length ? Math.round(withDur.reduce((s, c) => s + c.duration, 0) / withDur.length) : 0)
-    const outcomes = {}
-    calls.forEach(c => { const k = c.call_outcome || c.triage_outcome || 'unknown'; outcomes[k] = (outcomes[k] || 0) + 1 })
-    // Use referral_log count as referred_out source — matches Partners tab
-    outcomes.referred_out = (demo.referrals || []).length
-    setOutcomeBreakdown(outcomes)
-    const byDay = [0, 0, 0, 0, 0, 0, 0]
-    calls.forEach(c => { byDay[new Date(c.created_at).getDay()]++ })
-    setCallsByDay(byDay)
-    setDemoPricing(demo.pricingIntelligence || [])
-    setDemoCompetitors(demo.competitorIntelligence || [])
-    const lbs = { new: 0, contacted: 0, converted: 0, lost: 0 }
-    ;(demo.leads || []).forEach(l => { const k = l.status || 'new'; lbs[k] = (lbs[k] || 0) + 1 })
-    setLeadsByStatus(lbs)
-    const dbs = { short: 0, medium: 0, long: 0 }
-    calls.forEach(c => {
-      const d = c.duration || c.duration_seconds || 0
-      if (d < 30) dbs.short++; else if (d < 120) dbs.medium++; else dbs.long++
-    })
-    setDurationBuckets(dbs)
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
-
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)

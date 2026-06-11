@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { useDemo } from '../context/DemoContext'
 import { usePreview } from '../context/PreviewContext'
 
 const UK_AREAS = [
@@ -230,18 +229,14 @@ function OfferPage({ tenantId, businessName, email }) {
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function PhoneLines() {
   const { user } = useAuth()
-  const { isDemo, isPreview } = usePreview()
-  const demo = useDemo()
+  const { isPreview } = usePreview()
 
   const [loading, setLoading]       = useState(true)
   const [tenantId, setTenantId]     = useState(null)
   const [businessName, setBusiness] = useState('')
   const [phoneNumber, setPhone]     = useState(null)
 
-  const demoMode = isDemo || demo?.business != null
-
   useEffect(() => {
-    if (demoMode) { setLoading(false); return }
     if (!user) return
     const load = async () => {
       const { data: m } = await supabase.from('tenant_memberships').select('tenant_id').eq('user_id', user.id).maybeSingle()
@@ -255,29 +250,9 @@ export default function PhoneLines() {
       setLoading(false)
     }
     load()
-  }, [user, demoMode])
+  }, [user])
 
   if (loading) return null
-
-  // Demo: always show active state with a seeded number
-  if (demoMode) {
-    const b = demo?.business
-    const demoNumber = b?.business_phone || '+44 161 399 8001'
-    return (
-      <div style={s.page}>
-        <div style={s.pageHeader}>
-          <h1 style={s.h1}>Qerxel Lines</h1>
-          <p style={s.sub}>Your dedicated business phone number — works with Qerxel AI, or completely standalone.</p>
-        </div>
-        <ActiveCard number={demoNumber} forwardTo="07700 900 123" ported={false} />
-        <div style={{ ...s.card, opacity: 0.5, pointerEvents: 'none' }}>
-          <h3 style={{ ...s.sectionTitle, marginBottom: '0.25rem' }}>Request an additional line</h3>
-          <p style={s.sectionSub}>Add a second number for a different department, location, or product.</p>
-          <button style={{ ...s.btn, opacity: 0.5 }}>Request additional line</button>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={s.page}>

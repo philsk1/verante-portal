@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 
 // ─── colour system ────────────────────────────────────────────────────────────
@@ -61,8 +60,6 @@ const Badge = ({ children, bg = '#f0ebf8', color = '#5e3b87' }) => (
 const PartnersReferrals = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview  = usePreview()
-  const demo     = useDemo()
-  const isDemo    = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [loading, setLoading]             = useState(true)
@@ -87,38 +84,7 @@ const PartnersReferrals = ({ onNavigate }) => {
   const referralUrl     = referralCode ? `qerxel.com/join?ref=${referralCode}` : ''
   const fullReferralUrl = `https://${referralUrl}`
 
-  // ── Demo ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading || !demo.business) return
-    const code = demo.business.referral_code || 'DEMO2026'
-    setReferralCode(code)
-    setCreditMonths(0)
-
-    const referralsByPartnerName = {}
-    ;(demo.referrals || []).forEach(r => {
-      const key = r.partner_name
-      if (key) referralsByPartnerName[key] = (referralsByPartnerName[key] || 0) + 1
-    })
-
-    const mapped = (demo.partners || []).map(p => ({
-      id:            p.id,
-      name:          p.partner_name,
-      phone:         p.partner_phone || '',
-      specialty:     p.specialty || '',
-      sentCount:     referralsByPartnerName[p.partner_name] || 0,
-      inboundCount:  p.inbound_count || 0,
-    }))
-    setPartners(mapped)
-    const total = (demo.referrals || []).length
-    setOutboundTotal(total)
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
-    setOutboundThisMonth((demo.referrals || []).filter(r => new Date(r.created_at) >= monthStart).length)
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
-
-  // ── Real tenant ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -143,7 +109,7 @@ const PartnersReferrals = ({ onNavigate }) => {
 
         if (tenantRes.data) {
           let code = tenantRes.data.referral_code || ''
-          if (!code && tid && !isDemo && !isPreview) {
+          if (!code && tid && !isPreview) {
             // Auto-generate referral code from business name
             const raw = tenantRes.data.business_name || 'QERXEL'
             const base = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
@@ -191,7 +157,7 @@ const PartnersReferrals = ({ onNavigate }) => {
   }, [user, isPreview])
 
   const addPartner = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     const name = draft.name.trim()
     if (!name) return
     setAdding(true)
@@ -209,14 +175,14 @@ const PartnersReferrals = ({ onNavigate }) => {
   }
 
   const removePartner = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     await supabase.from('referral_service_map').delete().eq('partner_id', id)
     await supabase.from('referral_partners').delete().eq('id', id)
     setPartners(prev => prev.filter(p => p.id !== id))
   }
 
   const logInbound = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const partner = partners.find(p => p.id === id)
     if (!partner) return
     const newCount = partner.inboundCount + 1
@@ -414,7 +380,7 @@ const PartnersReferrals = ({ onNavigate }) => {
 
                   {/* Remove + log */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    {!isDemo && !isPreview && (
+                    {!isPreview && (
                       <button
                         onClick={() => logInbound(p.id)}
                         title="Log a referral received from this partner"
@@ -425,7 +391,7 @@ const PartnersReferrals = ({ onNavigate }) => {
                     )}
                     <button
                       onClick={() => removePartner(p.id)}
-                      style={{ background: 'none', border: 'none', cursor: isDemo || isPreview ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                      style={{ background: 'none', border: 'none', cursor: isPreview ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
                       title="Remove partner"
                     >×</button>
                   </div>
@@ -447,7 +413,7 @@ const PartnersReferrals = ({ onNavigate }) => {
             <Input value={draft.specialty} onChange={e => setDraft(d => ({ ...d, specialty: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') addPartner() }} placeholder="What do they specialise in? (e.g. Electrical work, Commercial cleaning…)" />
             <button
               onClick={addPartner}
-              disabled={!draft.name.trim() || adding || isDemo || isPreview}
+              disabled={!draft.name.trim() || adding || isPreview}
               style={{ padding: '0.6rem 1.25rem', borderRadius: '10px', border: 'none', background: !draft.name.trim() || adding ? '#f5d98a' : '#f0a500', color: !draft.name.trim() || adding ? '#7a5c1a' : '#1a0533', fontSize: '0.8125rem', fontWeight: 700, cursor: !draft.name.trim() || adding ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', alignSelf: 'center' }}
             >
               {adding ? 'Adding…' : '+ Add partner'}

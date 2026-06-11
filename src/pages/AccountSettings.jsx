@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 import { useNavigate } from 'react-router-dom'
 import PlanSelector from './PlanSelector'
 
@@ -520,8 +519,6 @@ const BookingLinkRow = ({ tenantId }) => {
 const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, triggerPlanSelector }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const navigate = useNavigate()
 
@@ -591,21 +588,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
     if (triggerPlanSelector > 0) setShowPlanSelector(true)
   }, [triggerPlanSelector])
 
-  // ── Demo mode: inject from DemoContext ───────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading || !demo.business) return
-    const biz = demo.business
-    setDisplayName(biz.business_name || '')
-    setTier(demo.tier || 'light')
-    setCalendarTier(demo.calendarTier || 'entry')
-    setPartnerCount((demo.partners || []).length)
-    setLeadCount((demo.leads || []).length)
-    setOutboundCount((demo.referrals || []).length)
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
-
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -675,7 +658,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }, [])
 
   const handleUpgrade = async (targetTier) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setUpgradingTier(targetTier)
     try {
       const res = await fetch('/api/freeagent-invoice', {
@@ -704,7 +687,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveAccountDetails = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setAccountSaving(true)
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
@@ -718,7 +701,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveNotifications = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setNotifySaving(true)
     const { error } = await supabase.from('tenants').update({
       notify_new_lead: notifyNewLead,
@@ -735,7 +718,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveCostLimit = async (val) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setMonthlyCostLimit(val)
     setCostLimitSaving(true)
     await supabase.from('tenants').update({ monthly_cost_limit: val }).eq('id', tenantId)
@@ -743,7 +726,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveDataRetention = async (days) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setDataRetentionDays(days)
     setDataSaving(true)
     const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
@@ -752,8 +735,8 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const handleExportData = async () => {
-    if (isDemo || isPreview || !tenantId) {
-      showDataToast("Data export is not available in demo mode.", 'error')
+    if (isPreview || !tenantId) {
+      showDataToast("Data export is not available in preview mode.", 'error')
       return
     }
     showDataToast("Preparing your export — check your email shortly.", 'success')
@@ -779,7 +762,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const submitFeedback = async () => {
-    if (isDemo || !rating || !tenantId) return
+    if (!rating || !tenantId) return
     setFeedbackSaving(true)
     await supabase.from('tenant_feedback').insert({ tenant_id: tenantId, rating, feedback_text: feedbackText.trim() || null })
     await supabase.from('tenants').update({ feedback_prompt_shown: true }).eq('id', tenantId)
@@ -790,11 +773,6 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   const sendChatMessage = async () => {
     const text = chatInput.trim()
     if (!text || chatWaiting) return
-    if (isDemo) {
-      setChatMessages(prev => [...prev, { role: 'user', text }, { role: 'ai', text: 'Support chat isn\'t active in the demo. In your live account, I\'d have full access to your settings and billing context.' }])
-      setChatInput('')
-      return
-    }
     const newMessages = [...chatMessages, { role: 'user', text }]
     setChatMessages(newMessages)
     setChatInput('')
@@ -815,7 +793,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const handleCancelConfirm = async () => {
-    if (isDemo || isPreview) { setShowCancelModal(false); return }
+    if (isPreview) { setShowCancelModal(false); return }
     // Stripe cancellation endpoint — wired in a later build phase
     setShowCancelModal(false)
     navigate('/login')
@@ -838,12 +816,6 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   // Plan selector handler — upgrades Answer tier via Stripe, persists Listen/Calendar to Supabase
   const handlePlanSelect = async ({ answer, listen, calendar }) => {
     setShowPlanSelector(false)
-    if (isDemo) {
-      if (onPlanChange) onPlanChange({ answer, listen, calendar })
-      setCalendarTier(calendar)
-      setListenTier(listen)
-      return
-    }
     if (isPreview || !tenantId) return
     // Persist Listen + Calendar product selections
     await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
@@ -864,8 +836,8 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
           currentAnswer={tier}
           currentCalendar={calendarTier}
           currentListen={listenTier}
-          currentStaffCount={(isDemo ? (demo?.staff || []) : []).length}
-          currentStaffNames={(isDemo ? (demo?.staff || []) : []).map(s => s.name)}
+          currentStaffCount={0}
+          currentStaffNames={[]}
           onBack={() => setShowPlanSelector(false)}
           onSelect={handlePlanSelect}
         />

@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -522,8 +521,6 @@ const LeadCard = ({ lead, onClick, onWon, onLost }) => {
 const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
   const isMobile = useIsMobile()
 
@@ -571,27 +568,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [provisionalCount, setProvisionalCount] = useState(0)
   const [featureNoticeClosed, setFeatureNoticeClosed] = useState(false)
 
-  // ── Demo mode: inject from DemoContext ────────────────────────────────────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading || !demo.business) return
-    const biz = demo.business
-    const demoTier = demo.tier || 'standard'
-    setTier(demoTier)
-    setBusinessName(biz.business_name || '')
-    setIncludedMinutes(biz.included_minutes || 250)
-    setTriageMode(biz.triage_mode || 'balanced')
-    setCalls(demo.calls || [])
-    setLeads(demo.leads || [])
-    setReferrals(demo.referrals || [])
-    // Hub strip: infer listen/calendar availability from tier
-    const hasProfessional = ['professional', 'enterprise', 'bespoke'].includes(demoTier)
-    setListenTier(hasProfessional ? 'standard' : 'none')
-    setCalendarTier('entry')
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.tier, demo?.loading])
-
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -700,7 +677,7 @@ const ActivityDashboard = ({ onNavigate }) => {
     setLeadNotes(selectedLead?.notes || '')
     setCallTranscript(null)
     setCalledOutcome(null)
-    if (!selectedLead?.call_log_id || isDemo || isPreview) return
+    if (!selectedLead?.call_log_id || isPreview) return
     setCallTranscriptLoading(true)
     supabase
       .from('call_logs')
@@ -715,7 +692,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   }, [selectedLead?.id])
 
   const saveLeadNotes = async (value) => {
-    if (isDemo || isPreview || !selectedLead?.id) return
+    if (isPreview || !selectedLead?.id) return
     setLeadNotesSaving(true)
     try {
       await supabase.from('leads').update({ notes: value }).eq('id', selectedLead.id)
@@ -730,7 +707,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const markContacted = async (lead) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'contacted' } : l))
     setSelectedLead(null)
-    if (isDemo || isPreview) return
+    if (isPreview) return
     try {
       await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id)
     } catch {
@@ -741,7 +718,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const updateLeadStatus = async (lead, status) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status } : l))
     if (selectedLead?.id === lead.id) setSelectedLead(prev => ({ ...prev, status }))
-    if (isDemo || isPreview) return
+    if (isPreview) return
     try {
       await supabase.from('leads').update({ status }).eq('id', lead.id)
     } catch {
@@ -751,7 +728,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   const submitQuickCapture = async () => {
     if (!qcName.trim() && !qcPhone.trim()) return
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     setQcSaving(true)
     try {
       let callerId = null
@@ -1715,7 +1692,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* ── FEATURE DISCOVERY NOTICE ─────────────────────────────────────────── */}
       {(() => {
-        if (isDemo || isPreview || loading || calls.length === 0 || featureNoticeClosed) return null
+        if (isPreview || loading || calls.length === 0 || featureNoticeClosed) return null
         try {
           const stored = localStorage.getItem('qx_features_notice')
           if (stored) {

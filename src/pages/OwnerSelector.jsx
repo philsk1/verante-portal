@@ -90,16 +90,6 @@ const OwnerSelector = () => {
           >
             DB Audit →
           </a>
-          <a
-            href="/demo/login"
-            target="_blank"
-            rel="noreferrer"
-            style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}
-            onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.9)'}
-            onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.55)'}
-          >
-            Demo →
-          </a>
           <button
             onClick={handleSignOut}
             style={{ padding: '0.375rem 0.85rem', border: '1px solid rgba(255,255,255,0.22)', borderRadius: '6px', background: 'transparent', color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}

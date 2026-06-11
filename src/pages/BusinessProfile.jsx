@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { useDemo } from '../context/DemoContext'
 
 // ─── tier config ──────────────────────────────────────────────────────────────
 
@@ -435,8 +434,6 @@ const ServiceChips = ({ items, onRemove, onAdd, placeholder, chipStyle }) => {
 const BusinessProfile = () => {
   const { user } = useAuth()
   const preview = usePreview()
-  const demo = useDemo()
-  const isDemo = !!demo?.isDemo || !!preview?.isDemo
   const isPreview = !!preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
@@ -473,32 +470,7 @@ const BusinessProfile = () => {
   const [catalogueAdding, setCatalogueAdding] = useState(false)
   const [catalogueTab, setCatalogueTab] = useState('service')
 
-  // ── Demo mode: inject data from DemoContext instead of real Supabase ─────────
   useEffect(() => {
-    if (!demo?.isDemo || demo.loading) return
-    const biz = demo.business
-    if (!biz) return
-    setTier(demo.tier || 'light')
-    if (biz) {
-      setDetails({
-        business_name:    biz.business_name    || '',
-        business_phone:   biz.business_phone   || '',
-        business_email:   biz.business_email   || '',
-        business_address: '',
-        booking_link:     biz.booking_link     || '',
-        opening_hours:    biz.opening_hours    || '',
-        business_context: biz.business_context || '',
-      })
-    }
-    const allSvcs = demo.services || []
-    setServices(allSvcs.filter(s => !s.is_partner_service))
-    setPartnerServices(allSvcs.filter(s => s.is_partner_service))
-    setStaff(demo.staff || [])
-    setLoading(false)
-  }, [demo?.isDemo, demo?.business?.id, demo?.loading])
-
-  useEffect(() => {
-    if (demo?.isDemo) return
     if (!user && !isPreview) return
     const load = async () => {
       setLoading(true)
@@ -571,7 +543,7 @@ const BusinessProfile = () => {
   // ── business details ────────────────────────────────────────────────────────
 
   const saveDetails = async () => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     if (!tenantId) {
       setDetailsToast({ msg: 'Account not linked to a business. Complete setup at /onboarding.', type: 'error' })
       return
@@ -603,14 +575,14 @@ const BusinessProfile = () => {
   // ── services ────────────────────────────────────────────────────────────────
 
   const addService = async (name) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     const { data, error } = await supabase.from('services')
       .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
     if (!error && data) setServices(prev => [...prev, data])
   }
 
   const removeService = async (i) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const item = services[i]
     if (item.id) await supabase.from('services').delete().eq('id', item.id)
     setServices(prev => prev.filter((_, idx) => idx !== i))
@@ -619,14 +591,14 @@ const BusinessProfile = () => {
   // ── partner services ────────────────────────────────────────────────────────
 
   const addPartnerService = async (name) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     const { data, error } = await supabase.from('banned_services')
       .insert({ tenant_id: tenantId, banned_item: name }).select().maybeSingle()
     if (!error && data) setPartnerServices(prev => [...prev, { ...data, service_name: data.banned_item }])
   }
 
   const removePartnerService = async (i) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const item = partnerServices[i]
     if (item.id) await supabase.from('banned_services').delete().eq('id', item.id)
     setPartnerServices(prev => prev.filter((_, idx) => idx !== i))
@@ -638,7 +610,7 @@ const BusinessProfile = () => {
   const atClientLimit = clients.length >= clientLimit
 
   const addClient = async () => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const name = clientDraft.name.trim()
     const phone = clientDraft.phone.trim()
     if (!name || !phone || !tenantId || atClientLimit) return
@@ -673,7 +645,7 @@ const BusinessProfile = () => {
   }
 
   const removeClient = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     await supabase.from('caller_tenant_relationships').delete().eq('id', id)
     setClients(prev => prev.filter(c => c.id !== id))
   }
@@ -681,7 +653,7 @@ const BusinessProfile = () => {
   // ── staff profiles ──────────────────────────────────────────────────────────
 
   const addStaff = async () => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     const name = staffDraft.name.trim()
     if (!name || !tenantId) return
     setStaffAdding(true)
@@ -709,7 +681,7 @@ const BusinessProfile = () => {
   }
 
   const removeStaff = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
   }
@@ -717,7 +689,7 @@ const BusinessProfile = () => {
   // ── catalogue ───────────────────────────────────────────────────────────────
 
   const addCatalogueItem = async () => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     const name = catalogueDraft.name.trim()
     if (!name) return
     setCatalogueAdding(true)
@@ -743,13 +715,13 @@ const BusinessProfile = () => {
   }
 
   const removeCatalogueItem = async (id) => {
-    if (isDemo || isPreview) return
+    if (isPreview) return
     await supabase.from('catalogue_items').delete().eq('id', id)
     setCatalogueItems(prev => prev.filter(i => i.id !== id))
   }
 
   const handleCatalogueCSV = (e) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (isPreview || !tenantId) return
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()

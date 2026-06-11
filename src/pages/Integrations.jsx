@@ -329,7 +329,7 @@ const DEFAULT_WA_TEMPLATE = `Hi {{name}}, thanks for calling {{business}}. {{own
 export default function Integrations({ onNavigate }) {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = !!preview?.isDemo
+  const isDemo = false
   const isPreview = preview?.isPreview
 
   const [tenantId, setTenantId] = useState(null)
