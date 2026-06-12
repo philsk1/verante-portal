@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import VeraDialogue from './VeraDialogue'
-import QBotIcon from './QBotIcon'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -66,7 +65,7 @@ const FloatingBubble = ({ text, rect, visible }) => {
       opacity: visible ? 1 : 0,
       transition: visible ? 'none' : 'opacity 0.15s ease-in',
     }}>
-      <div style={{ flexShrink: 0, lineHeight: 0 }}><QBotIcon w={80} h={80} /></div>
+      <div style={{ flexShrink: 0, lineHeight: 0 }}><img src="/qmood/smile.svg" alt="Q" style={{ width: 80, height: 80, objectFit: 'contain' }} /></div>
       <div style={{
         position: 'relative', background: 'white',
         border: '1px solid rgba(94,59,135,0.2)', borderRadius: '10px',
@@ -85,17 +84,36 @@ const FloatingBubble = ({ text, rect, visible }) => {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const TAB_LABELS = {
-  dashboard: 'Dashboard',
-  profile:   'Business Profile',
-  ai:        'AI Behaviour',
-  analytics: 'Analytics',
-  referrals: 'Partners & Referrals',
-  account:   'Account',
+  dashboard:    'Dashboard',
+  profile:      'Business Profile',
+  ai:           'AI Behaviour',
+  analytics:    'Analytics',
+  referrals:    'Partners & Referrals',
+  account:      'Account',
+  calendar:     'Calendar',
+  team:         'Team',
+  listen:       'Listen',
+  integrations: 'Integrations',
+  lines:        'Phone Lines',
+}
+
+const TAB_TAGLINES = {
+  dashboard:    'Questions about your results?',
+  ai:           'Q can help you set this up',
+  analytics:    'Want more from your data?',
+  referrals:    'Q can help you build your network',
+  account:      'Q can advise on upgrades',
+  profile:      'Q can help configure this',
+  calendar:     'Q knows every Schedule feature',
+  team:         'Q can help with team setup',
+  listen:       'Q can explain how Listen works',
+  integrations: 'Q can guide you through this',
+  lines:        'Questions? Ask Q',
 }
 
 let dialogueCounter = 0
 
-const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAlert = null }) => {
+const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = [], onNavigate }) => {
   const [alertDismissed, setAlertDismissed] = useState(false)
 
   // Vera hover mode
@@ -113,6 +131,10 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
   const [proactiveSpeech, setProactiveSpeech] = useState(null)
   const [proactiveVisible, setProactiveVisible] = useState(false)
 
+  // Gap message rotation
+  const [gapIndex, setGapIndex] = useState(0)
+  const [dismissedGapIds, setDismissedGapIds] = useState(() => new Set())
+
   useEffect(() => { injectStyles() }, [])
 
   // Reset modes on tab change
@@ -124,6 +146,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
     setZones([])
     setDialogues([])
     setAlertDismissed(false)
+    setGapIndex(0)
   }, [activeTab])
 
   // Reset dismissed state when the alert message changes
@@ -244,8 +267,15 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
     return () => { cancelled = true }
   }, [contextKey, tenantId])
 
-  const tabLabel = TAB_LABELS[activeTab] || 'Portal'
-  const anyActive = helpMode || needHelpMode
+  // Gap rotation — filter by current tab and dismissed state, cycle every 6 s
+  const tabGaps = gaps.filter(g => g.tabs.includes(activeTab) && !dismissedGapIds.has(g.id))
+  const currentGap = tabGaps.length > 0 ? tabGaps[gapIndex % tabGaps.length] : null
+
+  useEffect(() => {
+    if (tabGaps.length <= 1) return
+    const t = setInterval(() => setGapIndex(i => i + 1), 6000)
+    return () => clearInterval(t)
+  }, [tabGaps.length])
 
   return (
     <>
@@ -260,29 +290,34 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
           style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0 }}
           title={helpMode ? 'Close Q' : 'Ask Q for help'}
         >
-          <QBotIcon w={90} h={90} />
+          <img src="/qmood/smile.svg" alt="Q" style={{ width: 90, height: 90, objectFit: 'contain' }} />
         </div>
 
-        {/* Need more help button */}
+        {/* Contextual Q tagline + action */}
         {!needHelpMode ? (
-          <button
-            onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
-            style={{
-              padding: '0.25rem 0.65rem',
-              background: helpMode ? '#f0a500' : 'white',
-              border: helpMode ? '1px solid #f0a500' : '1px solid rgba(94,59,135,0.2)',
-              borderRadius: '999px',
-              fontSize: '0.72rem',
-              color: helpMode ? '#1a0533' : '#5e3b87',
-              cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
-              fontWeight: helpMode ? 600 : 500,
-              flexShrink: 0,
-              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-            }}
-          >
-            Ask Q
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
+              {TAB_TAGLINES[activeTab] || 'Q knows everything'}
+            </span>
+            <button
+              onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
+              style={{
+                padding: '0.22rem 0.6rem',
+                background: helpMode ? '#f0a500' : 'white',
+                border: helpMode ? '1px solid #f0a500' : '1px solid rgba(94,59,135,0.2)',
+                borderRadius: '999px',
+                fontSize: '0.7rem',
+                color: helpMode ? '#1a0533' : '#5e3b87',
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 600,
+                flexShrink: 0,
+                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+              }}
+            >
+              Ask Q
+            </button>
+          </div>
         ) : (
           <button
             onClick={closeAll}
@@ -292,18 +327,30 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, businessName = '', veraAl
           </button>
         )}
 
-        {/* Proactive speech — inline, fades in/out */}
-        {proactiveSpeech && !alertDismissed && (
-          <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
-            {proactiveSpeech}
-          </div>
-        )}
-
-        {/* Vera proactive alert — pattern-driven, persists until dismissed */}
-        {veraAlert && !alertDismissed && !proactiveSpeech && (
+        {/* Alert slot — priority: vera alert > gap messages > proactive speech */}
+        {veraAlert && !alertDismissed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 340, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
             <span style={{ flex: 1 }}>{veraAlert}</span>
             <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+          </div>
+        )}
+        {!(veraAlert && !alertDismissed) && currentGap && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 400, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
+            <span style={{ flex: 1 }}>{currentGap.message}</span>
+            {currentGap.actionTab && onNavigate && (
+              <button
+                onClick={() => onNavigate(currentGap.actionTab)}
+                style={{ background: '#f0a500', border: 'none', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                {currentGap.actionLabel}
+              </button>
+            )}
+            <button onClick={() => setDismissedGapIds(prev => new Set([...prev, currentGap.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+          </div>
+        )}
+        {!(veraAlert && !alertDismissed) && !currentGap && proactiveSpeech && (
+          <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
+            {proactiveSpeech}
           </div>
         )}
       </div>
