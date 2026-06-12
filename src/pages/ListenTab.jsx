@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { performanceScore, qMoodFromScore, qCaption } from '../utils/qScore.js'
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -46,6 +47,14 @@ const TABS = [
     color: '#666',
     bg: '#f9f9f9',
   },
+  {
+    id: 'search',
+    label: 'Search',
+    filter: () => true,
+    empty: 'No calls match your search.',
+    color: '#5e3b87',
+    bg: '#ede8f5',
+  },
 ]
 
 const OUTCOME_STYLE = {
@@ -81,6 +90,19 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
+function matchesSearch(call, query) {
+  const terms = query.toLowerCase().split(/[\s,;]+/).map(t => t.replace(/[^\w\d]/g, '')).filter(Boolean)
+  if (!terms.length) return false
+  const d = new Date(call.created_at)
+  const dateStr   = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase()
+  const shortDate = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase()
+  const dayStr    = d.toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase()
+  const callerName = call.callers?.full_name || call.caller_name || ''
+  const fields = [callerName, call.caller_phone, call.ai_summary, call.transcript, dateStr, shortDate, dayStr]
+    .map(f => (f || '').toLowerCase())
+  return terms.every(term => fields.some(f => f.includes(term)))
+}
+
 function parseTranscript(raw) {
   if (!raw || typeof raw !== 'string') return null
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
@@ -112,13 +134,16 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const { user }   = useAuth()
   const preview    = usePreview()
   const isPreview  = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId]   = useState(null)
   const [calls, setCalls]         = useState([])
+  const [qMode, setQMode]         = useState('jump_in')
   const [loading, setLoading]     = useState(true)
   const [activeTab, setActiveTab] = useState('urgent')
   const [selected, setSelected]   = useState(null)
   const [search, setSearch]       = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [holidayMode, setHolidayMode] = useState(false)
   const transcriptRef             = useRef(null)
   // Persists callback flags set this session — never wiped by reloads
@@ -142,13 +167,16 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
         const [callRes, tenantRes] = await Promise.all([
           supabase
             .from('call_logs')
-            .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, transcript, callback_flagged')
+            .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, caller_name, transcript, callback_flagged, callers(full_name)')
             .eq('tenant_id', tid)
             .order('created_at', { ascending: false })
-            .limit(200),
-          supabase.from('tenants').select('holiday_mode').eq('id', tid).maybeSingle(),
+            .limit(500),
+          supabase.from('tenants').select('holiday_mode, q_mode').eq('id', tid).maybeSingle(),
         ])
-        if (tenantRes.data) setHolidayMode(tenantRes.data.holiday_mode || false)
+        if (tenantRes.data) {
+          setHolidayMode(tenantRes.data.holiday_mode || false)
+          setQMode(tenantRes.data.q_mode || 'jump_in')
+        }
         const { data } = callRes
         setCalls((data || []).map(c => ({
           ...c,
@@ -217,18 +245,27 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const tabDef   = TABS.find(t => t.id === activeTab)
   const effectiveFilter = activeTab === 'urgent' ? urgentFilter : activeTab === 'callback' ? callbackFilter : tabDef.filter
   const tabCalls = calls.filter(effectiveFilter)
-  const visible  = activeTab === 'log' && search
-    ? tabCalls.filter(c => {
-        const q = search.toLowerCase()
-        return (c.caller_phone?.toLowerCase().includes(q)) ||
-               (c.caller_name?.toLowerCase().includes(q)) ||
-               (c.ai_summary?.toLowerCase().includes(q)) ||
-               (c.transcript?.toLowerCase().includes(q))
-      })
-    : tabCalls
+
+  const searchResults = activeTab === 'search' && searchQuery.trim()
+    ? calls.filter(c => matchesSearch(c, searchQuery))
+    : []
+
+  const visible = activeTab === 'search'
+    ? searchResults
+    : activeTab === 'log' && search
+      ? tabCalls.filter(c => {
+          const q = search.toLowerCase()
+          const name = (c.callers?.full_name || c.caller_name || '').toLowerCase()
+          return name.includes(q) ||
+                 (c.caller_phone?.toLowerCase().includes(q)) ||
+                 (c.ai_summary?.toLowerCase().includes(q)) ||
+                 (c.transcript?.toLowerCase().includes(q))
+        })
+      : tabCalls
 
   const tabCounts = {}
   TABS.forEach(t => {
+    if (t.id === 'search') { tabCounts[t.id] = searchResults.length; return }
     tabCounts[t.id] = t.id === 'urgent'
       ? calls.filter(urgentFilter).length
       : t.id === 'callback'
@@ -241,23 +278,24 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: '2rem', boxSizing: 'border-box' }}>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      {holidayMode ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 1rem', background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#7a5c00', fontWeight: 500 }}>AI is paused — holiday mode is on. New calls are not being answered.</span>
-          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
-            {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
-          </span>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 1rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 0 3px rgba(61,184,122,0.25)' }} />
-          <span style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI is active — answering calls automatically</span>
-          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>
-            {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
-          </span>
-        </div>
-      )}
+      {(() => {
+        const oc = calls.reduce((a, c) => { a[c.call_outcome] = (a[c.call_outcome] || 0) + 1; return a }, {})
+        const ps = performanceScore(oc)
+        const lQMood = ps === null ? 'crying' : qMoodFromScore(ps)
+        const lQCaption = ps === null ? null : qCaption(ps, qMode)
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0.85rem 0.5rem 0.6rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
+            <img src={`/qmood/${lQMood}.svg`} alt="Q" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI active — answering every call, around the clock</div>
+              {lQCaption && <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{lQCaption}</div>}
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+              {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
+            </span>
+          </div>
+        )
+      })()}
 
       {/* ── Quick stats ─────────────────────────────────────────────────────── */}
       {calls.length > 0 && (() => {
@@ -291,7 +329,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           const active = activeTab === tab.id
           const urgent = tab.id === 'urgent' && count > 0
           return (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelected(null); setSearch('') }}
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelected(null); setSearch(''); if (tab.id !== 'search') setSearchQuery('') }}
               style={{
                 padding: '0.6rem 1.1rem', border: 'none', borderBottom: active ? `2px solid ${tab.id === 'urgent' && count > 0 ? '#b91c1c' : '#5e3b87'}` : '2px solid transparent',
                 background: 'transparent', cursor: 'pointer', marginBottom: -2,
@@ -333,6 +371,26 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
             />
           )}
 
+          {/* Search tab — multi-term progressive search */}
+          {activeTab === 'search' && (
+            <div style={{ marginBottom: '0.6rem', flexShrink: 0 }}>
+              <input
+                value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Name, service, date, day…"
+                autoFocus
+                style={{ padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 8, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+              />
+              {searchQuery.trim() && (
+                <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '0.3rem', fontFamily: "'DM Sans', sans-serif" }}>
+                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                  {searchResults.length > 0 && searchQuery.trim().includes(' ') && (
+                    <span style={{ color: '#bbb' }}> · each term narrows results</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
@@ -346,13 +404,30 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                 {activeTab === 'callback' && (
                   <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🚩</div>
                 )}
-                <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
-                  {search ? 'No calls match your search.' : tabDef.empty}
-                </div>
-                {activeTab === 'callback' && !search && (
-                  <div style={{ marginTop: '0.75rem', fontSize: '0.73rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.55 }}>
-                    When you review a call and decide to personally follow up, tap the <FlagIcon active={false} /> flag icon to add it here.
+                {activeTab === 'search' && !searchQuery.trim() ? (
+                  <div>
+                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔍</div>
+                    <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.7 }}>
+                      Search across all your calls.<br />
+                      Each extra word narrows results.
+                    </div>
+                    <div style={{ marginTop: '0.65rem', fontSize: '0.71rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.65 }}>
+                      "Sarah" → all Sarah calls<br />
+                      "Sarah blow dry" → narrows to 3<br />
+                      "Monday" → all Monday calls
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
+                      {search || searchQuery ? 'No calls match your search.' : tabDef.empty}
+                    </div>
+                    {activeTab === 'callback' && !search && (
+                      <div style={{ marginTop: '0.75rem', fontSize: '0.73rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.55 }}>
+                        When you review a call and decide to personally follow up, tap the <FlagIcon active={false} /> flag icon to add it here.
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ) : (

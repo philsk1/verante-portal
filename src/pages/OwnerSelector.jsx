@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { usePreview } from '../context/PreviewContext'
-import { supabase } from '../supabase'
 
 const OWNER_EMAIL = 'finsolsoffice@gmail.com'
 
@@ -40,13 +38,50 @@ const TRIAGE_LABEL = { strict: 'Strict', balanced: 'Balanced', open: 'Relaxed', 
 const OUTCOME_LABEL = { booking: 'Booking', callback: 'Callback', quote: 'Quote', enquiry: 'Enquiry' }
 const CALENDAR_LABEL = { entry: 'Single calendar', multi: 'Multi-staff calendar', none: 'No calendar' }
 
+const SEV_STYLE = {
+  critical: { bg: '#fee2e2', color: '#b91c1c', dot: '#ef4444' },
+  warning:  { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
+  info:     { bg: '#eff6ff', color: '#1d4ed8', dot: '#60a5fa' },
+}
+
+const LandscapeStrip = ({ landscape }) => {
+  if (!landscape) return null
+  const { calls30d, leadRate, upcoming, issues = [] } = landscape
+  return (
+    <div style={{ borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+      {/* Stats row */}
+      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.7rem', color: '#555' }}>
+        <span><span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#1a1a1a', fontSize: '0.82rem' }}>{calls30d ?? '—'}</span> calls/30d</span>
+        <span style={{ color: '#ccc' }}>·</span>
+        <span><span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#1a1a1a', fontSize: '0.82rem' }}>{leadRate != null ? `${Math.round(leadRate * 100)}%` : '—'}</span> lead rate</span>
+        <span style={{ color: '#ccc' }}>·</span>
+        <span><span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#1a1a1a', fontSize: '0.82rem' }}>{upcoming ?? '—'}</span> upcoming</span>
+      </div>
+      {/* Issue flags */}
+      {issues.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+          {issues.map((iss, i) => {
+            const s = SEV_STYLE[iss.severity] || SEV_STYLE.info
+            return (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.28rem', fontSize: '0.635rem', fontWeight: 600, background: s.bg, color: s.color, borderRadius: '4px', padding: '0.18rem 0.42rem', letterSpacing: '0.01em' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.dot, flexShrink: 0, display: 'inline-block' }} />
+                {iss.label}
+              </span>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const OwnerSelector = () => {
   const { user, signOut } = useAuth()
-  const preview = usePreview()
   const navigate = useNavigate()
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -62,8 +97,9 @@ const OwnerSelector = () => {
       .catch(() => { setError('Could not load tenants'); setLoading(false) })
   }, [user])
 
-  const select = (tenant) => {
-    navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}`)
+  const select = (tenant, tab = '') => {
+    const tabParam = tab ? `&ownerTab=${tab}` : ''
+    navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}${tabParam}`)
   }
 
   const handleSignOut = async () => {
@@ -102,13 +138,35 @@ const OwnerSelector = () => {
       {/* Content */}
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
             Select a tenant
           </h1>
-          <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
+          <p style={{ color: '#888', fontSize: '0.875rem', margin: '0 0 1rem' }}>
             Click any account to view its portal. Use the tier override in the banner to test different subscription states.
           </p>
+          <div style={{ position: 'relative', maxWidth: 380 }}>
+            <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search by name, tier, SMS, booking…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '0.55rem 0.75rem 0.55rem 2.1rem',
+                border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px',
+                fontSize: '0.875rem', color: '#1a1a1a', outline: 'none',
+                fontFamily: "'DM Sans', sans-serif", background: 'white',
+                boxShadow: '0 1px 4px rgba(94,59,135,0.06)',
+              }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '1rem', lineHeight: 1, padding: 0 }}>×</button>
+            )}
+          </div>
         </div>
 
         {loading && (
@@ -118,9 +176,27 @@ const OwnerSelector = () => {
           <div style={{ color: '#c0392b', fontSize: '0.875rem' }}>{error}</div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && (() => {
+          const q = search.trim().toLowerCase()
+          const filtered = q ? tenants.filter(t => {
+            const name = (t.business_name || '').toLowerCase()
+            const tier = (t.subscription_tier || '').toLowerCase()
+            const triage = (t.triage_mode || '').toLowerCase()
+            const outcome = (t.business_outcome_type || '').toLowerCase()
+            const features = [
+              t.sms_followup_enabled && 'sms',
+              t.provisional_booking_enabled && 'booking provisional',
+              t.listen_tier && t.listen_tier !== 'none' && 'listen',
+              t.calendar_tier && t.calendar_tier !== 'none' && 'calendar schedule',
+              t.spam_filter_enabled && 'spam',
+            ].filter(Boolean).join(' ')
+            return [name, tier, triage, outcome, features].some(s => s.includes(q))
+          }) : tenants
+          return (
+          <>
+          {filtered.length === 0 && <div style={{ color: '#aaa', fontSize: '0.875rem' }}>No tenants match "{search}"</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-            {tenants.map(t => (
+            {filtered.map(t => (
               <button
                 key={t.id}
                 onClick={() => select(t)}
@@ -167,6 +243,9 @@ const OwnerSelector = () => {
                   />
                 </div>
 
+                {/* Landscape intel */}
+                <LandscapeStrip landscape={t.landscape} />
+
                 {/* Mode row */}
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.6rem' }}>
                   {t.triage_mode && (
@@ -189,11 +268,21 @@ const OwnerSelector = () => {
                       demo
                     </span>
                   )}
+                  <button
+                    onClick={e => { e.stopPropagation(); select(t, 'ai') }}
+                    style={{ fontSize: '0.68rem', color: '#5e3b87', background: 'transparent', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '4px', padding: '0.15rem 0.45rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginLeft: 'auto' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#ede8f5' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    AI Settings →
+                  </button>
                 </div>
               </button>
             ))}
           </div>
-        )}
+          </>
+          )
+        })()}
       </div>
     </div>
   )
