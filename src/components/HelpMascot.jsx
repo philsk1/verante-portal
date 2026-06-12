@@ -65,7 +65,7 @@ const FloatingBubble = ({ text, rect, visible }) => {
       opacity: visible ? 1 : 0,
       transition: visible ? 'none' : 'opacity 0.15s ease-in',
     }}>
-      <div style={{ flexShrink: 0, lineHeight: 0 }}><img src="/qmood/smile.svg" alt="Q" style={{ width: 80, height: 80, objectFit: 'contain' }} /></div>
+      <div style={{ flexShrink: 0, lineHeight: 0 }}><img src="/qmood/smile.svg" alt="Q" style={{ width: 100, height: 100, objectFit: 'contain' }} /></div>
       <div style={{
         position: 'relative', background: 'white',
         border: '1px solid rgba(94,59,135,0.2)', borderRadius: '10px',
@@ -290,7 +290,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
           style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0 }}
           title={helpMode ? 'Close Q' : 'Ask Q for help'}
         >
-          <img src="/qmood/smile.svg" alt="Q" style={{ width: 90, height: 90, objectFit: 'contain' }} />
+          <img src="/qmood/smile.svg" alt="Q" style={{ width: 110, height: 110, objectFit: 'contain' }} />
         </div>
 
         {/* Contextual Q tagline + action */}
