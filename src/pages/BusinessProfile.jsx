@@ -2,10 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-
-// ─── tier config ──────────────────────────────────────────────────────────────
-
-const CLIENT_LIMIT = { light: 20, standard: 50, professional: 100, enterprise: 200, bespoke: 200 }
+import { qMoodFromScore, qCaption } from '../utils/qScore.js'
 
 // ─── avatar colour — consistent per name, cycles through palette ──────────────
 
@@ -431,15 +428,17 @@ const ServiceChips = ({ items, onRemove, onAdd, placeholder, chipStyle }) => {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const BusinessProfile = () => {
+const BusinessProfile = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [loading, setLoading] = useState(true)
+  const [qMode, setQMode] = useState('jump_in')
 
   // Business details
   const [details, setDetails] = useState({
@@ -449,26 +448,8 @@ const BusinessProfile = () => {
   const [detailsSaving, setDetailsSaving] = useState(false)
   const [detailsToast, setDetailsToast] = useState({ msg: '', type: '' })
 
-  // Services + partner services
-  const [services, setServices] = useState([])
+  // Partner services (banned_services — referral scope)
   const [partnerServices, setPartnerServices] = useState([])
-
-  // Client directory
-  const [clients, setClients] = useState([])
-  const [clientDraft, setClientDraft] = useState({ name: '', phone: '', instructions: '' })
-  const [clientAdding, setClientAdding] = useState(false)
-
-  // Staff profiles
-  const [staff, setStaff] = useState([])
-  const [staffDraft, setStaffDraft] = useState({ name: '', role: '', specialist_services: '', phone: '', direct_line_did: '' })
-  const [staffAdding, setStaffAdding] = useState(false)
-  const [staffError, setStaffError] = useState(false)
-
-  // Catalogue
-  const [catalogueItems, setCatalogueItems] = useState([])
-  const [catalogueDraft, setCatalogueDraft] = useState({ item_type: 'service', name: '', description: '', price_from: '', price_to: '', duration_minutes: '', processing_minutes: '', category: '', sku: '' })
-  const [catalogueAdding, setCatalogueAdding] = useState(false)
-  const [catalogueTab, setCatalogueTab] = useState('service')
 
   useEffect(() => {
     if (!user && !isPreview) return
@@ -489,11 +470,12 @@ const BusinessProfile = () => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name,business_phone,business_email,business_address,booking_link,opening_hours,business_context,subscription_tier')
+          .select('business_name,business_phone,business_email,business_address,booking_link,opening_hours,business_context,subscription_tier,q_mode')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
           setTier(tenant.subscription_tier || 'light')
+          setQMode(tenant.q_mode || 'jump_in')
           setDetails({
             business_name: tenant.business_name || '',
             business_phone: tenant.business_phone || '',
@@ -505,32 +487,8 @@ const BusinessProfile = () => {
           })
         }
 
-        const [svcRes, bannedRes, clientRes, staffRes, catRes] = await Promise.all([
-          supabase.from('services').select('id,service_name').eq('tenant_id', tid),
-          supabase.from('banned_services').select('id,banned_item').eq('tenant_id', tid),
-          supabase
-            .from('caller_tenant_relationships')
-            .select('id, notes, callers(id, name, phone_number)')
-            .eq('tenant_id', tid)
-            .limit(200),
-          supabase
-            .from('staff_profiles')
-            .select('id, name, role, specialist_services, phone, direct_line_did, active')
-            .eq('tenant_id', tid)
-            .order('created_at'),
-          supabase
-            .from('catalogue_items')
-            .select('*')
-            .eq('tenant_id', tid)
-            .order('created_at'),
-        ])
-
-        setServices(svcRes.data || [])
-        setPartnerServices((bannedRes.data || []).map(b => ({ ...b, service_name: b.banned_item })))
-        setClients(clientRes.data || [])
-        if (staffRes.error) setStaffError(true)
-        else setStaff(staffRes.data || [])
-        setCatalogueItems(catRes.data || [])
+        const { data: bannedRes } = await supabase.from('banned_services').select('id,banned_item').eq('tenant_id', tid)
+        setPartnerServices((bannedRes || []).map(b => ({ ...b, service_name: b.banned_item })))
       } catch (err) {
         console.error('Load error:', err)
       } finally {
@@ -543,7 +501,7 @@ const BusinessProfile = () => {
   // ── business details ────────────────────────────────────────────────────────
 
   const saveDetails = async () => {
-    if (isPreview) return
+    if (previewReadOnly) return
     if (!tenantId) {
       setDetailsToast({ msg: 'Account not linked to a business. Complete setup at /onboarding.', type: 'error' })
       return
@@ -572,199 +530,36 @@ const BusinessProfile = () => {
     }).catch(() => {})
   }
 
-  // ── services ────────────────────────────────────────────────────────────────
-
-  const addService = async (name) => {
-    if (isPreview || !tenantId) return
-    const { data, error } = await supabase.from('services')
-      .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
-    if (!error && data) setServices(prev => [...prev, data])
-  }
-
-  const removeService = async (i) => {
-    if (isPreview) return
-    const item = services[i]
-    if (item.id) await supabase.from('services').delete().eq('id', item.id)
-    setServices(prev => prev.filter((_, idx) => idx !== i))
-  }
-
   // ── partner services ────────────────────────────────────────────────────────
 
   const addPartnerService = async (name) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const { data, error } = await supabase.from('banned_services')
       .insert({ tenant_id: tenantId, banned_item: name }).select().maybeSingle()
     if (!error && data) setPartnerServices(prev => [...prev, { ...data, service_name: data.banned_item }])
   }
 
   const removePartnerService = async (i) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const item = partnerServices[i]
     if (item.id) await supabase.from('banned_services').delete().eq('id', item.id)
     setPartnerServices(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  // ── client directory ────────────────────────────────────────────────────────
-
-  const clientLimit = CLIENT_LIMIT[tier] || 20
-  const atClientLimit = clients.length >= clientLimit
-
-  const addClient = async () => {
-    if (isPreview) return
-    const name = clientDraft.name.trim()
-    const phone = clientDraft.phone.trim()
-    if (!name || !phone || !tenantId || atClientLimit) return
-    setClientAdding(true)
-
-    // Find or create caller record
-    let callerId
-    const { data: existing } = await supabase
-      .from('callers').select('id').eq('phone_number', phone).maybeSingle()
-
-    if (existing) {
-      callerId = existing.id
-      if (name) await supabase.from('callers').update({ name }).eq('id', callerId)
-    } else {
-      const { data: newCaller, error } = await supabase
-        .from('callers').insert({ phone_number: phone, name }).select().maybeSingle()
-      if (error || !newCaller) { setClientAdding(false); return }
-      callerId = newCaller.id
-    }
-
-    const { data: rel, error: relErr } = await supabase
-      .from('caller_tenant_relationships')
-      .insert({ tenant_id: tenantId, caller_id: callerId, notes: clientDraft.instructions.trim() || null })
-      .select('id, notes, callers(id, name, phone_number)')
-      .maybeSingle()
-
-    if (!relErr && rel) {
-      setClients(prev => [...prev, rel])
-      setClientDraft({ name: '', phone: '', instructions: '' })
-    }
-    setClientAdding(false)
-  }
-
-  const removeClient = async (id) => {
-    if (isPreview) return
-    await supabase.from('caller_tenant_relationships').delete().eq('id', id)
-    setClients(prev => prev.filter(c => c.id !== id))
-  }
-
-  // ── staff profiles ──────────────────────────────────────────────────────────
-
-  const addStaff = async () => {
-    if (isPreview) return
-    const name = staffDraft.name.trim()
-    if (!name || !tenantId) return
-    setStaffAdding(true)
-    const { data, error } = await supabase.from('staff_profiles')
-      .insert({
-        tenant_id: tenantId,
-        name,
-        role: staffDraft.role.trim() || null,
-        specialist_services: staffDraft.specialist_services.trim() || null,
-        phone: staffDraft.phone.trim() || null,
-        direct_line_did: staffDraft.direct_line_did.trim() || null,
-        active: true,
-      })
-      .select().maybeSingle()
-    setStaffAdding(false)
-    if (!error && data) {
-      setStaff(prev => [...prev, data])
-      setStaffDraft({ name: '', role: '', specialist_services: '', phone: '' })
-    }
-  }
-
-  const toggleStaffActive = async (id, current) => {
-    await supabase.from('staff_profiles').update({ active: !current }).eq('id', id)
-    setStaff(prev => prev.map(s => s.id === id ? { ...s, active: !current } : s))
-  }
-
-  const removeStaff = async (id) => {
-    if (isPreview) return
-    await supabase.from('staff_profiles').delete().eq('id', id)
-    setStaff(prev => prev.filter(s => s.id !== id))
-  }
-
-  // ── catalogue ───────────────────────────────────────────────────────────────
-
-  const addCatalogueItem = async () => {
-    if (isPreview || !tenantId) return
-    const name = catalogueDraft.name.trim()
-    if (!name) return
-    setCatalogueAdding(true)
-    const { data, error } = await supabase.from('catalogue_items')
-      .insert({
-        tenant_id: tenantId,
-        item_type: catalogueDraft.item_type,
-        name,
-        description: catalogueDraft.description.trim() || null,
-        price_from: catalogueDraft.price_from ? parseFloat(catalogueDraft.price_from) : null,
-        price_to: catalogueDraft.price_to ? parseFloat(catalogueDraft.price_to) : null,
-        duration_minutes: catalogueDraft.duration_minutes ? parseInt(catalogueDraft.duration_minutes) : null,
-        processing_minutes: catalogueDraft.processing_minutes ? parseInt(catalogueDraft.processing_minutes) : null,
-        category: catalogueDraft.category.trim() || null,
-        sku: catalogueDraft.sku.trim() || null,
-      })
-      .select().maybeSingle()
-    setCatalogueAdding(false)
-    if (!error && data) {
-      setCatalogueItems(prev => [...prev, data])
-      setCatalogueDraft({ item_type: catalogueTab, name: '', description: '', price_from: '', price_to: '', duration_minutes: '', processing_minutes: '', category: '', sku: '' })
-    }
-  }
-
-  const removeCatalogueItem = async (id) => {
-    if (isPreview) return
-    await supabase.from('catalogue_items').delete().eq('id', id)
-    setCatalogueItems(prev => prev.filter(i => i.id !== id))
-  }
-
-  const handleCatalogueCSV = (e) => {
-    if (isPreview || !tenantId) return
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const lines = ev.target.result.split('\n').filter(l => l.trim())
-      const rows = lines.slice(1).map(line => {
-        const [name, item_type, description, price_from, price_to, duration_minutes, category, sku] = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-        return {
-          tenant_id: tenantId,
-          item_type: item_type || 'service',
-          name: name || '',
-          description: description || null,
-          price_from: price_from ? parseFloat(price_from) : null,
-          price_to: price_to ? parseFloat(price_to) : null,
-          duration_minutes: duration_minutes ? parseInt(duration_minutes) : null,
-          category: category || null,
-          sku: sku || null,
-        }
-      }).filter(r => r.name)
-      if (!rows.length) return
-      const { data } = await supabase.from('catalogue_items').insert(rows).select()
-      if (data) setCatalogueItems(prev => [...prev, ...data])
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
   // ── computed ────────────────────────────────────────────────────────────────
-
-  const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
-  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
-  const quotaPct = (clients.length / clientLimit) * 100
 
   // Profile completeness
   const profileChecks = [
     !!details.business_name,
     !!details.business_phone || !!details.business_email,
-    services.length > 0,
+    !!details.business_address,
     !!details.opening_hours,
     !!details.business_context,
   ]
   const profileScore = profileChecks.filter(Boolean).length
   const profilePct   = Math.round((profileScore / profileChecks.length) * 100)
+  const profileQMood    = qMoodFromScore(profilePct)
+  const profileQCaption = qCaption(profilePct, qMode)
 
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading your profile…</div>
@@ -774,30 +569,21 @@ const BusinessProfile = () => {
     <div>
 
       {/* ── Profile summary bar ─────────────────────────────────────────────── */}
-      <div style={{ background: 'white', borderRadius: 14, padding: '0.9rem 1.25rem', marginBottom: '1rem', border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        {/* Stat pills */}
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-          {[
-            { label: 'Services',  value: services.length,      dot: '#3db87a' },
-            { label: 'Staff',     value: staff.length,         dot: '#1d4ed8' },
-            { label: 'Clients',   value: clients.length,       dot: '#5e3b87' },
-            { label: 'Catalogue', value: catalogueItems.length, dot: '#f0a500' },
-          ].map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', background: '#faf9fc', borderRadius: 20, border: '1px solid rgba(94,59,135,0.08)' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.dot, flexShrink: 0 }} />
-              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.8125rem', color: '#1a1a1a' }}>{item.value}</span>
-              <span style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{item.label}</span>
+      <div style={{ background: 'white', borderRadius: 14, padding: '0.9rem 1.25rem', marginBottom: '1rem', border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+        <img src={`/qmood/${profileQMood}.svg`} alt="Q" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.3rem' }}>
+            <div style={{ flex: 1, height: 5, borderRadius: 3, background: '#f0ebf8', overflow: 'hidden', maxWidth: 120 }}>
+              <div style={{ width: `${profilePct}%`, height: '100%', borderRadius: 3, background: profilePct === 100 ? '#3db87a' : '#5e3b87', transition: 'width 0.4s ease' }} />
             </div>
-          ))}
-        </div>
-        {/* Completeness */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-          <div style={{ width: 80, height: 5, borderRadius: 3, background: '#f0ebf8', overflow: 'hidden' }}>
-            <div style={{ width: `${profilePct}%`, height: '100%', borderRadius: 3, background: profilePct === 100 ? '#3db87a' : '#5e3b87', transition: 'width 0.4s ease' }} />
+            <span style={{ fontSize: '0.72rem', color: profilePct === 100 ? '#3db87a' : '#5e3b87', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              {profilePct === 100 ? 'Identity complete' : `${profilePct}% complete`}
+            </span>
           </div>
-          <span style={{ fontSize: '0.72rem', color: profilePct === 100 ? '#3db87a' : '#5e3b87', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
-            {profilePct === 100 ? 'Profile complete' : `${profilePct}% complete`}
-          </span>
+          {profileQCaption
+            ? <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>{profileQCaption}</div>
+            : <span style={{ fontSize: '0.7rem', color: '#aaa' }}>Name · contact · hours · AI context</span>
+          }
         </div>
       </div>
 
@@ -837,12 +623,24 @@ const BusinessProfile = () => {
         <Toast msg={detailsToast.msg} type={detailsToast.type} />
       </div>
 
-      {/* Your Services */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your Services is the list of things your AI will actively help callers with. If someone asks for a service not on this list, the AI handles it differently — referring out or politely declining.">Your Services</h3>
-        <p style={s.sectionSubtitle}>The services your AI will accept enquiries and bookings for.</p>
-        <ServiceChips items={services} onRemove={removeService} onAdd={addService}
-          placeholder="e.g. Boiler service, Emergency callout…" chipStyle={s.chipDefault} />
+      {/* Business data tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        {[
+          { id: 'clients',  label: 'Clients',  sub: 'CRM & campaigns', dot: '#5e3b87', bg: '#f0ebf8' },
+          { id: 'services', label: 'Services', sub: 'AI service list',  dot: '#1d4ed8', bg: '#eff6ff' },
+          { id: 'products', label: 'Products', sub: 'Products you sell', dot: '#1e7a4a', bg: '#e6f5ee' },
+          { id: 'team',     label: 'Team',     sub: 'Staff & schedules', dot: '#f0a500', bg: '#fef3c7' },
+        ].map(tile => (
+          <button key={tile.id} onClick={() => onNavigate?.(tile.id)} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: '12px', padding: '1rem', textAlign: 'left', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'box-shadow 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.25)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.1)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '8px', background: tile.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.6rem' }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: tile.dot, display: 'inline-block' }} />
+            </div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>{tile.label}</div>
+            <div style={{ fontSize: '0.72rem', color: '#aaa' }}>{tile.sub} →</div>
+          </button>
+        ))}
       </div>
 
       {/* Partner Services */}
@@ -853,344 +651,6 @@ const BusinessProfile = () => {
         </p>
         <ServiceChips items={partnerServices} onRemove={removePartnerService} onAdd={addPartnerService}
           placeholder="e.g. Commercial gas work, Electrical installation…" chipStyle={s.chip} />
-      </div>
-
-      {/* Client Directory */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="The Client Directory is a list of known clients. When one of their numbers calls in, your AI recognises them by name and follows your special instructions for them — great for VIP clients or anyone who needs different handling.">Client Directory</h3>
-        <p style={s.sectionSubtitle}>
-          Known clients with specialist instructions. When a listed number calls in, your AI recognises them by name and uses your instructions to handle the call appropriately.
-        </p>
-
-        {/* Quota */}
-        <div style={s.quotaBar}>
-          <div style={s.quotaFill(quotaPct, atClientLimit)} />
-        </div>
-        <div style={s.quotaLabel}>
-          {clients.length} of {clientLimit} clients · {tier.charAt(0).toUpperCase() + tier.slice(1)} plan
-          {atClientLimit && ' — limit reached'}
-        </div>
-
-        {/* Client list */}
-        {clients.length > 0 && (
-          <div style={{ marginBottom: '1rem' }}>
-            {clients.map(c => (
-              <div key={c.id} style={s.clientCard}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={s.clientName}>{c.callers?.name || 'Unnamed'}</div>
-                  <div style={s.clientPhone}>{c.callers?.phone_number || '—'}</div>
-                  {c.notes && <span style={s.clientInstructions}>{c.notes}</span>}
-                </div>
-                <button style={s.removeBtn} onClick={() => removeClient(c.id)} title="Remove">×</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add form */}
-        <div style={{ borderTop: clients.length > 0 ? '1px solid rgba(94,59,135,0.07)' : 'none', paddingTop: clients.length > 0 ? '1rem' : 0 }}>
-          <label style={s.label}>Add a client</label>
-          <div style={s.addFormGrid}>
-            <input style={s.addInput} value={clientDraft.name} onChange={e => setClientDraft(d => ({ ...d, name: e.target.value }))}
-              placeholder="Client name" disabled={atClientLimit} />
-            <input style={s.addInput} value={clientDraft.phone} onChange={e => setClientDraft(d => ({ ...d, phone: e.target.value }))}
-              placeholder="Phone number" type="tel" disabled={atClientLimit} />
-          </div>
-          <div style={s.addRow}>
-            <input style={s.addInput} value={clientDraft.instructions}
-              onChange={e => setClientDraft(d => ({ ...d, instructions: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') addClient() }}
-              placeholder="Specialist instructions — e.g. VIP client, always offer priority booking"
-              disabled={atClientLimit} />
-            <button
-              style={!clientDraft.name.trim() || !clientDraft.phone.trim() || atClientLimit || clientAdding ? s.addBtnDisabled : s.addBtn}
-              onClick={addClient}
-              disabled={!clientDraft.name.trim() || !clientDraft.phone.trim() || atClientLimit || clientAdding}
-            >
-              {clientAdding ? 'Adding…' : '+ Add'}
-            </button>
-          </div>
-          {atClientLimit && (
-            <div style={s.limitNote}>
-              {tier === 'light' ? 'Upgrade to Standard for 50 clients, Professional for 100, or Enterprise for 200.' : tier === 'standard' ? 'Upgrade to Professional for 100 clients or Enterprise for 200.' : 'Upgrade to Enterprise for 200 clients.'}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Employee Profiles */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Employee Profiles is an Enterprise feature. Add your team members with their specialist services and your AI can route callers to the right person — and tell callers who handles what.">Employee Profiles</h3>
-        <p style={s.sectionSubtitle}>
-          Add team members with their specialist services. Your AI uses these to route calls to the right person — and to tell callers who handles what.
-        </p>
-
-        {!isProfessional ? (
-          <div style={s.lockedOverlay}>
-            <div style={s.lockedBlur}>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                {[
-                  { name: 'Jamie Reed', role: 'Senior Engineer', spec: 'Boiler servicing' },
-                  { name: 'Sam Patel', role: 'Electrician', spec: 'Rewires & inspections' },
-                ].map(p => (
-                  <div key={p.name} style={{ flex: 1, padding: '0.85rem 1rem', border: '1px solid rgba(94,59,135,0.1)', borderRadius: '8px', background: '#faf9fc' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{p.name}</div>
-                    <div style={{ fontSize: '0.775rem', color: '#888' }}>{p.role}</div>
-                    <span style={s.staffSpecialty}>{p.spec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={s.lockedBadge}>
-              <div style={s.lockedTier}>Professional</div>
-              <div style={s.lockedTitle}>Employee Profiles</div>
-              <div style={s.lockedText}>Upgrade to Professional or above to add staff profiles and direct call routing.</div>
-            </div>
-          </div>
-        ) : staffError ? (
-          <div style={{ fontSize: '0.8rem', color: '#aaa' }}>
-            The staff_profiles table needs to be created in Supabase. Run the SQL provided in the handoff notes.
-          </div>
-        ) : (
-          <>
-            {staff.length > 0 && (
-              <div style={{ marginBottom: '1rem' }}>
-                {staff.map(member => {
-                  const av = avatarColour(member.name)
-                  return (
-                    <div key={member.id} style={{ ...s.staffCard, borderLeft: `4px solid ${av.text}`, opacity: member.active === false ? 0.55 : 1 }}>
-                      {/* Avatar circle */}
-                      <div style={{ width: 38, height: 38, borderRadius: '10px', background: av.bg, color: av.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', flexShrink: 0, position: 'relative' }}>
-                        {initials(member.name)}
-                        {/* Active status dot */}
-                        <span
-                          style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: member.active === false ? '#d1d5db' : '#3db87a', border: '2px solid white', cursor: 'pointer' }}
-                          onClick={() => toggleStaffActive(member.id, member.active)}
-                          title={member.active === false ? 'Inactive — click to activate' : 'Active — click to deactivate'}
-                        />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={s.staffName}>{member.name}</div>
-                        {member.role && <div style={s.staffRole}>{member.role}</div>}
-                        {member.specialist_services && <span style={{ ...s.staffSpecialty, background: av.bg, color: av.text }}>{member.specialist_services}</span>}
-                        {member.phone && <div style={s.staffPhone}>{member.phone}</div>}
-                        {member.direct_line_did && <div style={{ fontSize: '0.75rem', color: '#5e3b87', marginTop: '0.15rem' }}>DID: {member.direct_line_did}</div>}
-                      </div>
-                      <button style={s.removeBtn} onClick={() => removeStaff(member.id)} title="Remove">×</button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <div style={{ borderTop: staff.length > 0 ? '1px solid rgba(94,59,135,0.07)' : 'none', paddingTop: staff.length > 0 ? '1rem' : 0 }}>
-              <label style={s.label}>Add team member</label>
-              <div style={s.addFormGrid}>
-                <input style={s.addInput} value={staffDraft.name} onChange={e => setStaffDraft(d => ({ ...d, name: e.target.value }))}
-                  placeholder="Full name" />
-                <input style={s.addInput} value={staffDraft.role} onChange={e => setStaffDraft(d => ({ ...d, role: e.target.value }))}
-                  placeholder="Role or title" />
-              </div>
-              <div style={s.addFormGrid}>
-                <input style={s.addInput} value={staffDraft.phone} onChange={e => setStaffDraft(d => ({ ...d, phone: e.target.value }))}
-                  placeholder="Mobile (optional)" type="tel" />
-                <input style={s.addInput} value={staffDraft.direct_line_did} onChange={e => setStaffDraft(d => ({ ...d, direct_line_did: e.target.value }))}
-                  placeholder="Direct line DID — e.g. 020 7946 0001" type="tel" />
-              </div>
-              <input style={{ ...s.addInput, width: '100%', boxSizing: 'border-box', marginBottom: '0.5rem' }}
-                value={staffDraft.specialist_services}
-                onChange={e => setStaffDraft(d => ({ ...d, specialist_services: e.target.value }))}
-                placeholder="Specialist services — e.g. Gas safe, Commercial only" />
-              <button
-                style={!staffDraft.name.trim() || staffAdding ? s.addBtnDisabled : s.addBtn}
-                onClick={addStaff}
-                disabled={!staffDraft.name.trim() || staffAdding}
-              >
-                {staffAdding ? 'Adding…' : '+ Add team member'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* ── Services & Products Catalogue ──────────────────────────────── */}
-      <div style={s.section} data-help="Your catalogue is the knowledge base Qerxel's AI uses to answer questions and surface information during calls. Add your services with prices and durations, or products with codes and descriptions. The AI uses this in real time.">
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div>
-            <div style={s.sectionTitle}>Services &amp; Products Catalogue</div>
-            <div style={{ fontSize: '0.8rem', color: '#999', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5, marginTop: '0.2rem' }}>
-              Qerxel uses this to surface information in real time during calls.
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{
-              padding: '0.4rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(94,59,135,0.2)',
-              background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500,
-              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
-            }}>
-              Upload CSV
-              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleCatalogueCSV} />
-            </label>
-          </div>
-        </div>
-
-        {/* Type tabs */}
-        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem' }}>
-          {[
-            { id: 'service', label: 'Services', activeBg: '#ddd6fe', activeColor: '#4a2d6e' },
-            { id: 'product', label: 'Products', activeBg: '#bbf7d0', activeColor: '#166534' },
-          ].map(t => (
-            <button key={t.id} onClick={() => { setCatalogueTab(t.id); setCatalogueDraft(d => ({ ...d, item_type: t.id })) }} style={{
-              padding: '0.35rem 0.9rem', borderRadius: '999px', border: 'none',
-              background: catalogueTab === t.id ? t.activeBg : '#f3f4f6',
-              color: catalogueTab === t.id ? t.activeColor : '#888',
-              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {t.label}
-            </button>
-          ))}
-          {catalogueItems.length > 0 && (
-            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#aaa', alignSelf: 'center', fontFamily: "'DM Sans', sans-serif" }}>
-              {catalogueItems.filter(i => i.item_type === catalogueTab).length} {catalogueTab === 'service' ? 'services' : 'products'}
-            </span>
-          )}
-        </div>
-
-        {/* Item list */}
-        {catalogueItems.filter(i => i.item_type === catalogueTab).length === 0 ? (
-          <div style={{ borderRadius: '12px', border: '1.5px dashed rgba(94,59,135,0.12)', padding: '1.5rem', textAlign: 'center', marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.82rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
-              No {catalogueTab === 'service' ? 'services' : 'products'} added yet. Add below or upload a CSV.
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            {catalogueItems.filter(i => i.item_type === catalogueTab).map(item => {
-              const isService = item.item_type === 'service'
-              const accentColor = isService ? '#5e3b87' : '#3db87a'
-              const accentBg = isService ? '#ddd6fe' : '#bbf7d0'
-              return (
-                <div key={item.id} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
-                  padding: '0.75rem 0.85rem',
-                  background: 'white', borderRadius: '10px',
-                  border: '0.5px solid rgba(94,59,135,0.08)',
-                  borderLeft: `3px solid ${accentColor}`,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: item.description ? '0.2rem' : 0 }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{item.name}</span>
-                      {item.sku && <span style={{ fontSize: '0.68rem', background: '#f1f5f9', color: '#64748b', borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{item.sku}</span>}
-                      {item.category && <span style={{ fontSize: '0.68rem', background: accentBg, color: accentColor, borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{item.category}</span>}
-                    </div>
-                    {item.description && <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45 }}>{item.description}</div>}
-                    <div style={{ display: 'flex', gap: '0.85rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
-                      {(item.price_from || item.price_to) && (
-                        <span style={{ fontSize: '0.78rem', color: '#92610a', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
-                          £{item.price_from ?? ''}
-                          {item.price_to && item.price_to !== item.price_from ? `–£${item.price_to}` : ''}
-                        </span>
-                      )}
-                      {item.duration_minutes && (
-                        <span style={{ fontSize: '0.78rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
-                          {item.duration_minutes}min
-                          {item.processing_minutes ? ` + ${item.processing_minutes}min processing` : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button onClick={() => removeCatalogueItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ddd', fontSize: '1.1rem', lineHeight: 1, flexShrink: 0, padding: 0 }} title="Remove">×</button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Add form */}
-        <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)', paddingTop: '1.1rem' }}>
-          <div style={s.sectionSubtitle}>Add {catalogueTab === 'service' ? 'a service' : 'a product'}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <input
-              value={catalogueDraft.name}
-              onChange={e => setCatalogueDraft(d => ({ ...d, name: e.target.value }))}
-              onKeyDown={e => e.key === 'Enter' && addCatalogueItem()}
-              placeholder={catalogueTab === 'service' ? 'Service name (e.g. Boiler service)' : 'Product name (e.g. Heritage Oak Skirting)'}
-              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-            />
-            <input
-              value={catalogueDraft.category}
-              onChange={e => setCatalogueDraft(d => ({ ...d, category: e.target.value }))}
-              placeholder="Category (optional)"
-              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-            />
-          </div>
-          <input
-            value={catalogueDraft.description}
-            onChange={e => setCatalogueDraft(d => ({ ...d, description: e.target.value }))}
-            placeholder="Description (optional — helps the AI explain the service accurately)"
-            style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.5rem' }}
-          />
-          <div style={{ display: 'grid', gridTemplateColumns: catalogueTab === 'service' ? '1fr 1fr 1fr 1fr auto' : '1fr 1fr 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              value={catalogueDraft.price_from}
-              onChange={e => setCatalogueDraft(d => ({ ...d, price_from: e.target.value }))}
-              placeholder="Price from £"
-              type="number" min="0"
-              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-            />
-            <input
-              value={catalogueDraft.price_to}
-              onChange={e => setCatalogueDraft(d => ({ ...d, price_to: e.target.value }))}
-              placeholder="Price to £"
-              type="number" min="0"
-              style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-            />
-            {catalogueTab === 'service' ? (
-              <>
-                <input
-                  value={catalogueDraft.duration_minutes}
-                  onChange={e => setCatalogueDraft(d => ({ ...d, duration_minutes: e.target.value }))}
-                  placeholder="Duration (mins)"
-                  type="number" min="0"
-                  style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-                />
-                <input
-                  value={catalogueDraft.processing_minutes}
-                  onChange={e => setCatalogueDraft(d => ({ ...d, processing_minutes: e.target.value }))}
-                  placeholder="Processing (mins)"
-                  type="number" min="0"
-                  title="Split appointment: time client waits while you're free (e.g. colour processing, X-ray wait)"
-                  style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-                />
-              </>
-            ) : (
-              <input
-                value={catalogueDraft.sku}
-                onChange={e => setCatalogueDraft(d => ({ ...d, sku: e.target.value }))}
-                placeholder="Product code / SKU"
-                style={{ padding: '0.55rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
-              />
-            )}
-            <button
-              onClick={addCatalogueItem}
-              disabled={!catalogueDraft.name.trim() || catalogueAdding}
-              style={{
-                padding: '0.55rem 1.1rem', borderRadius: '8px', border: 'none',
-                background: !catalogueDraft.name.trim() || catalogueAdding ? '#f5d98a' : '#f0a500',
-                color: !catalogueDraft.name.trim() || catalogueAdding ? '#7a5c1a' : '#1a0533',
-                fontSize: '0.8125rem', fontWeight: 700, cursor: !catalogueDraft.name.trim() || catalogueAdding ? 'not-allowed' : 'pointer',
-                fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
-              }}
-            >
-              {catalogueAdding ? 'Adding…' : '+ Add'}
-            </button>
-          </div>
-          <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
-            CSV format: <span style={{ fontFamily: 'monospace' }}>name, type, description, price_from, price_to, duration_mins, category, sku</span>
-          </div>
-        </div>
       </div>
 
     </div>
