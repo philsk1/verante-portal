@@ -493,6 +493,7 @@ const AIBehaviour = ({ onNavigate }) => {
   useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
   const [loading, setLoading] = useState(true)
   const [businessEmail, setBusinessEmail] = useState('')
+  const [qMode, setQMode] = useState('jump_in')
   const [subTab, setSubTab] = useState('behaviour')
 
   // Main AI settings
@@ -577,7 +578,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id, q_mode')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -609,6 +610,7 @@ const AIBehaviour = ({ onNavigate }) => {
           setOverageVoicePref(tenant.overage_voice_preference || 'premium')
           setBlockedNumbers(tenant.blocked_phone_numbers || [])
           setVapiAssistantId(tenant.vapi_assistant_id || null)
+          setQMode(tenant.q_mode || 'jump_in')
           const confMins = tenant.booking_confirmation_window_mins ?? 120
           if (confMins % 1440 === 0 && confMins >= 1440) setBookingConfWindowUnit('days')
           else if (confMins % 60 === 0 && confMins >= 60) setBookingConfWindowUnit('hours')
@@ -865,7 +867,9 @@ const AIBehaviour = ({ onNavigate }) => {
                 </div>
                 <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: 'white', lineHeight: 1 }}>Answer AI · Live</span>
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.72)', fontFamily: "'DM Sans', sans-serif" }}>{qMoodCaption}</div>
+              {(qMode === 'very_helpful' || (qMode === 'jump_in' && qMoodState === 'crying')) && (
+                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.72)', fontFamily: "'DM Sans', sans-serif" }}>{qMoodCaption}</div>
+              )}
             </div>
           </div>
 

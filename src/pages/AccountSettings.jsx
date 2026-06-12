@@ -16,22 +16,6 @@ const TIERS = {
   bespoke:      { label: 'Bespoke',      price: 'Custom', minutes: null, concurrent: null },
 }
 
-const UPGRADE_PATH = {
-  free:         ['light', 'standard', 'professional', 'enterprise'],
-  light:        ['standard', 'professional', 'enterprise'],
-  standard:     ['professional', 'enterprise'],
-  professional: ['enterprise'],
-  enterprise:   [],
-  bespoke:      [],
-}
-
-const UPGRADE_FEATURES = {
-  light:        'Premium voice · 120 included minutes',
-  standard:     'Number blocking · 250 included minutes',
-  professional: 'Calendar integration · Sensitive data mode · 450 minutes',
-  enterprise:   'Full analytics · Staff routing · Priority support · 1,000 minutes',
-}
-
 // ─── styles ───────────────────────────────────────────────────────────────────
 
 const s = {
@@ -465,19 +449,6 @@ const s = {
   }),
 }
 
-// ─── toggle switch ────────────────────────────────────────────────────────────
-
-const Toggle = ({ checked, onChange }) => (
-  <button
-    role="switch"
-    aria-checked={checked}
-    onClick={() => onChange(!checked)}
-    style={{ width: 42, height: 24, borderRadius: 12, background: checked ? '#5e3b87' : '#d1d5db', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0 }}
-  >
-    <span style={{ position: 'absolute', top: 3, left: checked ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
-  </button>
-)
-
 // ─── Booking link row ─────────────────────────────────────────────────────────
 
 const BookingLinkRow = ({ tenantId }) => {
@@ -516,10 +487,11 @@ const BookingLinkRow = ({ tenantId }) => {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, triggerPlanSelector }) => {
+const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -560,8 +532,10 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   const [billingModel, setBillingModel] = useState('subscription')
   const [monthlyCostLimit, setMonthlyCostLimit] = useState(20)
   const [costLimitSaving, setCostLimitSaving] = useState(false)
-  const [upgradingTier, setUpgradingTier] = useState(null)
   const [upgradeSuccess, setUpgradeSuccess] = useState(false)
+
+  // Q mode
+  const [qMode, setQMode] = useState('jump_in')
 
   // GDPR & Data
   const [notifyNewLead, setNotifyNewLead] = useState(true)
@@ -606,7 +580,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, q_mode')
           .eq('id', tid)
           .maybeSingle()
 
@@ -624,6 +598,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
           setBillingModel(tenant.billing_model || 'subscription')
           setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
           setVapiPhone(tenant.vapi_phone_number || null)
+          setQMode(tenant.q_mode || 'jump_in')
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -658,8 +633,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }, [])
 
   const handleUpgrade = async (targetTier) => {
-    if (isPreview || !tenantId) return
-    setUpgradingTier(targetTier)
+    if (previewReadOnly || !tenantId) return
     try {
       const res = await fetch('/api/freeagent-invoice', {
         method: 'POST',
@@ -676,8 +650,6 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
       }
     } catch {
       // network failure — silent, user can retry
-    } finally {
-      setUpgradingTier(null)
     }
   }
 
@@ -687,7 +659,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveAccountDetails = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setAccountSaving(true)
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
@@ -701,7 +673,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveNotifications = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setNotifySaving(true)
     const { error } = await supabase.from('tenants').update({
       notify_new_lead: notifyNewLead,
@@ -718,7 +690,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveCostLimit = async (val) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setMonthlyCostLimit(val)
     setCostLimitSaving(true)
     await supabase.from('tenants').update({ monthly_cost_limit: val }).eq('id', tenantId)
@@ -726,7 +698,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveDataRetention = async (days) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setDataRetentionDays(days)
     setDataSaving(true)
     const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
@@ -735,7 +707,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const handleExportData = async () => {
-    if (isPreview || !tenantId) {
+    if (previewReadOnly || !tenantId) {
       showDataToast("Data export is not available in preview mode.", 'error')
       return
     }
@@ -793,7 +765,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const handleCancelConfirm = async () => {
-    if (isPreview) { setShowCancelModal(false); return }
+    if (previewReadOnly) { setShowCancelModal(false); return }
     // Stripe cancellation endpoint — wired in a later build phase
     setShowCancelModal(false)
     navigate('/login')
@@ -802,7 +774,6 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   // ── computed ────────────────────────────────────────────────────────────────
 
   const tierInfo = TIERS[tier] || TIERS.light
-  const upgradeTiers = UPGRADE_PATH[tier] || []
   const sixWeeksAgo = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000)
   const feedbackUnlocked = tenantCreatedAt && new Date(tenantCreatedAt) <= sixWeeksAgo
   const daysUntilFeedback = tenantCreatedAt
@@ -816,7 +787,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   // Plan selector handler — upgrades Answer tier via Stripe, persists Listen/Calendar to Supabase
   const handlePlanSelect = async ({ answer, listen, calendar }) => {
     setShowPlanSelector(false)
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     // Persist Listen + Calendar product selections
     await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
     setCalendarTier(calendar)
@@ -864,102 +835,6 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
         </div>
       )}
 
-      {/* Plan & Billing */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
-        <p style={s.sectionSubtitle}>Your current plan and available upgrades. Billing is managed via Stripe.</p>
-
-        {upgradeSuccess && (
-          <div style={{ padding: '0.75rem 1rem', background: '#e6f9ef', border: '1px solid #3db87a', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#1a6640', fontWeight: 500 }}>
-            Plan upgraded — your AI now has access to the new features.
-          </div>
-        )}
-
-        <div style={s.planRow(tier)}>
-          <span style={s.planBadge(tier)}>{tierInfo.label}</span>
-          <div style={{ flex: 1 }}>
-            <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
-            <div style={s.planMeta}>
-              {tier === 'free' ? 'Pay as you go · 35p/min' : tierInfo.minutes ? `${tierInfo.minutes} Premium minutes included` : 'Custom allowance'}
-              {tierInfo.concurrent ? ` · ${tierInfo.concurrent} concurrent call${tierInfo.concurrent > 1 ? 's' : ''}` : ''}
-            </div>
-          </div>
-        </div>
-
-        {/* Cost limit — PAYG tenants only */}
-        {billingModel === 'payg' && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#b07a00', marginBottom: '0.4rem' }}>Monthly spending limit</div>
-            <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.625rem', lineHeight: 1.5 }}>
-              We'll pause your AI and notify you when you reach this. At 35p/min, £{monthlyCostLimit} covers ~{Math.floor(monthlyCostLimit / 0.35)} minutes.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontWeight: '600', color: '#1a1a1a' }}>£</span>
-              <input
-                type="number"
-                min={5}
-                step={5}
-                value={monthlyCostLimit}
-                onChange={e => setMonthlyCostLimit(parseFloat(e.target.value) || 20)}
-                onBlur={e => saveCostLimit(parseFloat(e.target.value) || 20)}
-                style={{ width: '80px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, textAlign: 'center', outline: 'none' }}
-              />
-              <span style={{ fontSize: '0.8rem', color: '#888' }}>per month {costLimitSaving ? '· Saving…' : ''}</span>
-            </div>
-          </div>
-        )}
-
-        {tier === 'bespoke' ? (
-          <div style={{ fontSize: '0.8rem', color: '#888' }}>You are on a managed Bespoke plan. Contact us to discuss changes.</div>
-        ) : (
-          <button
-            onClick={() => setShowPlanSelector(true)}
-            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '1rem 1.25rem', border: 'none', borderRadius: 12, background: '#f0a500', cursor: 'pointer', textAlign: 'left', boxShadow: '0 4px 16px rgba(240,165,0,0.35)' }}
-          >
-            <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a0533', marginBottom: '0.2rem' }}>Choose your services</div>
-              <div style={{ fontSize: '0.775rem', color: 'rgba(26,5,51,0.65)', fontFamily: "'DM Sans', sans-serif" }}>Pick Answer, Listen and Calendar — see live pricing</div>
-            </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a0533" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        )}
-      </div>
-
-      {/* Account Details */}
-      <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Account Details lets you update your business name — this is the name your AI uses to introduce itself on calls. Your email address is the login for this account and where all notifications are sent.">Account Details</h3>
-        <p style={s.sectionSubtitle}>Your business name and login details.</p>
-
-        <div style={s.fieldRow}>
-          <div>
-            <label style={s.label}>Business name</label>
-            <input
-              style={s.input}
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              placeholder="Your business name"
-            />
-          </div>
-          <div>
-            <label style={s.label}>Email address</label>
-            <input style={s.inputReadOnly} value={user?.email || ''} readOnly />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button style={accountSaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveAccountDetails} disabled={accountSaving}>
-            {accountSaving ? 'Saving…' : 'Save details'}
-          </button>
-          <button style={s.ghostBtn} onClick={sendPasswordReset}>
-            Send password reset
-          </button>
-          {accountToast.msg && (
-            <span style={s.toast(accountToast.type)}>{accountToast.type === 'success' ? '✓' : '!'} {accountToast.msg}</span>
-          )}
-        </div>
-      </div>
-
-
       {/* Booking Link */}
       {tenantId && (
         <div style={s.section}>
@@ -968,6 +843,47 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
           <BookingLinkRow tenantId={tenantId} />
         </div>
       )}
+
+      {/* Q Behaviour Mode */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Q's behaviour</h3>
+        <p style={s.sectionSubtitle}>Choose how much guidance Q offers as you use the platform.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {[
+            { id: 'very_helpful',        label: 'Very helpful',            desc: 'Q proactively suggests improvements, flags opportunities and coaches you on every page.' },
+            { id: 'jump_in',             label: 'Jump in if it matters',   desc: 'Q stays quiet unless something genuinely matters — a missed opportunity or a critical gap.' },
+            { id: 'mind_own_business',   label: 'Mind your own business',  desc: 'Q shows as a visual signal only. No commentary, no suggestions.' },
+          ].map(opt => {
+            const active = qMode === opt.id
+            return (
+              <button
+                key={opt.id}
+                onClick={async () => {
+                  setQMode(opt.id)
+                  if (tenantId) await supabase.from('tenants').update({ q_mode: opt.id }).eq('id', tenantId)
+                }}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                  padding: '0.75rem 1rem', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                  border: active ? '1.5px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.12)',
+                  background: active ? '#f0ebf8' : 'white',
+                  fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
+                }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: '0.15rem',
+                  border: active ? '4.5px solid #5e3b87' : '2px solid #ccc',
+                  background: 'white', boxSizing: 'border-box', transition: 'all 0.15s',
+                }} />
+                <div>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: active ? '#3a2057' : '#1a1a1a', marginBottom: '0.15rem' }}>{opt.label}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.45 }}>{opt.desc}</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Notifications */}
       <div style={s.section}>
@@ -1037,6 +953,108 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
             <span style={s.toast(notifyToast.type)}>{notifyToast.type === 'success' ? '✓' : '!'} {notifyToast.msg}</span>
           )}
         </div>
+      </div>
+
+      {/* Account Details */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Account Details lets you update your business name — this is the name your AI uses to introduce itself on calls. Your email address is the login for this account and where all notifications are sent.">Account Details</h3>
+        <p style={s.sectionSubtitle}>Your business name and login details. Set once and leave.</p>
+
+        <div style={s.fieldRow}>
+          <div>
+            <label style={s.label}>Business name</label>
+            <input
+              style={s.input}
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="Your business name"
+            />
+          </div>
+          <div>
+            <label style={s.label}>Email address</label>
+            <input style={s.inputReadOnly} value={user?.email || ''} readOnly />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button style={accountSaving ? s.saveBtnDisabled : s.saveBtn} onClick={saveAccountDetails} disabled={accountSaving}>
+            {accountSaving ? 'Saving…' : 'Save details'}
+          </button>
+          <button style={s.ghostBtn} onClick={sendPasswordReset}>
+            Send password reset
+          </button>
+          {accountToast.msg && (
+            <span style={s.toast(accountToast.type)}>{accountToast.type === 'success' ? '✓' : '!'} {accountToast.msg}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Plan & Billing */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
+        <p style={s.sectionSubtitle}>Your current plan. Billing is managed via Stripe.</p>
+
+        {upgradeSuccess && (
+          <div style={{ padding: '0.75rem 1rem', background: '#e6f9ef', border: '1px solid #3db87a', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#1a6640', fontWeight: 500 }}>
+            Plan upgraded — your AI now has access to the new features.
+          </div>
+        )}
+
+        <div style={s.planRow(tier)}>
+          <span style={s.planBadge(tier)}>{tierInfo.label}</span>
+          <div style={{ flex: 1 }}>
+            <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
+            <div style={s.planMeta}>
+              {tier === 'free' ? 'Pay as you go · 35p/min' : tierInfo.minutes ? `${tierInfo.minutes} Premium minutes included` : 'Custom allowance'}
+              {tierInfo.concurrent ? ` · ${tierInfo.concurrent} concurrent call${tierInfo.concurrent > 1 ? 's' : ''}` : ''}
+            </div>
+          </div>
+        </div>
+
+        {/* Cost limit — PAYG tenants only */}
+        {billingModel === 'payg' && (
+          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#b07a00', marginBottom: '0.4rem' }}>Monthly spending limit</div>
+            <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.625rem', lineHeight: 1.5 }}>
+              We'll pause your AI and notify you when you reach this. At 35p/min, £{monthlyCostLimit} covers ~{Math.floor(monthlyCostLimit / 0.35)} minutes.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontWeight: '600', color: '#1a1a1a' }}>£</span>
+              <input
+                type="number"
+                min={5}
+                step={5}
+                value={monthlyCostLimit}
+                onChange={e => setMonthlyCostLimit(parseFloat(e.target.value) || 20)}
+                onBlur={e => saveCostLimit(parseFloat(e.target.value) || 20)}
+                style={{ width: '80px', padding: '0.4rem 0.5rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.875rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, textAlign: 'center', outline: 'none' }}
+              />
+              <span style={{ fontSize: '0.8rem', color: '#888' }}>per month {costLimitSaving ? '· Saving…' : ''}</span>
+            </div>
+          </div>
+        )}
+
+        {tier === 'bespoke' ? (
+          <div style={{ fontSize: '0.8rem', color: '#888' }}>You are on a managed Bespoke plan. Contact us to discuss changes.</div>
+        ) : (tier === 'free' || tier === 'light') ? (
+          <button
+            onClick={() => setShowPlanSelector(true)}
+            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '1rem 1.25rem', border: 'none', borderRadius: 12, background: '#f0a500', cursor: 'pointer', textAlign: 'left', boxShadow: '0 4px 16px rgba(240,165,0,0.35)' }}
+          >
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a0533', marginBottom: '0.2rem' }}>Choose your services</div>
+              <div style={{ fontSize: '0.775rem', color: 'rgba(26,5,51,0.65)', fontFamily: "'DM Sans', sans-serif" }}>Pick Answer, Listen and Calendar — see live pricing</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a0533" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowPlanSelector(true)}
+            style={{ marginTop: '0.75rem', padding: '0.5rem 1.1rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Manage services →
+          </button>
+        )}
       </div>
 
 

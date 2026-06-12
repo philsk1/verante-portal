@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { performanceScore, qMoodFromScore, qCaption } from '../utils/qScore.js'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -250,26 +251,6 @@ const s = {
 
 // ─── sub-components ──────────────────────────────────────────────────────────
 
-const StatCard = ({ label, value, trend }) => (
-  <div style={s.statCard}>
-    <div style={s.statLabel}>{label}</div>
-    <div style={s.statNumber}>{value}</div>
-    {trend && <div style={s.statTrend}>{trend}</div>}
-  </div>
-)
-
-const RecoCard = ({ title, body, actionLabel, onAction }) => (
-  <div style={s.recoCard}>
-    <div style={{ flex: 1 }}>
-      <div style={s.recoTitle}>{title}</div>
-      <div style={s.recoBody}>{body}</div>
-    </div>
-    {actionLabel && (
-      <button style={s.recoBtn} onClick={onAction}>{actionLabel}</button>
-    )}
-  </div>
-)
-
 // ─── arc gauge ────────────────────────────────────────────────────────────────
 
 const ArcGauge = ({ pct }) => {
@@ -308,7 +289,6 @@ const OUTCOME_ACCENT = {
 const CallCard = ({ call, onClick }) => {
   const [hovered, setHovered] = useState(false)
   const badge = outcomeBadge(call.call_outcome)
-  const isUrgent = call.call_outcome === 'escalated'
   const isFiltered = ['filtered', 'spam', 'hard_close'].includes(call.call_outcome)
   const accent = OUTCOME_ACCENT[call.call_outcome] || { border: '#5e3b87', bg: 'white' }
 
@@ -522,6 +502,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
   const isMobile = useIsMobile()
 
   const leadsZoneRef = useRef(null)
@@ -529,7 +510,6 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
   const [tenantId, setTenantId] = useState(null)
-  const [businessName, setBusinessName] = useState('')
   const [includedMinutes, setIncludedMinutes] = useState(250)
   const [tier, setTier] = useState('standard')
   useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
@@ -558,6 +538,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [callTranscriptLoading, setCallTranscriptLoading] = useState(false)
 
   const [calls, setCalls] = useState([])
+  const [qMode, setQMode] = useState('jump_in')
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
   const [partnerCount, setPartnerCount] = useState(-1)
@@ -587,14 +568,13 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier, business_outcome_type, booking_link')
+          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier, business_outcome_type, booking_link, q_mode')
           .eq('id', tid)
           .maybeSingle()
 
         if (tenant) {
-          setBusinessName(tenant.business_name || '')
           setIncludedMinutes(tenant.included_minutes || 250)
-          setTier(tenant.subscription_tier || 'standard')
+          setTier(tenant.subscription_tier || 'light')
           setTriageMode(tenant.triage_mode || 'balanced')
           setVoicePref(tenant.overage_voice_preference || 'premium')
           setHolidayMode(tenant.holiday_mode || false)
@@ -602,6 +582,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           setCalendarTier(tenant.calendar_tier || 'entry')
           setOutcomeType(tenant.business_outcome_type || '')
           setOutcomeBookingLink(tenant.booking_link || '')
+          setQMode(tenant.q_mode || 'jump_in')
         }
 
         const monthIso = startOfMonth().toISOString()
@@ -692,7 +673,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   }, [selectedLead?.id])
 
   const saveLeadNotes = async (value) => {
-    if (isPreview || !selectedLead?.id) return
+    if (previewReadOnly || !selectedLead?.id) return
     setLeadNotesSaving(true)
     try {
       await supabase.from('leads').update({ notes: value }).eq('id', selectedLead.id)
@@ -707,7 +688,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const markContacted = async (lead) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'contacted' } : l))
     setSelectedLead(null)
-    if (isPreview) return
+    if (previewReadOnly) return
     try {
       await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id)
     } catch {
@@ -718,7 +699,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const updateLeadStatus = async (lead, status) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status } : l))
     if (selectedLead?.id === lead.id) setSelectedLead(prev => ({ ...prev, status }))
-    if (isPreview) return
+    if (previewReadOnly) return
     try {
       await supabase.from('leads').update({ status }).eq('id', lead.id)
     } catch {
@@ -728,7 +709,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   const submitQuickCapture = async () => {
     if (!qcName.trim() && !qcPhone.trim()) return
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setQcSaving(true)
     try {
       let callerId = null
@@ -784,7 +765,6 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   const callsToday = calls.filter(c => new Date(c.created_at) >= today).length
   const callsThisMonth = calls.length
-  const leadsThisWeek = leads.filter(l => new Date(l.created_at) >= weekAgo).length
   const referralsThisWeek = referrals.filter(r => new Date(r.created_at) >= weekAgo).length
   const referralsToday = referrals.filter(r => new Date(r.created_at) >= today)
 
@@ -1222,6 +1202,15 @@ const ActivityDashboard = ({ onNavigate }) => {
     )
   }
 
+  // ── Q performance score ───────────────────────────────────────────────────────
+  const outcomeCounts = calls.reduce((acc, c) => { acc[c.call_outcome] = (acc[c.call_outcome] || 0) + 1; return acc }, {})
+  const perfScore  = performanceScore(outcomeCounts)
+  const actQScore  = perfScore ?? 0
+  const actQMood   = perfScore === null ? 'crying' : qMoodFromScore(perfScore)
+  const actQCaption = perfScore === null
+    ? (qMode !== 'mind_own_business' ? "Not enough calls yet — I'll score performance as data builds up." : null)
+    : qCaption(actQScore, qMode)
+
   // ── Desktop render ────────────────────────────────────────────────────────────
 
   return (
@@ -1246,8 +1235,11 @@ const ActivityDashboard = ({ onNavigate }) => {
             ) : callsThisMonth > 0 ? (
               <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>All leads handled</div>
             ) : null}
+            {actQCaption && (
+              <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", marginTop: 4, lineHeight: 1.4 }}>{actQCaption}</div>
+            )}
           </div>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: holidayMode ? '#f0a500' : '#3db87a', flexShrink: 0 }} title={holidayMode ? 'Holiday mode on' : 'Active'} />
+          <img src={`/qmood/${actQMood}.svg`} alt="Q" style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} title={holidayMode ? 'Holiday mode on' : 'Active'} />
         </div>
 
         {/* Calendar */}
@@ -1566,8 +1558,6 @@ const ActivityDashboard = ({ onNavigate }) => {
         const days30 = getDayBuckets(30, calls)
 
         const capturedCount = calls.filter(c => c.call_outcome === 'lead_captured' || c.call_outcome === 'booked').length
-        const captureRate = callsThisMonth > 0 ? Math.round((capturedCount / callsThisMonth) * 100) : 0
-
         const weekCounts = week7.map(d => d.count)
         const weekLabels = week7.map(d => d.label)
         const monthMinutes = days30.map(d => d.minutes)
@@ -1692,7 +1682,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
       {/* ── FEATURE DISCOVERY NOTICE ─────────────────────────────────────────── */}
       {(() => {
-        if (isPreview || loading || calls.length === 0 || featureNoticeClosed) return null
+        if (previewReadOnly || loading || calls.length === 0 || featureNoticeClosed) return null
         try {
           const stored = localStorage.getItem('qx_features_notice')
           if (stored) {
