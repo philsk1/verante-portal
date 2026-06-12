@@ -1,16 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
+import AIFoundation from './AIFoundation'
 
 // ─── constants ────────────────────────────────────────────────────────────────
-
-const CALL_MODES = [
-  { id: 'strict',   label: 'Efficient', desc: 'Focused calls — captures the key details and closes without unnecessary back-and-forth.' },
-  { id: 'balanced', label: 'Balanced',  desc: 'Standard — enough turns to qualify the enquiry and collect contact details.' },
-  { id: 'open',     label: 'Relaxed',   desc: 'More space for conversation. Callers can talk through their need before you close or escalate.' },
-]
 
 const CONVERSATION_STYLES = [
   { id: 'efficient', triage: 'strict',   tone: 'formal', label: 'Efficient',
@@ -488,12 +483,17 @@ const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId] = useState(null)
+  const [vapiAssistantId, setVapiAssistantId] = useState(null)
+  const [earTestState, setEarTestState] = useState('idle') // idle | connecting | active
+  const earVapiRef = useRef(null)
   const [tier, setTier] = useState('light')
   useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
   const [loading, setLoading] = useState(true)
   const [businessEmail, setBusinessEmail] = useState('')
+  const [subTab, setSubTab] = useState('behaviour')
 
   // Main AI settings
   const [triageMode, setTriageMode] = useState('balanced')
@@ -532,15 +532,10 @@ const AIBehaviour = ({ onNavigate }) => {
   const [businessName, setBusinessName] = useState('')
   const [ownerName, setOwnerName] = useState('')
   const [bookingLink, setBookingLink] = useState('')
-  const [greetingModalShown, setGreetingModalShown] = useState(false)
-  const [showProtectedModal, setShowProtectedModal] = useState(false)
-  const [generatorNotes, setGeneratorNotes] = useState('')
-  const [generatingGreeting, setGeneratingGreeting] = useState(false)
 
   // Number blocking
   const [blockedNumbers, setBlockedNumbers] = useState([])
   const [numberDraft, setNumberDraft] = useState('')
-  const [numberSaving, setNumberSaving] = useState(false)
 
   // Provisional booking
   const [provisionalBookingEnabled, setProvisionalBookingEnabled] = useState(false)
@@ -549,6 +544,8 @@ const AIBehaviour = ({ onNavigate }) => {
   const [bookingBufferMins, setBookingBufferMins] = useState(30)
   const [bookingConfirmationWindowMins, setBookingConfirmationWindowMins] = useState(120)
   const [bookingConfWindowUnit, setBookingConfWindowUnit] = useState('hours') // mins | hours | days
+  const [bookingCalendarSource, setBookingCalendarSource] = useState('qerxel')
+  const [calendarTier, setCalendarTier] = useState('none')
 
   // Overage voice preference
   const [overageVoicePref, setOverageVoicePref] = useState('premium')
@@ -556,6 +553,11 @@ const AIBehaviour = ({ onNavigate }) => {
   // Emergency keywords
   const [keywords, setKeywords] = useState([])
   const [keywordDraft, setKeywordDraft] = useState('')
+
+  // Keep-alive topics
+  const [keepAliveTopics, setKeepAliveTopics] = useState([])
+  const [keepAliveDraft, setKeepAliveDraft] = useState('')
+  const [keepAliveMaxMins, setKeepAliveMaxMins] = useState(5)
 
   useEffect(() => {
     if (!user && !isPreview) return
@@ -575,7 +577,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, subscription_tier, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -606,6 +608,7 @@ const AIBehaviour = ({ onNavigate }) => {
           setBookingConfirmationWindowMins(tenant.booking_confirmation_window_mins ?? 120)
           setOverageVoicePref(tenant.overage_voice_preference || 'premium')
           setBlockedNumbers(tenant.blocked_phone_numbers || [])
+          setVapiAssistantId(tenant.vapi_assistant_id || null)
           const confMins = tenant.booking_confirmation_window_mins ?? 120
           if (confMins % 1440 === 0 && confMins >= 1440) setBookingConfWindowUnit('days')
           else if (confMins % 60 === 0 && confMins >= 60) setBookingConfWindowUnit('hours')
@@ -616,6 +619,14 @@ const AIBehaviour = ({ onNavigate }) => {
               ? tenant.emergency_keywords
               : tenant.emergency_keywords.split(',').map(k => k.trim()).filter(Boolean))
           }
+          if (tenant.keep_alive_topics) {
+            setKeepAliveTopics(Array.isArray(tenant.keep_alive_topics)
+              ? tenant.keep_alive_topics
+              : tenant.keep_alive_topics.split(',').map(k => k.trim()).filter(Boolean))
+          }
+          if (tenant.keep_alive_max_minutes) setKeepAliveMaxMins(tenant.keep_alive_max_minutes)
+          setCalendarTier(tenant.calendar_tier || 'none')
+          setBookingCalendarSource(tenant.booking_calendar_source || 'qerxel')
         }
 
         const { data: rulesData } = await supabase
@@ -648,6 +659,33 @@ const AIBehaviour = ({ onNavigate }) => {
     load()
   }, [user, isPreview])
 
+  // ── Ear test (Vapi Web SDK) ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    const key = import.meta.env.VITE_VAPI_PUBLIC_KEY
+    if (!key) return
+    let vapi
+    import('@vapi-ai/web').then(({ default: Vapi }) => {
+      vapi = new Vapi(key)
+      earVapiRef.current = vapi
+      vapi.on('call-start', () => setEarTestState('active'))
+      vapi.on('call-end',   () => setEarTestState('idle'))
+      vapi.on('error',      () => setEarTestState('idle'))
+    }).catch(() => {})
+    return () => { earVapiRef.current?.stop() }
+  }, [])
+
+  const startEarTest = async () => {
+    if (!earVapiRef.current || !vapiAssistantId) return
+    setEarTestState('connecting')
+    await earVapiRef.current.start(vapiAssistantId)
+  }
+
+  const stopEarTest = () => {
+    earVapiRef.current?.stop()
+    setEarTestState('idle')
+  }
+
   // ── handlers ────────────────────────────────────────────────────────────────
 
   const showToast = (msg, type = 'success') => {
@@ -661,7 +699,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveMainSettings = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setSaving(true)
     const { error } = await supabase.from('tenants').update({
       triage_mode: triageMode,
@@ -690,7 +728,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveRules = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setRulesSaving(true)
     const rows = CALL_TYPES.map(type => ({
       tenant_id:     tenantId,
@@ -719,7 +757,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveToggle = async (field, value) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -728,7 +766,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const addKeyword = async (word) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const trimmed = word.trim()
     if (!trimmed || !tenantId) return
     const updated = [...keywords, trimmed]
@@ -743,31 +781,55 @@ const AIBehaviour = ({ onNavigate }) => {
     await supabase.from('tenants').update({ emergency_keywords: updated.length ? updated : null }).eq('id', tenantId)
   }
 
-  const generateGreeting = async () => {
-    if (!generatorNotes.trim()) return
-    setGeneratingGreeting(true)
-    try {
-      const res = await fetch('/api/greeting-generator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantNotes: generatorNotes, businessName, ownerName }),
-      })
-      const data = await res.json()
-      if (data.greeting) setGreetingMessage(data.greeting)
-    } catch {
-      // silent — user can retry
-    } finally {
-      setGeneratingGreeting(false)
-    }
+  const addKeepAliveTopic = async (word) => {
+    if (previewReadOnly) return
+    const trimmed = word.trim()
+    if (!trimmed || !tenantId) return
+    const updated = [...keepAliveTopics, trimmed]
+    setKeepAliveTopics(updated)
+    setKeepAliveDraft('')
+    await supabase.from('tenants').update({ keep_alive_topics: updated }).eq('id', tenantId)
+  }
+
+  const removeKeepAliveTopic = async (index) => {
+    const updated = keepAliveTopics.filter((_, i) => i !== index)
+    setKeepAliveTopics(updated)
+    await supabase.from('tenants').update({ keep_alive_topics: updated.length ? updated : null }).eq('id', tenantId)
+  }
+
+  const saveKeepAliveMaxMins = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    const n = Math.max(1, Math.min(30, parseInt(val) || 5))
+    setKeepAliveMaxMins(n)
+    await supabase.from('tenants').update({ keep_alive_max_minutes: n }).eq('id', tenantId)
   }
 
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading settings…</div>
   }
 
-  const currentMode = CALL_MODES.find(m => m.id === triageMode)
   const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
-  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
+
+  // Q readiness score
+  const completionScore = (() => {
+    let pts = 0
+    if (greetingMessage.trim()) pts += 25
+    if (additionalInstructions.trim()) pts += 20
+    if (businessName.trim()) pts += 15
+    if (callbackPrefNote.trim()) pts += 15
+    if (keywords.length > 0) pts += 10
+    if (Object.values(rules).some(r => r.instructions?.trim())) pts += 8
+    if (Object.values(rules).some(r => r.email_address?.trim())) pts += 7
+    return Math.min(100, pts)
+  })()
+  const qMoodState = completionScore >= 86 ? 'smile' : completionScore >= 61 ? 'content' : completionScore >= 31 ? 'sad' : 'crying'
+  const qMoodCaption = completionScore >= 86
+    ? "I'm ready — you can always fine-tune me later"
+    : completionScore >= 61
+    ? "I'm ready. You could make me better though."
+    : completionScore >= 31
+    ? "Nearly there — I'm missing a few things"
+    : "I don't know what to say yet…"
 
   // Derive current state labels for status hero
   const modeInfo   = TRIAGE_COLOUR[triageMode] || TRIAGE_COLOUR.balanced
@@ -792,15 +854,18 @@ const AIBehaviour = ({ onNavigate }) => {
         <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
 
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          {/* Left — live indicator + label */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3db87a' }} />
-              <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '2px solid rgba(61,184,122,0.4)', animation: 'veraBob 2s ease-in-out infinite' }} />
-            </div>
+          {/* Left — Q face + live indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <img src={`/qmood/${qMoodState}.svg`} alt="Q" style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }} />
             <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: 'white', lineHeight: 1 }}>Answer AI · Live</div>
-              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.2rem', fontFamily: "'DM Sans', sans-serif" }}>Your AI is answering missed calls</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a' }} />
+                  <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', border: '2px solid rgba(61,184,122,0.4)', animation: 'veraBob 2s ease-in-out infinite' }} />
+                </div>
+                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: 'white', lineHeight: 1 }}>Answer AI · Live</span>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.72)', fontFamily: "'DM Sans', sans-serif" }}>{qMoodCaption}</div>
             </div>
           </div>
 
@@ -819,6 +884,56 @@ const AIBehaviour = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* ── Sub-tab bar + ear test ───────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 9, padding: 3 }}>
+          {[['behaviour', 'AI Settings'], ['foundation', 'Foundation']].map(([id, label]) => (
+            <button key={id} onClick={() => setSubTab(id)}
+              style={{ padding: '0.28rem 0.85rem', borderRadius: 7, border: 'none', background: subTab === id ? '#5e3b87' : 'transparent', color: subTab === id ? 'white' : '#5e3b87', fontSize: '0.78rem', fontWeight: subTab === id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s', whiteSpace: 'nowrap' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {vapiAssistantId && import.meta.env.VITE_VAPI_PUBLIC_KEY && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {earTestState === 'idle' && (
+              <button onClick={startEarTest} style={{ padding: '0.28rem 0.85rem', background: 'white', border: '1px solid rgba(94,59,135,0.25)', borderRadius: 7, fontSize: '0.78rem', color: '#5e3b87', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                Hear it live
+              </button>
+            )}
+            {earTestState === 'connecting' && (
+              <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Connecting…</span>
+            )}
+            {earTestState === 'active' && (
+              <>
+                <span style={{ fontSize: '0.75rem', color: '#3db87a', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>● Live</span>
+                <button onClick={stopEarTest} style={{ padding: '0.25rem 0.7rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 7, fontSize: '0.75rem', color: '#b91c1c', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  End
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Foundation view ──────────────────────────────────────────────────── */}
+      {subTab === 'foundation' && (
+        <AIFoundation
+          businessName={businessName} ownerName={ownerName}
+          toneRegister={toneRegister} businessOutcomeType={businessOutcomeType}
+          customOutcomeText={customOutcomeText} callbackPrefNote={callbackPrefNote}
+          greetingMessage={greetingMessage} additionalInstructions={additionalInstructions}
+          keywords={keywords} rules={rules}
+          spamFilter={spamFilter} salesHandling={salesHandling} autodialerDetection={autodialerDetection}
+          blockedNumbers={blockedNumbers}
+          provisionalBookingEnabled={provisionalBookingEnabled} provisionalBookingRule={provisionalBookingRule}
+          bookingLink={bookingLink}
+          onGoToSettings={() => setSubTab('behaviour')}
+        />
+      )}
+
+      {subTab === 'behaviour' && <>
 
       {/* ── Call Style & Outcome ─────────────────────────────────────────────── */}
       <div style={s.section}>
@@ -1081,6 +1196,41 @@ const AIBehaviour = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Keep-Alive Topics */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="Keep-Alive Topics tell your AI never to end the call while certain subjects are being discussed. If a caller mentions a booking, asks about a product, or appears to be elderly or confused, the AI will stay on the line until the conversation is naturally complete — rather than closing down to keep calls short.">Topics that keep the call open</h3>
+        <p style={s.sectionSubtitle}>
+          Your AI will never end the call while any of these topics are being discussed. Add anything where an abrupt ending would lose a sale or let someone down.
+        </p>
+        <div>
+          {keepAliveTopics.map((kw, i) => (
+            <span key={i} style={{ ...s.chip, background: '#e8f5ee', color: '#166534' }}>
+              {kw}
+              <button style={s.chipRemove} onClick={() => removeKeepAliveTopic(i)}>×</button>
+            </span>
+          ))}
+          {keepAliveTopics.length === 0 && <p style={{ fontSize: '0.8rem', color: '#ccc', margin: '0 0 0.5rem' }}>No topics added yet.</p>}
+        </div>
+        <div style={s.addRow}>
+          <input style={s.addInput} value={keepAliveDraft} onChange={e => setKeepAliveDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addKeepAliveTopic(keepAliveDraft) } }}
+            placeholder="e.g. appointment booking, product enquiry, senior citizen…" />
+          <button style={s.addBtn} onClick={() => addKeepAliveTopic(keepAliveDraft)}>+ Add</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+          <span style={{ fontSize: '0.8rem', color: '#555', fontFamily: "'DM Sans', sans-serif" }}>Max time to hold the call open:</span>
+          <input
+            type="number" min="1" max="30"
+            value={keepAliveMaxMins}
+            onChange={e => setKeepAliveMaxMins(Math.max(1, Math.min(30, parseInt(e.target.value) || 5)))}
+            onBlur={e => saveKeepAliveMaxMins(e.target.value)}
+            style={{ width: '56px', padding: '0.35rem 0.5rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: '8px', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', textAlign: 'center' }}
+          />
+          <span style={{ fontSize: '0.8rem', color: '#555', fontFamily: "'DM Sans', sans-serif" }}>minutes</span>
+          <span style={{ fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>(suggested: 4–5)</span>
+        </div>
+      </div>
+
       {/* Greeting Message */}
       <div style={s.section}>
         <h3 style={s.sectionTitle} data-help="Your greeting is the first thing every caller hears. The core greeting is set by Qerxel and always includes your business name, the fact the AI is a virtual assistant, and what will happen next. You can add something to the end — a language note, a recording notice, a tagline — but the critical structure stays in place.">Greeting Message</h3>
@@ -1337,8 +1487,43 @@ const AIBehaviour = ({ onNavigate }) => {
                   <p style={s.hint}>How long the caller has to confirm before the provisional slot is released.</p>
                 </div>
 
-                <div style={{ padding: '1rem', background: '#f4effe', borderRadius: '8px', fontSize: '0.8rem', color: '#5e3b87', lineHeight: 1.5 }}>
-                  <strong>Calendar not connected.</strong> Connect your calendar below to enable provisional booking. Without a connected calendar your AI will revert to standard callback behaviour.
+                {/* Calendar source picker */}
+                <div>
+                  <label style={s.label}>Book into</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    {[
+                      { id: 'qerxel',   label: 'Qerxel Schedule',   hint: 'Use your built-in Qerxel calendar' },
+                      { id: 'external', label: 'My own calendar',    hint: 'Google, Apple, Outlook or any CalDAV' },
+                    ].map(opt => (
+                      <button key={opt.id} onClick={async () => {
+                        setBookingCalendarSource(opt.id)
+                        if (!isPreview && tenantId) await supabase.from('tenants').update({ booking_calendar_source: opt.id }).eq('id', tenantId)
+                      }} style={{
+                        flex: 1, padding: '0.6rem 0.85rem', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+                        border: bookingCalendarSource === opt.id ? '1.5px solid #5e3b87' : '1px solid rgba(94,59,135,0.18)',
+                        background: bookingCalendarSource === opt.id ? '#f4effe' : 'white',
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: bookingCalendarSource === opt.id ? '#5e3b87' : '#1a1a1a', marginBottom: '0.15rem' }}>{opt.label}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#999' }}>{opt.hint}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {bookingCalendarSource === 'qerxel' && calendarTier === 'none' && (
+                    <div style={{ padding: '0.75rem 1rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.4)', borderRadius: '8px', fontSize: '0.8rem', color: '#78460a', lineHeight: 1.5 }}>
+                      <strong>Qerxel Schedule not active.</strong> Activate the Schedule product to use your Qerxel calendar for provisional booking.
+                    </div>
+                  )}
+                  {bookingCalendarSource === 'qerxel' && calendarTier !== 'none' && (
+                    <div style={{ padding: '0.75rem 1rem', background: '#e6f5ee', border: '1px solid rgba(61,184,122,0.3)', borderRadius: '8px', fontSize: '0.8rem', color: '#1e7a4a', lineHeight: 1.5 }}>
+                      <strong>Qerxel Schedule connected.</strong> Your AI will check your Qerxel calendar for availability before offering slots.
+                    </div>
+                  )}
+                  {bookingCalendarSource === 'external' && (
+                    <div style={{ padding: '0.75rem 1rem', background: '#f4effe', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.8rem', color: '#5e3b87', lineHeight: 1.5 }}>
+                      <strong>External calendar.</strong> Connect your calendar in Integrations below to enable real-time availability checking. Without a connection your AI reverts to standard callback behaviour.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1369,6 +1554,8 @@ const AIBehaviour = ({ onNavigate }) => {
           <button style={s.networkCardBtn} onClick={() => onNavigate && onNavigate('referrals')}>Manage partners</button>
         </div>
       </div>
+
+      </>}
 
     </div>
   )
