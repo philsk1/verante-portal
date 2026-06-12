@@ -82,6 +82,7 @@ const OwnerSelector = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('name')
 
   useEffect(() => {
     if (!user) return
@@ -139,32 +140,53 @@ const OwnerSelector = () => {
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
         <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
-            Select a tenant
-          </h1>
-          <p style={{ color: '#888', fontSize: '0.875rem', margin: '0 0 1rem' }}>
-            Click any account to view its portal. Use the tier override in the banner to test different subscription states.
-          </p>
-          <div style={{ position: 'relative', maxWidth: 380 }}>
-            <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2.5" strokeLinecap="round">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.9rem' }}>
+            <div>
+              <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.2rem' }}>Select a tenant</h1>
+              <p style={{ color: '#888', fontSize: '0.8rem', margin: 0 }}>{tenants.length} accounts · click to open portal</p>
+            </div>
+            {/* Sort controls */}
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {[
+                { id: 'name',       label: 'A–Z' },
+                { id: 'perf_asc',   label: 'Performance ↑' },
+                { id: 'perf_desc',  label: 'Performance ↓' },
+                { id: 'calls_desc', label: 'Most active' },
+                { id: 'tier',       label: 'Tier' },
+              ].map(opt => (
+                <button key={opt.id} onClick={() => setSort(opt.id)} style={{
+                  padding: '0.3rem 0.7rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.72rem', fontWeight: sort === opt.id ? 700 : 400,
+                  fontFamily: "'DM Sans', sans-serif",
+                  background: sort === opt.id ? '#5e3b87' : 'white',
+                  color: sort === opt.id ? 'white' : '#666',
+                  boxShadow: sort === opt.id ? 'none' : '0 1px 3px rgba(0,0,0,0.08)',
+                  transition: 'all 0.12s',
+                }}>{opt.label}</button>
+              ))}
+            </div>
+          </div>
+          {/* Search */}
+          <div style={{ position: 'relative', maxWidth: 420 }}>
+            <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2.5" strokeLinecap="round">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input
               type="text"
-              placeholder="Search by name, tier, SMS, booking…"
+              placeholder="Search name, tier, sms, listen, booking, demo…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
                 width: '100%', boxSizing: 'border-box',
-                padding: '0.55rem 0.75rem 0.55rem 2.1rem',
+                padding: '0.52rem 2rem 0.52rem 2rem',
                 border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px',
-                fontSize: '0.875rem', color: '#1a1a1a', outline: 'none',
+                fontSize: '0.825rem', color: '#1a1a1a', outline: 'none',
                 fontFamily: "'DM Sans', sans-serif", background: 'white',
                 boxShadow: '0 1px 4px rgba(94,59,135,0.06)',
               }}
             />
             {search && (
-              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '1rem', lineHeight: 1, padding: 0 }}>×</button>
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '1.1rem', lineHeight: 1, padding: 0 }}>×</button>
             )}
           </div>
         </div>
@@ -177,24 +199,48 @@ const OwnerSelector = () => {
         )}
 
         {!loading && !error && (() => {
+          const TIER_RANK = { free: 0, light: 1, standard: 2, professional: 3, enterprise: 4, bespoke: 5 }
           const q = search.trim().toLowerCase()
+
+          // Filter
           const filtered = q ? tenants.filter(t => {
-            const name = (t.business_name || '').toLowerCase()
-            const tier = (t.subscription_tier || '').toLowerCase()
-            const triage = (t.triage_mode || '').toLowerCase()
-            const outcome = (t.business_outcome_type || '').toLowerCase()
-            const features = [
-              t.sms_followup_enabled && 'sms',
-              t.provisional_booking_enabled && 'booking provisional',
-              t.listen_tier && t.listen_tier !== 'none' && 'listen',
-              t.calendar_tier && t.calendar_tier !== 'none' && 'calendar schedule',
-              t.spam_filter_enabled && 'spam',
-            ].filter(Boolean).join(' ')
-            return [name, tier, triage, outcome, features].some(s => s.includes(q))
-          }) : tenants
+            const haystack = [
+              t.business_name,
+              t.subscription_tier,
+              t.triage_mode,
+              t.business_outcome_type,
+              t.billing_model,
+              t.sms_followup_enabled ? 'sms sms-followup' : '',
+              t.provisional_booking_enabled ? 'booking provisional' : '',
+              t.listen_tier && t.listen_tier !== 'none' ? 'listen' : '',
+              t.calendar_tier && t.calendar_tier !== 'none' ? 'calendar schedule' : '',
+              t.spam_filter_enabled ? 'spam' : '',
+              t.holiday_mode ? 'holiday paused' : '',
+              t.is_demo ? 'demo' : '',
+              ...(t.landscape?.issues || []).map(i => i.label),
+            ].filter(Boolean).join(' ').toLowerCase()
+            return haystack.includes(q)
+          }) : [...tenants]
+
+          // Sort
+          const PERF = t => t.landscape?.leadRate ?? -1
+          const CALLS = t => t.landscape?.calls30d ?? 0
+          filtered.sort((a, b) => {
+            if (sort === 'name')       return (a.business_name || '').localeCompare(b.business_name || '')
+            if (sort === 'perf_asc')   return PERF(a) - PERF(b)
+            if (sort === 'perf_desc')  return PERF(b) - PERF(a)
+            if (sort === 'calls_desc') return CALLS(b) - CALLS(a)
+            if (sort === 'tier')       return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
+            return 0
+          })
+
           return (
           <>
-          {filtered.length === 0 && <div style={{ color: '#aaa', fontSize: '0.875rem' }}>No tenants match "{search}"</div>}
+          {filtered.length === 0 && (
+            <div style={{ color: '#888', fontSize: '0.875rem', padding: '1rem 0' }}>
+              No tenants match <strong>"{search}"</strong> — try name, tier (standard, professional), sms, listen, demo, holiday…
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
             {filtered.map(t => (
               <button
