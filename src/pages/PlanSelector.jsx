@@ -96,26 +96,57 @@ const LISTEN_TIERS = [
 
 const CALENDAR_TIERS = [
   {
-    id: 'entry',
-    name: 'Entry',
+    id: 'none',
+    name: 'Not active',
     price: 0,
-    priceLabel: 'Free',
-    usageLabel: 'Always included',
-    features: ['Single-person calendar', 'Manual booking', 'Drag-and-drop rescheduling', 'Status tracking'],
-    badge: 'Included free',
-    alwaysFree: true,
+    priceLabel: '—',
+    usageLabel: null,
+    features: [],
+    badge: null,
   },
   {
-    id: 'multi',
-    name: 'Multi-staff',
-    price: 5,
-    priceLabel: '£5/mo',
-    usageLabel: '+ £2/staff member',
-    features: ['Unlimited staff profiles', 'Team column view + staff filter', 'Service-driven slot generation', 'Work schedules per staff', 'Reminder cadence (48h/24h/1h)', 'Waitlist + intake capture', 'Recurring series booking'],
+    id: 'solo',
+    name: 'Solo Plan',
+    price: 19,
+    priceLabel: '£19/mo',
+    usageLabel: '1 calendar',
+    features: ['Public booking portal', 'Product & service listings', 'Drag-and-drop scheduling', 'Status tracking', 'Open API matrix', 'Live support'],
     badge: null,
-    alwaysFree: false,
+    desc: 'Independent renters, chair-hire, mobile specialists',
+  },
+  {
+    id: 'small_team',
+    name: 'Small Team',
+    price: 29,
+    priceLabel: '£29/mo',
+    usageLabel: '2–3 staff',
+    features: ['Everything in Solo', 'Up to 3 staff columns', 'Team column view + staff filter', 'Work schedules per staff'],
+    badge: null,
+    desc: 'Boutique setups, intimate storefront partnerships',
+  },
+  {
+    id: 'growth',
+    name: 'Growth Plan',
+    price: 39,
+    priceLabel: '£39/mo',
+    usageLabel: '4–7 staff',
+    features: ['Everything in Small Team', 'Up to 7 staff columns', 'Service-driven slot generation', 'Reminder cadence (48h/24h/1h)', 'Waitlist + intake capture'],
+    badge: 'Most popular',
+    desc: 'Standard high-street operations',
+  },
+  {
+    id: 'large_team',
+    name: 'Large Team',
+    price: 49,
+    priceLabel: '£49/mo',
+    usageLabel: '8+ staff',
+    features: ['Everything in Growth', 'Unlimited staff columns', 'Recurring series booking', 'Walk-in queue management', 'Priority support'],
+    badge: null,
+    desc: 'High-volume multi-chair venues, walk-in establishments',
   },
 ]
+
+const MULTI_STAFF_TIERS = new Set(['multi', 'small_team', 'growth', 'large_team'])
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,11 +160,12 @@ const ENTERPRISE_TIERS = ['enterprise', 'bespoke']
 
 function priceBreakdown(answer, listen, calendar) {
   const a = ANSWER_TIERS.find(t => t.id === answer)
+  const cal = CALENDAR_TIERS.find(t => t.id === calendar)
   const enterpriseBundle = ENTERPRISE_TIERS.includes(answer)
-  const calendarCharge = calendar === 'multi' && !enterpriseBundle ? 5 : 0
+  const calendarCharge = cal?.price > 0 && !enterpriseBundle ? cal.price : 0
   const fixed = (a?.price || 0) + calendarCharge
   const listenLabel = listen === 'none' ? '' : listen === 'standard' ? '+ 3p/min Listen' : '+ 4p/min Listen'
-  const calendarNote = calendar === 'multi' && !enterpriseBundle ? '+ £2/staff' : ''
+  const calendarNote = cal?.usageLabel && calendarCharge > 0 ? cal.usageLabel : ''
   return { fixed, listenLabel, answerOverage: a?.usageLabel || '', calendarNote, enterpriseBundle }
 }
 
@@ -244,9 +276,11 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
 
   const [answer, setAnswer]     = useState(currentAnswer   || 'standard')
   const [listen, setListen]     = useState(currentListen   || 'standard')
-  const [calendar, setCalendar] = useState(currentCalendar || 'entry')
+  // Normalise legacy tier IDs: entry→solo, multi→small_team
+  const normaliseCalendar = t => t === 'entry' ? 'solo' : t === 'multi' ? 'small_team' : (t || 'none')
+  const [calendar, setCalendar] = useState(normaliseCalendar(currentCalendar))
 
-  const showDowngradeWarning = currentCalendar === 'multi' && calendar === 'entry' && currentStaffCount > 1
+  const showDowngradeWarning = MULTI_STAFF_TIERS.has(currentCalendar) && !MULTI_STAFF_TIERS.has(calendar) && calendar !== 'none' && currentStaffCount > 1
 
   const listenLocked = answer === 'free'
 
@@ -280,7 +314,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             Build your Qerxel
           </div>
           <div style={{ fontSize: '0.9375rem', color: '#666', lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>
-            Three products. Pick what you need. Schedule is always free.
+            Three products. Pick exactly what you need.
           </div>
         </div>
 
@@ -312,7 +346,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             subtitle="Booking engine — appointments, staff, reminders"
             icon="📅"
             tiers={CALENDAR_TIERS.map(t =>
-              t.id === 'multi' && enterpriseBundle
+              t.id === 'large_team' && enterpriseBundle
                 ? { ...t, priceLabel: 'Included', usageLabel: 'With Enterprise Answer', badge: 'Included free' }
                 : t
             )}
@@ -328,7 +362,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
           <div style={{ background: '#fffbeb', borderTop: '1px solid rgba(240,165,0,0.4)', padding: '0.6rem 2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '1rem' }}>⚠️</span>
             <span style={{ fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-              <strong>Downgrading to Entry Schedule</strong> — your calendar will switch to single-person view.
+              <strong>Downgrading to Solo Schedule</strong> — your calendar will switch to single-person view.
               {currentStaffNames.length > 0 && (
                 <> Existing booking data for <strong>{currentStaffNames.slice(0, -1).join(', ')}{currentStaffNames.length > 1 ? ' and ' : ''}{currentStaffNames.slice(-1)}</strong> will be retained but won't appear in the calendar until you upgrade again.</>
               )}

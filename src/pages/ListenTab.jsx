@@ -141,6 +141,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const { user }   = useAuth()
   const preview    = usePreview()
   const isPreview  = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId]   = useState(null)
   const [calls, setCalls]         = useState([])
@@ -273,7 +274,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
 
   // ── Save quick note to call log ───────────────────────────────────────────────
   const saveNote = async () => {
-    if (!quickNote.trim() || !copilotCall || isPreview) return
+    if (!quickNote.trim() || !copilotCall || previewReadOnly) return
     const newSummary = copilotCall.ai_summary
       ? `${copilotCall.ai_summary}\n\n📝 ${quickNote.trim()}`
       : `📝 ${quickNote.trim()}`
@@ -293,7 +294,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
     localFlagsRef.current.set(callId, next)
     setCalls(prev => prev.map(c => c.id === callId ? { ...c, callback_flagged: next } : c))
     if (selected?.id === callId) setSelected(s => ({ ...s, callback_flagged: next }))
-    if (!isPreview && tenantId) {
+    if (!previewReadOnly && tenantId) {
       await supabase.from('call_logs').update({ callback_flagged: next }).eq('id', callId)
     }
   }
@@ -316,15 +317,8 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
 
   const visible = activeTab === 'search'
     ? searchResults
-    : activeTab === 'log' && search
-      ? tabCalls.filter(c => {
-          const q = search.toLowerCase()
-          const name = (c.callers?.full_name || c.caller_name || '').toLowerCase()
-          return name.includes(q) ||
-                 (c.caller_phone?.toLowerCase().includes(q)) ||
-                 (c.ai_summary?.toLowerCase().includes(q)) ||
-                 (c.transcript?.toLowerCase().includes(q))
-        })
+    : search.trim()
+      ? tabCalls.filter(c => matchesSearch(c, search))
       : tabCalls
 
   const tabCounts = {}
@@ -563,8 +557,8 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                   }
                   <button
                     onClick={saveNote}
-                    disabled={!quickNote.trim() || !copilotCall || isPreview}
-                    style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: 'none', background: quickNote.trim() && copilotCall && !isPreview ? '#5e3b87' : '#e5e5e5', color: quickNote.trim() && copilotCall && !isPreview ? 'white' : '#bbb', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: quickNote.trim() && copilotCall && !isPreview ? 'pointer' : 'not-allowed', transition: 'all 0.12s' }}>
+                    disabled={!quickNote.trim() || !copilotCall || previewReadOnly}
+                    style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: 'none', background: quickNote.trim() && copilotCall && !previewReadOnly ? '#5e3b87' : '#e5e5e5', color: quickNote.trim() && copilotCall && !previewReadOnly ? 'white' : '#bbb', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: quickNote.trim() && copilotCall && !previewReadOnly ? 'pointer' : 'not-allowed', transition: 'all 0.12s' }}>
                     Save to call
                   </button>
                 </div>

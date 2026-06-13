@@ -184,7 +184,7 @@ const Portal = () => {
 
   const hasListen       = listenTier !== 'none'
   const hasSchedule     = calendarTier !== 'none'
-  const hasScheduleMulti = calendarTier === 'multi'
+  const hasScheduleMulti = ['multi', 'small_team', 'growth', 'large_team'].includes(calendarTier)
   const scheduleOnly    = hasSchedule && !hasAnswerProduct
 
   // Must stay before conditional return — hooks cannot follow a return statement
