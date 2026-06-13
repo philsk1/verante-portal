@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, email80pct, emailExhausted, emailDailyCost, emailNewLead, emailUrgentEscalation } from './_emails.js'
+import { sendEmail, email80pct, emailExhausted, emailNewLead, emailUrgentEscalation } from './_emails.js'
 import { sendSms } from './_sms.js'
 import { sendWhatsApp } from './_whatsapp-send.js'
 import { fireZapier } from './_zapier-webhook.js'
@@ -269,6 +269,18 @@ export default async function handler(req, res) {
     if (monthCost >= tenant.monthly_cost_limit) {
       // Log warning — actual AI pause requires Vapi API call (Task 4 / future)
       console.warn(`PAYG limit reached for tenant ${tenantId}: £${monthCost.toFixed(2)} >= £${tenant.monthly_cost_limit}`)
+    }
+  }
+
+  // Opt-out detection — check transcript for removal requests
+  if (callerId && transcript) {
+    const lower = transcript.toLowerCase()
+    const removalPhrases = ['remove me from', 'take me off', 'stop contacting', "don't contact", 'unsubscribe', 'remove my details', 'delete my', 'opt out', 'remove from list']
+    if (removalPhrases.some(p => lower.includes(p))) {
+      await supabase.from('caller_tenant_relationships').upsert(
+        { tenant_id: tenantId, caller_id: callerId, marketing_opted_out: true, opted_out_at: new Date().toISOString(), deletion_requested: true, deletion_requested_at: new Date().toISOString() },
+        { onConflict: 'tenant_id,caller_id' }
+      )
     }
   }
 

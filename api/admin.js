@@ -313,7 +313,7 @@ export default async function handler(req, res) {
             .insert(biz.partners.map(p => ({ partner_name: p.business_name || p.partner_name, contact_phone: p.business_phone || p.contact_phone || null, tenant_id: tid }))).select('id')
           if (insertedPartners?.length) {
             seedOps.push(supabase.from('referral_log').insert(
-              Array.from({ length: 5 }, (_, j) => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString() }))
+              Array.from({ length: 5 }, () => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString() }))
             ))
           }
         }
@@ -343,13 +343,99 @@ export default async function handler(req, res) {
   if (userEmail !== undefined) {
     if (userEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
 
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('id, business_name, subscription_tier, listen_tier, calendar_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo')
-      .order('business_name')
+    const [tenantsRes, callsRes, apptsRes, catRes, staffRes] = await Promise.all([
+      supabase.from('tenants').select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_camera_limit, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo, holiday_mode, greeting_message, additional_instructions, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, keep_alive_topics, blocked_phone_numbers').order('business_name'),
+      supabase.from('call_logs').select('tenant_id, call_outcome, callback_flagged, created_at'),
+      supabase.from('appointments').select('tenant_id, status, start_time'),
+      supabase.from('catalogue_items').select('tenant_id, duration_minutes').eq('active', true),
+      supabase.from('staff_profiles').select('tenant_id').or('active.eq.true,active.is.null'),
+    ])
 
-    if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ tenants: data || [] })
+    if (tenantsRes.error) return res.status(500).json({ error: tenantsRes.error.message })
+
+    const now = new Date()
+    const ago30 = new Date(now - 30 * 24 * 60 * 60 * 1000)
+    const fwd14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+
+    // Build per-tenant call stats
+    const callStats = {}
+    for (const c of callsRes.data || []) {
+      const s = callStats[c.tenant_id] || (callStats[c.tenant_id] = { total30: 0, leads30: 0, escalOpen: 0, flagged: 0, outcomes: {} })
+      const isRecent = new Date(c.created_at) >= ago30
+      if (isRecent) s.total30++
+      if (isRecent && c.call_outcome === 'lead_captured') s.leads30++
+      if (c.call_outcome === 'escalated' && c.callback_flagged) s.escalOpen++
+      if (c.callback_flagged) s.flagged++
+      if (c.call_outcome) s.outcomes[c.call_outcome] = (s.outcomes[c.call_outcome] || 0) + 1
+    }
+
+    // Build per-tenant appointment stats
+    const apptStats = {}
+    for (const a of apptsRes.data || []) {
+      const s = apptStats[a.tenant_id] || (apptStats[a.tenant_id] = { upcoming: 0, pastTotal: 0, pastCancelled: 0 })
+      const t = new Date(a.start_time)
+      if (t > now && t < fwd14 && a.status === 'confirmed') s.upcoming++
+      if (t < now) {
+        s.pastTotal++
+        if (a.status === 'cancelled' || a.status === 'no_show') s.pastCancelled++
+      }
+    }
+
+    // Build per-tenant catalogue stats
+    const catStats = {}
+    for (const c of catRes.data || []) {
+      const s = catStats[c.tenant_id] || (catStats[c.tenant_id] = { count: 0, incomplete: 0 })
+      s.count++
+      if (!c.duration_minutes) s.incomplete++
+    }
+
+    // Build per-tenant staff counts
+    const staffCount = {}
+    for (const s of staffRes.data || []) {
+      staffCount[s.tenant_id] = (staffCount[s.tenant_id] || 0) + 1
+    }
+
+    // Annotate tenants with landscape intel + issues
+    const tenants = (tenantsRes.data || []).map(t => {
+      const calls  = callStats[t.id]  || { total30: 0, leads30: 0, escalOpen: 0, flagged: 0 }
+      const appts  = apptStats[t.id]  || { upcoming: 0, pastTotal: 0, pastCancelled: 0 }
+      const cat    = catStats[t.id]   || { count: 0, incomplete: 0 }
+      const staffN = staffCount[t.id] || 0
+      const cancelRate = appts.pastTotal > 0 ? appts.pastCancelled / appts.pastTotal : 0
+      const leadRate   = calls.total30 > 0 ? calls.leads30 / calls.total30 : null
+
+      const issues = []
+      if (calls.escalOpen > 0)                                                   issues.push({ type: 'urgent_open',       label: `${calls.escalOpen} urgent open`,        severity: 'critical' })
+      if (calls.flagged > 12)                                                    issues.push({ type: 'callbacks_high',    label: `${calls.flagged} callbacks queued`,     severity: 'warning' })
+      if (calls.total30 >= 5 && leadRate !== null && leadRate < 0.18)           issues.push({ type: 'low_conversion',    label: `${Math.round(leadRate * 100)}% lead rate`, severity: 'warning' })
+      if (cancelRate > 0.22)                                                     issues.push({ type: 'high_cancel',       label: `${Math.round(cancelRate * 100)}% cancel rate`, severity: 'warning' })
+      if (cat.count === 0 && t.subscription_tier !== 'free')                    issues.push({ type: 'no_catalogue',      label: 'No catalogue',                          severity: 'warning' })
+      if (cat.incomplete > 0)                                                    issues.push({ type: 'incomplete_cat',    label: `${cat.incomplete} items missing duration`, severity: 'info' })
+      if (t.calendar_tier !== 'none' && staffN === 0)                           issues.push({ type: 'no_staff',          label: 'No staff entered',                      severity: 'warning' })
+      if (calls.total30 < 5)                                                     issues.push({ type: 'low_activity',      label: calls.total30 === 0 ? 'No calls recorded' : `Only ${calls.total30} calls`, severity: calls.total30 === 0 ? 'critical' : 'warning' })
+      if (t.calendar_tier !== 'none' && appts.upcoming === 0 && appts.pastTotal > 0) issues.push({ type: 'calendar_empty', label: 'No upcoming bookings',               severity: 'info' })
+      if (t.holiday_mode)                                                        issues.push({ type: 'holiday_mode',      label: 'AI paused — holiday mode',              severity: 'critical' })
+      if (t.subscription_tier === 'free')                                        issues.push({ type: 'free_tier',         label: 'Free tier',                             severity: 'info' })
+
+      return {
+        ...t,
+        landscape: {
+          calls30d: calls.total30,
+          leads30d: calls.leads30,
+          leadRate,
+          escalOpen: calls.escalOpen,
+          callbacksQueued: calls.flagged,
+          upcoming: appts.upcoming,
+          cancelRate: Math.round(cancelRate * 100),
+          catalogueItems: cat.count,
+          staffCount: staffN,
+          outcomeCounts: calls.outcomes || {},
+          issues,
+        },
+      }
+    })
+
+    return res.status(200).json({ tenants })
   }
 
   // ── scrape-website ─────────────────────────────────────────────────────────

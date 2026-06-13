@@ -3,7 +3,7 @@ import CalendarIntelligence from './CalendarIntelligence'
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar'
 import _withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 const withDragAndDrop = _withDragAndDrop.default || _withDragAndDrop
-import { format, parse, startOfWeek, getDay, addHours, startOfHour, addMinutes, addWeeks } from 'date-fns'
+import { format, parse, startOfWeek, getDay, addHours, startOfHour, addMinutes } from 'date-fns'
 import { enGB } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
@@ -52,20 +52,15 @@ function getCategoryColour(category) {
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-const DEMO_STAFF = [
-  { id: 'demo-staff-1', name: 'Sophie', role: 'Senior Stylist', colour: '#7c3aed' },
-  { id: 'demo-staff-2', name: 'Olivia', role: 'Stylist', colour: '#16a34a' },
-]
 
 const EMPTY_FORM = {
   title: '', description: '', start: '', end: '',
   status: 'confirmed', appointment_type: '', client_notes: '',
+  client_name: '', client_phone: '', client_email: '',
   staff_profile_id: '',
   isSplit: false, processing_start: '', processing_end: '',
   service_id: '',
-  repeat_type: 'none',   // none | weekly | fortnightly
+  repeat_type: 'none',
   repeat_count: 4,
   intake_answers: '',
 }
@@ -92,16 +87,6 @@ function fmtTime(dateStr) {
 function fmtDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
-function minsToTime(mins) {
-  const h = String(Math.floor(mins / 60)).padStart(2, '0')
-  const m = String(mins % 60).padStart(2, '0')
-  return `${h}:${m}`
-}
-function timeToMins(t) {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
-}
-
 const useIsMobile = () => {
   const [v, setV] = useState(window.innerWidth <= 768)
   useEffect(() => {
@@ -115,11 +100,11 @@ const useIsMobile = () => {
 // ─── Custom toolbar (carries all calendar controls) ──────────────────────────
 const CalendarToolbar = ({
   label, onNavigate, onView, view,
-  // extra controls passed via closure
   staff, staffFilter, setStaffFilter,
   teamMode, setTeamMode, smartView, setSmartView, hasAutoAdapted, setView,
   todayMode, setTodayMode, todayStaffIds,
   onNew, hasTeamMode,
+  viewportMode, setViewportMode, currentStaffCount, onStaffCountChange,
 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
     {/* Nav */}
@@ -157,6 +142,7 @@ const CalendarToolbar = ({
             style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: teamMode && !staffFilter ? '#5e3b87' : 'transparent', color: teamMode && !staffFilter ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Team
           </button>
+          {/* eslint-disable-next-line react-hooks/immutability */}
           <button onClick={() => { if (hasAutoAdapted) hasAutoAdapted.current = false; setSmartView(true) }}
             style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: smartView ? '#f0a500' : 'transparent', color: smartView ? '#1a0533' : '#5e3b87', fontSize: '0.75rem', fontWeight: smartView ? 700 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Smart
@@ -173,6 +159,30 @@ const CalendarToolbar = ({
           <option value="">All staff</option>
           {(staff || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+
+        {/* Open / Compact viewport toggle */}
+        {teamMode && !staffFilter && setViewportMode && (
+          <>
+            <div style={{ height: 16, width: 1, background: 'rgba(94,59,135,0.18)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', gap: 2, background: '#f0ebf8', borderRadius: 7, padding: 2, flexShrink: 0 }}>
+              {[['open','Open'],['compact','Compact']].map(([m, lbl]) => (
+                <button key={m} onClick={() => setViewportMode(m)}
+                  style={{ padding: '0.22rem 0.6rem', borderRadius: 5, border: 'none', background: viewportMode === m ? '#3a2057' : 'transparent', color: viewportMode === m ? 'white' : '#5e3b87', fontSize: '0.75rem', fontWeight: viewportMode === m ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s' }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {/* Staff count stepper */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <button onClick={() => onStaffCountChange(-1)}
+                style={{ width: 22, height: 22, border: '1px solid rgba(94,59,135,0.22)', borderRadius: 5, background: 'white', color: '#5e3b87', fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>−</button>
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.82rem', color: '#1a1a1a', minWidth: 18, textAlign: 'center' }}>{currentStaffCount}</span>
+              <button onClick={() => onStaffCountChange(+1)}
+                style={{ width: 22, height: 22, border: '1px solid rgba(94,59,135,0.22)', borderRadius: 5, background: 'white', color: '#5e3b87', fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>+</button>
+              <span style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>staff</span>
+            </div>
+          </>
+        )}
       </>
     )}
 
@@ -270,7 +280,7 @@ function scheduleSummary(sch) {
   return `${dayStr} · ${timeStr}`
 }
 
-function StaffScheduleTab({ tenantId, staff, isPreview, onPortalNavigate }) {
+function StaffScheduleTab({ tenantId, staff, _isPreview, previewReadOnly, onPortalNavigate }) {
   const [schedules, setSchedules] = useState({}) // { staffId: { 0: {on,start,end}, ... } }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
@@ -307,7 +317,7 @@ function StaffScheduleTab({ tenantId, staff, isPreview, onPortalNavigate }) {
   }
 
   const saveSchedule = async (staffId) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     setSaving(staffId)
     const days = schedules[staffId] || {}
     for (let d = 0; d < 7; d++) {
@@ -359,7 +369,7 @@ function StaffScheduleTab({ tenantId, staff, isPreview, onPortalNavigate }) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
                 {isOpen && (
-                  <button onClick={e => { e.stopPropagation(); saveSchedule(s.id) }} disabled={isSav || isPreview}
+                  <button onClick={e => { e.stopPropagation(); saveSchedule(s.id) }} disabled={isSav || previewReadOnly}
                     style={{ padding: '0.32rem 0.8rem', background: isSaved ? '#3db87a' : '#f0a500', color: isSaved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600, cursor: isSav ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                     {isSav ? 'Saving…' : isSaved ? '✓ Saved' : 'Save'}
                   </button>
@@ -402,212 +412,78 @@ function StaffScheduleTab({ tenantId, staff, isPreview, onPortalNavigate }) {
   )
 }
 
-// ─── Booking rules tab ───────────────────────────────────────────────────────
-function BookingRulesTab({ tenantId, catalogue, isPreview, onPortalNavigate }) {
-  // edits: { [id]: { apply_minutes, processing_minutes, overlap_start_mins, overlap_end_mins } }
-  const [edits, setEdits] = useState({})
-  const [saving, setSaving] = useState(null)
-  const [saved, setSaved]   = useState(null)
+// ─── Drag-to-reorder staff list ───────────────────────────────────────────────
+function StaffOrderList({ staff, staffOrder, onStaffOrder }) {
+  const [dragIndex, setDragIndex] = useState(null)
 
-  // Initialise edits from catalogue prop
-  useEffect(() => {
-    const initial = {}
-    for (const s of catalogue) {
-      initial[s.id] = {
-        apply_minutes:     s.apply_minutes     ?? 0,
-        processing_minutes: s.processing_minutes ?? 0,
-        overlap_start_mins: s.overlap_start_mins ?? 0,
-        overlap_end_mins:   s.overlap_end_mins   ?? 0,
-      }
-    }
-    setEdits(initial)
-  }, [catalogue])
+  const ordered = [...staff].sort((a, b) => {
+    const ai = staffOrder.indexOf(a.id)
+    const bi = staffOrder.indexOf(b.id)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
 
-  const step = (id, field, delta) => {
-    setEdits(prev => {
-      const cur = prev[id] || {}
-      return { ...prev, [id]: { ...cur, [field]: Math.max(0, (cur[field] ?? 0) + delta) } }
-    })
+  const handleDragStart = (i) => setDragIndex(i)
+  const handleDragOver = (e, i) => {
+    e.preventDefault()
+    if (dragIndex === null || dragIndex === i) return
+    const next = [...ordered]
+    const [moved] = next.splice(dragIndex, 1)
+    next.splice(i, 0, moved)
+    onStaffOrder(next.map(s => s.id))
+    setDragIndex(i)
   }
-
-  const save = async (id) => {
-    if (isPreview || !tenantId) return
-    setSaving(id)
-    const e = edits[id] || {}
-    const service = catalogue.find(c => c.id === id)
-    // Derive total duration: apply + process + finish
-    // finish = original duration - apply - process (floor at 0)
-    const applyMins    = e.apply_minutes || 0
-    const processMins  = e.processing_minutes || 0
-    const originalTotal = service?.duration_minutes || 0
-    const finishMins   = Math.max(0, originalTotal - applyMins - processMins)
-    const newTotal     = applyMins + processMins + finishMins
-    await supabase.from('catalogue_items').update({
-      apply_minutes:      applyMins || null,
-      processing_minutes: processMins || null,
-      overlap_start_mins: e.overlap_start_mins ?? 0,
-      overlap_end_mins:   e.overlap_end_mins   ?? 0,
-      duration_minutes:   newTotal > 0 ? newTotal : (originalTotal || null),
-    }).eq('id', id)
-    setSaving(null)
-    setSaved(id)
-    setTimeout(() => setSaved(s => s === id ? null : s), 2000)
-  }
-
-  const stepBtn = { width: 26, height: 26, border: '1px solid rgba(94,59,135,0.25)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '1rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }
-
-  const Stepper = ({ id, field, label, min = 0 }) => {
-    const val = edits[id]?.[field] ?? 0
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#555', width: 58, flexShrink: 0 }}>{label}</span>
-        <button onClick={() => step(id, field, -5)} style={stepBtn}>−</button>
-        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{val}</span>
-        <button onClick={() => step(id, field, +5)} style={stepBtn}>+</button>
-        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min</span>
-      </div>
-    )
-  }
-
-  const splitServices = catalogue.filter(s => (edits[s.id]?.processing_minutes || s.processing_minutes || 0) > 0)
-  const plainServices = catalogue.filter(s => !((edits[s.id]?.processing_minutes || s.processing_minutes || 0) > 0))
+  const handleDrop = () => setDragIndex(null)
 
   return (
-    <div style={{ maxWidth: 700 }}>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', color: '#666', marginBottom: '1.25rem', lineHeight: 1.6 }}>
-        For services with a <strong>process phase</strong> (colour, dye, treatments) you can define how your AI handles booking overlap — letting you serve another client while the first client waits. Set apply → process → finish times, then configure the overlap window within the process phase.
+    <div>
+      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Column order</div>
+      <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.6rem' }}>Drag to set the order staff columns appear in team view</div>
+      {ordered.map((member, i) => (
+        <div key={member.id}
+          draggable
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={(e) => handleDragOver(e, i)}
+          onDrop={handleDrop}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem', background: dragIndex === i ? '#f0ebf8' : 'white', borderRadius: 7, border: '1px solid rgba(94,59,135,0.1)', marginBottom: '0.3rem', cursor: 'grab', userSelect: 'none', transition: 'background 0.1s' }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.35, flexShrink: 0 }}>
+            <circle cx="4" cy="3" r="1.2" fill="#5e3b87"/><circle cx="8" cy="3" r="1.2" fill="#5e3b87"/>
+            <circle cx="4" cy="6" r="1.2" fill="#5e3b87"/><circle cx="8" cy="6" r="1.2" fill="#5e3b87"/>
+            <circle cx="4" cy="9" r="1.2" fill="#5e3b87"/><circle cx="8" cy="9" r="1.2" fill="#5e3b87"/>
+          </svg>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: member.colour || '#5e3b87', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{member.name}</span>
+          <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif" }}>#{i + 1}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Toggle({ val, set }) {
+  return (
+    <button onClick={() => set(!val)} style={{ width: 42, height: 24, borderRadius: 12, border: 'none', background: val ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 3, left: val ? 20 : 3, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
+    </button>
+  )
+}
+
+function Row({ label, desc, children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+      <div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a' }}>{label}</div>
+        {desc && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginTop: 2, lineHeight: 1.4 }}>{desc}</div>}
       </div>
-
-      {/* ── Split services ──────────────────────────────────────────────────── */}
-      {splitServices.length > 0 && (
-        <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
-            Multi-phase services
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {splitServices.map(s => {
-              const e = edits[s.id] || {}
-              const apply = e.apply_minutes || 0
-              const process = e.processing_minutes || 0
-              const original = s.duration_minutes || 0
-              const finish = Math.max(0, original - apply - process)
-              const overlapWindow = Math.max(0, process - e.overlap_start_mins - e.overlap_end_mins)
-              return (
-                <div key={s.id} style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.15)', padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                    <div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a' }}>{s.name}</div>
-                      {s.category && <div style={{ fontSize: '0.72rem', color: '#888', marginTop: 2 }}>{s.category}</div>}
-                    </div>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87' }}>
-                      {apply + process + finish} min total
-                    </div>
-                  </div>
-
-                  {/* Phase steppers */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(94,59,135,0.07)' }}>
-                    <Stepper id={s.id} field="apply_minutes"     label="Apply" />
-                    <Stepper id={s.id} field="processing_minutes" label="Process" />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#555', width: 58 }}>Finish</span>
-                      <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#aaa', paddingLeft: 8 }}>{finish} min</span>
-                      <span style={{ fontSize: '0.72rem', color: '#bbb', marginLeft: 4, fontFamily: "'DM Sans', sans-serif" }}>(remainder)</span>
-                    </div>
-                  </div>
-
-                  {/* Overlap window */}
-                  <div style={{ marginBottom: '0.85rem' }}>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.8rem', color: '#5e3b87', marginBottom: 6 }}>
-                      Overlap window <span style={{ fontWeight: 400, color: '#888' }}>— within the {process} min process phase</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 160, flexShrink: 0 }}>New client starts after</span>
-                        <button onClick={() => step(s.id, 'overlap_start_mins', -5)} style={stepBtn}>−</button>
-                        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{e.overlap_start_mins ?? 0}</span>
-                        <button onClick={() => step(s.id, 'overlap_start_mins', +5)} style={stepBtn}>+</button>
-                        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', width: 160, flexShrink: 0 }}>Must finish</span>
-                        <button onClick={() => step(s.id, 'overlap_end_mins', -5)} style={stepBtn}>−</button>
-                        <span style={{ minWidth: 30, textAlign: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>{e.overlap_end_mins ?? 0}</span>
-                        <button onClick={() => step(s.id, 'overlap_end_mins', +5)} style={stepBtn}>+</button>
-                        <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>min before finish</span>
-                      </div>
-                    </div>
-                    {overlapWindow > 0 ? (
-                      <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.25)', borderRadius: 6, padding: '0.4rem 0.65rem' }}>
-                        ✓ {overlapWindow} min overlap window — AI can schedule another client during this phase
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>
-                        No overlap — set start/finish buffers smaller than the process time to allow booking during processing
-                      </div>
-                    )}
-                  </div>
-
-                  <button onClick={() => save(s.id)} disabled={saving === s.id}
-                    style={{ padding: '0.35rem 1rem', background: saved === s.id ? '#3db87a' : '#f0a500', color: saved === s.id ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s', opacity: saving === s.id ? 0.7 : 1 }}>
-                    {saved === s.id ? '✓ Saved' : saving === s.id ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Standard services — can be promoted to split ─────────────────────── */}
-      {plainServices.length > 0 && (
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.78rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
-            Standard services
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {plainServices.map(s => {
-              const e = edits[s.id] || {}
-              return (
-                <div key={s.id} style={{ background: 'white', borderRadius: 10, border: '0.5px solid rgba(94,59,135,0.1)', padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                  <div>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a' }}>{s.name}</span>
-                    {s.duration_minutes > 0 && <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{s.duration_minutes} min</span>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>Add process time:</span>
-                    <Stepper id={s.id} field="processing_minutes" label="" />
-                    {(e.processing_minutes || 0) > 0 && (
-                      <button onClick={() => save(s.id)} disabled={saving === s.id}
-                        style={{ padding: '0.25rem 0.65rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                        {saving === s.id ? '…' : saved === s.id ? '✓' : 'Save'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {catalogue.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', fontFamily: "'DM Sans', sans-serif" }}>
-          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📋</div>
-          <div style={{ fontSize: '0.875rem', color: '#aaa', marginBottom: '1rem' }}>No services in your catalogue yet.</div>
-          <button
-            onClick={() => onPortalNavigate?.('profile')}
-            style={{ padding: '0.55rem 1.25rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Go to Business Profile → Services
-          </button>
-        </div>
-      )}
+      <div style={{ flexShrink: 0 }}>{children}</div>
     </div>
   )
 }
 
 // ─── Calendar settings tab ────────────────────────────────────────────────────
-function CalendarSettingsTab({ tenantId, isPreview }) {
+function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = [], vpOpen, vpCompact, onVpOpen, onVpCompact, staffOrder, onStaffOrder }) {
   const [bufferMins, setBufferMins] = useState(15)
   const [reminder48h, setReminder48h] = useState(true)
   const [reminder24h, setReminder24h] = useState(true)
@@ -642,7 +518,7 @@ function CalendarSettingsTab({ tenantId, isPreview }) {
   }, [tenantId])
 
   const save = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setSaving(true)
     await supabase.from('tenants').update({
       booking_buffer_mins:   bufferMins,
@@ -661,21 +537,7 @@ function CalendarSettingsTab({ tenantId, isPreview }) {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const Toggle = ({ val, set }) => (
-    <button onClick={() => set(!val)} style={{ width: 42, height: 24, borderRadius: 12, border: 'none', background: val ? '#5e3b87' : '#e8e0f0', cursor: 'pointer', position: 'relative', transition: 'background 0.18s', flexShrink: 0 }}>
-      <span style={{ position: 'absolute', top: 3, left: val ? 20 : 3, width: 18, height: 18, borderRadius: 9, background: 'white', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)' }} />
-    </button>
-  )
 
-  const Row = ({ label, desc, children }) => (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
-      <div>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a' }}>{label}</div>
-        {desc && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginTop: 2, lineHeight: 1.4 }}>{desc}</div>}
-      </div>
-      <div style={{ flexShrink: 0 }}>{children}</div>
-    </div>
-  )
 
   const inputSt = { padding: '0.35rem 0.55rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white' }
 
@@ -772,10 +634,42 @@ function CalendarSettingsTab({ tenantId, isPreview }) {
         <Row label="1-hour reminder"><Toggle val={reminder1h} set={setReminder1h} /></Row>
       </div>
 
-      <button onClick={save} disabled={saving || isPreview}
+      <button onClick={save} disabled={saving || previewReadOnly}
         style={{ alignSelf: 'flex-start', padding: '0.55rem 1.4rem', background: saved ? '#3db87a' : (saving ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
       </button>
+
+      {/* ── Viewport defaults ─────────────────────────────────────────────── */}
+      {vpOpen && vpCompact && onVpOpen && onVpCompact && (
+        <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Calendar viewport</div>
+          <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.9rem', lineHeight: 1.5 }}>
+            Default staff count for Open and Compact modes in team view. Toggle between modes using the toolbar buttons.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+            {[{ label: 'Open mode', cfg: vpOpen, set: onVpOpen }, { label: 'Compact mode', cfg: vpCompact, set: onVpCompact }].map(({ label, cfg, set }) => (
+              <div key={label} style={{ background: '#faf9fc', borderRadius: 8, padding: '0.75rem', border: '1px solid rgba(94,59,135,0.1)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.6rem' }}>{label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#555', fontFamily: "'DM Sans', sans-serif" }}>Staff columns</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button onClick={() => set(prev => ({ ...prev, staffCount: Math.max(1, prev.staffCount - 1) }))}
+                      style={{ width: 22, height: 22, border: '1px solid rgba(94,59,135,0.22)', borderRadius: 4, background: 'white', color: '#5e3b87', fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', minWidth: 18, textAlign: 'center', color: '#1a1a1a' }}>{cfg.staffCount}</span>
+                    <button onClick={() => set(prev => ({ ...prev, staffCount: Math.min(staff.length || 10, prev.staffCount + 1) }))}
+                      style={{ width: 22, height: 22, border: '1px solid rgba(94,59,135,0.22)', borderRadius: 4, background: 'white', color: '#5e3b87', fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Drag-to-reorder staff */}
+          {staff.length > 1 && onStaffOrder && (
+            <StaffOrderList staff={staff} staffOrder={staffOrder || []} onStaffOrder={onStaffOrder} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -828,7 +722,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = preview?.isPreview
-  const effectiveCalendarTier = 'multi'
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
+  const effectiveCalendarTier = calendarTierProp || 'entry'
   const isMobile = useIsMobile()
 
   // Inject overrides to collapse the empty all-day row and tighten header cells
@@ -863,6 +758,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [smartView, setSmartView] = useState(true) // auto-adapt based on staff count
   const hasAutoAdapted = useRef(false)
   const [activeSubTab, setActiveSubTab] = useState('appointments')
+  const [historySearch, setHistorySearch] = useState('')
+
+  // Viewport config
+  const [viewportMode, setViewportMode] = useState('open')
+  const [vpOpen, setVpOpen] = useState({ staffCount: 10 })
+  const [vpCompact, setVpCompact] = useState({ staffCount: 3 })
+  const [staffOrder, setStaffOrder] = useState([])
 
   // Right panel state
   const [panelMode, setPanelMode] = useState(null) // null | 'view' | 'edit' | 'create'
@@ -874,10 +776,31 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [slotWarning, setSlotWarning] = useState(false)
 
   // Waitlist state
-  const [waitlists, setWaitlists] = useState({}) // { appointmentId: count }
 
   const closePanel = () => { setPanelMode(null); setPanelEvent(null) }
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }))
+
+  // Load viewport config from localStorage
+  useEffect(() => {
+    if (!tenantId) return
+    try {
+      const raw = localStorage.getItem(`qerxel_cal_vp_${tenantId}`)
+      if (!raw) return
+      const saved = JSON.parse(raw)
+      if (saved.mode) setViewportMode(saved.mode)
+      if (saved.open?.staffCount) setVpOpen(saved.open)
+      if (saved.compact?.staffCount) setVpCompact(saved.compact)
+      if (Array.isArray(saved.staffOrder)) setStaffOrder(saved.staffOrder)
+    } catch { /* corrupt localStorage — ignore */ }
+  }, [tenantId])
+
+  // Save viewport config to localStorage
+  useEffect(() => {
+    if (!tenantId) return
+    try {
+      localStorage.setItem(`qerxel_cal_vp_${tenantId}`, JSON.stringify({ mode: viewportMode, open: vpOpen, compact: vpCompact, staffOrder }))
+    } catch { /* quota exceeded — ignore */ }
+  }, [tenantId, viewportMode, vpOpen, vpCompact, staffOrder])
 
   // Intelligence Hub state
   const [workHarderOpen, setWorkHarderOpen] = useState(false)
@@ -890,8 +813,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [svcDraft, setSvcDraft] = useState(EMPTY_SVC)
   const [svcAdding, setSvcAdding] = useState(false)
   const [svcError, setSvcError] = useState(null)
-  const [svcEditing, setSvcEditing] = useState(null)
-  const [svcEditDraft, setSvcEditDraft] = useState({})
+  const [, setSvcEditing] = useState(null)
+  const [svcEditDraft] = useState({})
 
   // ─── Consume prefill from Dashboard ────────────────────────────────────────
   useEffect(() => {
@@ -904,9 +827,17 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     onPrefillConsumed?.()
   }, [prefill])
 
-  // ESC closes panel
+  // ESC closes panel; Arrow keys navigate calendar
   useEffect(() => {
-    const h = (e) => { if (e.key === 'Escape') closePanel() }
+    const h = (e) => {
+      if (e.key === 'Escape') { closePanel(); return }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const tag = document.activeElement?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+        const delta = e.key === 'ArrowLeft' ? -1 : 1
+        setCurrentDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + delta); return d })
+      }
+    }
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
   }, [])
@@ -930,7 +861,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       try {
         const [apptRes, staffRes, catRes] = await Promise.all([
           supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time'),
-          supabase.from('staff_profiles').select('id, name, role, colour, skills, include_in_intel, overhead_hours_per_week').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('staff_profiles').select('id, name, role, colour, skills, include_in_intel, overhead_hours_per_week').eq('tenant_id', tenantId).or('active.eq.true,active.is.null').order('name'),
           supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         const staffData = staffRes.data || []
@@ -1011,15 +942,28 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return qualified.length > 0 ? qualified : staff
   }
 
+  // ─── Staff sorted by viewport order ──────────────────────────────────────────
+  const orderedStaff = useMemo(() => {
+    if (staffOrder.length === 0) return staff
+    return [...staff].sort((a, b) => {
+      const ai = staffOrder.indexOf(a.id)
+      const bi = staffOrder.indexOf(b.id)
+      if (ai === -1 && bi === -1) return 0
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
+  }, [staff, staffOrder])
+
   // ─── Resources for team / column mode ────────────────────────────────────────
-  const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff
   const resources = useMemo(() => {
-    if (!teamMode || staff.length === 0 || staffFilter) return undefined
-    const staffToShow = todayMode && todayStaffIds.size > 0
-      ? staff.filter(s => todayStaffIds.has(s.id))
-      : staff
-    return staffToShow.map(s => ({ id: s.id, title: s.name }))
-  }, [teamMode, staff, staffFilter, todayMode, todayStaffIds])
+    if (!teamMode || orderedStaff.length === 0 || staffFilter) return undefined
+    const currentVp = viewportMode === 'open' ? vpOpen : vpCompact
+    const base = todayMode && todayStaffIds.size > 0
+      ? orderedStaff.filter(s => todayStaffIds.has(s.id))
+      : orderedStaff
+    return base.slice(0, currentVp.staffCount).map(s => ({ id: s.id, title: s.name }))
+  }, [teamMode, orderedStaff, staffFilter, todayMode, todayStaffIds, viewportMode, vpOpen, vpCompact])
   const visibleEvents = events
     .filter(e => !staffFilter || e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
     .filter(e => !statusFilter || e.status === statusFilter)
@@ -1080,6 +1024,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       status: appt.status || 'confirmed',
       appointment_type: appt.appointment_type || '',
       client_notes: appt.client_notes || '',
+      client_name: appt.client_name || '',
+      client_phone: appt.client_phone || '',
+      client_email: appt.client_email || '',
       staff_profile_id: appt.staff_profile_id || '',
       isSplit: !!(appt.processing_start_time),
       processing_start: appt.processing_start_time ? isoLocal(appt.processing_start_time) : '',
@@ -1095,23 +1042,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Drag/resize ─────────────────────────────────────────────────────────────
   const handleEventDrop = useCallback(async ({ event, start, end, resourceId }) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     if (resourceId !== undefined) updates.staff_profile_id = resourceId === 'unassigned' ? null : resourceId
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resourceId: resourceId ?? e.resourceId, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
-  }, [isPreview])
+  }, [previewReadOnly])
 
   const handleEventResize = useCallback(async ({ event, start, end }) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
-  }, [isPreview])
+  }, [previewReadOnly])
 
   // ─── Save (with recurring series support) ────────────────────────────────────
   const handleSave = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     if (!form.title.trim() || !form.start || !form.end) return
     if (form.isSplit && (!form.processing_start || !form.processing_end)) return
     setSaving(true)
@@ -1126,6 +1073,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         status: form.status,
         appointment_type: form.appointment_type || null,
         client_notes: form.client_notes || null,
+        client_name: form.client_name || null,
+        client_phone: form.client_phone || null,
+        client_email: form.client_email || null,
         staff_profile_id: form.staff_profile_id || null,
         processing_start_time: form.isSplit && form.processing_start ? new Date(form.processing_start).toISOString() : null,
         processing_end_time: form.isSplit && form.processing_end ? new Date(form.processing_end).toISOString() : null,
@@ -1186,7 +1136,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
-    if (isPreview || !panelEvent) return
+    if (previewReadOnly || !panelEvent) return
     setSaving(true)
     try {
       const appt = panelEvent.resource
@@ -1203,7 +1153,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Mark completed ───────────────────────────────────────────────────────────
   const handleMarkCompleted = async () => {
-    if (isPreview || !panelEvent) return
+    if (previewReadOnly || !panelEvent) return
     const updates = { status: 'completed' }
     setEvents(prev => prev.map(e => e.id === panelEvent.id ? { ...e, resource: { ...e.resource, status: 'completed' } } : e))
     setPanelEvent(prev => prev ? { ...prev, resource: { ...prev.resource, status: 'completed' } } : prev)
@@ -1264,6 +1214,33 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+          {/* Customer info — always first */}
+          {(appt.client_name || appt.client_phone || appt.client_email) && (
+            <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '0.75rem 0.9rem', border: '0.5px solid rgba(94,59,135,0.12)' }}>
+              {appt.client_name && (
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: appt.client_phone || appt.client_email ? 4 : 0 }}>
+                  {appt.client_name}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {appt.client_phone && (
+                  <a href={`tel:${appt.client_phone}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, textDecoration: 'none' }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    {appt.client_phone}
+                  </a>
+                )}
+                {appt.client_email && (
+                  <a href={`mailto:${appt.client_email}`}
+                    style={{ fontSize: '0.78rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, textDecoration: 'none' }}>
+                    {appt.client_email}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           <div>
             <Label>Time</Label>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a', fontWeight: 500 }}>
@@ -1430,12 +1407,28 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           </div>
         )}
 
-        {/* Client name — always visible */}
+        {/* Booking title — always visible */}
         <div>
-          <Label>Client name *</Label>
+          <Label>Booking title *</Label>
           <FieldInput value={form.title} onChange={f('title')}
-            placeholder={bookingMode === 'service' && form.service_id ? `e.g. Sarah Mitchell — ${form.appointment_type}` : 'e.g. Sarah Mitchell'}
+            placeholder={bookingMode === 'service' && form.service_id ? form.appointment_type : 'e.g. Cut & Blow Dry'}
             autoFocus />
+        </div>
+
+        {/* Customer details */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <div>
+            <Label>Customer name</Label>
+            <FieldInput value={form.client_name} onChange={f('client_name')} placeholder="e.g. Sarah Mitchell" />
+          </div>
+          <div>
+            <Label>Phone</Label>
+            <FieldInput value={form.client_phone} onChange={f('client_phone')} placeholder="07700 900 123" type="tel" />
+          </div>
+        </div>
+        <div>
+          <Label>Email</Label>
+          <FieldInput value={form.client_email} onChange={f('client_email')} placeholder="customer@email.com" type="email" />
         </div>
 
         {/* Times — always visible, auto-filled in service mode */}
@@ -1564,8 +1557,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginLeft: panelMode === 'edit' ? 0 : 'auto' }}>
           Cancel
         </button>
-        <button onClick={handleSave} disabled={!canSave || isPreview}
-          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || isPreview) ? '#f5d98a' : '#f0a500', color: (!canSave || isPreview) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || isPreview) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+        <button onClick={handleSave} disabled={!canSave || previewReadOnly}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || previewReadOnly) ? '#f5d98a' : '#f0a500', color: (!canSave || previewReadOnly) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || previewReadOnly) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Saving…' : form.repeat_type !== 'none' ? `Book ${form.repeat_count} sessions` : 'Save'}
         </button>
       </div>
@@ -1576,7 +1569,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Quick-panel: service CRUD ────────────────────────────────────────────────
   const addService = async () => {
-    if (isPreview || !tenantId || !svcDraft.name.trim()) return
+    if (previewReadOnly || !tenantId || !svcDraft.name.trim()) return
     setSvcAdding(true)
     setSvcError(null)
     const { data, error } = await supabase.from('catalogue_items').insert({
@@ -1602,7 +1595,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   const updateService = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const draft = svcModal ? svcDraft : svcEditDraft
     const { data } = await supabase.from('catalogue_items').update({
       name: draft.name?.trim(),
@@ -1621,16 +1614,11 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   const deleteService = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('catalogue_items').delete().eq('id', id)
     setCatalogue(prev => prev.filter(s => s.id !== id))
   }
 
-  const panelVariants = {
-    hidden: { x: 32, opacity: 0 },
-    visible: { x: 0, opacity: 1, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } },
-    exit:   { x: 32, opacity: 0, transition: { duration: 0.16 } },
-  }
   const drawerVariants = {
     hidden: { y: '100%' },
     visible: { y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } },
@@ -1639,13 +1627,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Attention bar data ───────────────────────────────────────────────────────
   const nowTime = new Date()
-  const todayStr = format(nowTime, 'yyyy-MM-dd')
-  const todayEvts = events.filter(e => format(new Date(e.start), 'yyyy-MM-dd') === todayStr)
   const upcomingProvisional = events.filter(e => e.status === 'provisional' && new Date(e.start) >= nowTime)
 
   // ─── Sub-tab nav ──────────────────────────────────────────────────────────────
   const subTabs = [
     { id: 'appointments', label: 'Appointments' },
+    { id: 'history', label: 'History' },
     { id: 'schedules', label: 'Staff schedules' },
     { id: 'settings', label: 'Settings' },
   ]
@@ -1690,6 +1677,15 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               Staff
             </button>
+            {tenantId && (
+              <a href={`/book/${tenantId}`} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(61,184,122,0.35)', borderRadius: 6, background: 'white', color: '#1e7a4a', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
+                onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Booking link
+              </a>
+            )}
             <div style={{ flex: 1 }} />
             {Object.entries(STATUS_LABELS).map(([status, label]) => (
               <span key={status} style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: 4, fontSize: '0.67rem', fontWeight: 600, background: STATUS_COLOURS[status]?.bg, color: STATUS_COLOURS[status]?.text, border: `1px solid ${STATUS_COLOURS[status]?.border}`, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
@@ -1757,6 +1753,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                       hasAutoAdapted={hasAutoAdapted} setView={setView}
                       todayMode={todayMode} setTodayMode={setTodayMode} todayStaffIds={todayStaffIds}
                       hasTeamMode={hasTeamMode}
+                      viewportMode={viewportMode} setViewportMode={setViewportMode}
+                      currentStaffCount={(viewportMode === 'open' ? vpOpen : vpCompact).staffCount}
+                      onStaffCountChange={(delta) => {
+                        const setter = viewportMode === 'open' ? setVpOpen : setVpCompact
+                        setter(prev => ({ ...prev, staffCount: Math.max(1, Math.min(orderedStaff.length || 10, prev.staffCount + delta)) }))
+                      }}
                       onNew={() => {
                         const now = startOfHour(addHours(new Date(), 1))
                         setForm({ ...EMPTY_FORM, start: isoLocal(now), end: isoLocal(addHours(now, 1)), staff_profile_id: staffFilter || '' })
@@ -1828,14 +1830,98 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </>
       )}
 
+      {/* ── History sub-tab ─────────────────────────────────────────────────── */}
+      {activeSubTab === 'history' && (() => {
+        const q = historySearch.toLowerCase().trim()
+        const allPast = [...events]
+          .sort((a, b) => new Date(b.start) - new Date(a.start))
+        const filtered = q.length < 2 ? allPast : allPast.filter(ev => {
+          const r = ev.resource || {}
+          return (r.client_name || '').toLowerCase().includes(q)
+            || (r.client_phone || '').toLowerCase().includes(q)
+            || (r.service_name || ev.title || '').toLowerCase().includes(q)
+            || (r.notes || '').toLowerCase().includes(q)
+        })
+        const STATUS_STYLE = {
+          confirmed:  { bg: '#bbf7d0', color: '#166534' },
+          provisional:{ bg: '#fde68a', color: '#78460a' },
+          cancelled:  { bg: '#fecaca', color: '#b91c1c' },
+          completed:  { bg: '#e0e7ff', color: '#3730a3' },
+          noshow:     { bg: '#f3f4f6', color: '#6b7280' },
+        }
+        const fmtDt = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        return (
+          <div>
+            <div style={{ marginBottom: '1rem', position: 'relative' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(94,59,135,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+                placeholder="Search by client, phone, or service…"
+                style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '2.25rem', paddingRight: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 10, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', background: 'white' }}
+              />
+            </div>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', fontFamily: "'DM Sans', sans-serif" }}>
+              {filtered.length} appointment{filtered.length !== 1 ? 's' : ''}{q.length >= 2 ? ` matching "${historySearch}"` : ''}
+            </div>
+            {filtered.length === 0 ? (
+              <div style={{ background: 'white', borderRadius: 12, padding: '2.5rem 1.5rem', textAlign: 'center', border: '0.5px solid rgba(94,59,135,0.08)' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📋</div>
+                <div style={{ fontSize: '0.875rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+                  {q.length >= 2 ? 'No appointments match that search.' : 'No appointments found.'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {filtered.slice(0, 100).map(ev => {
+                  const r = ev.resource || {}
+                  const st = STATUS_STYLE[r.status] || STATUS_STYLE.confirmed
+                  const staffMember = staff.find(s => s.id === r.staff_profile_id)
+                  return (
+                    <div key={ev.id} style={{ background: 'white', borderRadius: 10, border: '0.5px solid rgba(94,59,135,0.08)', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 130, flexShrink: 0 }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{fmtDt(ev.start)}</div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 120 }}>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{r.client_name || 'Unknown client'}</div>
+                        {r.client_phone && <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{r.client_phone}</div>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 100 }}>
+                        <div style={{ fontSize: '0.8rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{r.service_name || ev.title || '—'}</div>
+                        {staffMember && <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{staffMember.name}</div>}
+                      </div>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: 5, background: st.bg, color: st.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {r.status || 'confirmed'}
+                      </span>
+                    </div>
+                  )
+                })}
+                {filtered.length > 100 && (
+                  <div style={{ fontSize: '0.78rem', color: '#aaa', textAlign: 'center', padding: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>
+                    Showing 100 of {filtered.length} — refine your search to narrow results
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── Staff schedules sub-tab ──────────────────────────────────────────── */}
       {activeSubTab === 'schedules' && (
-        <StaffScheduleTab tenantId={tenantId} staff={staff} isPreview={isPreview} onPortalNavigate={onPortalNavigate} />
+        <StaffScheduleTab tenantId={tenantId} staff={staff} isPreview={isPreview} previewReadOnly={previewReadOnly} onPortalNavigate={onPortalNavigate} />
       )}
 
       {/* ── Settings sub-tab ─────────────────────────────────────────────────── */}
       {activeSubTab === 'settings' && (
-        <CalendarSettingsTab tenantId={tenantId} isPreview={isPreview} />
+        <CalendarSettingsTab tenantId={tenantId} isPreview={isPreview} previewReadOnly={previewReadOnly}
+          staff={staff} vpOpen={vpOpen} vpCompact={vpCompact}
+          onVpOpen={setVpOpen} onVpCompact={setVpCompact}
+          staffOrder={staffOrder} onStaffOrder={setStaffOrder}
+        />
       )}
 
       {/* ── Quick-access drawers (fixed right) ───────────────────────────────── */}

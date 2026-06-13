@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 const PANEL_W = 340
 const PANEL_H = 420
 
-const VeraDialogue = ({ id, zoneText, zoneName, tabName, initialRect, onClose }) => {
+const VeraDialogue = ({ zoneText, zoneName, tabName, initialRect, onClose }) => {
   const [messages, setMessages]   = useState([])
   const [draft, setDraft]         = useState('')
   const [loading, setLoading]     = useState(false)

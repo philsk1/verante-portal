@@ -22,7 +22,6 @@ export function configScore(tenant) {
 // Pillar 2: tool activation (0–100) from tenant record
 export function toolScore(tenant) {
   if (!tenant) return 0
-  let pts = 0
   const tools = [
     tenant.sms_followup_enabled,
     tenant.provisional_booking_enabled,
@@ -33,8 +32,7 @@ export function toolScore(tenant) {
     tenant.calendar_tier && tenant.calendar_tier !== 'none',
   ]
   const active = tools.filter(Boolean).length
-  pts = Math.round((active / tools.length) * 100)
-  return Math.min(100, pts)
+  return Math.min(100, Math.round((active / tools.length) * 100))
 }
 
 // Pillar 3: performance score (0–100) from call outcome counts { outcome: count }

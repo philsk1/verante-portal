@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailDailyCost, emailDailySummary, emailWeeklySummary, emailRenewal } from './_emails.js'
 import { runReminders } from './_remind-appointments.js'
+import { sendSms } from './_sms.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -125,12 +126,47 @@ async function runRenewal(res) {
   if (res) return res.status(200).json({ sent })
 }
 
+const CAMPAIGN_LIMIT = { free: 0, light: 100, standard: 500, professional: 2000, enterprise: Infinity, bespoke: Infinity }
+
+async function runCampaign(req, res) {
+  const { tenantId, message, recipients } = req.body || {}
+  if (!tenantId || !message || !Array.isArray(recipients) || !recipients.length) {
+    return res.status(400).json({ error: 'tenantId, message, and recipients required' })
+  }
+  const { data: tenant, error: tErr } = await supabase.from('tenants').select('subscription_tier').eq('id', tenantId).maybeSingle()
+  if (tErr || !tenant) return res.status(404).json({ error: 'Tenant not found' })
+  const tier = tenant.subscription_tier || 'free'
+  const limit = CAMPAIGN_LIMIT[tier] ?? 0
+  if (limit === 0) return res.status(403).json({ error: 'Campaigns not available on your current plan' })
+  const batch = recipients.slice(0, limit)
+  let sent = 0, failed = 0
+  await Promise.all(batch.map(async ({ phone, name }) => {
+    if (!phone) { failed++; return }
+    const personalised = message.replace(/\[name\]/gi, name || 'there')
+    try {
+      await sendSms({ to: phone, message: personalised })
+      sent++
+    } catch (e) {
+      console.error('Campaign SMS failed:', phone, e.message)
+      failed++
+    }
+  }))
+  return res.status(200).json({ ok: true, sent, failed })
+}
+
 export default async function handler(req, res) {
+  const type = req.query?.type || 'daily'
+
+  // Campaign sends come from the frontend — separate auth path
+  if (type === 'campaign') {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+    return runCampaign(req, res)
+  }
+
   const authHeader = req.headers['authorization']
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
-  const type = req.query?.type || 'daily'
   if (type === 'weekly') return runWeekly(res)
   if (type === 'renewal') return runRenewal(res)
   if (type === 'remind') {

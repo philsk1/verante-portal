@@ -2,11 +2,18 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { performanceScore, qMoodFromScore, qCaption } from '../utils/qScore.js'
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
 const TABS = [
+  {
+    id: 'live',
+    label: 'Live',
+    filter: () => true,
+    empty: '',
+    color: '#3db87a',
+    bg: '#f0fdf4',
+  },
   {
     id: 'urgent',
     label: 'Urgent',
@@ -134,20 +141,24 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const { user }   = useAuth()
   const preview    = usePreview()
   const isPreview  = !!preview?.isPreview
-  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId]   = useState(null)
   const [calls, setCalls]         = useState([])
-  const [qMode, setQMode]         = useState('jump_in')
   const [loading, setLoading]     = useState(true)
-  const [activeTab, setActiveTab] = useState('urgent')
+  const [activeTab, setActiveTab] = useState('live')
   const [selected, setSelected]   = useState(null)
   const [search, setSearch]       = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [holidayMode, setHolidayMode] = useState(false)
+  const [copilotCall, setCopilotCall]     = useState(null)
+  const [callerHistory, setCallerHistory] = useState(null)
+  const [catalogue, setCatalogue]         = useState([])
+  const [quickNote, setQuickNote]         = useState('')
+  const [noteSaved, setNoteSaved]         = useState(false)
+  const [lastPolled, setLastPolled]       = useState(null)
   const transcriptRef             = useRef(null)
   // Persists callback flags set this session — never wiped by reloads
   const localFlagsRef             = useRef(new Map())
+  const lastCallIdRef             = useRef(null)
 
   // ── Tenant load ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -164,19 +175,19 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           tid = m.tenant_id
         }
         setTenantId(tid)
-        const [callRes, tenantRes] = await Promise.all([
+        const [callRes, tenantRes, catRes] = await Promise.all([
           supabase
             .from('call_logs')
             .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, caller_name, transcript, callback_flagged, callers(full_name)')
             .eq('tenant_id', tid)
             .order('created_at', { ascending: false })
             .limit(500),
-          supabase.from('tenants').select('holiday_mode, q_mode').eq('id', tid).maybeSingle(),
+          supabase.from('tenants').select('q_mode').eq('id', tid).maybeSingle(),
+          supabase.from('catalogue_items').select('id, name, price_from, price_to, duration_minutes').eq('tenant_id', tid).eq('active', true).order('name'),
         ])
         if (tenantRes.data) {
-          setHolidayMode(tenantRes.data.holiday_mode || false)
-          setQMode(tenantRes.data.q_mode || 'jump_in')
         }
+        setCatalogue(catRes.data || [])
         const { data } = callRes
         setCalls((data || []).map(c => ({
           ...c,
@@ -210,17 +221,68 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   // ── Auto-advance to first populated tab — initial load only, not on flag toggles ──
   useEffect(() => {
     if (loading || calls.length === 0 || prefill?.callId) return
-    const getCount = (t) => t.id === 'urgent'
-      ? calls.filter(c => urgentOutcomes.includes(c.call_outcome)).length
-      : calls.filter(t.filter).length
+    const getCount = (t) => {
+      if (t.id === 'live') return 0
+      return t.id === 'urgent'
+        ? calls.filter(c => urgentOutcomes.includes(c.call_outcome)).length
+        : calls.filter(t.filter).length
+    }
     const currentTabDef = TABS.find(t => t.id === activeTab)
-    if (currentTabDef && getCount(currentTabDef) === 0) {
-      const firstPopulated = TABS.find(t => getCount(t) > 0)
+    if (currentTabDef && currentTabDef.id !== 'live' && getCount(currentTabDef) === 0) {
+      const firstPopulated = TABS.find(t => t.id !== 'live' && getCount(t) > 0)
       if (firstPopulated) setActiveTab(firstPopulated.id)
     }
   // Deliberately excludes `calls` — we only want this to run when loading completes
   // or urgentOutcomes changes, NOT every time a flag is toggled.
   }, [loading, urgentOutcomes])
+
+  // ── Live copilot: poll most recent call every 5s ─────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'live' || !tenantId) return
+    lastCallIdRef.current = null
+    const poll = async () => {
+      const { data } = await supabase
+        .from('call_logs')
+        .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, caller_name, callers(full_name)')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      setLastPolled(new Date())
+      if (!data) return
+      if (data.id !== lastCallIdRef.current) {
+        lastCallIdRef.current = data.id
+        setCopilotCall(data)
+        setQuickNote('')
+        setNoteSaved(false)
+        if (data.caller_phone) {
+          const [hCalls, hLeads] = await Promise.all([
+            supabase.from('call_logs').select('id, created_at, call_outcome, ai_summary, duration_seconds').eq('tenant_id', tenantId).eq('caller_phone', data.caller_phone).neq('id', data.id).order('created_at', { ascending: false }).limit(5),
+            supabase.from('leads').select('id, created_at, status, lead_contact_name').eq('tenant_id', tenantId).eq('caller_phone', data.caller_phone).order('created_at', { ascending: false }).limit(5),
+          ])
+          setCallerHistory({ calls: hCalls.data || [], leads: hLeads.data || [] })
+        } else {
+          setCallerHistory(null)
+        }
+      }
+    }
+    poll()
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [activeTab, tenantId])
+
+  // ── Save quick note to call log ───────────────────────────────────────────────
+  const saveNote = async () => {
+    if (!quickNote.trim() || !copilotCall || isPreview) return
+    const newSummary = copilotCall.ai_summary
+      ? `${copilotCall.ai_summary}\n\n📝 ${quickNote.trim()}`
+      : `📝 ${quickNote.trim()}`
+    await supabase.from('call_logs').update({ ai_summary: newSummary }).eq('id', copilotCall.id)
+    setCopilotCall(prev => ({ ...prev, ai_summary: newSummary }))
+    setNoteSaved(true)
+    setQuickNote('')
+    setTimeout(() => setNoteSaved(false), 3000)
+  }
 
   // ── Flag toggle ──────────────────────────────────────────────────────────────
   const toggleFlag = async (callId, e) => {
@@ -238,12 +300,14 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
 
   // ── Filtered list for active tab ─────────────────────────────────────────────
   const urgentFilter   = c => urgentOutcomes.includes(c.call_outcome)
-  // Always derive callback from ref (source of truth) — avoids state batching divergence
+  // Always derive callback from ref — avoids state batching divergence when flags are toggled mid-render
+  // eslint-disable-next-line react-hooks/refs
   const callbackFilter = c => localFlagsRef.current.has(c.id)
     ? localFlagsRef.current.get(c.id)
     : (c.callback_flagged || false)
   const tabDef   = TABS.find(t => t.id === activeTab)
   const effectiveFilter = activeTab === 'urgent' ? urgentFilter : activeTab === 'callback' ? callbackFilter : tabDef.filter
+  // eslint-disable-next-line react-hooks/refs
   const tabCalls = calls.filter(effectiveFilter)
 
   const searchResults = activeTab === 'search' && searchQuery.trim()
@@ -264,11 +328,14 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       : tabCalls
 
   const tabCounts = {}
+  // eslint-disable-next-line react-hooks/refs
   TABS.forEach(t => {
+    if (t.id === 'live')   { tabCounts[t.id] = 0; return }
     if (t.id === 'search') { tabCounts[t.id] = searchResults.length; return }
     tabCounts[t.id] = t.id === 'urgent'
       ? calls.filter(urgentFilter).length
       : t.id === 'callback'
+        // eslint-disable-next-line react-hooks/refs
         ? calls.filter(callbackFilter).length
         : calls.filter(t.filter).length
   })
@@ -278,24 +345,14 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: '2rem', boxSizing: 'border-box' }}>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      {(() => {
-        const oc = calls.reduce((a, c) => { a[c.call_outcome] = (a[c.call_outcome] || 0) + 1; return a }, {})
-        const ps = performanceScore(oc)
-        const lQMood = ps === null ? 'crying' : qMoodFromScore(ps)
-        const lQCaption = ps === null ? null : qCaption(ps, qMode)
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0.85rem 0.5rem 0.6rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
-            <img src={`/qmood/${lQMood}.svg`} alt="Q" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI active — answering every call, around the clock</div>
-              {lQCaption && <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{lQCaption}</div>}
-            </div>
-            <span style={{ fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-              {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
-            </span>
-          </div>
-        )
-      })()}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0.85rem', background: '#f0fdf4', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 10, marginBottom: '1.1rem', flexShrink: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", color: '#1e7a4a', fontWeight: 500 }}>AI active — answering every call, around the clock</div>
+        </div>
+        <span style={{ fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+          {calls.length} call{calls.length !== 1 ? 's' : ''} recorded
+        </span>
+      </div>
 
       {/* ── Quick stats ─────────────────────────────────────────────────────── */}
       {calls.length > 0 && (() => {
@@ -339,6 +396,9 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                 whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.4rem',
                 transition: 'color 0.12s',
               }}>
+              {tab.id === 'live' && (
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0 }} />
+              )}
               {tab.label}
               {count > 0 && (
                 <span style={{
@@ -357,6 +417,163 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
       </div>
 
       {/* ── Two-panel body ──────────────────────────────────────────────────── */}
+      {activeTab === 'live' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0, overflowY: 'auto' }}>
+
+          {/* Copilot header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.9rem', background: 'white', borderRadius: 12, border: '0.5px solid rgba(61,184,122,0.25)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#1a1a1a' }}>Live assist</span>
+              <span style={{ fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>polls every 5s</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+              {lastPolled
+                ? Date.now() - lastPolled.getTime() < 10000
+                  ? 'Updated just now'
+                  : `Updated ${timeSince(lastPolled.toISOString())}`
+                : 'Connecting…'}
+            </span>
+          </div>
+
+          {/* Two-column grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flex: 1, minHeight: 0 }}>
+
+            {/* Left col: latest call + caller history */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }}>
+
+              <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.12)', padding: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flexShrink: 0 }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.6rem' }}>Latest call</div>
+                {!copilotCall ? (
+                  <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', padding: '1.5rem 0' }}>
+                    No calls yet — they appear here automatically.
+                  </div>
+                ) : (() => {
+                  const os = outcomeStyle(copilotCall.call_outcome)
+                  const callerDisplay = copilotCall.callers?.full_name || copilotCall.caller_name || copilotCall.caller_phone || 'Unknown caller'
+                  return (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.35rem', gap: '0.5rem' }}>
+                        <div>
+                          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a' }}>{callerDisplay}</div>
+                          {copilotCall.caller_phone && callerDisplay !== copilotCall.caller_phone && (
+                            <div style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{copilotCall.caller_phone}</div>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{os.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{timeSince(copilotCall.created_at)}</span>
+                        <span style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{fmtDuration(copilotCall.duration_seconds)}</span>
+                      </div>
+                      {copilotCall.ai_summary && (
+                        <div style={{ fontSize: '0.78rem', color: '#555', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", background: '#f9f7fc', borderRadius: 8, padding: '0.6rem 0.75rem', borderLeft: '3px solid rgba(94,59,135,0.2)', marginBottom: '0.5rem' }}>
+                          {copilotCall.ai_summary}
+                        </div>
+                      )}
+                      {copilotCall.caller_phone && (
+                        <a href={`tel:${copilotCall.caller_phone}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.28rem 0.7rem', borderRadius: 6, background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none' }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          Call back
+                        </a>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {callerHistory && (callerHistory.calls.length > 0 || callerHistory.leads.length > 0) && (
+                <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.12)', padding: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflowY: 'auto' }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>
+                    Caller history
+                    <span style={{ fontWeight: 400, color: '#ccc', marginLeft: '0.4rem' }}>
+                      {callerHistory.calls.length} call{callerHistory.calls.length !== 1 ? 's' : ''}{callerHistory.leads.length > 0 ? ` · ${callerHistory.leads.length} lead${callerHistory.leads.length !== 1 ? 's' : ''}` : ''}
+                    </span>
+                  </div>
+                  {callerHistory.calls.slice(0, 4).map(c => {
+                    const os = outcomeStyle(c.call_outcome)
+                    return (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.4rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+                        <span style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", flexShrink: 0, marginTop: 1 }}>{os.label}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.72rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.ai_summary || 'No summary'}</div>
+                          <div style={{ fontSize: '0.65rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{timeSince(c.created_at)} · {fmtDuration(c.duration_seconds)}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {callerHistory && callerHistory.calls.length === 0 && callerHistory.leads.length === 0 && (
+                <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '0.7rem 1rem', fontSize: '0.78rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>
+                  First call from this number.
+                </div>
+              )}
+
+            </div>
+
+            {/* Right col: services quick-ref + quick notes */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }}>
+
+              <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.12)', padding: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1, overflowY: 'auto' }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.6rem' }}>
+                  Services quick-ref
+                  {catalogue.length > 0 && <span style={{ fontWeight: 400, color: '#ccc', marginLeft: '0.4rem' }}>{catalogue.length} service{catalogue.length !== 1 ? 's' : ''}</span>}
+                </div>
+                {catalogue.length === 0 ? (
+                  <div style={{ fontSize: '0.78rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", textAlign: 'center', padding: '1.5rem 0' }}>
+                    No services added yet — add them in your Catalogue tab.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {catalogue.map(item => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.42rem 0.55rem', borderRadius: 7, background: '#f9f7fc', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", flex: 1, minWidth: 0 }}>{item.name}</span>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                          {(item.price_from || item.price_to) && (
+                            <span style={{ fontSize: '0.7rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+                              £{item.price_from}{item.price_to && item.price_to !== item.price_from ? `–${item.price_to}` : ''}
+                            </span>
+                          )}
+                          {item.duration_minutes && (
+                            <span style={{ fontSize: '0.68rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{item.duration_minutes}min</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.12)', padding: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flexShrink: 0 }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Quick note</div>
+                <textarea
+                  value={quickNote}
+                  onChange={e => setQuickNote(e.target.value)}
+                  placeholder="Jot a note while on the call — saved to the call log."
+                  rows={3}
+                  style={{ width: '100%', resize: 'vertical', padding: '0.5rem 0.6rem', border: '1.5px solid rgba(94,59,135,0.12)', borderRadius: 7, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.4rem' }}>
+                  {noteSaved
+                    ? <span style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>✓ Saved to call</span>
+                    : <span />
+                  }
+                  <button
+                    onClick={saveNote}
+                    disabled={!quickNote.trim() || !copilotCall || isPreview}
+                    style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: 'none', background: quickNote.trim() && copilotCall && !isPreview ? '#5e3b87' : '#e5e5e5', color: quickNote.trim() && copilotCall && !isPreview ? 'white' : '#bbb', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: quickNote.trim() && copilotCall && !isPreview ? 'pointer' : 'not-allowed', transition: 'all 0.12s' }}>
+                    Save to call
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      ) : (
       <div style={{ flex: 1, display: 'flex', gap: '1rem', minHeight: 0 }}>
 
         {/* ── Call list ─────────────────────────────────────────────────────── */}
@@ -582,6 +799,7 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
         </div>
 
       </div>
+      )}
     </div>
   )
 }

@@ -60,18 +60,15 @@ function buildGreeting(tenant) {
   const tone = tenant.tone_register || 'warm'
   const outcomeType = tenant.business_outcome_type || 'quote'
 
-  let resolution = ''
-  if (outcomeType === 'booking' && tenant.booking_link) {
-    resolution = "I'll be taking a brief note and sending you a booking link."
-  } else if (outcomeType === 'booking') {
-    resolution = "I'll be taking a brief note to get you booked in."
-  } else if (outcomeType === 'custom' && tenant.custom_outcome_text) {
-    resolution = `I'll be taking a brief note — ${tenant.custom_outcome_text.trim()}.`
-  } else if (tenant.callback_preference_note) {
-    resolution = `I'll be taking a brief note, ${owner} will call you back ${tenant.callback_preference_note}.`
-  } else {
-    resolution = `I'll be taking a brief note so ${owner} can call you back to discuss what you need.`
-  }
+  const resolution = outcomeType === 'booking' && tenant.booking_link
+    ? "I'll be taking a brief note and sending you a booking link."
+    : outcomeType === 'booking'
+      ? "I'll be taking a brief note to get you booked in."
+      : outcomeType === 'custom' && tenant.custom_outcome_text
+        ? `I'll be taking a brief note — ${tenant.custom_outcome_text.trim()}.`
+        : tenant.callback_preference_note
+          ? `I'll be taking a brief note, ${owner} will call you back ${tenant.callback_preference_note}.`
+          : `I'll be taking a brief note so ${owner} can call you back to discuss what you need.`
 
   const base = tone === 'formal'
     ? `Good morning. You have reached ${name}. ${owner} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${owner}'s personal attention. How may I assist you?`
@@ -103,6 +100,51 @@ function buildPleaseAllowMe(tenant) {
   }
 
   return `When you begin taking details, use: "Please allow me to take your details — ${owner} will call you back ${timeframe}."`
+}
+
+// ── Speech & pace instructions ───────────────────────────────────────────────
+
+function buildSpeechSection(tenant) {
+  const style = tenant?.speech_style || 'balanced'
+  const pace  = tenant?.speech_pace  || 'natural'
+
+  const styleGuide = {
+    warm: `Response style: WARM AND PATIENT.
+- Take your time. 3–4 sentences is fine when the caller needs it.
+- Let the caller feel heard before you move to the close.
+- Small reassurances cost nothing: "That's no problem at all." "Of course, happy to help."
+- Never rush. If they pause, let them finish.`,
+
+    balanced: `Response style: WARM BUT EFFICIENT.
+- 2–3 sentences is usually right. Acknowledge, answer, move forward.
+- Friendly without being indulgent. Warm without wasting the caller's time.
+- Avoid filler phrases like "Certainly!" or "Great question!" — just answer.`,
+
+    direct: `Response style: DIRECT AND CONCISE.
+- One sentence per thought. No exceptions.
+- Answer first. Context second. Never context first.
+- Strip all preamble: no "Certainly!", no "Of course!", no "Great question!", no "Happy to help with that!".
+- If the answer is a single sentence, stop after one sentence. Do not pad.`,
+  }[style]
+
+  const paceGuide = {
+    slow:    `Voice pace: SLOW AND CLEAR. The voice is deliberately steady. Use unhurried language to match — no clipped shorthand, full words, natural pauses in thought.`,
+    natural: `Voice pace: NATURAL. Speak at a comfortable, conversational rate.`,
+    fast:    `Voice pace: BRISK. The voice is set to move quickly. Cut every filler word. No pleasantries before answers. If a sentence can be shorter, shorten it.`,
+  }[pace]
+
+  return `━━━ COMMUNICATION STYLE AND PACE ━━━
+${styleGuide}
+
+${paceGuide}
+
+CALLER MIRRORING — READ AND STEER:
+In the first few seconds, read how the caller communicates.
+- Fast talker, clipped sentences, clearly busy: tighten up immediately. Shorter answers, skip pleasantries, no preamble.
+- Unhurried, taking their time, more tentative: be warmer and more thorough. Give them space.
+- Your style setting above is the baseline. Mirroring adjusts around it — you do not abandon your setting, you flex it.
+Do not copy slang, accent, or informal speech patterns. Adjust energy and response length only.
+One fixed rule regardless of style or pace: keep individual facts in their own short sentences. This is how important information lands clearly on a voice call.`
 }
 
 // ── Sensitive business type instruction ───────────────────────────────────────
@@ -159,6 +201,8 @@ export function buildSystemPrompt(data) {
     : null
 
   const keywords = Array.isArray(tenant.emergency_keywords) ? tenant.emergency_keywords : []
+  const keepAliveTopics = Array.isArray(tenant.keep_alive_topics) ? tenant.keep_alive_topics : []
+  const keepAliveMaxMins = tenant.keep_alive_max_minutes || 5
 
   const filters = []
   if (tenant.spam_filter_enabled !== false) filters.push('Spam detection is active — end automated or nuisance calls immediately.')
@@ -183,7 +227,9 @@ GREETING:
 "Good morning, ${name}. ${owner} is unavailable — I'm the AI assistant. Please allow me to take your name and number so ${owner} can call you back. For confidentiality reasons I'm not able to take details of your enquiry on this call."
 
 OUTCOME:
-Every call ends as: escalated (name + number + urgency taken, owner to call back).`
+Every call ends as: escalated (name + number + urgency taken, owner to call back).
+
+${buildSpeechSection(tenant)}`
   }
 
   return `${LAYER_1_CORE_VALUES}
@@ -255,6 +301,9 @@ ${keywords.length ? `━━━ EMERGENCY KEYWORDS ━━━
 If you hear: ${keywords.join(', ')}
 Say: "I'm treating this as urgent — ${name} will be notified immediately." End call.
 → triage_outcome = "escalated"
+` : ''}${keepAliveTopics.length ? `━━━ KEEP CALL OPEN ━━━
+Never end this call if the caller is actively discussing any of the following: ${keepAliveTopics.join(', ')}.
+Stay on the line for up to ${keepAliveMaxMins} minutes while these topics are being discussed — do not rush to close.
 ` : ''}
 ${tenant.provisional_booking_enabled && tenant.provisional_booking_rule ? `━━━ PROVISIONAL BOOKING ━━━
 Booking rule set by owner: "${tenant.provisional_booking_rule}"
@@ -264,7 +313,9 @@ Slots to offer: ${tenant.booking_slots_to_offer || 2}. Buffer: ${tenant.booking_
 ` : ''}${tenant.additional_instructions ? `━━━ ADDITIONAL INSTRUCTIONS ━━━
 ${tenant.additional_instructions}
 
-` : ''}━━━ REQUIRED OUTCOME ━━━
+` : ''}${buildSpeechSection(tenant)}
+
+━━━ REQUIRED OUTCOME ━━━
 At the end of every call, set exactly one triage_outcome:
   lead_captured   — New customer interested, gave contact details
   booked          — Caller booked or confirmed appointment

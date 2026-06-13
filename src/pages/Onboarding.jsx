@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -403,12 +403,87 @@ const StepProductChoice = ({ product, onSelect }) => (
   </div>
 )
 
+// ─── trade templates ─────────────────────────────────────────────────────────
+
+const TRADE_TEMPLATES = {
+  plumber:     { label: 'Plumber',          context: 'A plumbing business serving residential and commercial customers. We handle emergency callouts, boiler repairs, bathroom installations, leak detection, and general plumbing maintenance.', services: ['Emergency callout', 'Boiler service & repair', 'Leak repair', 'Bathroom installation', 'Blocked drain'], emergencyKeywords: ['burst pipe', 'flooding', 'no hot water', 'no heating', 'gas leak', 'leak'], callbackNote: 'We aim to call back within 1 hour for emergencies and within 2 hours for standard enquiries.' },
+  electrician: { label: 'Electrician',      context: 'An electrical services business covering domestic and commercial work. We handle fault finding, consumer unit upgrades, EV charger installation, and full rewires.', services: ['Emergency fault finding', 'Consumer unit upgrade', 'EV charger installation', 'Full rewire', 'PAT testing'], emergencyKeywords: ['power cut', 'sparking', 'burning smell', 'no power', 'electrical fault'], callbackNote: 'We aim to call back within 1 hour for electrical emergencies and the same day for standard work.' },
+  cleaner:     { label: 'Cleaner',          context: 'A professional cleaning business offering domestic and commercial cleaning services. We provide regular cleans, one-off deep cleans, and end-of-tenancy cleans.', services: ['Regular domestic clean', 'Deep clean', 'End-of-tenancy clean', 'Office clean', 'Carpet clean'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your requirements and provide a quote.' },
+  builder:     { label: 'Builder',          context: 'A building and contracting business handling extensions, renovations, roofing, and property maintenance for residential customers.', services: ['House extension', 'Loft conversion', 'Bathroom renovation', 'Kitchen renovation', 'Roof repair'], emergencyKeywords: ['roof leak', 'structural damage', 'flooding', 'collapse'], callbackNote: 'We aim to call back within 2 hours to discuss your project and arrange a site visit.' },
+  locksmith:   { label: 'Locksmith',        context: 'An emergency and non-emergency locksmith service. We handle lockouts, lock changes, key cutting, and security upgrades for residential and commercial properties.', services: ['Emergency lockout', 'Lock change', 'Key cutting', 'Safe installation', 'Security assessment'], emergencyKeywords: ['locked out', 'break-in', 'burglary', 'lost keys'], callbackNote: 'For lockouts we aim to be with you within 30 minutes. We will call you back immediately.' },
+  physio:      { label: 'Physio',           context: 'A physiotherapy practice providing assessment and treatment for musculoskeletal conditions, sports injuries, and post-operative rehabilitation.', services: ['Initial assessment', 'Follow-up treatment', 'Sports massage', 'Acupuncture', 'Home visit'], emergencyKeywords: ['severe pain', 'cant walk', 'accident'], callbackNote: 'We aim to call back within 2 hours to discuss your needs and arrange an appointment.' },
+  gardener:    { label: 'Gardener',         context: 'A gardening and landscaping business offering regular garden maintenance, one-off tidy-ups, tree surgery, and full landscaping projects.', services: ['Regular maintenance', 'One-off tidy-up', 'Lawn care', 'Tree surgery', 'Landscaping project'], emergencyKeywords: ['fallen tree', 'storm damage'], callbackNote: 'We aim to call back within 2 hours to discuss your requirements and provide a quote.' },
+  trainer:     { label: 'Personal Trainer', context: 'A personal training and fitness coaching business offering one-to-one sessions, group classes, and nutrition guidance.', services: ['1-to-1 personal training', 'Group session', 'Online coaching', 'Nutrition advice', 'Fitness assessment'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your fitness goals.' },
+  accountant:  { label: 'Accountant',       context: 'An accounting and bookkeeping practice supporting small businesses and sole traders with tax returns, VAT, payroll, and financial advice.', services: ['Self-assessment tax return', 'VAT registration & returns', 'Payroll', 'Bookkeeping', 'Business accounts'], emergencyKeywords: ['HMRC deadline', 'penalty notice'], callbackNote: 'We aim to call back within 2 hours. Please mention if your matter is urgent.' },
+  beauty:      { label: 'Beauty & Hair',    context: 'A hair and beauty studio offering cuts, colour, nails, facials, and beauty treatments by appointment.', services: ['Haircut', 'Colour & highlights', 'Nails', 'Facial', 'Massage'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to arrange your appointment.' },
+}
+
 // ─── step 0 (answer) — website scraping ──────────────────────────────────────
 
 const Step0Website = ({ data, update }) => {
   const [url, setUrl] = useState(data.websiteUrl || '')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null) // { fields, found } or { error }
+  const [scrapeOptions, setScrapeOptions] = useState({
+    details:  true,
+    hours:    true,
+    services: true,
+    team:     true,
+    about:    true,
+  })
+  const [selectedTrade, setSelectedTrade] = useState(null)
+  const [callState, setCallState] = useState('idle') // idle | connecting | active
+  const [callError, setCallError] = useState(null)
+  const vapiRef = useRef(null)
+
+  const handleSelectTrade = (key) => {
+    const t = TRADE_TEMPLATES[key]
+    setSelectedTrade(key)
+    if (t.context)           update('business_context', t.context)
+    if (t.callbackNote)      update('callback_preference_note', t.callbackNote)
+    if (t.emergencyKeywords) update('emergency_keywords', t.emergencyKeywords)
+    if (t.services?.length)  update('services', t.services.map(s => ({ service_name: s, price_from: '', price_to: '', price_note: '' })))
+  }
+
+  useEffect(() => {
+    const key = import.meta.env.VITE_VAPI_PUBLIC_KEY
+    if (!key) return
+    let vapi
+    import('@vapi-ai/web').then(({ default: Vapi }) => {
+      vapi = new Vapi(key)
+      vapiRef.current = vapi
+      vapi.on('call-start', () => setCallState('active'))
+      vapi.on('call-end',   () => { setCallState('idle'); setCallError(null) })
+      vapi.on('error',      () => { setCallState('idle'); setCallError('Could not connect — check microphone permissions.') })
+    }).catch(() => {})
+    return () => { vapiRef.current?.stop() }
+  }, [])
+
+  const startDemoCall = async () => {
+    if (!vapiRef.current) { setCallError('Demo calling not configured.'); return }
+    setCallState('connecting')
+    setCallError(null)
+    const t = selectedTrade ? TRADE_TEMPLATES[selectedTrade] : null
+    const name = data.business_name || 'this business'
+    const systemParts = [
+      `You are a demo AI receptionist for ${name}.`,
+      t?.context || '',
+      t?.services?.length ? `Services offered: ${t.services.slice(0, 5).join(', ')}.` : '',
+      t?.emergencyKeywords?.length ? `If the caller mentions ${t.emergencyKeywords.slice(0, 4).join(', ')}, say you will escalate to the owner immediately and take their number.` : '',
+      'This is a demonstration so the business owner can hear what you sound like. Be natural, professional, and concise — keep every response under two sentences.',
+    ].filter(Boolean).join(' ')
+    await vapiRef.current.start({
+      firstMessage: `Hello, you've reached ${name}. I'm your Qerxel AI — I handle calls around the clock. How can I help?`,
+      model: { provider: 'openai', model: 'gpt-4o-mini', messages: [{ role: 'system', content: systemParts }], temperature: 0.4 },
+      voice: { provider: 'deepgram', voiceId: 'aura-stella-en' },
+      maxDurationSeconds: 180,
+    })
+  }
+
+  const stopDemoCall = () => {
+    vapiRef.current?.stop()
+    setCallState('idle')
+  }
 
   const handleScrape = async () => {
     if (!url.trim()) return
@@ -425,23 +500,27 @@ const Step0Website = ({ data, update }) => {
         setResult({ error: data_r.error || 'Could not scan that website.' })
         return
       }
-      // Pre-populate all extracted fields
+      // Pre-populate fields based on selected scrape options
       const f = data_r.fields || {}
-      if (f.business_name)    update('business_name', f.business_name)
-      if (f.business_phone)   update('business_phone', f.business_phone)
-      if (f.business_email)   update('business_email', f.business_email)
-      if (f.business_address) update('business_address', f.business_address)
-      if (f.opening_hours)    update('opening_hours', f.opening_hours)
-      if (f.lead_contact_name) update('lead_contact_name', f.lead_contact_name)
-      if (f.business_context) update('business_context', f.business_context)
-      if (Array.isArray(f.services) && f.services.length > 0) {
-        update('services', f.services.map(s => ({ service_name: s, price_from: '', price_to: '', price_note: '' })))
+      if (scrapeOptions.details) {
+        if (f.business_name)     update('business_name', f.business_name)
+        if (f.business_phone)    update('business_phone', f.business_phone)
+        if (f.business_email)    update('business_email', f.business_email)
+        if (f.business_address)  update('business_address', f.business_address)
+        if (f.lead_contact_name) update('lead_contact_name', f.lead_contact_name)
       }
-      if (Array.isArray(f.staff) && f.staff.length > 0) {
+      if (scrapeOptions.hours && f.opening_hours) update('opening_hours', f.opening_hours)
+      if (scrapeOptions.about && f.business_context) update('business_context', f.business_context)
+      if (scrapeOptions.services) {
+        if (Array.isArray(f.services) && f.services.length > 0) {
+          update('services', f.services.map(s => ({ service_name: s, price_from: '', price_to: '', price_note: '' })))
+        }
+        if (Array.isArray(f.catalogue_items) && f.catalogue_items.length > 0) {
+          update('scrapedCatalogue', f.catalogue_items)
+        }
+      }
+      if (scrapeOptions.team && Array.isArray(f.staff) && f.staff.length > 0) {
         update('scrapedStaff', f.staff)
-      }
-      if (Array.isArray(f.catalogue_items) && f.catalogue_items.length > 0) {
-        update('scrapedCatalogue', f.catalogue_items)
       }
       update('websiteUrl', url.trim())
       setResult({ fields: f, found: data_r.found })
@@ -468,7 +547,63 @@ const Step0Website = ({ data, update }) => {
   return (
     <div>
       <h2 style={heading}>Let us do the hard work.</h2>
-      <p style={sub}>Enter your website address and we'll fill in your business details automatically.</p>
+      <p style={sub}>Pick your trade and we'll fill in the AI settings. Add your website for the rest.</p>
+
+      {/* Trade picker */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <p style={{ ...hint, marginBottom: '0.5rem', fontWeight: 600, color: '#444' }}>What kind of business are you?</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          {Object.entries(TRADE_TEMPLATES).map(([key, t]) => (
+            <button
+              key={key}
+              onClick={() => handleSelectTrade(key)}
+              style={{
+                padding: '0.35rem 0.8rem',
+                background: selectedTrade === key ? '#5e3b87' : 'white',
+                color: selectedTrade === key ? 'white' : '#444',
+                border: `1px solid ${selectedTrade === key ? '#5e3b87' : 'rgba(94,59,135,0.25)'}`,
+                borderRadius: '999px',
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: selectedTrade === key ? 600 : 400,
+                transition: 'all 0.12s',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {selectedTrade && (
+          <p style={{ ...hint, marginTop: '0.5rem', color: '#5e3b87' }}>
+            AI settings pre-filled for {TRADE_TEMPLATES[selectedTrade].label.toLowerCase()}. Add your website below for business details.
+          </p>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <p style={{ ...hint, marginBottom: '0.5rem', fontWeight: 600, color: '#444' }}>What would you like to fill in?</p>
+        {[
+          ['details',  'Business details',   'name, phone, email, address'],
+          ['hours',    'Opening hours',       ''],
+          ['services', 'Services & pricing',  ''],
+          ['team',     'Team members',        ''],
+          ['about',    'About the business',  ''],
+        ].map(([key, label, desc]) => (
+          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={scrapeOptions[key]}
+              onChange={e => setScrapeOptions(prev => ({ ...prev, [key]: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: '#5e3b87', cursor: 'pointer', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: '0.8rem', color: '#333', fontFamily: "'DM Sans', sans-serif" }}>
+              {label}
+              {desc && <span style={{ color: '#999', fontSize: '0.75rem' }}> — {desc}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.625rem' }}>
         <input
@@ -484,7 +619,7 @@ const Step0Website = ({ data, update }) => {
           disabled={loading || !url.trim()}
           style={{ padding: '0.625rem 1.25rem', background: loading || !url.trim() ? '#f5d98a' : '#f0a500', color: '#1a0533', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '0.875rem', cursor: loading || !url.trim() ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}
         >
-          {loading ? 'Scanning…' : 'Fill in my details →'}
+          {loading ? 'Scanning…' : 'Check my website →'}
         </button>
       </div>
 
@@ -500,12 +635,38 @@ const Step0Website = ({ data, update }) => {
 
       {result?.fields && !result.error && (
         <div style={{ padding: '1rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', marginBottom: '0.75rem' }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#15803d', marginBottom: '0.625rem' }}>
-            Found {result.found} field{result.found !== 1 ? 's' : ''} — review them in the next steps.
-          </div>
+          {(() => {
+            const DETAIL_KEYS = ['business_name','business_phone','business_email','business_address','lead_contact_name']
+            const isPopulated = (key) => {
+              if (DETAIL_KEYS.includes(key))       return scrapeOptions.details
+              if (key === 'opening_hours')          return scrapeOptions.hours
+              if (['services','catalogue_items'].includes(key)) return scrapeOptions.services
+              if (key === 'staff')                  return scrapeOptions.team
+              if (key === 'business_context')       return scrapeOptions.about
+              return true
+            }
+            const filledCount = FIELD_LABELS.filter(([key]) => {
+              const v = result.fields[key]
+              const found = ['services','staff','catalogue_items'].includes(key) ? Array.isArray(v) && v.length > 0 : v
+              return found && isPopulated(key)
+            }).length
+            return (
+              <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#15803d', marginBottom: '0.625rem' }}>
+                Filled in {filledCount} field{filledCount !== 1 ? 's' : ''} — review them in the next steps.
+              </div>
+            )
+          })()}
           {FIELD_LABELS.filter(([key]) => {
             const v = result.fields[key]
-            return ['services','staff','catalogue_items'].includes(key) ? Array.isArray(v) && v.length > 0 : v
+            const found = ['services','staff','catalogue_items'].includes(key) ? Array.isArray(v) && v.length > 0 : v
+            if (!found) return false
+            const DETAIL_KEYS = ['business_name','business_phone','business_email','business_address','lead_contact_name']
+            if (DETAIL_KEYS.includes(key))       return scrapeOptions.details
+            if (key === 'opening_hours')          return scrapeOptions.hours
+            if (['services','catalogue_items'].includes(key)) return scrapeOptions.services
+            if (key === 'staff')                  return scrapeOptions.team
+            if (key === 'business_context')       return scrapeOptions.about
+            return true
           }).map(([key, label]) => {
             const v = result.fields[key]
             let preview
@@ -532,8 +693,43 @@ const Step0Website = ({ data, update }) => {
 
       <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
         <p style={{ ...hint, marginBottom: '0.25rem', color: '#888' }}>No website? No problem.</p>
-        <p style={hint}>Leave this blank and fill in your details on the next screen.</p>
+        <p style={hint}>Leave the website blank and fill in your details on the next screen.</p>
       </div>
+
+      {/* Hear your AI — browser call via Vapi Web SDK */}
+      {import.meta.env.VITE_VAPI_PUBLIC_KEY && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.1)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
+          <p style={{ ...hint, fontWeight: 600, color: '#444', marginBottom: '0.3rem' }}>Hear your AI right now</p>
+          <p style={{ ...hint, marginBottom: '0.75rem' }}>No phone needed — talk to it directly in your browser. Experience it from your caller's perspective.</p>
+          {callState === 'idle' && (
+            <button
+              onClick={startDemoCall}
+              style={{ padding: '0.625rem 1.25rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Talk to your AI →
+            </button>
+          )}
+          {callState === 'connecting' && (
+            <button disabled style={{ padding: '0.625rem 1.25rem', background: '#d1c4e9', color: '#5e3b87', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>
+              Connecting…
+            </button>
+          )}
+          {callState === 'active' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.78rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>● Live</span>
+              <button
+                onClick={stopDemoCall}
+                style={{ padding: '0.5rem 1rem', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+              >
+                End call
+              </button>
+            </div>
+          )}
+          {callError && (
+            <p style={{ fontSize: '0.78rem', marginTop: '0.5rem', color: '#b91c1c', fontFamily: "'DM Sans', sans-serif" }}>{callError}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -696,6 +892,9 @@ const Onboarding = () => {
     business_email: '',
     booking_link: '',
     business_context: '',
+    opening_hours: '',
+    emergency_keywords: [],
+    callback_preference_note: '',
     business_outcome_type: 'quote',
     area_covered: '',
     refer_out: '',
@@ -737,13 +936,16 @@ const Onboarding = () => {
         business_email: data.business_email,
         booking_link: data.booking_link,
         business_context: businessContext,
+        opening_hours: data.opening_hours || null,
+        emergency_keywords: Array.isArray(data.emergency_keywords) && data.emergency_keywords.length > 0 ? data.emergency_keywords : null,
+        callback_preference_note: data.callback_preference_note || null,
         subcategory_id: data.subcategory_id || null,
         business_outcome_type: isCalendar ? 'booked' : (data.business_outcome_type || 'quote'),
         referral_code: referralCode,
         billing_model: data.billing_model || 'subscription',
         subscription_tier: data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard'),
         monthly_cost_limit: data.billing_model === 'payg' ? (data.monthly_cost_limit || 20) : null,
-        calendar_tier: isCalendar ? 'entry' : 'entry',
+        calendar_tier: isCalendar ? 'entry' : 'none',
         active: true,
       })
       .select()

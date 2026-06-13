@@ -65,10 +65,63 @@ async function fetchTenantData(tenantId) {
   }
 }
 
+async function handleDemoCall(req, res) {
+  const { phoneNumber, businessName, tradeContext, services, emergencyKeywords } = req.body
+
+  if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' })
+  if (!process.env.VAPI_PRIVATE_KEY) return res.status(500).json({ error: 'VAPI_PRIVATE_KEY not configured' })
+  if (!process.env.VAPI_DEMO_PHONE_NUMBER_ID) return res.status(503).json({ error: 'Demo calling not yet configured' })
+
+  const name = businessName || 'this business'
+  const parts = [
+    `You are a demo AI receptionist for ${name}.`,
+    tradeContext || '',
+    services?.length ? `Services offered: ${services.slice(0, 5).join(', ')}.` : '',
+    emergencyKeywords?.length ? `If the caller mentions ${emergencyKeywords.slice(0, 4).join(', or ')}, tell them you will escalate to the owner immediately and take their number.` : '',
+    'This is a demonstration call for the business owner. Handle it naturally and professionally. Keep responses short and sharp — under two sentences. If asked what you can do, explain you can take messages, describe services, handle appointment requests, and escalate emergencies.',
+  ].filter(Boolean).join(' ')
+
+  const body = {
+    phoneNumberId: process.env.VAPI_DEMO_PHONE_NUMBER_ID,
+    customer: { number: phoneNumber },
+    assistant: {
+      firstMessage: `Hello, you've reached ${name}. I'm your Qerxel AI — I handle calls around the clock. How can I help you today?`,
+      model: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: parts }],
+        temperature: 0.4,
+      },
+      voice: { provider: 'deepgram', voiceId: 'aura-stella-en' },
+      maxDurationSeconds: 120,
+    },
+  }
+
+  const vapiRes = await fetch(`${VAPI_API}/call`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!vapiRes.ok) {
+    const err = await vapiRes.text()
+    console.error('Demo call failed:', vapiRes.status, err)
+    return res.status(500).json({ error: 'Could not start demo call', detail: err })
+  }
+
+  console.log(`Demo call initiated to ${phoneNumber} for "${name}"`)
+  return res.status(200).json({ ok: true })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { tenantId } = req.body
+  const { action, tenantId } = req.body
+  if (action === 'demo-call') return handleDemoCall(req, res)
+
   if (!tenantId) return res.status(400).json({ error: 'tenantId required' })
 
   if (!process.env.VAPI_PRIVATE_KEY) {

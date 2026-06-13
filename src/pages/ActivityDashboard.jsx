@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { performanceScore, qMoodFromScore, qCaption } from '../utils/qScore.js'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -496,6 +495,37 @@ const LeadCard = ({ lead, onClick, onWon, onLost }) => {
   )
 }
 
+function IcoChevUp()   { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg> }
+function IcoChevDown() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg> }
+
+function ExpandBtn({ id, isFull, onTile }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onTile(id, isFull ? 'half' : 'full') }}
+      style={{ position: 'absolute', top: 0, left: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
+      aria-label={isFull ? 'Collapse' : 'Expand'}
+    >
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(94,59,135,0.18)' }}>
+        {isFull ? <IcoChevDown /> : <IcoChevUp />}
+      </div>
+    </button>
+  )
+}
+
+function DismissBtn({ id, onTile }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onTile(id, 'icon') }}
+      style={{ position: 'absolute', top: 0, right: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
+      aria-label="Dismiss"
+    >
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: '#888', fontSize: '1.1rem', lineHeight: 1, fontFamily: 'system-ui' }}>×</span>
+      </div>
+    </button>
+  )
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 const ActivityDashboard = ({ onNavigate }) => {
@@ -538,7 +568,6 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [callTranscriptLoading, setCallTranscriptLoading] = useState(false)
 
   const [calls, setCalls] = useState([])
-  const [qMode, setQMode] = useState('jump_in')
   const [leads, setLeads] = useState([])
   const [referrals, setReferrals] = useState([])
   const [partnerCount, setPartnerCount] = useState(-1)
@@ -582,7 +611,6 @@ const ActivityDashboard = ({ onNavigate }) => {
           setCalendarTier(tenant.calendar_tier || 'entry')
           setOutcomeType(tenant.business_outcome_type || '')
           setOutcomeBookingLink(tenant.booking_link || '')
-          setQMode(tenant.q_mode || 'jump_in')
         }
 
         const monthIso = startOfMonth().toISOString()
@@ -778,6 +806,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   // ── proactive alerts ─────────────────────────────────────────────────────────
 
   const DAY_MS = 24 * 60 * 60 * 1000
+  // eslint-disable-next-line react-hooks/purity
   const staleLeads = leads.filter(l => (!l.status || l.status === 'new') && (Date.now() - new Date(l.created_at).getTime()) > DAY_MS)
 
   const alerts = []
@@ -941,34 +970,6 @@ const ActivityDashboard = ({ onNavigate }) => {
       charts: { label: 'Analytics', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg> },
     }
 
-    const IcoChevUp   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
-    const IcoChevDown = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-
-    // Top-left expand/contract — 44px touch target, 32px white rounded-square
-    const ExpandBtn = ({ id, isFull }) => (
-      <button
-        onClick={e => { e.stopPropagation(); setTile(id, isFull ? 'half' : 'full') }}
-        style={{ position: 'absolute', top: 0, left: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
-        aria-label={isFull ? 'Collapse' : 'Expand'}
-      >
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(94,59,135,0.18)' }}>
-          {isFull ? <IcoChevDown /> : <IcoChevUp />}
-        </div>
-      </button>
-    )
-
-    // Top-right dismiss — 44px touch target (half state only, not status tile)
-    const DismissBtn = ({ id }) => (
-      <button
-        onClick={e => { e.stopPropagation(); setTile(id, 'icon') }}
-        style={{ position: 'absolute', top: 0, right: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 5, WebkitTapHighlightColor: 'transparent' }}
-        aria-label="Dismiss"
-      >
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ color: '#888', fontSize: '1.1rem', lineHeight: 1, fontFamily: 'system-ui' }}>×</span>
-        </div>
-      </button>
-    )
 
     const tileContent = {
       status: (
@@ -1074,7 +1075,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           {fullTileId && (
             <motion.div key={`full-${fullTileId}`} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <ExpandBtn id={fullTileId} isFull />
+              <ExpandBtn id={fullTileId} isFull onTile={setTile} />
               <div style={{ flex: 1, overflowY: 'auto', padding: '52px 1rem 1.5rem 1rem', WebkitOverflowScrolling: 'touch' }}>
                 {tileContent[fullTileId]}
               </div>
@@ -1085,8 +1086,8 @@ const ActivityDashboard = ({ onNavigate }) => {
         {/* Half-screen tiles */}
         {TILE_ORDER.filter(id => tileStates[id] === 'half').map(id => (
           <div key={id} style={{ position: 'relative', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', marginBottom: '0.75rem', height: '50vh', minHeight: 240, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <ExpandBtn id={id} isFull={false} />
-            {id !== 'status' && <DismissBtn id={id} />}
+            <ExpandBtn id={id} isFull={false} onTile={setTile} />
+            {id !== 'status' && <DismissBtn id={id} onTile={setTile} />}
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '52px 1rem 1rem 1rem', WebkitOverflowScrolling: 'touch' }}>
               {tileContent[id]}
             </div>
@@ -1202,14 +1203,6 @@ const ActivityDashboard = ({ onNavigate }) => {
     )
   }
 
-  // ── Q performance score ───────────────────────────────────────────────────────
-  const outcomeCounts = calls.reduce((acc, c) => { acc[c.call_outcome] = (acc[c.call_outcome] || 0) + 1; return acc }, {})
-  const perfScore  = performanceScore(outcomeCounts)
-  const actQScore  = perfScore ?? 0
-  const actQMood   = perfScore === null ? 'crying' : qMoodFromScore(perfScore)
-  const actQCaption = perfScore === null
-    ? (qMode !== 'mind_own_business' ? "Not enough calls yet — I'll score performance as data builds up." : null)
-    : qCaption(actQScore, qMode)
 
   // ── Desktop render ────────────────────────────────────────────────────────────
 
@@ -1235,11 +1228,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             ) : callsThisMonth > 0 ? (
               <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>All leads handled</div>
             ) : null}
-            {actQCaption && (
-              <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", marginTop: 4, lineHeight: 1.4 }}>{actQCaption}</div>
-            )}
           </div>
-          <img src={`/qmood/${actQMood}.svg`} alt="Q" style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} title={holidayMode ? 'Holiday mode on' : 'Active'} />
         </div>
 
         {/* Calendar */}

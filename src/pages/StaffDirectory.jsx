@@ -16,15 +16,19 @@ const AVATAR_PALETTE = [
 const avatarColour = (name = '') => AVATAR_PALETTE[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_PALETTE.length]
 const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
 
+const STAFF_LIMIT = { free: 1, light: 3, standard: 8, professional: 15, enterprise: Infinity, bespoke: Infinity }
+const TIER_LABEL = { free: 'Free', light: 'Light', standard: 'Standard', professional: 'Professional', enterprise: 'Enterprise', bespoke: 'Bespoke' }
+
 const EMPTY_MEMBER = { name: '', role: '', phone: '', email: '', address: '', birthday: '', specialist_services: [], direct_line_did: '', private_notes: '', active: true }
 
 const normaliseSpecs = (val) =>
   Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : [])
 
-export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed }) {
+export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed, tier = 'light' }) {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId]       = useState(null)
   const [staff, setStaff]             = useState([])
@@ -41,12 +45,15 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   const [addSaving, setAddSaving] = useState(false)
   const [editingSkills, setEditingSkills] = useState(false)
 
+  const staffLimit = STAFF_LIMIT[tier] ?? Infinity
+  const atLimit = staff.length >= staffLimit
+
   useEffect(() => {
-    if (!openAdd || isPreview) return
+    if (!openAdd || isPreview || atLimit) return
     setAdding(true)
     setSelected(null)
     onOpenAddConsumed?.()
-  }, [openAdd])
+  }, [openAdd, atLimit])
 
   useEffect(() => {
     if (!user && !isPreview) return
@@ -106,7 +113,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   const closeProfile = () => { setSelected(null); setDraft(null) }
 
   const saveProfile = async () => {
-    if (isPreview || !draft || !tenantId) return
+    if (previewReadOnly || !draft || !tenantId) return
     setSaving(true)
     const { id, ...fields } = draft
     await supabase.from('staff_profiles').update({
@@ -128,21 +135,21 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   }
 
   const toggleActive = async (member) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('staff_profiles').update({ active: !member.active }).eq('id', member.id)
     setStaff(prev => prev.map(s => s.id === member.id ? { ...s, active: !s.active } : s))
     if (draft?.id === member.id) setDraft(d => ({ ...d, active: !d.active }))
   }
 
   const removeStaff = async (id) => {
-    if (isPreview || !window.confirm('Remove this team member?')) return
+    if (previewReadOnly || !window.confirm('Remove this team member?')) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
     if (selected === id) closeProfile()
   }
 
   const addMember = async () => {
-    if (isPreview || !addDraft.name.trim() || !tenantId) return
+    if (previewReadOnly || !addDraft.name.trim() || !tenantId || atLimit) return
     setAddSaving(true)
     const { data, error } = await supabase.from('staff_profiles').insert({
       tenant_id: tenantId,
@@ -203,33 +210,59 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   return (
     <div data-help="Your team directory — full profiles, contact details, skills and private notes. Click any card to view or edit.">
 
-      {/* Cross-tab: uncontacted leads banner */}
-      {uncontactedLeads > 0 && onNavigate && (
-        <button
-          onClick={() => onNavigate('dashboard')}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '1rem', background: '#fffbeb', border: '1px solid rgba(240,165,0,0.35)', borderLeft: '4px solid #f0a500', borderRadius: 12, padding: '0.75rem 1rem', cursor: 'pointer', boxSizing: 'border-box' }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8125rem', color: '#78460a' }}>
-              {uncontactedLeads} lead{uncontactedLeads !== 1 ? 's' : ''} waiting for follow-up
-            </span>
-            <span style={{ fontSize: '0.72rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>— see on dashboard →</span>
-          </span>
-        </button>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.15rem', fontWeight: 700, color: '#1a1a1a', margin: '0 0 0.1rem' }}>Team</h2>
-          <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{staff.length} member{staff.length !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+            {staff.length}{staffLimit !== Infinity ? `/${staffLimit}` : ''} member{staff.length !== 1 ? 's' : ''}
+          </div>
         </div>
-        {!isPreview && (
-          <button onClick={() => { setAdding(true); closeProfile() }}
-            style={{ padding: '0.45rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-            + Add member
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {uncontactedLeads > 0 && onNavigate && (
+            <button
+              onClick={() => onNavigate('dashboard')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fffbeb', border: '1px solid rgba(240,165,0,0.35)', borderLeft: '4px solid #f0a500', borderRadius: 10, padding: '0.5rem 0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8rem', color: '#78460a' }}>
+                {uncontactedLeads} lead{uncontactedLeads !== 1 ? 's' : ''} waiting for follow-up
+              </span>
+              <span style={{ fontSize: '0.72rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>→</span>
+            </button>
+          )}
+          {!isPreview && (
+            atLimit ? (
+              <button
+                onClick={() => onNavigate && onNavigate('settings')}
+                style={{ padding: '0.45rem 1rem', background: '#f0ebf8', color: '#5e3b87', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                Upgrade to add more
+              </button>
+            ) : (
+              <button onClick={() => { setAdding(true); closeProfile() }}
+                style={{ padding: '0.45rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                + Add member
+              </button>
+            )
+          )}
+        </div>
       </div>
+
+      {atLimit && !isPreview && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.65rem 1rem', background: '#f0ebf8', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 10, marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+            <span style={{ fontSize: '1rem', flexShrink: 0 }}>🔒</span>
+            <span style={{ fontSize: '0.8rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>
+              <strong style={{ fontWeight: 700 }}>Team limit reached</strong>
+              {staffLimit !== Infinity && ` — your ${TIER_LABEL[tier] || tier} plan includes up to ${staffLimit} team member${staffLimit !== 1 ? 's' : ''}.`}
+            </span>
+          </div>
+          <button
+            onClick={() => onNavigate && onNavigate('settings')}
+            style={{ padding: '0.35rem 0.85rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+            Upgrade plan →
+          </button>
+        </div>
+      )}
+
 
       <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
 
@@ -488,7 +521,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
                 style={{ padding: '0.4rem 0.75rem', background: 'white', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 7, fontSize: '0.78rem', color: '#ef4444', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 Remove
               </button>
-              <button onClick={saveProfile} disabled={saving || isPreview || !draft.name.trim()}
+              <button onClick={saveProfile} disabled={saving || previewReadOnly || !draft.name.trim()}
                 style={{ padding: '0.4rem 1rem', background: saved ? '#3db87a' : (saving ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
               </button>

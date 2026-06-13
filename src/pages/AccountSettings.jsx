@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
@@ -8,12 +8,12 @@ import PlanSelector from './PlanSelector'
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const TIERS = {
-  free:         { label: 'Free',         price: '£0',     minutes: null, concurrent: 1 },
-  light:        { label: 'Light',        price: '£29',    minutes: 120,  concurrent: 1 },
-  standard:     { label: 'Standard',     price: '£49',    minutes: 250,  concurrent: 1 },
-  professional: { label: 'Professional', price: '£69',    minutes: 450,  concurrent: 2 },
-  enterprise:   { label: 'Enterprise',   price: '£249',   minutes: 1000, concurrent: 3 },
-  bespoke:      { label: 'Bespoke',      price: 'Custom', minutes: null, concurrent: null },
+  free:         { label: 'Free',         price: '£0',     minutes: null, concurrent: 1,    staff: 1 },
+  light:        { label: 'Light',        price: '£29',    minutes: 120,  concurrent: 1,    staff: 3 },
+  standard:     { label: 'Standard',     price: '£49',    minutes: 250,  concurrent: 1,    staff: 8 },
+  professional: { label: 'Professional', price: '£69',    minutes: 450,  concurrent: 2,    staff: 15 },
+  enterprise:   { label: 'Enterprise',   price: '£249',   minutes: 1000, concurrent: 3,    staff: null },
+  bespoke:      { label: 'Bespoke',      price: 'Custom', minutes: null, concurrent: null, staff: null },
 }
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -537,6 +537,10 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   // Q mode
   const [qMode, setQMode] = useState('jump_in')
 
+  // Products
+  const [hasAnswerProduct, setHasAnswerProduct] = useState(true)
+  const [sentryCameraLimit, setSentryCameraLimit] = useState(0)
+
   // GDPR & Data
   const [notifyNewLead, setNotifyNewLead] = useState(true)
   const [notifyDailySummary, setNotifyDailySummary] = useState(true)
@@ -580,7 +584,7 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, q_mode')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, q_mode, sentry_camera_limit')
           .eq('id', tid)
           .maybeSingle()
 
@@ -599,6 +603,8 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
           setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
           setVapiPhone(tenant.vapi_phone_number || null)
           setQMode(tenant.q_mode || 'jump_in')
+          setHasAnswerProduct(!!tenant.subscription_tier)
+          setSentryCameraLimit(tenant.sentry_camera_limit || 0)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -774,10 +780,12 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   // ── computed ────────────────────────────────────────────────────────────────
 
   const tierInfo = TIERS[tier] || TIERS.light
-  const sixWeeksAgo = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000)
+  // eslint-disable-next-line react-hooks/purity
+  const now = useMemo(() => Date.now(), [])
+  const sixWeeksAgo = new Date(now - 42 * 24 * 60 * 60 * 1000)
   const feedbackUnlocked = tenantCreatedAt && new Date(tenantCreatedAt) <= sixWeeksAgo
   const daysUntilFeedback = tenantCreatedAt
-    ? Math.max(0, Math.ceil((new Date(tenantCreatedAt).getTime() + 42 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)))
+    ? Math.max(0, Math.ceil((new Date(tenantCreatedAt).getTime() + 42 * 24 * 60 * 60 * 1000 - now) / (24 * 60 * 60 * 1000)))
     : null
 
   if (loading) {
@@ -989,31 +997,109 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
         </div>
       </div>
 
-      {/* Plan & Billing */}
+      {/* Your Products */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Plan & Billing shows your current subscription — the plan name, monthly price, how many minutes of calls are included, and how many simultaneous calls your AI can handle. Upgrade options appear below if you'd like more.">Plan & Billing</h3>
-        <p style={s.sectionSubtitle}>Your current plan. Billing is managed via Stripe.</p>
+        <h3 style={s.sectionTitle}>Your products</h3>
+        <p style={s.sectionSubtitle}>Manage what you have. Add what you're missing.</p>
 
         {upgradeSuccess && (
           <div style={{ padding: '0.75rem 1rem', background: '#e6f9ef', border: '1px solid #3db87a', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#1a6640', fontWeight: 500 }}>
-            Plan upgraded — your AI now has access to the new features.
+            ✓ Plan upgraded — your AI now has access to the new features.
           </div>
         )}
 
-        <div style={s.planRow(tier)}>
-          <span style={s.planBadge(tier)}>{tierInfo.label}</span>
-          <div style={{ flex: 1 }}>
-            <div style={s.planPrice}>{tierInfo.price}<span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#888' }}>/month</span></div>
-            <div style={s.planMeta}>
-              {tier === 'free' ? 'Pay as you go · 35p/min' : tierInfo.minutes ? `${tierInfo.minutes} Premium minutes included` : 'Custom allowance'}
-              {tierInfo.concurrent ? ` · ${tierInfo.concurrent} concurrent call${tierInfo.concurrent > 1 ? 's' : ''}` : ''}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(216px, 1fr))', gap: '0.75rem', marginBottom: billingModel === 'payg' ? '1.25rem' : 0 }}>
+          {[
+            {
+              name: 'Answer',
+              color: '#f0a500',
+              bgActive: '#fffbf0',
+              badgeBg: '#fef3c7',
+              badgeColor: '#92400e',
+              on: hasAnswerProduct,
+              badgeLabel: tierInfo.label,
+              body: hasAnswerProduct
+                ? `${tierInfo.price}/mo · ${tier === 'free' ? '35p/min PAYG' : `${tierInfo.minutes} min`} · ${tierInfo.concurrent} concurrent · ${tierInfo.staff != null ? tierInfo.staff : '∞'} staff`
+                : 'Your AI answers missed calls, captures leads, and routes callers — 24/7.',
+              price: 'From £29/month',
+              btn: hasAnswerProduct ? 'Manage plan →' : 'Add Answer →',
+              action: () => setShowPlanSelector(true),
+            },
+            {
+              name: 'Schedule',
+              color: '#60a5fa',
+              bgActive: '#eff6ff',
+              badgeBg: '#dbeafe',
+              badgeColor: '#1e40af',
+              on: calendarTier !== 'none',
+              badgeLabel: calendarTier === 'multi' ? 'Multi-staff' : 'Entry',
+              body: calendarTier !== 'none'
+                ? (calendarTier === 'multi'
+                    ? 'Multi-staff team calendar, online booking, and appointment management.'
+                    : 'Single-staff calendar, online booking, and appointment management.')
+                : 'Let clients book online. Calendar, appointment management, and booking page included.',
+              price: 'Free to add',
+              btn: calendarTier === 'multi' ? 'Manage →' : calendarTier === 'entry' ? 'Upgrade to multi-staff →' : 'Add Schedule →',
+              action: () => setShowPlanSelector(true),
+            },
+            {
+              name: 'Listen',
+              color: '#3db87a',
+              bgActive: '#f0fdf4',
+              badgeBg: '#dcfce7',
+              badgeColor: '#166534',
+              on: listenTier !== 'none',
+              badgeLabel: 'Active',
+              body: listenTier !== 'none'
+                ? 'Live call copilot. Surfaces caller history, creates bookings, and suggests services while you speak.'
+                : 'While you take a call, Q shows caller history, suggests services, and creates bookings — on screen.',
+              price: '~£10/month + usage',
+              btn: listenTier !== 'none' ? 'Manage →' : 'Add Listen →',
+              action: () => setShowPlanSelector(true),
+            },
+            {
+              name: 'Sentry',
+              color: '#ef4444',
+              bgActive: '#fff5f5',
+              badgeBg: '#fee2e2',
+              badgeColor: '#991b1b',
+              on: sentryCameraLimit > 0,
+              badgeLabel: `${sentryCameraLimit} camera${sentryCameraLimit !== 1 ? 's' : ''}`,
+              body: sentryCameraLimit > 0
+                ? `Monitoring ${sentryCameraLimit} zone${sentryCameraLimit !== 1 ? 's' : ''} — cross-checking bookings against station activity.`
+                : 'Cross-checks your booking data against camera activity. Finds unlogged services and no-shows.',
+              price: 'From £20/month',
+              btn: sentryCameraLimit > 0 ? 'Manage →' : 'Coming soon',
+              action: sentryCameraLimit > 0 ? () => setShowPlanSelector(true) : null,
+            },
+          ].map(p => (
+            <div key={p.name} style={{ borderRadius: 12, border: p.on ? `1.5px solid ${p.color}` : '1.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.1rem', background: p.on ? p.bgActive : 'white', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.on ? p.color : '#d1d5db', flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#1a1a1a' }}>{p.name}</span>
+                </div>
+                <span style={{ fontSize: '0.65rem', fontWeight: p.on ? 700 : 600, background: p.on ? p.badgeBg : '#f3f4f6', color: p.on ? p.badgeColor : '#bbb', borderRadius: 999, padding: '0.2rem 0.55rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {p.on ? p.badgeLabel : 'Not active'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.775rem', color: p.on ? '#555' : '#aaa', lineHeight: 1.5, flex: 1 }}>
+                {p.body}
+              </div>
+              {!p.on && <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e3b87' }}>{p.price}</div>}
+              <button
+                onClick={p.action || undefined}
+                disabled={!p.action}
+                style={{ alignSelf: 'flex-start', padding: '0.4rem 0.85rem', borderRadius: 7, fontSize: '0.775rem', fontWeight: 600, cursor: p.action ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif", border: p.on ? '1.5px solid rgba(94,59,135,0.2)' : 'none', background: p.action ? (p.on ? 'white' : '#f0a500') : '#f5f3ff', color: p.action ? (p.on ? '#5e3b87' : '#1a0533') : 'rgba(94,59,135,0.4)', opacity: p.action ? 1 : 0.65 }}
+              >
+                {p.btn}
+              </button>
             </div>
-          </div>
+          ))}
         </div>
 
-        {/* Cost limit — PAYG tenants only */}
         {billingModel === 'payg' && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
+          <div style={{ padding: '1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid rgba(240,165,0,0.25)' }}>
             <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#b07a00', marginBottom: '0.4rem' }}>Monthly spending limit</div>
             <p style={{ fontSize: '0.775rem', color: '#888', margin: '0 0 0.625rem', lineHeight: 1.5 }}>
               We'll pause your AI and notify you when you reach this. At 35p/min, £{monthlyCostLimit} covers ~{Math.floor(monthlyCostLimit / 0.35)} minutes.
@@ -1032,28 +1118,6 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
               <span style={{ fontSize: '0.8rem', color: '#888' }}>per month {costLimitSaving ? '· Saving…' : ''}</span>
             </div>
           </div>
-        )}
-
-        {tier === 'bespoke' ? (
-          <div style={{ fontSize: '0.8rem', color: '#888' }}>You are on a managed Bespoke plan. Contact us to discuss changes.</div>
-        ) : (tier === 'free' || tier === 'light') ? (
-          <button
-            onClick={() => setShowPlanSelector(true)}
-            style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '1rem 1.25rem', border: 'none', borderRadius: 12, background: '#f0a500', cursor: 'pointer', textAlign: 'left', boxShadow: '0 4px 16px rgba(240,165,0,0.35)' }}
-          >
-            <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a0533', marginBottom: '0.2rem' }}>Choose your services</div>
-              <div style={{ fontSize: '0.775rem', color: 'rgba(26,5,51,0.65)', fontFamily: "'DM Sans', sans-serif" }}>Pick Answer, Listen and Calendar — see live pricing</div>
-            </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a0533" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        ) : (
-          <button
-            onClick={() => setShowPlanSelector(true)}
-            style={{ marginTop: '0.75rem', padding: '0.5rem 1.1rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Manage services →
-          </button>
         )}
       </div>
 

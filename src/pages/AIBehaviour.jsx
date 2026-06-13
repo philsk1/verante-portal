@@ -560,6 +560,11 @@ const AIBehaviour = ({ onNavigate }) => {
   const [keepAliveDraft, setKeepAliveDraft] = useState('')
   const [keepAliveMaxMins, setKeepAliveMaxMins] = useState(5)
 
+  // Voice & pace
+  const [speechPace,     setSpeechPace]     = useState('natural')
+  const [speechStyle,    setSpeechStyle]    = useState('balanced')
+  const [responseDelay,  setResponseDelay]  = useState(1.2)
+
   useEffect(() => {
     if (!user && !isPreview) return
     const load = async () => {
@@ -578,7 +583,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id, q_mode')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id, q_mode, speech_pace, speech_style, response_delay_seconds')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -627,6 +632,9 @@ const AIBehaviour = ({ onNavigate }) => {
               : tenant.keep_alive_topics.split(',').map(k => k.trim()).filter(Boolean))
           }
           if (tenant.keep_alive_max_minutes) setKeepAliveMaxMins(tenant.keep_alive_max_minutes)
+          setSpeechPace(tenant.speech_pace || 'natural')
+          setSpeechStyle(tenant.speech_style || 'balanced')
+          setResponseDelay(tenant.response_delay_seconds ?? 1.2)
           setCalendarTier(tenant.calendar_tier || 'none')
           setBookingCalendarSource(tenant.booking_calendar_source || 'qerxel')
         }
@@ -806,6 +814,22 @@ const AIBehaviour = ({ onNavigate }) => {
     await supabase.from('tenants').update({ keep_alive_max_minutes: n }).eq('id', tenantId)
   }
 
+  const saveSpeechPace = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    setSpeechPace(val)
+    await supabase.from('tenants').update({ speech_pace: val }).eq('id', tenantId)
+  }
+  const saveSpeechStyle = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    setSpeechStyle(val)
+    await supabase.from('tenants').update({ speech_style: val }).eq('id', tenantId)
+  }
+  const saveResponseDelay = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    setResponseDelay(val)
+    await supabase.from('tenants').update({ response_delay_seconds: val }).eq('id', tenantId)
+  }
+
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading settings…</div>
   }
@@ -856,9 +880,8 @@ const AIBehaviour = ({ onNavigate }) => {
         <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
 
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          {/* Left — Q face + live indicator */}
+          {/* Left — live indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <img src={`/qmood/${qMoodState}.svg`} alt="Q" style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }} />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -1271,6 +1294,85 @@ const AIBehaviour = ({ onNavigate }) => {
           {saving ? 'Saving…' : 'Save AI settings'}
         </button>
         <Toast msg={toast.msg} type={toast.type} />
+      </div>
+
+      {/* Voice & Pace */}
+      <div style={s.section} data-help="Voice & Pace controls how Q sounds and how quickly it responds. Think time is the pause before Q speaks — longer feels more considered. Talking pace is how fast the words come out. Communication style shapes how Q structures its answers. Q also reads each caller's energy and steers towards it automatically.">
+        <h3 style={s.sectionTitle}>Voice &amp; Pace</h3>
+        <p style={s.sectionSubtitle}>Set Q's baseline voice behaviour. Changes take effect on the next call.</p>
+
+        {[
+          {
+            label: 'Think time', hint: 'Pause before Q responds',
+            options: [
+              { val: 0.6, label: 'Quick',      sub: '0.6 s' },
+              { val: 1.2, label: 'Balanced',   sub: '1.2 s', rec: true },
+              { val: 2.0, label: 'Thoughtful', sub: '2.0 s' },
+            ],
+            current: responseDelay,
+            onSelect: saveResponseDelay,
+          },
+          {
+            label: 'Talking pace', hint: 'How fast Q speaks',
+            options: [
+              { val: 'slow',    label: 'Steady',  sub: 'Slow & clear' },
+              { val: 'natural', label: 'Natural', sub: 'Normal pace', rec: true },
+              { val: 'fast',    label: 'Brisk',   sub: 'Get on with it' },
+            ],
+            current: speechPace,
+            onSelect: saveSpeechPace,
+          },
+          {
+            label: 'Communication style', hint: 'How Q shapes its answers',
+            options: [
+              { val: 'warm',     label: 'Warm',     sub: 'Patient & warm' },
+              { val: 'balanced', label: 'Balanced', sub: 'Natural register', rec: true },
+              { val: 'direct',   label: 'Direct',   sub: 'Short & sharp' },
+            ],
+            current: speechStyle,
+            onSelect: saveSpeechStyle,
+          },
+        ].map((row, ri) => (
+          <div key={row.label} style={{ marginBottom: ri < 2 ? '1rem' : 0 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.45rem', fontFamily: "'DM Sans', sans-serif" }}>
+              {row.label} <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#bbb' }}>— {row.hint}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {row.options.map(opt => {
+                const active = opt.val === row.current
+                return (
+                  <button
+                    key={String(opt.val)}
+                    onClick={() => row.onSelect(opt.val)}
+                    style={{
+                      position: 'relative',
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '10px',
+                      border: `1.5px solid ${active ? '#5e3b87' : 'rgba(94,59,135,0.15)'}`,
+                      background: active ? '#f0ebf8' : 'white',
+                      color: active ? '#3a2057' : '#777',
+                      cursor: 'pointer',
+                      fontFamily: "'DM Sans', sans-serif",
+                      textAlign: 'left',
+                      minWidth: 90,
+                      transition: 'all 0.13s',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.8125rem', fontWeight: active ? 600 : 400, marginBottom: '0.1rem' }}>{opt.label}</div>
+                    <div style={{ fontSize: '0.68rem', color: active ? '#7b5ca8' : '#bbb' }}>{opt.sub}</div>
+                    {opt.rec && (
+                      <div style={{ position: 'absolute', top: -7, right: 8, background: '#f0a500', color: '#1a0533', fontSize: '0.55rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: 3, letterSpacing: '0.04em', textTransform: 'uppercase' }}>default</div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div style={{ marginTop: '1rem', padding: '0.65rem 0.85rem', background: '#f7f6f9', borderRadius: 8, fontSize: '0.75rem', color: '#888', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
+          Q also reads each caller's energy and steers towards it — a fast-talking caller gets shorter answers, an unhurried caller gets more warmth. Your settings above are the baseline Q adjusts from.
+        </div>
       </div>
 
       {/* Call Filtering */}

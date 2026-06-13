@@ -174,7 +174,7 @@ export function emailAppointmentReminder({ businessName, appointment, hoursAhead
 // Daily call summary — subscription tenants
 export function emailDailySummary({
   businessName, date,
-  callsTotal, leadsCount, referralsCount, filteredCount, escalatedCount,
+  callsTotal, leadsCount, referralsCount, filteredCount, _escalatedCount,
   minutesUsed, includedMinutes, tier,
   leads, referrals,
 }) {
@@ -328,7 +328,7 @@ export function emailUrgentEscalation({ businessName, callerName, callerPhone, s
 // Weekly performance report — subscription tenants
 export function emailWeeklySummary({
   businessName, dateRange,
-  callsTotal, leadsCount, referralsCount, filteredCount, escalatedCount,
+  callsTotal, leadsCount, referralsCount, filteredCount, _escalatedCount,
   minutesUsed, includedMinutes, tier,
   leads, referrals,
 }) {

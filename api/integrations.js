@@ -113,6 +113,25 @@ async function handleSendReview(body, res) {
   return res.status(200).json({ sent: true })
 }
 
+async function handleSentrySnapshot(body, res) {
+  const { url } = body
+  if (!url) return res.status(400).json({ error: 'url required' })
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 6000)
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!response.ok) return res.status(200).json({ unreachable: true, error: `Camera returned ${response.status}` })
+    const ct = response.headers.get('content-type') || 'image/jpeg'
+    if (!ct.startsWith('image/')) return res.status(200).json({ unreachable: true, error: 'URL did not return an image' })
+    const buffer = await response.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    return res.status(200).json({ frame: `data:${ct};base64,${base64}` })
+  } catch (err) {
+    return res.status(200).json({ unreachable: true, error: err.name === 'AbortError' ? 'Connection timed out' : 'Camera not reachable — it may be on a private network' })
+  }
+}
+
 async function handleBookingConfirm(body, res) {
   const { tenantId, clientName, clientPhone, clientEmail, serviceName, startTime, bookingRef } = body
   if (!tenantId || !startTime) return res.status(400).json({ error: 'Missing required fields' })
@@ -188,6 +207,7 @@ export default async function handler(req, res) {
   if (action === 'send-welcome') return handleSendWelcome(req.body, res)
   if (action === 'send-review') return handleSendReview(req.body, res)
   if (action === 'booking-confirm') return handleBookingConfirm(req.body, res)
+  if (action === 'sentry-snapshot') return handleSentrySnapshot(req.body, res)
 
   if (!integrationId) return res.status(400).json({ error: 'Missing integrationId' })
 

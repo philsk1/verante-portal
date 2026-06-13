@@ -37,7 +37,7 @@ export async function runReminders() {
   const appts1h  = res1h.data  || []
   const allIds   = [...new Set([...appts24, ...appts1h].map(a => a.tenant_id))]
 
-  if (allIds.length === 0) return res.status(200).json({ sent: 0 })
+  if (allIds.length === 0) return { sent: 0 }
 
   const { data: tenants } = await supabase
     .from('tenants')

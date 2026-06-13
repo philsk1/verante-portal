@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { qScore, qMoodFromScore } from '../utils/qScore.js'
 
 const OWNER_EMAIL = 'finsolsoffice@gmail.com'
 
@@ -120,6 +121,16 @@ const OwnerSelector = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <a
+            href="/demo"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ padding: '0.35rem 0.85rem', border: '1px solid #f0a500', borderRadius: '6px', background: 'rgba(240,165,0,0.12)', color: '#f0a500', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textDecoration: 'none', letterSpacing: '0.01em' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,165,0,0.22)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,165,0,0.12)'}
+          >
+            ▶ Prospect demo
+          </a>
+          <a
             href="/owner/audit"
             style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}
             onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.9)'}
@@ -149,8 +160,8 @@ const OwnerSelector = () => {
             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
               {[
                 { id: 'name',       label: 'A–Z' },
-                { id: 'perf_asc',   label: 'Performance ↑' },
-                { id: 'perf_desc',  label: 'Performance ↓' },
+                { id: 'q_asc',      label: 'Q score ↑' },
+                { id: 'q_desc',     label: 'Q score ↓' },
                 { id: 'calls_desc', label: 'Most active' },
                 { id: 'tier',       label: 'Tier' },
               ].map(opt => (
@@ -202,8 +213,14 @@ const OwnerSelector = () => {
           const TIER_RANK = { free: 0, light: 1, standard: 2, professional: 3, enterprise: 4, bespoke: 5 }
           const q = search.trim().toLowerCase()
 
+          // Pre-compute Q score for each tenant
+          const withScores = tenants.map(t => {
+            const score = qScore({ tenant: t, outcomeCounts: t.landscape?.outcomeCounts })
+            return { ...t, _qScore: score, _qMood: qMoodFromScore(score) }
+          })
+
           // Filter
-          const filtered = q ? tenants.filter(t => {
+          const filtered = q ? withScores.filter(t => {
             const haystack = [
               t.business_name,
               t.subscription_tier,
@@ -220,15 +237,14 @@ const OwnerSelector = () => {
               ...(t.landscape?.issues || []).map(i => i.label),
             ].filter(Boolean).join(' ').toLowerCase()
             return haystack.includes(q)
-          }) : [...tenants]
+          }) : [...withScores]
 
           // Sort
-          const PERF = t => t.landscape?.leadRate ?? -1
           const CALLS = t => t.landscape?.calls30d ?? 0
           filtered.sort((a, b) => {
             if (sort === 'name')       return (a.business_name || '').localeCompare(b.business_name || '')
-            if (sort === 'perf_asc')   return PERF(a) - PERF(b)
-            if (sort === 'perf_desc')  return PERF(b) - PERF(a)
+            if (sort === 'q_asc')      return a._qScore - b._qScore
+            if (sort === 'q_desc')     return b._qScore - a._qScore
             if (sort === 'calls_desc') return CALLS(b) - CALLS(a)
             if (sort === 'tier')       return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
             return 0
@@ -255,12 +271,16 @@ const OwnerSelector = () => {
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}
               >
-                {/* Name + tier */}
+                {/* Name + Q score + tier */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25, flex: 1, minWidth: 0 }}>
                     {t.business_name}
                   </div>
-                  <TierBadge tier={t.subscription_tier} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                    <img src={`/qmood/${t._qMood}.svg`} alt="Q" style={{ width: 43, height: 43, objectFit: 'contain' }} />
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.82rem', color: '#1a1a1a', minWidth: '1.6rem', textAlign: 'right' }}>{t._qScore}</span>
+                    <TierBadge tier={t.subscription_tier} />
+                  </div>
                 </div>
 
                 {/* Feature bullets */}
@@ -274,6 +294,11 @@ const OwnerSelector = () => {
                     on={t.calendar_tier && t.calendar_tier !== 'none'}
                     label="Schedule"
                     detail={CALENDAR_LABEL[t.calendar_tier] || t.calendar_tier}
+                  />
+                  <BulletRow
+                    on={t.sentry_camera_limit > 0}
+                    label="Sentry"
+                    detail={t.sentry_camera_limit > 0 ? `${t.sentry_camera_limit} camera${t.sentry_camera_limit !== 1 ? 's' : ''}` : null}
                   />
                   <BulletRow
                     on={!!t.provisional_booking_enabled}

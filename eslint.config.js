@@ -17,5 +17,16 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_', ignoreRestSiblings: true }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'react-hooks/preserve-manual-memoization': 'off',
+    },
+  },
+  {
+    files: ['api/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
   },
 ])

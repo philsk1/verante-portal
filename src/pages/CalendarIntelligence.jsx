@@ -571,7 +571,7 @@ function TeamPage({ events, staff, catalogue, availability, capacityTarget = 85 
 }
 
 // ─── PAGE 4: Money ────────────────────────────────────────────────────────────
-function MoneyPage({ events, staff, catalogue }) {
+function MoneyPage({ events, catalogue }) {
   const appts30 = useMemo(() => recentAppts(events, 30), [events])
   const appts90 = useMemo(() => recentAppts(events, 90), [events])
 
@@ -602,7 +602,6 @@ function MoneyPage({ events, staff, catalogue }) {
       const dayStr = new Date(e.start).toISOString().slice(0, 10)
       dayCount[dayStr] = (dayCount[dayStr] || 0) + 1
     })
-    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     const byDow = Array(7).fill(0) // Mon=0
     appts30.forEach(e => {
       const dow = (new Date(e.start).getDay() + 6) % 7 // 0=Mon

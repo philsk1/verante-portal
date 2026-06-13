@@ -370,8 +370,8 @@ const DataAnalytics = ({ onNavigate }) => {
   const [avgDurationSecs, setAvgDurationSecs] = useState(0)
   const [outcomeBreakdown, setOutcomeBreakdown] = useState({})
   const [callsByDay, setCallsByDay] = useState([0, 0, 0, 0, 0, 0, 0])
-  const [demoPricing, setDemoPricing] = useState([])
-  const [demoCompetitors, setDemoCompetitors] = useState([])
+  const [demoPricing] = useState([])
+  const [demoCompetitors] = useState([])
 
   const [drillOpen, setDrillOpen] = useState(null) // null | 'calls' | 'leads' | 'duration'
   const [leadsByStatus, setLeadsByStatus] = useState({ new: 0, contacted: 0, converted: 0, lost: 0 })

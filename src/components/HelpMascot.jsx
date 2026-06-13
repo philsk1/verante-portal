@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import VeraDialogue from './VeraDialogue'
+import { useQScore } from '../context/QScoreContext'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ const injectStyles = () => {
 
 // ─── Floating hover bubble ────────────────────────────────────────────────────
 
-const FloatingBubble = ({ text, rect, visible }) => {
+const FloatingBubble = ({ text, rect, visible, mood = 'smile' }) => {
   if (!rect || !text) return null
   const BUBBLE_W = 280
   const OWL_W   = 30
@@ -65,7 +66,7 @@ const FloatingBubble = ({ text, rect, visible }) => {
       opacity: visible ? 1 : 0,
       transition: visible ? 'none' : 'opacity 0.15s ease-in',
     }}>
-      <div style={{ flexShrink: 0, lineHeight: 0 }}><img src="/qmood/smile.svg" alt="Q" style={{ width: 100, height: 100, objectFit: 'contain' }} /></div>
+      <div style={{ flexShrink: 0, lineHeight: 0 }}><img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 155, height: 155, objectFit: 'contain' }} /></div>
       <div style={{
         position: 'relative', background: 'white',
         border: '1px solid rgba(94,59,135,0.2)', borderRadius: '10px',
@@ -113,8 +114,64 @@ const TAB_TAGLINES = {
 
 let dialogueCounter = 0
 
+const MOOD_ORDER = ['crying', 'sad', 'content', 'smile']
+
+function moodFromScore(score) {
+  if (score == null) return 'smile'
+  if (score >= 86) return 'smile'
+  if (score >= 61) return 'content'
+  if (score >= 31) return 'sad'
+  return 'crying'
+}
+
 const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = [], onNavigate }) => {
+  const { globalMood = 'smile', globalScore, configPillar, toolPillar, perfPillar, coachingPoints = [], qDismissals = {}, saveDismissal } = useQScore()
+
+  // ── Per-page mood with dismissal decay ────────────────────────────────────
+  const pageScore = (() => {
+    const raw = activeTab === 'ai' ? configPillar
+      : (activeTab === 'dashboard' || activeTab === 'listen') ? perfPillar
+      : activeTab === 'integrations' ? toolPillar
+      : globalScore
+    return raw ?? globalScore ?? 100
+  })()
+
+  const rawMood = moodFromScore(pageScore)
+  const rawIndex = MOOD_ORDER.indexOf(rawMood)
+
+  const pageDismissedAt = qDismissals[activeTab] || null
+  const effectiveIndex = (() => {
+    if (!pageDismissedAt) return rawIndex
+    const monthsElapsed = (Date.now() - new Date(pageDismissedAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
+    const stepsDown = Math.floor(monthsElapsed)
+    return Math.max(rawIndex, 3 - stepsDown)
+  })()
+  const mood = MOOD_ORDER[effectiveIndex]
+  const isSmile = mood === 'smile'
+
+  // ── Page-specific coaching ────────────────────────────────────────────────
+  const pageCoachingPoints = (() => {
+    const tabCoachMap = { ai: 'ai', profile: 'profile', dashboard: 'analytics', listen: 'analytics' }
+    const relevantTab = tabCoachMap[activeTab]
+    if (relevantTab) {
+      const filtered = coachingPoints.filter(p => p.tab === relevantTab)
+      if (filtered.length > 0) return filtered
+    }
+    return coachingPoints.slice(0, 3)
+  })()
+
+  const pageMoodTitle = (() => {
+    if (activeTab === 'ai') return mood === 'crying' ? "My AI setup needs attention" : "My AI setup could be stronger"
+    if (activeTab === 'dashboard' || activeTab === 'listen') return "Call performance needs attention"
+    if (activeTab === 'integrations') return "Some tools aren't fully activated"
+    if (activeTab === 'profile') return "Profile could be more complete"
+    return mood === 'crying' ? "I need some attention" : "A few things would help me"
+  })()
+
+  const pagePillarScore = { ai: configPillar, dashboard: perfPillar, listen: perfPillar, integrations: toolPillar }[activeTab] ?? null
+  const pagePillarLabel = { ai: 'Config', dashboard: 'Performance', listen: 'Performance', integrations: 'Tools' }[activeTab] ?? null
   const [alertDismissed, setAlertDismissed] = useState(false)
+  const [coachingOpen, setCoachingOpen] = useState(false)
 
   // Vera hover mode
   const [helpMode, setHelpMode]       = useState(false)
@@ -147,6 +204,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
     setDialogues([])
     setAlertDismissed(false)
     setGapIndex(0)
+    setCoachingOpen(false)
   }, [activeTab])
 
   // Reset dismissed state when the alert message changes
@@ -277,20 +335,42 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
     return () => clearInterval(t)
   }, [tabGaps.length])
 
+  const isSad = !isSmile
+
+  const handleQClick = () => {
+    if (needHelpMode) { closeAll(); setCoachingOpen(false); return }
+    if (!isSmile) {
+      setCoachingOpen(o => !o)
+      setHelpMode(false)
+    } else {
+      setHelpMode(m => !m)
+      setCoachingOpen(false)
+    }
+  }
+
+  const handleImHappy = () => {
+    setCoachingOpen(false)
+    if (saveDismissal) saveDismissal(activeTab)
+  }
+
   return (
     <>
       {/* ── Vera strip — compact, non-intrusive ──────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
 
-        {/* Tiny owl — click trigger */}
+        {/* Q face — click opens coaching (sad/crying) or help mode (happy) */}
         <div
           id="vera-trigger-btn"
           className="vera-idle"
-          onClick={() => { if (needHelpMode) closeAll(); else setHelpMode(m => !m) }}
-          style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0 }}
-          title={helpMode ? 'Close Q' : 'Ask Q for help'}
+          onClick={handleQClick}
+          style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0, position: 'relative' }}
+          title={!isSmile ? 'See what Q needs' : helpMode ? 'Close Q' : 'Ask Q for help'}
         >
-          <img src="/qmood/smile.svg" alt="Q" style={{ width: 110, height: 110, objectFit: 'contain' }} />
+          <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 170, height: 170, objectFit: 'contain' }} />
+          {isSad && !coachingOpen && (
+            <div style={{ position: 'absolute', bottom: 2, right: -4, background: '#ef4444', color: 'white', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>!</div>
+          )}
         </div>
 
         {/* Contextual Q tagline + action */}
@@ -355,9 +435,85 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
         )}
       </div>
 
+      {/* ── Q Coaching panel (non-smile page mood) ───────────────────── */}
+      {coachingOpen && (
+        <div style={{ marginTop: '0.65rem', background: 'white', borderRadius: 14, border: '1px solid rgba(94,59,135,0.15)', boxShadow: '0 4px 20px rgba(94,59,135,0.1)', overflow: 'hidden', animation: 'veraFlyIn 0.2s ease-out forwards' }}>
+          {/* Header */}
+          <div style={{ padding: '0.85rem 1.1rem 0.75rem', borderBottom: '1px solid rgba(94,59,135,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#1a1a1a' }}>
+                {pageMoodTitle}
+              </div>
+              {pagePillarScore != null && (
+                <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.1rem', fontFamily: "'DM Sans', sans-serif" }}>{pagePillarLabel}: {pagePillarScore}/100</div>
+              )}
+            </div>
+            <button onClick={() => setCoachingOpen(false)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+          </div>
+
+          {/* Page pillar bar */}
+          {pagePillarScore != null && (
+            <div style={{ padding: '0.5rem 1.1rem', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+              <div style={{ height: 5, background: '#f0ebf8', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pagePillarScore}%`, background: pagePillarScore >= 70 ? '#3db87a' : pagePillarScore >= 40 ? '#f0a500' : '#ef4444', borderRadius: 3, transition: 'width 0.4s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* Page coaching points */}
+          <div style={{ padding: '0.75rem 1.1rem' }}>
+            <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>What Q sees on this page</div>
+            {pageCoachingPoints.length === 0 ? (
+              <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+                {activeTab === 'integrations'
+                  ? "Connect your integrations and I'll have more context for every call."
+                  : "Looking good — no specific issues found on this page."}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {pageCoachingPoints.map((pt, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: pt.severity === 'high' ? '#ef4444' : pt.severity === 'medium' ? '#f0a500' : '#3db87a' }} />
+                    <span style={{ flex: 1, fontSize: '0.775rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.35 }}>{pt.label}</span>
+                    {onNavigate && pt.tab !== activeTab && (
+                      <button
+                        onClick={() => { setCoachingOpen(false); onNavigate(pt.tab) }}
+                        style={{ fontSize: '0.68rem', fontWeight: 600, color: '#5e3b87', background: '#f0ebf8', border: 'none', borderRadius: 5, padding: '0.2rem 0.5rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        Fix →
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '0.55rem 1.1rem', borderTop: '1px solid rgba(94,59,135,0.06)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleImHappy}
+              style={{ padding: '0.32rem 0.75rem', background: '#3db87a', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+              I'm happy 😊
+            </button>
+            <button
+              onClick={() => { setCoachingOpen(false); setNeedHelpMode(true) }}
+              style={{ padding: '0.32rem 0.75rem', background: 'white', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.73rem', color: '#5e3b87', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+              Explore with Q
+            </button>
+            <button
+              onClick={() => setCoachingOpen(false)}
+              style={{ padding: '0.32rem 0.75rem', background: '#5e3b87', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+
       {/* ── Hover bubble (Vera mode) ─────────────────────────────────── */}
       {floatEl && (
-        <FloatingBubble text={floatEl.text} rect={floatEl.rect} visible={bubbleVisible} />
+        <FloatingBubble text={floatEl.text} rect={floatEl.rect} visible={bubbleVisible} mood={mood} />
       )}
 
       {/* ── Glowing overlays (Need more help mode) ──────────────────── */}

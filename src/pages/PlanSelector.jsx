@@ -12,7 +12,7 @@ const ANSWER_TIERS = [
     usageLabel: '35p/min',
     minutes: 0,
     concurrent: 1,
-    features: ['AI answers missed calls', 'Lead capture', 'SMS notification', 'No monthly commitment'],
+    features: ['AI answers missed calls', 'Lead capture', 'SMS notification', 'No monthly commitment', 'Up to 1 team member'],
     badge: null,
   },
   {
@@ -23,7 +23,7 @@ const ANSWER_TIERS = [
     usageLabel: 'Overage 18p/min',
     minutes: 120,
     concurrent: 1,
-    features: ['120 min/month included', 'Lead capture + triage', 'Partner referral network', 'Email summaries'],
+    features: ['120 min/month included', 'Lead capture + triage', 'Partner referral network', 'Email summaries', 'Up to 3 team members'],
     badge: null,
   },
   {
@@ -34,7 +34,7 @@ const ANSWER_TIERS = [
     usageLabel: 'Overage 18p/min',
     minutes: 250,
     concurrent: 1,
-    features: ['250 min/month included', 'Everything in Light', 'Analytics dashboard', 'Provisional booking'],
+    features: ['250 min/month included', 'Everything in Light', 'Analytics dashboard', 'Provisional booking', 'Up to 8 team members'],
     badge: 'Most popular',
   },
   {
@@ -45,7 +45,7 @@ const ANSWER_TIERS = [
     usageLabel: 'Overage 14p/min',
     minutes: 450,
     concurrent: 2,
-    features: ['450 min/month included', '2 concurrent calls', 'CalDAV calendar sync', 'Custom AI behaviour'],
+    features: ['450 min/month included', '2 concurrent calls', 'CalDAV calendar sync', 'Custom AI behaviour', 'Up to 15 team members'],
     badge: null,
   },
   {
@@ -56,7 +56,7 @@ const ANSWER_TIERS = [
     usageLabel: 'Overage 14p/min',
     minutes: 1000,
     concurrent: 3,
-    features: ['1,000 min/month included', '3+ concurrent calls', 'Staff extension routing', 'No referral network cap'],
+    features: ['1,000 min/month included', '3+ concurrent calls', 'Staff extension routing', 'No referral network cap', 'Unlimited team members'],
     badge: 'Contact us',
   },
 ]
@@ -117,65 +117,24 @@ const CALENDAR_TIERS = [
   },
 ]
 
-// ─── Named packages ───────────────────────────────────────────────────────────
-
-const PACKAGES = [
-  {
-    id: 'solo',
-    name: 'Solo',
-    tagline: 'Start capturing every lead',
-    answer: 'light', listen: 'standard', calendar: 'entry',
-    priceLabel: '£29/mo + usage',
-    colour: '#5e3b87',
-    bg: '#f5f3ff',
-    border: 'rgba(94,59,135,0.25)',
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    tagline: 'More minutes, full analytics',
-    answer: 'standard', listen: 'standard', calendar: 'entry',
-    priceLabel: '£49/mo + usage',
-    colour: '#1d4ed8',
-    bg: '#eff6ff',
-    border: 'rgba(29,78,216,0.25)',
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    tagline: 'Multi-staff calendar + booking engine',
-    answer: 'standard', listen: 'standard', calendar: 'multi',
-    priceLabel: '£54/mo + £2/staff',
-    colour: '#059669',
-    bg: '#f0fdf4',
-    border: 'rgba(5,150,105,0.25)',
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    tagline: 'Full platform, every feature',
-    answer: 'enterprise', listen: 'advanced', calendar: 'multi',
-    priceLabel: '£254/mo + £2/staff',
-    colour: '#f0a500',
-    bg: '#fffbeb',
-    border: 'rgba(240,165,0,0.3)',
-  },
-]
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const PRODUCT_COLOURS = {
   answer:   { dot: '#f0a500', bg: '#fffbeb', border: 'rgba(240,165,0,0.2)',   text: '#92400e', headerBg: '#fef3c7' },
   listen:   { dot: '#1d4ed8', bg: '#eff6ff', border: 'rgba(29,78,216,0.2)',   text: '#1e3a8a', headerBg: '#dbeafe' },
-  calendar: { dot: '#059669', bg: '#f0fdf4', border: 'rgba(5,150,105,0.2)',   text: '#064e3b', headerBg: '#dcfce7' },
+  schedule: { dot: '#059669', bg: '#f0fdf4', border: 'rgba(5,150,105,0.2)',   text: '#064e3b', headerBg: '#dcfce7' },
 }
+
+const ENTERPRISE_TIERS = ['enterprise', 'bespoke']
 
 function priceBreakdown(answer, listen, calendar) {
   const a = ANSWER_TIERS.find(t => t.id === answer)
-  const fixed = (a?.price || 0) + (calendar === 'multi' ? 5 : 0)
+  const enterpriseBundle = ENTERPRISE_TIERS.includes(answer)
+  const calendarCharge = calendar === 'multi' && !enterpriseBundle ? 5 : 0
+  const fixed = (a?.price || 0) + calendarCharge
   const listenLabel = listen === 'none' ? '' : listen === 'standard' ? '+ 3p/min Listen' : '+ 4p/min Listen'
-  const calendarNote = calendar === 'multi' ? '+ £2/staff' : ''
-  return { fixed, listenLabel, answerOverage: a?.usageLabel || '', calendarNote }
+  const calendarNote = calendar === 'multi' && !enterpriseBundle ? '+ £2/staff' : ''
+  return { fixed, listenLabel, answerOverage: a?.usageLabel || '', calendarNote, enterpriseBundle }
 }
 
 // ─── Tier card ────────────────────────────────────────────────────────────────
@@ -286,16 +245,8 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
   const [answer, setAnswer]     = useState(currentAnswer   || 'standard')
   const [listen, setListen]     = useState(currentListen   || 'standard')
   const [calendar, setCalendar] = useState(currentCalendar || 'entry')
-  const [activePackage, setActivePackage] = useState(null)
 
   const showDowngradeWarning = currentCalendar === 'multi' && calendar === 'entry' && currentStaffCount > 1
-
-  const applyPackage = (pkg) => {
-    setAnswer(pkg.answer)
-    setListen(pkg.listen)
-    setCalendar(pkg.calendar)
-    setActivePackage(pkg.id)
-  }
 
   const listenLocked = answer === 'free'
 
@@ -303,7 +254,11 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
     if (listenLocked && listen !== 'none') setListen('none')
   }, [listenLocked])
 
-  const { fixed, listenLabel, answerOverage, calendarNote } = priceBreakdown(answer, listen, calendar)
+  const { fixed, listenLabel, answerOverage, calendarNote, enterpriseBundle } = priceBreakdown(answer, listen, calendar)
+
+  useEffect(() => {
+    if (enterpriseBundle && calendar !== 'multi') setCalendar('multi')
+  }, [enterpriseBundle])
 
   const handleContinue = () => {
     if (onSelect) onSelect({ answer, listen, calendar })
@@ -325,7 +280,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             Build your Qerxel
           </div>
           <div style={{ fontSize: '0.9375rem', color: '#666', lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>
-            Three products. Pick what you need. Calendar is always free.
+            Three products. Pick what you need. Schedule is always free.
           </div>
         </div>
 
@@ -338,7 +293,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             icon="📞"
             tiers={ANSWER_TIERS}
             selected={answer}
-            onSelect={t => { setAnswer(t); setActivePackage(null) }}
+            onSelect={t => setAnswer(t)}
           />
           <ProductColumn
             product="listen"
@@ -347,18 +302,22 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             icon="🎧"
             tiers={LISTEN_TIERS}
             selected={listen}
-            onSelect={t => { setListen(t); setActivePackage(null) }}
+            onSelect={t => setListen(t)}
             locked={listenLocked}
             lockedMsg="Select an Answer subscription to unlock Listen."
           />
           <ProductColumn
-            product="calendar"
-            title="Calendar"
+            product="schedule"
+            title="Schedule"
             subtitle="Booking engine — appointments, staff, reminders"
             icon="📅"
-            tiers={CALENDAR_TIERS}
+            tiers={CALENDAR_TIERS.map(t =>
+              t.id === 'multi' && enterpriseBundle
+                ? { ...t, priceLabel: 'Included', usageLabel: 'With Enterprise Answer', badge: 'Included free' }
+                : t
+            )}
             selected={calendar}
-            onSelect={t => { setCalendar(t); setActivePackage(null) }}
+            onSelect={t => !enterpriseBundle && setCalendar(t)}
           />
         </div>
       </div>
@@ -369,7 +328,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
           <div style={{ background: '#fffbeb', borderTop: '1px solid rgba(240,165,0,0.4)', padding: '0.6rem 2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '1rem' }}>⚠️</span>
             <span style={{ fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-              <strong>Downgrading to Entry calendar</strong> — your calendar will switch to single-person view.
+              <strong>Downgrading to Entry Schedule</strong> — your calendar will switch to single-person view.
               {currentStaffNames.length > 0 && (
                 <> Existing booking data for <strong>{currentStaffNames.slice(0, -1).join(', ')}{currentStaffNames.length > 1 ? ' and ' : ''}{currentStaffNames.slice(-1)}</strong> will be retained but won't appear in the calendar until you upgrade again.</>
               )}
@@ -402,7 +361,7 @@ export default function PlanSelector({ onBack, onSelect, currentAnswer, currentL
             {[
               ANSWER_TIERS.find(t => t.id === answer)?.name + ' Answer',
               listen !== 'none' ? (listen === 'advanced' ? 'Listen Advanced' : 'Listen Standard') : null,
-              calendar === 'multi' ? 'Calendar Multi-staff' : 'Calendar Entry',
+              calendar === 'multi' ? 'Schedule Multi-staff' : 'Schedule Entry',
             ].filter(Boolean).join(' · ')}
           </div>
         </div>

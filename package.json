@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
     "@supabase/supabase-js": "^2.106.2",
+    "@vapi-ai/web": "^2.5.2",
     "apexcharts": "^5.14.0",
     "date-fns": "^4.4.0",
     "framer-motion": "^12.40.0",

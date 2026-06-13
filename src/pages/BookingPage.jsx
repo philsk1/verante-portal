@@ -83,6 +83,27 @@ function generateSlots({ date, schedules, appointments, durationMins, bufferMins
   return slots.sort((a, b) => a.time - b.time)
 }
 
+async function fetchDayConflict(tenantId, slotStart, slotEnd, staffId, bufferMins, excludeAptId = null) {
+  const from = new Date(slotStart); from.setHours(0, 0, 0, 0)
+  const to   = new Date(slotStart); to.setHours(23, 59, 59, 999)
+  let query = supabase.from('appointments')
+    .select('id, staff_profile_id, start_time, end_time')
+    .eq('tenant_id', tenantId)
+    .gte('start_time', from.toISOString())
+    .lte('start_time', to.toISOString())
+    .neq('status', 'cancelled')
+  if (excludeAptId) query = query.neq('id', excludeAptId)
+  const { data } = await query
+  const fresh = data || []
+  const conflict = fresh.some(apt => {
+    if (apt.staff_profile_id && staffId && apt.staff_profile_id !== staffId) return false
+    const aptStart = new Date(apt.start_time)
+    const aptEnd   = new Date(apt.end_time)
+    return slotStart < addMinutes(aptEnd, bufferMins) && slotEnd > aptStart
+  })
+  return { fresh, conflict }
+}
+
 // ─── Small shared components ──────────────────────────────────────────────────
 
 const StepDot = ({ n, active, done }) => (
@@ -198,8 +219,19 @@ export default function BookingPage() {
     if (!selectedSlot || !selectedService || !form.name.trim() || !form.phone.trim()) return
     setSubmitting(true)
     try {
-      const start = selectedSlot.time
-      const end   = addMinutes(start, selectedService.duration_minutes || 60)
+      const start      = selectedSlot.time
+      const end        = addMinutes(start, selectedService.duration_minutes || 60)
+      const bufferMins = tenant?.booking_buffer_mins ?? 15
+
+      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins)
+      if (conflict) {
+        setAppointments(fresh)
+        setSelectedSlot(null)
+        setStep(3)
+        alert('Sorry, that time was just booked by someone else. Please choose another slot.')
+        return
+      }
+
       const processingEnd = selectedService.processing_minutes
         ? addMinutes(end, selectedService.processing_minutes) : null
 
@@ -306,8 +338,18 @@ export default function BookingPage() {
     if (!selectedSlot || !selectedService || !rescheduleApt) return
     setRescheduling(true)
     try {
-      const start = selectedSlot.time
-      const end   = addMinutes(start, selectedService.duration_minutes || 60)
+      const start      = selectedSlot.time
+      const end        = addMinutes(start, selectedService.duration_minutes || 60)
+      const bufferMins = tenant?.booking_buffer_mins ?? 15
+
+      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, rescheduleApt.id)
+      if (conflict) {
+        setAppointments(fresh)
+        setSelectedSlot(null)
+        alert('Sorry, that time was just booked. Please choose another slot.')
+        return
+      }
+
       await supabase.from('appointments').update({
         start_time: start.toISOString(),
         end_time:   end.toISOString(),
@@ -579,25 +621,43 @@ export default function BookingPage() {
                       {selectedService?.name} · {selectedService?.duration_minutes || 60} min
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem', marginBottom: '1.25rem' }}>
-                      {DAYS_SHORT.map(d => (
-                        <div key={d} style={{ textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: '0.3rem' }}>{d}</div>
-                      ))}
-                      {days.map(day => {
-                        const dow = day.getDay()
-                        const hasSchedule = schedules.some(s => s.day_of_week === dow && s.active)
-                        const isSelected = selectedDate && sameDay(day, selectedDate)
-                        return (
-                          <button key={day.toISOString()} disabled={!hasSchedule}
-                            onClick={() => { setSelectedDate(day); setStep(3) }}
-                            style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? '2px solid #5e3b87' : '1px solid transparent', background: isSelected ? '#5e3b87' : hasSchedule ? '#f5f3ff' : '#f9f9f9', color: isSelected ? 'white' : hasSchedule ? '#5e3b87' : '#ccc', fontWeight: isSelected ? 700 : 500, fontSize: '0.8rem', cursor: hasSchedule ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, padding: '0.2rem', transition: 'background 0.12s' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{day.getDate()}</span>
-                            <span style={{ fontSize: '0.55rem', opacity: 0.65 }}>{day.toLocaleDateString('en-GB', { month: 'short' })}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: '#bbb', textAlign: 'center' }}>Shaded dates have availability</div>
+                    {schedules.length === 0 ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12 }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📅</div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>Online booking not available</div>
+                        <div style={{ fontSize: '0.78rem', color: '#aaa', lineHeight: 1.5, marginBottom: '1rem' }}>
+                          {tenant?.business_name} hasn't set up their availability yet.
+                        </div>
+                        {tenant?.business_phone && (
+                          <a href={`tel:${tenant.business_phone}`}
+                            style={{ display: 'inline-block', padding: '0.55rem 1.25rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>
+                            Call to book: {tenant.business_phone}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem', marginBottom: '1.25rem' }}>
+                          {DAYS_SHORT.map(d => (
+                            <div key={d} style={{ textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: '0.3rem' }}>{d}</div>
+                          ))}
+                          {days.map(day => {
+                            const dow = day.getDay()
+                            const hasSchedule = schedules.some(s => s.day_of_week === dow && s.active)
+                            const isSelected = selectedDate && sameDay(day, selectedDate)
+                            return (
+                              <button key={day.toISOString()} disabled={!hasSchedule}
+                                onClick={() => { setSelectedDate(day); setStep(3) }}
+                                style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? '2px solid #5e3b87' : '1px solid transparent', background: isSelected ? '#5e3b87' : hasSchedule ? '#f5f3ff' : '#f9f9f9', color: isSelected ? 'white' : hasSchedule ? '#5e3b87' : '#ccc', fontWeight: isSelected ? 700 : 500, fontSize: '0.8rem', cursor: hasSchedule ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, padding: '0.2rem', transition: 'background 0.12s' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{day.getDate()}</span>
+                                <span style={{ fontSize: '0.55rem', opacity: 0.65 }}>{day.toLocaleDateString('en-GB', { month: 'short' })}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#bbb', textAlign: 'center' }}>Shaded dates have availability</div>
+                      </>
+                    )}
                   </div>
                 )}
 

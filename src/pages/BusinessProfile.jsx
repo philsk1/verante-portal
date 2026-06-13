@@ -2,20 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-import { qMoodFromScore, qCaption } from '../utils/qScore.js'
 
-// ─── avatar colour — consistent per name, cycles through palette ──────────────
-
-const AVATAR_PALETTE = [
-  { bg: '#f0ebf8', text: '#5e3b87' },
-  { bg: '#e6f5ee', text: '#1e7a4a' },
-  { bg: '#eff6ff', text: '#1d4ed8' },
-  { bg: '#fef3d0', text: '#92610a' },
-  { bg: '#dcfce7', text: '#166534' },
-  { bg: '#fce7f3', text: '#9d174d' },
-]
-const avatarColour = (name = '') => AVATAR_PALETTE[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_PALETTE.length]
-const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
 
 // ─── styles ───────────────────────────────────────────────────────────────────
 
@@ -435,10 +422,9 @@ const BusinessProfile = ({ onNavigate }) => {
   const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId] = useState(null)
-  const [tier, setTier] = useState('light')
+  const [_tier, setTier] = useState('light')
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [loading, setLoading] = useState(true)
-  const [qMode, setQMode] = useState('jump_in')
 
   // Business details
   const [details, setDetails] = useState({
@@ -475,7 +461,6 @@ const BusinessProfile = ({ onNavigate }) => {
 
         if (tenant) {
           setTier(tenant.subscription_tier || 'light')
-          setQMode(tenant.q_mode || 'jump_in')
           setDetails({
             business_name: tenant.business_name || '',
             business_phone: tenant.business_phone || '',
@@ -558,8 +543,6 @@ const BusinessProfile = ({ onNavigate }) => {
   ]
   const profileScore = profileChecks.filter(Boolean).length
   const profilePct   = Math.round((profileScore / profileChecks.length) * 100)
-  const profileQMood    = qMoodFromScore(profilePct)
-  const profileQCaption = qCaption(profilePct, qMode)
 
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading your profile…</div>
@@ -570,7 +553,6 @@ const BusinessProfile = ({ onNavigate }) => {
 
       {/* ── Profile summary bar ─────────────────────────────────────────────── */}
       <div style={{ background: 'white', borderRadius: 14, padding: '0.9rem 1.25rem', marginBottom: '1rem', border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
-        <img src={`/qmood/${profileQMood}.svg`} alt="Q" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.3rem' }}>
             <div style={{ flex: 1, height: 5, borderRadius: 3, background: '#f0ebf8', overflow: 'hidden', maxWidth: 120 }}>
@@ -580,10 +562,7 @@ const BusinessProfile = ({ onNavigate }) => {
               {profilePct === 100 ? 'Identity complete' : `${profilePct}% complete`}
             </span>
           </div>
-          {profileQCaption
-            ? <div style={{ fontSize: '0.7rem', color: '#7a5a8a', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>{profileQCaption}</div>
-            : <span style={{ fontSize: '0.7rem', color: '#aaa' }}>Name · contact · hours · AI context</span>
-          }
+          <span style={{ fontSize: '0.7rem', color: '#aaa' }}>Name · contact · hours · AI context</span>
         </div>
       </div>
 

@@ -8,16 +8,24 @@ const supabase = createClient(
 
 const WEBHOOK_URL = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/api/vapi-webhook`
 
+const PACE_TO_SPEED = { slow: 'slow', natural: 'normal', fast: 'fast' }
+
 function getVoiceConfig(tenant) {
-  const pref = tenant?.overage_voice_preference || 'standard'
+  const pref  = tenant?.overage_voice_preference || 'standard'
+  const speed = PACE_TO_SPEED[tenant?.speech_pace] || 'normal'
+
   if (pref === 'premium') {
     if (process.env.CARTESIA_PREMIUM_VOICE_ID) {
-      return { provider: 'cartesia', voiceId: process.env.CARTESIA_PREMIUM_VOICE_ID }
+      return { provider: 'cartesia', voiceId: process.env.CARTESIA_PREMIUM_VOICE_ID, speed }
     }
-    return { provider: 'deepgram', voiceId: 'aura-luna-en' }
+    return { provider: 'deepgram', voiceId: 'aura-luna-en', speed }
   }
-  return { provider: 'deepgram', voiceId: 'aura-stella-en' }
+  if (process.env.CARTESIA_STANDARD_VOICE_ID) {
+    return { provider: 'cartesia', voiceId: process.env.CARTESIA_STANDARD_VOICE_ID, speed }
+  }
+  return { provider: 'deepgram', voiceId: 'aura-stella-en', speed }
 }
+
 
 // Fetch all tenant data needed to build the system prompt
 async function fetchTenantData(tenantId) {
@@ -25,7 +33,7 @@ async function fetchTenantData(tenantId) {
     await Promise.all([
       supabase
         .from('tenants')
-        .select('id, business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, urgent_callback_mins, additional_instructions, subcategory_id, blocked_phone_numbers, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference')
+        .select('id, business_name, business_email, business_phone, lead_contact_name, booking_link, opening_hours, business_context, triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, urgent_callback_mins, additional_instructions, subcategory_id, blocked_phone_numbers, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, speech_pace, speech_style, response_delay_seconds')
         .eq('id', tenantId)
         .maybeSingle(),
       supabase.from('services').select('service_name').eq('tenant_id', tenantId),
@@ -122,12 +130,14 @@ export default async function handler(req, res) {
   const analysisPlan = buildAnalysisPlan()
   const greeting     = data.tenant.greeting_message
     || `Good morning, you're through to ${data.tenant.business_name}. How can I help?`
+  const firstMessageDelay = data.tenant.response_delay_seconds ?? 1.2
 
   return res.status(200).json({
     assistant: {
       name: `Qerxel — ${data.tenant.business_name}`,
       firstMessageMode: 'assistant-speaks-first',
       firstMessage: greeting,
+      firstMessageDelay,
       model: {
         provider: 'openai',
         model: 'gpt-4o-mini',

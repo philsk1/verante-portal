@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { toolScore } from '../utils/qScore.js'
 
 // Integration module definitions — each is self-contained
 // status: 'connected' | 'coming_soon' | 'available'
@@ -326,17 +327,23 @@ const s = {
 
 const DEFAULT_WA_TEMPLATE = `Hi {{name}}, thanks for calling {{business}}. {{owner}} will be in touch shortly.`
 
-export default function Integrations({ onNavigate }) {
+export default function Integrations({ _onNavigate }) {
   const { user } = useAuth()
   const preview = usePreview()
-  const isDemo = false
   const isPreview = preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId] = useState(null)
+  const [tenantToolData, setTenantToolData] = useState(null)
   const [activeCategory, setActiveCategory] = useState('All')
   const [connectedMap, setConnectedMap] = useState({}) // { whatsapp: { settings: {} }, ... }
   const [expandedId, setExpandedId] = useState(null)
   const [toast, setToast] = useState({ msg: '', type: '' })
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast({ msg: '', type: '' }), 4000)
+  }
 
   // ── Detect return from OAuth flow ──────────────────────────────────────────
   useEffect(() => {
@@ -365,30 +372,30 @@ export default function Integrations({ onNavigate }) {
     getTid()
   }, [user, isPreview])
 
-  // ── Load connected integrations ──────────────────────────────────────────────
+  // ── Load connected integrations + tenant tool data ────────────────────────────
   useEffect(() => {
     if (!tenantId) return
     const load = async () => {
-      const { data } = await supabase
-        .from('tenant_integrations')
-        .select('integration_id, enabled, settings, connected_at')
-        .eq('tenant_id', tenantId)
+      const [intRes, tenantRes] = await Promise.all([
+        supabase.from('tenant_integrations')
+          .select('integration_id, enabled, settings, connected_at')
+          .eq('tenant_id', tenantId),
+        supabase.from('tenants')
+          .select('sms_followup_enabled, provisional_booking_enabled, booking_link, emergency_keywords, keep_alive_topics, blocked_phone_numbers, calendar_tier')
+          .eq('id', tenantId).maybeSingle(),
+      ])
       const map = {}
-      for (const row of (data || [])) {
+      for (const row of (intRes.data || [])) {
         if (row.enabled) map[row.integration_id] = { settings: row.settings || {}, connected_at: row.connected_at }
       }
       setConnectedMap(map)
+      if (tenantRes.data) setTenantToolData(tenantRes.data)
     }
     load()
   }, [tenantId])
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast({ msg: '', type: '' }), 4000)
-  }
-
   const handleDisconnect = async (integrationId) => {
-    if (isDemo || isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     await fetch('/api/integrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -412,7 +419,7 @@ export default function Integrations({ onNavigate }) {
   const availableList = filtered.filter(i => !i.isConnected && i.status === 'available')
   const comingSoonList = filtered.filter(i => !i.isConnected && i.status === 'coming_soon')
 
-  const cardProps = { tenantId, isDemo, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }
+  const cardProps = { tenantId, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }
 
   return (
     <div style={s.page}>
@@ -426,6 +433,7 @@ export default function Integrations({ onNavigate }) {
           {toast.msg}
         </div>
       )}
+
 
       <div style={s.filterRow}>
         {CATEGORIES.map(cat => (
@@ -463,7 +471,7 @@ export default function Integrations({ onNavigate }) {
   )
 }
 
-function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }) {
+function IntegrationCard({ integration, tenantId, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }) {
   const { id, name, description, category, priority, status, icon, isConnected } = integration
   const isExpanded = expandedId === id
   const [saving, setSaving] = useState(false)
@@ -551,7 +559,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
                   onClick={handleWhatsAppSave}
-                  disabled={saving || !waPhoneId.trim() || !waToken.trim() || isDemo || isPreview}
+                  disabled={saving || !waPhoneId.trim() || !waToken.trim() || previewReadOnly}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!waPhoneId.trim() || !waToken.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >
                   {saving ? 'Connecting…' : 'Connect WhatsApp'}
@@ -578,8 +586,8 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
-                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=xero&tenantId=${tenantId}` }}
-                  disabled={!tenantId || isDemo || isPreview}
+                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=xero&tenantId=${tenantId}` }}
+                  disabled={!tenantId || previewReadOnly}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >
                   Connect Xero →
@@ -599,7 +607,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <button onClick={() => handleDisconnect('google_business')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
             </div>
           ) : (
-            <GoogleBusinessForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+            <GoogleBusinessForm tenantId={tenantId} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
           )}
         </div>
       )}
@@ -613,7 +621,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <button onClick={() => handleDisconnect('google_calendar')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
             </div>
           ) : (
-            <CalDAVForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+            <CalDAVForm tenantId={tenantId} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
           )}
         </div>
       )}
@@ -634,8 +642,8 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
-                  onClick={() => { if (!tenantId || isDemo || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=freeagent&tenantId=${tenantId}` }}
-                  disabled={!tenantId || isDemo || isPreview}
+                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=freeagent&tenantId=${tenantId}` }}
+                  disabled={!tenantId || previewReadOnly}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >
                   Connect FreeAgent →
@@ -657,12 +665,12 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
 
       {/* ── Checkatrade connect form ── */}
       {isExpanded && id === 'checkatrade' && (
-        <ReviewUrlForm tenantId={tenantId} integrationId="checkatrade" platform="Checkatrade" placeholder="https://www.checkatrade.com/trades/YourBusiness/reviews" isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
+        <ReviewUrlForm tenantId={tenantId} integrationId="checkatrade" platform="Checkatrade" placeholder="https://www.checkatrade.com/trades/YourBusiness/reviews" isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
       )}
 
       {/* ── Rated People connect form ── */}
       {isExpanded && id === 'rated_people' && (
-        <ReviewUrlForm tenantId={tenantId} integrationId="rated_people" platform="Rated People" placeholder="https://www.ratedpeople.com/profile/YourBusiness" isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
+        <ReviewUrlForm tenantId={tenantId} integrationId="rated_people" platform="Rated People" placeholder="https://www.ratedpeople.com/profile/YourBusiness" isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} isConnected={isConnected} handleDisconnect={handleDisconnect} connectedMap={connectedMap} />
       )}
 
       {/* ── Zapier connect form ── */}
@@ -674,7 +682,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
               <button onClick={() => handleDisconnect('zapier')} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', background: 'white', color: '#e05252', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Disconnect</button>
             </div>
           ) : (
-            <ZapierForm tenantId={tenantId} isDemo={isDemo} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
+            <ZapierForm tenantId={tenantId} isPreview={isPreview} setExpandedId={setExpandedId} setConnectedMap={setConnectedMap} showToast={showToast} />
           )}
         </div>
       )}
@@ -682,7 +690,7 @@ function IntegrationCard({ integration, tenantId, isDemo, isPreview, expandedId,
   )
 }
 
-function GoogleBusinessForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+function GoogleBusinessForm({ tenantId, _isPreview, setExpandedId, setConnectedMap, showToast }) {
   const [reviewUrl, setReviewUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
@@ -713,7 +721,7 @@ function GoogleBusinessForm({ tenantId, isDemo, isPreview, setExpandedId, setCon
       <input style={inputStyle} placeholder="https://g.page/r/xxxxxx/review" value={reviewUrl} onChange={e => setReviewUrl(e.target.value)} />
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
         <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-        <button onClick={handleSave} disabled={saving || !reviewUrl.trim() || isDemo || isPreview}
+        <button onClick={handleSave} disabled={saving || !reviewUrl.trim() || previewReadOnly}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!reviewUrl.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Connecting…' : 'Connect'}
         </button>
@@ -722,7 +730,7 @@ function GoogleBusinessForm({ tenantId, isDemo, isPreview, setExpandedId, setCon
   )
 }
 
-function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+function CalDAVForm({ tenantId, _isPreview, setExpandedId, setConnectedMap, showToast }) {
   const [caldavUrl, setCaldavUrl] = useState('')
   const [username, setUsername] = useState('')
   const [appPassword, setAppPassword] = useState('')
@@ -766,7 +774,7 @@ function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
       <input style={inputStyle} type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value)} />
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
         <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-        <button onClick={handleSave} disabled={saving || !caldavUrl.trim() || !username.trim() || !appPassword.trim() || isDemo || isPreview}
+        <button onClick={handleSave} disabled={saving || !caldavUrl.trim() || !username.trim() || !appPassword.trim() || previewReadOnly}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!caldavUrl.trim() || !username.trim() || !appPassword.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Connecting…' : 'Connect calendar'}
         </button>
@@ -776,7 +784,7 @@ function CalDAVForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
 }
 
 // ─── Shared review URL form (Checkatrade, Rated People, etc.) ─────────────────
-function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, isDemo, isPreview, setExpandedId, setConnectedMap, showToast, isConnected, handleDisconnect, connectedMap }) {
+function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, _isPreview, setExpandedId, setConnectedMap, showToast, isConnected, handleDisconnect, _connectedMap }) {
   const [url, setUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
@@ -814,7 +822,7 @@ function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, isDemo,
       <input style={inputStyle} placeholder={placeholder} value={url} onChange={e => setUrl(e.target.value)} />
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-        <button onClick={handleSave} disabled={saving || !url.trim() || isDemo || isPreview}
+        <button onClick={handleSave} disabled={saving || !url.trim() || previewReadOnly}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!url.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Connecting…' : `Connect ${platform}`}
         </button>
@@ -824,7 +832,7 @@ function ReviewUrlForm({ tenantId, integrationId, platform, placeholder, isDemo,
 }
 
 // ─── Zapier webhook URL form ──────────────────────────────────────────────────
-function ZapierForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMap, showToast }) {
+function ZapierForm({ tenantId, _isPreview, setExpandedId, setConnectedMap, showToast }) {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const inputStyle = { width: '100%', padding: '0.5rem 0.65rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none', marginBottom: '0.6rem' }
@@ -854,7 +862,7 @@ function ZapierForm({ tenantId, isDemo, isPreview, setExpandedId, setConnectedMa
       <input style={inputStyle} placeholder="https://hooks.zapier.com/hooks/catch/..." value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} />
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button onClick={() => setExpandedId(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(94,59,135,0.25)', borderRadius: '6px', background: 'white', color: '#5e3b87', fontSize: '0.775rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-        <button onClick={handleSave} disabled={saving || !webhookUrl.trim() || isDemo || isPreview}
+        <button onClick={handleSave} disabled={saving || !webhookUrl.trim() || previewReadOnly}
           style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: (!webhookUrl.trim() || saving) ? '#f5d98a' : '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Connecting…' : 'Connect Zapier'}
         </button>

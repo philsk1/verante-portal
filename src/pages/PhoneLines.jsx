@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { usePreview } from '../context/PreviewContext'
 
 const UK_AREAS = [
   { label: 'No preference', value: '' },
@@ -71,7 +70,7 @@ function ActiveCard({ number, forwardTo, ported }) {
 }
 
 // ─── Offer page ────────────────────────────────────────────────────────────────
-function OfferPage({ tenantId, businessName, email }) {
+function OfferPage({ businessName, email }) {
   const [mode, setMode]               = useState('new')
   const [area, setArea]               = useState('')
   const [portNumber, setPortNumber]   = useState('')
@@ -229,8 +228,6 @@ function OfferPage({ tenantId, businessName, email }) {
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function PhoneLines() {
   const { user } = useAuth()
-  const { isPreview } = usePreview()
-
   const [loading, setLoading]       = useState(true)
   const [tenantId, setTenantId]     = useState(null)
   const [businessName, setBusiness] = useState('')
