@@ -277,9 +277,10 @@ const OwnerSelector = () => {
             {filtered.map(t => (
               <button
                 key={t.id}
+                onClick={() => select(t)}
                 style={{
                   background: 'white', border: '0.5px solid rgba(94,59,135,0.12)', borderRadius: '12px',
-                  cursor: 'pointer', textAlign: 'left',
+                  cursor: 'pointer', textAlign: 'left', padding: '0.9rem 1rem',
                   boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s',
                   fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
@@ -292,7 +293,7 @@ const OwnerSelector = () => {
                     {t.business_name}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    <img src={`/qmood/${t._qMood}.svg`} alt="Q" style={{ width: 43, height: 43, objectFit: 'contain' }} />
+                    <img src={`/qmood/${t._qMood}.png`} alt="Q" style={{ width: 43, height: 43, objectFit: 'contain' }} />
                     <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.82rem', color: '#1a1a1a', minWidth: '1.6rem', textAlign: 'right' }}>{t._qScore}</span>
                     <TierBadge tier={t.subscription_tier} />
                   </div>
