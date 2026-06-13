@@ -24,3 +24,13 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Seed scripts contain PAT — keep local only
+seed-*.cjs
+scripts/seed-*.mjs
+fix-*.cjs
