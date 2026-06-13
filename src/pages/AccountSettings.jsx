@@ -520,6 +520,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -691,7 +692,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveAccountDetails = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setAccountSaving(true)
     const { error } = await supabase.from('tenants').update({ business_name: displayName }).eq('id', tenantId)
     setAccountSaving(false)
@@ -705,7 +706,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveNotifications = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setNotifySaving(true)
     const { error } = await supabase.from('tenants').update({
       notify_new_lead: notifyNewLead,
@@ -722,7 +723,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveCostLimit = async (val) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setMonthlyCostLimit(val)
     setCostLimitSaving(true)
     await supabase.from('tenants').update({ monthly_cost_limit: val }).eq('id', tenantId)
@@ -730,7 +731,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   }
 
   const saveDataRetention = async (days) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setDataRetentionDays(days)
     setDataSaving(true)
     const { error } = await supabase.from('tenants').update({ data_retention_days: days }).eq('id', tenantId)
@@ -820,7 +821,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   // Plan selector handler — upgrades Answer tier via Stripe, persists Listen/Calendar to Supabase
   const handlePlanSelect = async ({ answer, listen, calendar }) => {
     setShowPlanSelector(false)
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     // Persist Listen + Calendar product selections
     await supabase.from('tenants').update({ listen_tier: listen, calendar_tier: calendar }).eq('id', tenantId)
     setCalendarTier(calendar)

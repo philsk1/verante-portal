@@ -61,6 +61,7 @@ const PartnersReferrals = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview  = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
 
   const [loading, setLoading]             = useState(true)
   const [tenantId, setTenantId]           = useState(null)
@@ -157,7 +158,7 @@ const PartnersReferrals = ({ onNavigate }) => {
   }, [user, isPreview])
 
   const addPartner = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const name = draft.name.trim()
     if (!name) return
     setAdding(true)
@@ -175,14 +176,14 @@ const PartnersReferrals = ({ onNavigate }) => {
   }
 
   const removePartner = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('referral_service_map').delete().eq('partner_id', id)
     await supabase.from('referral_partners').delete().eq('id', id)
     setPartners(prev => prev.filter(p => p.id !== id))
   }
 
   const logInbound = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const partner = partners.find(p => p.id === id)
     if (!partner) return
     const newCount = partner.inboundCount + 1
@@ -380,7 +381,7 @@ const PartnersReferrals = ({ onNavigate }) => {
 
                   {/* Remove + log */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    {!isPreview && (
+                    {!previewReadOnly && (
                       <button
                         onClick={() => logInbound(p.id)}
                         title="Log a referral received from this partner"
@@ -391,7 +392,7 @@ const PartnersReferrals = ({ onNavigate }) => {
                     )}
                     <button
                       onClick={() => removePartner(p.id)}
-                      style={{ background: 'none', border: 'none', cursor: isPreview ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                      style={{ background: 'none', border: 'none', cursor: previewReadOnly ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
                       title="Remove partner"
                     >×</button>
                   </div>
@@ -413,7 +414,7 @@ const PartnersReferrals = ({ onNavigate }) => {
             <Input value={draft.specialty} onChange={e => setDraft(d => ({ ...d, specialty: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') addPartner() }} placeholder="What do they specialise in? (e.g. Electrical work, Commercial cleaning…)" />
             <button
               onClick={addPartner}
-              disabled={!draft.name.trim() || adding || isPreview}
+              disabled={!draft.name.trim() || adding || previewReadOnly}
               style={{ padding: '0.6rem 1.25rem', borderRadius: '10px', border: 'none', background: !draft.name.trim() || adding ? '#f5d98a' : '#f0a500', color: !draft.name.trim() || adding ? '#7a5c1a' : '#1a0533', fontSize: '0.8125rem', fontWeight: 700, cursor: !draft.name.trim() || adding ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', alignSelf: 'center' }}
             >
               {adding ? 'Adding…' : '+ Add partner'}

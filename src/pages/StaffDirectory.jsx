@@ -25,6 +25,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
 
   const [tenantId, setTenantId]       = useState(null)
   const [staff, setStaff]             = useState([])
@@ -42,7 +43,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   const [editingSkills, setEditingSkills] = useState(false)
 
   useEffect(() => {
-    if (!openAdd || isPreview) return
+    if (!openAdd || previewReadOnly) return
     setAdding(true)
     setSelected(null)
     onOpenAddConsumed?.()
@@ -106,7 +107,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   const closeProfile = () => { setSelected(null); setDraft(null) }
 
   const saveProfile = async () => {
-    if (isPreview || !draft || !tenantId) return
+    if (previewReadOnly || !draft || !tenantId) return
     setSaving(true)
     const { id, ...fields } = draft
     await supabase.from('staff_profiles').update({
@@ -128,21 +129,21 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
   }
 
   const toggleActive = async (member) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('staff_profiles').update({ active: !member.active }).eq('id', member.id)
     setStaff(prev => prev.map(s => s.id === member.id ? { ...s, active: !s.active } : s))
     if (draft?.id === member.id) setDraft(d => ({ ...d, active: !d.active }))
   }
 
   const removeStaff = async (id) => {
-    if (isPreview || !window.confirm('Remove this team member?')) return
+    if (previewReadOnly || !window.confirm('Remove this team member?')) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
     if (selected === id) closeProfile()
   }
 
   const addMember = async () => {
-    if (isPreview || !addDraft.name.trim() || !tenantId) return
+    if (previewReadOnly || !addDraft.name.trim() || !tenantId) return
     setAddSaving(true)
     const { data, error } = await supabase.from('staff_profiles').insert({
       tenant_id: tenantId,
@@ -223,7 +224,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.15rem', fontWeight: 700, color: '#1a1a1a', margin: '0 0 0.1rem' }}>Team</h2>
           <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{staff.length} member{staff.length !== 1 ? 's' : ''}</div>
         </div>
-        {!isPreview && (
+        {!previewReadOnly && (
           <button onClick={() => { setAdding(true); closeProfile() }}
             style={{ padding: '0.45rem 1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             + Add member
@@ -237,15 +238,15 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
         <div style={{ width: 260, flexShrink: 0 }}>
           {staff.length === 0 && !adding ? (
             <div
-              onClick={!isPreview ? () => setAdding(true) : undefined}
-              style={{ background: 'white', borderRadius: 14, border: '1.5px dashed rgba(94,59,135,0.18)', padding: '2rem 1.25rem', textAlign: 'center', cursor: !isPreview ? 'pointer' : 'default', transition: 'border-color 0.15s, background 0.15s' }}
-              onMouseEnter={e => { if (!isPreview) { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' } }}
+              onClick={!previewReadOnly ? () => setAdding(true) : undefined}
+              style={{ background: 'white', borderRadius: 14, border: '1.5px dashed rgba(94,59,135,0.18)', padding: '2rem 1.25rem', textAlign: 'center', cursor: !previewReadOnly ? 'pointer' : 'default', transition: 'border-color 0.15s, background 0.15s' }}
+              onMouseEnter={e => { if (!previewReadOnly) { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' } }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(94,59,135,0.18)'; e.currentTarget.style.background = 'white' }}
             >
               <div style={{ fontSize: '1.75rem', marginBottom: '0.65rem' }}>👥</div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>No team members yet</div>
-              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: !isPreview ? '1rem' : 0, lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
-              {!isPreview && (
+              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: !previewReadOnly ? '1rem' : 0, lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
+              {!previewReadOnly && (
                 <button onClick={e => { e.stopPropagation(); setAdding(true) }} style={{ padding: '0.45rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                   + Add first member
                 </button>
@@ -399,7 +400,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
               <div style={{ marginBottom: '0.9rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                   {lbl('Specialist services / skills')}
-                  {!isPreview && !editingSkills && (
+                  {!previewReadOnly && !editingSkills && (
                     <button onClick={() => setEditingSkills(true)}
                       style={{ fontSize: '0.72rem', fontWeight: 600, color: '#5e3b87', background: '#f0ebf8', border: 'none', borderRadius: 6, padding: '0.2rem 0.55rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>
                       Edit
@@ -414,7 +415,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
                     return (
                       <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.22rem 0.55rem', borderRadius: 20, background: isCatalogue ? '#f0ebf8' : '#e6f5ee', color: isCatalogue ? '#5e3b87' : '#1e7a4a', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
                         {tag}
-                        {!isPreview && (
+                        {!previewReadOnly && (
                           <button onClick={() => setDraft(d => ({ ...d, specialist_services: (d.specialist_services || []).filter(s => s !== tag) }))}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '0.9rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', marginLeft: 1 }}>×</button>
                         )}
@@ -488,7 +489,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed 
                 style={{ padding: '0.4rem 0.75rem', background: 'white', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 7, fontSize: '0.78rem', color: '#ef4444', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 Remove
               </button>
-              <button onClick={saveProfile} disabled={saving || isPreview || !draft.name.trim()}
+              <button onClick={saveProfile} disabled={saving || previewReadOnly || !draft.name.trim()}
                 style={{ padding: '0.4rem 1rem', background: saved ? '#3db87a' : (saving ? '#f5d98a' : '#f0a500'), color: saved ? 'white' : '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
               </button>

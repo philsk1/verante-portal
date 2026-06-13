@@ -435,6 +435,7 @@ const BusinessProfile = () => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
@@ -543,7 +544,7 @@ const BusinessProfile = () => {
   // ── business details ────────────────────────────────────────────────────────
 
   const saveDetails = async () => {
-    if (isPreview) return
+    if (previewReadOnly) return
     if (!tenantId) {
       setDetailsToast({ msg: 'Account not linked to a business. Complete setup at /onboarding.', type: 'error' })
       return
@@ -575,14 +576,14 @@ const BusinessProfile = () => {
   // ── services ────────────────────────────────────────────────────────────────
 
   const addService = async (name) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const { data, error } = await supabase.from('services')
       .insert({ tenant_id: tenantId, service_name: name }).select().maybeSingle()
     if (!error && data) setServices(prev => [...prev, data])
   }
 
   const removeService = async (i) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const item = services[i]
     if (item.id) await supabase.from('services').delete().eq('id', item.id)
     setServices(prev => prev.filter((_, idx) => idx !== i))
@@ -591,14 +592,14 @@ const BusinessProfile = () => {
   // ── partner services ────────────────────────────────────────────────────────
 
   const addPartnerService = async (name) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const { data, error } = await supabase.from('banned_services')
       .insert({ tenant_id: tenantId, banned_item: name }).select().maybeSingle()
     if (!error && data) setPartnerServices(prev => [...prev, { ...data, service_name: data.banned_item }])
   }
 
   const removePartnerService = async (i) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const item = partnerServices[i]
     if (item.id) await supabase.from('banned_services').delete().eq('id', item.id)
     setPartnerServices(prev => prev.filter((_, idx) => idx !== i))
@@ -610,7 +611,7 @@ const BusinessProfile = () => {
   const atClientLimit = clients.length >= clientLimit
 
   const addClient = async () => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const name = clientDraft.name.trim()
     const phone = clientDraft.phone.trim()
     if (!name || !phone || !tenantId || atClientLimit) return
@@ -645,7 +646,7 @@ const BusinessProfile = () => {
   }
 
   const removeClient = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('caller_tenant_relationships').delete().eq('id', id)
     setClients(prev => prev.filter(c => c.id !== id))
   }
@@ -653,7 +654,7 @@ const BusinessProfile = () => {
   // ── staff profiles ──────────────────────────────────────────────────────────
 
   const addStaff = async () => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const name = staffDraft.name.trim()
     if (!name || !tenantId) return
     setStaffAdding(true)
@@ -681,7 +682,7 @@ const BusinessProfile = () => {
   }
 
   const removeStaff = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
   }
@@ -689,7 +690,7 @@ const BusinessProfile = () => {
   // ── catalogue ───────────────────────────────────────────────────────────────
 
   const addCatalogueItem = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const name = catalogueDraft.name.trim()
     if (!name) return
     setCatalogueAdding(true)
@@ -715,13 +716,13 @@ const BusinessProfile = () => {
   }
 
   const removeCatalogueItem = async (id) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     await supabase.from('catalogue_items').delete().eq('id', id)
     setCatalogueItems(prev => prev.filter(i => i.id !== id))
   }
 
   const handleCatalogueCSV = (e) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()

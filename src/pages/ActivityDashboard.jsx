@@ -523,6 +523,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
   const isMobile = useIsMobile()
 
   const leadsZoneRef = useRef(null)
@@ -693,7 +694,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   }, [selectedLead?.id])
 
   const saveLeadNotes = async (value) => {
-    if (isPreview || !selectedLead?.id) return
+    if (previewReadOnly || !selectedLead?.id) return
     setLeadNotesSaving(true)
     try {
       await supabase.from('leads').update({ notes: value }).eq('id', selectedLead.id)
@@ -708,7 +709,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const markContacted = async (lead) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'contacted' } : l))
     setSelectedLead(null)
-    if (isPreview) return
+    if (previewReadOnly) return
     try {
       await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id)
     } catch {
@@ -719,7 +720,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const updateLeadStatus = async (lead, status) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status } : l))
     if (selectedLead?.id === lead.id) setSelectedLead(prev => ({ ...prev, status }))
-    if (isPreview) return
+    if (previewReadOnly) return
     try {
       await supabase.from('leads').update({ status }).eq('id', lead.id)
     } catch {
@@ -729,7 +730,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
   const submitQuickCapture = async () => {
     if (!qcName.trim() && !qcPhone.trim()) return
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setQcSaving(true)
     try {
       let callerId = null

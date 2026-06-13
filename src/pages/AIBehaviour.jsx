@@ -489,6 +489,7 @@ const AIBehaviour = ({ onNavigate }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
+  const previewReadOnly = preview?.previewReadOnly ?? false
 
   const [tenantId, setTenantId] = useState(null)
   const [tier, setTier] = useState('light')
@@ -662,7 +663,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveMainSettings = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setSaving(true)
     const { error } = await supabase.from('tenants').update({
       triage_mode: triageMode,
@@ -691,7 +692,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveRules = async () => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     setRulesSaving(true)
     const rows = CALL_TYPES.map(type => ({
       tenant_id:     tenantId,
@@ -720,7 +721,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const saveToggle = async (field, value) => {
-    if (isPreview || !tenantId) return
+    if (previewReadOnly || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
   }
 
@@ -729,7 +730,7 @@ const AIBehaviour = ({ onNavigate }) => {
   }
 
   const addKeyword = async (word) => {
-    if (isPreview) return
+    if (previewReadOnly) return
     const trimmed = word.trim()
     if (!trimmed || !tenantId) return
     const updated = [...keywords, trimmed]
