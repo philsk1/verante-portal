@@ -343,13 +343,22 @@ export default async function handler(req, res) {
   if (userEmail !== undefined) {
     if (userEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
 
-    const { data, error } = await supabase
+    const { data: tenants, error } = await supabase
       .from('tenants')
-      .select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo')
+      .select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo, leads(count), call_logs(count)')
       .order('business_name')
 
     if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ tenants: data || [] })
+
+    const enriched = (tenants || []).map(t => ({
+      ...t,
+      lead_count:  t.leads?.[0]?.count  || 0,
+      call_count:  t.call_logs?.[0]?.count || 0,
+      leads:       undefined,
+      call_logs:   undefined,
+    }))
+
+    return res.status(200).json({ tenants: enriched })
   }
 
   // ── scrape-website ─────────────────────────────────────────────────────────

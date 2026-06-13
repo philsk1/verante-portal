@@ -41,6 +41,25 @@ const OUTCOME_LABEL = { booking: 'Booking', callback: 'Callback', quote: 'Quote'
 const CALENDAR_LABEL = { entry: 'Single calendar', multi: 'Multi-staff calendar', none: 'No calendar' }
 
 const TIER_RANK = { free: 0, light: 1, standard: 2, professional: 3, enterprise: 4, bespoke: 5 }
+const CAL_RANK  = { none: 0, entry: 1, multi: 2 }
+
+const SORT_DIMS = [
+  { key: 'az',          label: 'A–Z' },
+  { key: 'performance', label: 'Performance' },
+  { key: 'data',        label: 'Data' },
+  { key: 'tier',        label: 'Tier' },
+  { key: 'answer',      label: 'Answer' },
+  { key: 'calendar',    label: 'Calendar' },
+  { key: 'sentry',      label: 'Sentry' },
+  { key: 'listen',      label: 'Listen' },
+]
+
+function perfScore(t)    { return (t.lead_count || 0) + (t.call_count || 0) }
+
+function dataScore(t) {
+  return [t.triage_mode, t.business_outcome_type, t.spam_filter_enabled, t.sms_followup_enabled, t.provisional_booking_enabled]
+    .filter(Boolean).length
+}
 
 function productScore(t) {
   let s = (TIER_RANK[t.subscription_tier] || 0) * 2
@@ -52,11 +71,26 @@ function productScore(t) {
   return s
 }
 
-function qMood(score) {
-  if (score >= 12) return 'smile'
-  if (score >= 7)  return 'content'
-  if (score >= 4)  return 'sad'
+function qMood(t) {
+  const total = productScore(t) + dataScore(t) + (perfScore(t) > 10 ? 3 : perfScore(t) > 3 ? 1 : 0)
+  if (total >= 14) return 'smile'
+  if (total >= 8)  return 'content'
+  if (total >= 4)  return 'sad'
   return 'crying'
+}
+
+function getSortVal(t, field) {
+  switch (field) {
+    case 'az':          return t.business_name?.toLowerCase() || ''
+    case 'performance': return perfScore(t)
+    case 'data':        return dataScore(t)
+    case 'tier':        return TIER_RANK[t.subscription_tier] || 0
+    case 'answer':      return TIER_RANK[t.subscription_tier] || 0
+    case 'calendar':    return CAL_RANK[t.calendar_tier] || 0
+    case 'sentry':      return (t.sentry_tier && t.sentry_tier !== 'none') ? 1 : 0
+    case 'listen':      return (t.listen_tier && t.listen_tier !== 'none') ? 1 : 0
+    default:            return 0
+  }
 }
 
 const OwnerSelector = () => {
@@ -66,7 +100,7 @@ const OwnerSelector = () => {
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [sortBy, setSortBy] = useState('az')
+  const [sort, setSort] = useState({ field: null, dir: 'desc' })
 
   useEffect(() => {
     if (!user) return
@@ -92,10 +126,20 @@ const OwnerSelector = () => {
     navigate('/login')
   }
 
+  const handleSort = (field) => {
+    setSort(prev => {
+      if (prev.field !== field) return { field, dir: 'desc' }
+      if (prev.dir === 'desc') return { field, dir: 'asc' }
+      return { field: null, dir: 'desc' }
+    })
+  }
+
   const sorted = [...tenants].sort((a, b) => {
-    if (sortBy === 'tier') return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
-    if (sortBy === 'products') return productScore(b) - productScore(a)
-    return a.business_name.localeCompare(b.business_name)
+    if (!sort.field) return a.business_name.localeCompare(b.business_name)
+    const va = getSortVal(a, sort.field)
+    const vb = getSortVal(b, sort.field)
+    const diff = sort.field === 'az' ? va.localeCompare(vb) : (va < vb ? -1 : va > vb ? 1 : 0)
+    return sort.dir === 'desc' ? -diff : diff
   })
 
   return (
@@ -108,57 +152,47 @@ const OwnerSelector = () => {
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginBottom: 8, flexShrink: 0 }} />
           <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', borderRadius: '4px', padding: '0.2rem 0.5rem', fontWeight: 500, letterSpacing: '0.03em' }}>Owner</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <a
-            href="/owner/audit"
-            style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}
-            onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.9)'}
-            onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.55)'}
-          >
-            DB Audit →
-          </a>
-          <button
-            onClick={handleSignOut}
-            style={{ padding: '0.375rem 0.85rem', border: '1px solid rgba(255,255,255,0.22)', borderRadius: '6px', background: 'transparent', color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Sign out
-          </button>
-        </div>
+        <button
+          onClick={handleSignOut}
+          style={{ padding: '0.375rem 0.85rem', border: '1px solid rgba(255,255,255,0.22)', borderRadius: '6px', background: 'transparent', color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+        >
+          Sign out
+        </button>
       </div>
 
       {/* Content */}
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
-        <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
-              Select a tenant
-            </h1>
-            <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
-              {tenants.length} account{tenants.length !== 1 ? 's' : ''}
-            </p>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            <div>
+              <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
+                Select a tenant
+              </h1>
+              <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
+                {tenants.length} account{tenants.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            {[
-              { key: 'az',       label: 'A–Z' },
-              { key: 'tier',     label: 'By tier' },
-              { key: 'products', label: 'By products' },
-            ].map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setSortBy(opt.key)}
-                style={{
-                  padding: '0.35rem 0.75rem', border: 'none', borderRadius: 6, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: 500,
-                  background: sortBy === opt.key ? '#5e3b87' : 'white',
-                  color: sortBy === opt.key ? 'white' : '#666',
-                  boxShadow: '0 1px 3px rgba(94,59,135,0.1)',
-                  transition: 'background 0.12s, color 0.12s',
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
+          {/* Sort pills — cycles inactive → ▼ desc → ▲ asc → inactive */}
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+            {SORT_DIMS.map(dim => {
+              const isActive = sort.field === dim.key
+              const arrow = isActive ? (sort.dir === 'desc' ? ' ▼' : ' ▲') : ''
+              return (
+                <button key={dim.key} onClick={() => handleSort(dim.key)}
+                  style={{
+                    padding: '0.28rem 0.65rem',
+                    border: `1px solid ${isActive ? '#5e3b87' : 'rgba(94,59,135,0.18)'}`,
+                    borderRadius: 20, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: '0.74rem',
+                    fontWeight: isActive ? 600 : 400,
+                    background: isActive ? '#5e3b87' : 'white',
+                    color: isActive ? 'white' : '#666',
+                  }}
+                >{dim.label}{arrow}</button>
+              )
+            })}
           </div>
         </div>
 
@@ -172,7 +206,7 @@ const OwnerSelector = () => {
         {!loading && !error && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
             {sorted.map(t => {
-              const mood = qMood(productScore(t))
+              const mood = qMood(t)
               return (
               <div
                 key={t.id}
@@ -185,68 +219,70 @@ const OwnerSelector = () => {
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}
               >
-                {/* Card body — click to open portal */}
+                {/* Card body */}
                 <div onClick={() => select(t)} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
-                {/* Name + tier + Q mood */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                    <img src={`/qmood/${mood}.svg`} alt="Q" style={{ width: 28, height: 28, flexShrink: 0, objectFit: 'contain' }} />
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
-                      {t.business_name}
+
+                  {/* Q mood + name + tier */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0 }}>
+                      <img src={`/qmood/${mood}.svg`} alt={mood} style={{ width: 44, height: 44, flexShrink: 0, objectFit: 'contain' }} />
+                      <div>
+                        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
+                          {t.business_name}
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.7rem', color: '#888', background: '#f7f6f9', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 500 }}>
+                            Perf <span style={{ color: '#3db87a', fontWeight: 700 }}>{perfScore(t)}</span>
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: '#888', background: '#f7f6f9', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 500 }}>
+                            Data <span style={{ color: '#5e3b87', fontWeight: 700 }}>{dataScore(t)}/5</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <TierBadge tier={t.subscription_tier} />
                   </div>
-                  <TierBadge tier={t.subscription_tier} />
-                </div>
 
-                {/* Feature bullets */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.75rem' }}>
-                  <BulletRow
-                    on={t.listen_tier && t.listen_tier !== 'none'}
-                    label="Listen"
-                    detail={t.listen_tier !== 'none' ? t.listen_tier : null}
-                  />
-                  <BulletRow
-                    on={t.calendar_tier && t.calendar_tier !== 'none'}
-                    label="Schedule"
-                    detail={CALENDAR_LABEL[t.calendar_tier] || t.calendar_tier}
-                  />
-                  <BulletRow
-                    on={!!t.provisional_booking_enabled}
-                    label="Provisional booking"
-                  />
-                  <BulletRow
-                    on={!!t.sms_followup_enabled}
-                    label="SMS follow-up"
-                  />
-                  <BulletRow
-                    on={!!t.spam_filter_enabled}
-                    label="Spam filter"
-                  />
-                </div>
+                  {/* Feature bullets */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.75rem' }}>
+                    <BulletRow
+                      on={t.listen_tier && t.listen_tier !== 'none'}
+                      label="Listen"
+                      detail={t.listen_tier !== 'none' ? t.listen_tier : null}
+                    />
+                    <BulletRow
+                      on={t.calendar_tier && t.calendar_tier !== 'none'}
+                      label="Schedule"
+                      detail={CALENDAR_LABEL[t.calendar_tier] || t.calendar_tier}
+                    />
+                    <BulletRow on={!!t.provisional_booking_enabled} label="Provisional booking" />
+                    <BulletRow on={!!t.sms_followup_enabled}        label="SMS follow-up" />
+                    <BulletRow on={!!t.spam_filter_enabled}          label="Spam filter" />
+                  </div>
 
-                {/* Mode row */}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.6rem' }}>
-                  {t.triage_mode && (
-                    <span style={{ fontSize: '0.68rem', color: '#5e3b87', background: '#ede8f5', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
-                      {TRIAGE_LABEL[t.triage_mode] || t.triage_mode} triage
-                    </span>
-                  )}
-                  {t.business_outcome_type && (
-                    <span style={{ fontSize: '0.68rem', color: '#78460a', background: '#fef3c7', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
-                      {OUTCOME_LABEL[t.business_outcome_type] || t.business_outcome_type} goal
-                    </span>
-                  )}
-                  {t.billing_model === 'payg' && (
-                    <span style={{ fontSize: '0.68rem', color: '#1e7a4a', background: '#e6f5ee', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
-                      PAYG
-                    </span>
-                  )}
-                  {t.is_demo && (
-                    <span style={{ fontSize: '0.68rem', color: '#888', background: '#f0f0f0', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
-                      demo
-                    </span>
-                  )}
-                </div>
+                  {/* Mode row */}
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid rgba(94,59,135,0.06)', paddingTop: '0.6rem' }}>
+                    {t.triage_mode && (
+                      <span style={{ fontSize: '0.68rem', color: '#5e3b87', background: '#ede8f5', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
+                        {TRIAGE_LABEL[t.triage_mode] || t.triage_mode} triage
+                      </span>
+                    )}
+                    {t.business_outcome_type && (
+                      <span style={{ fontSize: '0.68rem', color: '#78460a', background: '#fef3c7', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
+                        {OUTCOME_LABEL[t.business_outcome_type] || t.business_outcome_type} goal
+                      </span>
+                    )}
+                    {t.billing_model === 'payg' && (
+                      <span style={{ fontSize: '0.68rem', color: '#1e7a4a', background: '#e6f5ee', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
+                        PAYG
+                      </span>
+                    )}
+                    {t.is_demo && (
+                      <span style={{ fontSize: '0.68rem', color: '#888', background: '#f0f0f0', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 500 }}>
+                        demo
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Quick-access row */}
