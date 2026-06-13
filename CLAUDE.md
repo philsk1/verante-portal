@@ -316,6 +316,7 @@ Overage: Premium voice £0.18/min · Standard voice £0.14/min · PAYG flat £0.
 | `VeraDialogue.jsx` | Draggable Claude Haiku chat panel |
 | `ProtectedRoute.jsx` | Auth redirect guard |
 | `QBotIcon.jsx` | SVG icon |
+| `MoodQ.jsx` | Reusable mood Q at points of interest. Props: mood, reason, tip, size. Non-smiling moods clickable → 'Q says' popover with rule-based text. No API call. |
 
 ### API endpoints (12/12 — AT CAPACITY)
 | File | Route | Purpose |
@@ -454,6 +455,9 @@ Usually intentional — review before treating as bugs.
 - AccountSettings: 4-product card grid (Answer/Schedule/Listen/Sentry) + Lines compact tile. Reads `sentry_tier` and `lines_tier` from DB.
 - ListenTab: multi-term AND search on all tabs (archive, live copilot)
 - Demo system: REMOVED from remote. Orphan cleanup deferred (IC-DEMO-01).
+- **MoodQ.jsx built ✅ 2026-06-13** — reusable clickable mood Q component deployed to ActivityDashboard (perfMood, call volume) and AIBehaviour (configMood, greeting/booking completeness). qmood SVGs: content/sad/crying blob-stripped. smile.svg = content.svg placeholder (awaiting Philip's actual smiling illustration).
+- OwnerSelector: 8-pill sort dimensions, Q mood + score chips, 44px Q image.
+- OwnerSelector `qMood()` scoring: productScore + dataScore + perfScore → crying/sad/content/smile.
 
 ### Not built (claimed in prior docs — does not exist in code)
 - `src/context/QScoreContext.jsx` — Q scoring system not built
@@ -514,6 +518,8 @@ DemoContext is deeply imported by 3+ tab files. Medium priority, deferred.
 - Add AI Behaviour link to owner admin page
 - Listen multi-term search ✅ Done 2026-06-13
 - OwnerSelector quick-access row ✅ Done 2026-06-13
+- MoodQ clickable component ✅ Done 2026-06-13 (ActivityDashboard + AIBehaviour)
+- smile.svg proper fix: Philip to reshare actual smiling illustration (currently using content.svg as placeholder)
 - Investigate Blackwood Restoration staff linking issue in DB (needs fresh SUPABASE_PAT)
 - UX audit: group complex settings into collapsible sections
 - Schedule pricing model (dimension-based) — park until strategy session
@@ -588,4 +594,4 @@ RLS bypass: `supabase_owner_rls.sql` — already run. Grants SELECT on tables fo
 ---
 
 *Last updated: 2026-06-13*
-*Updated by: Portal.jsx split + PortalSidebar.jsx created. AccountSettings product grid. ListenTab multi-term search. OwnerSelector quick-access row. CLAUDE.md rewritten to canonical SINGLE SOURCE OF TRUTH format.*
+*Updated by: MoodQ.jsx built and deployed to ActivityDashboard (perfMood) and AIBehaviour (configMood). OwnerSelector 8-pill sort + Q mood scoring. qmood SVG blobs stripped. smile.svg placeholder (awaiting real smiling illustration from Philip). MoodQ.jsx added to components table.*
