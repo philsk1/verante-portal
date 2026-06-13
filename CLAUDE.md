@@ -1,82 +1,84 @@
-# Qerxel Portal — Project Brief
-
-This file is auto-loaded by Claude Code at the start of every session.
-It is the single source of truth for project context, strategy, and state.
-Update it at the end of every working session.
-
-**Full strategic context:** `QERXEL-HANDOFF-V12.md` in project root. Read it at session start for product strategy, tier structure, AI architecture, and GDPR obligations.
+# QERXEL — SINGLE SOURCE OF TRUTH
+## This file is auto-loaded by Claude Code at the start of every session.
+## READ THIS FILE IN FULL BEFORE DOING ANYTHING ELSE.
+## UPDATE THIS FILE BEFORE ENDING ANY SESSION.
 
 ---
 
-## What Qerxel Is
+## HOW TO USE THIS DOCUMENT
 
-AI call handling and lead capture SaaS for UK sole traders and micro-businesses. The AI answers missed calls, triages intent, captures leads, refers out-of-scope callers to partners, and routes to booking or callback. The portal is the tenant's control surface.
+This is the single authoritative reference for the Qerxel project. It contains truth derived from actual code analysis, not aspirational descriptions. When this document and the code disagree, investigate — one of them is wrong.
 
-Core sales framing — LOCKED: "Never miss another lead."
+**Session start:** Read this file completely. Do not begin work until you have done so.
 
-Working name — not legally confirmed yet.
+**During session:** When you discover something that contradicts or updates this document, note it. Don't act on stale information.
 
-**Scale intent:** Build to 500 tenants before making tech hires. Using Claude Code for all development.
+**Session end (mandatory):** 
+- Mark completed tasks as ✅ Done with the date
+- Add any new issues discovered to the Known Issues section
+- Remove resolved issues from Known Issues
+- Update "Next Tasks" to reflect current state
+- Update "Last updated" date at the bottom
+- No exceptions. Drift is how projects fail.
 
----
-
-## Tier Structure — UPDATED 2026-06-05
-
-| Tier | Price | Concurrent | Minutes/mo |
-|------|-------|-----------|------------|
-| Free | £0 (PAYG £0.35/min) | 1 | 0 (PAYG) |
-| Light | £29/month | 1 | 120 |
-| Standard | £49/month | 1 | 250 |
-| Professional | £69/month | 2 | 450 |
-| Enterprise | £249/month | 3+ | 1,000 |
-| Bespoke | Contact us | Custom | Custom |
-
-Overage (subscription): Premium voice £0.18/min · Standard voice £0.14/min. PAYG: flat £0.35/min. Enterprise has NO referral network cap.
-
-**Tier checks in code — always use this pattern:**
-```javascript
-const isProfessional = tier === 'professional'
-const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
-const isProfessionalOrAbove = isProfessional || isEnterprise
-```
+**Truth hierarchy:** This file > code reality > QERXEL-HANDOFF-V12.md (archived, do not consult)
 
 ---
 
-## Founder
+## 1. PROJECT IDENTITY
 
-Philip Keating. 27 years running a physical manufacturing business in print, peaked at 55 staff. Strategic operator. Tech hires deliberately deferred. Uses Claude Code (VSCode extension) for all development.
+**What it is:** AI call-handling and lead capture SaaS for UK sole traders and micro-businesses. The AI answers missed calls, triages intent, captures leads, refers callers to partners, and routes to booking or callback. The portal is the tenant's control surface.
 
-Dev environment: Windows 11, VSCode, PowerShell. F12 hijacked by ASUS — uses Ctrl+Shift+I for devtools. **PowerShell does not support `&&` — always two separate commands.**
+**Core promise (locked):** "Never miss another lead."
+
+**Working name:** Qerxel. Not legally confirmed.
+
+**Scale intent:** 500 tenants before any tech hire. All development via Claude Code.
+
+**Founder:** Philip Keating. 27 years running a manufacturing business (print), peaked at 55 staff. Strategic operator, not a developer. Uses Claude Code VSCode extension exclusively.
+
+**Dev environment:** Windows 11, VSCode, PowerShell. F12 hijacked by ASUS — uses Ctrl+Shift+I for devtools.
 
 ---
 
-## Tech Stack
+## 2. TECH STACK
 
 | Layer | Technology |
-|---|---|
+|-------|-----------|
 | Telephony | Vapi (BYOK pricing) |
-| STT | Deepgram Nova-2 |
-| LLM | Gemini 1.5 Flash or GPT-4o mini |
-| TTS | Cartesia or Deepgram Aura |
-| Database | Supabase (PostgreSQL) |
-| Automation | Make.com → n8n at 30 tenants |
-| Frontend | React + Vite → Vercel (auto-deploys on push) |
+| STT | Deepgram Nova-2 (non-negotiable) |
+| LLM Standard | Gemini Flash |
+| LLM Premium | GPT-4o mini |
+| TTS Standard | Cartesia Sonic 3 |
+| TTS Premium | Cartesia Sonic 3.5 |
+| Database | Supabase (PostgreSQL) — project kkrsvkxkefijmtbwykzv |
+| Frontend | React + Vite → Vercel |
+| Auth | Supabase Auth |
+| Email | Resend (transactional) |
 | SMS | Twilio |
-| Payments | Stripe (not yet wired) |
-| Calendar | CalDAV (Professional and Enterprise) |
-| Vera AI | Claude Haiku — vera-chat + greeting-generator endpoints |
+| Payments | Stripe (wired, needs dashboard setup) |
+| Automation | Make.com → n8n at 30 tenants |
+| Website scrape | Firecrawl (onboarding) |
+| Calendar UI | react-big-calendar + date-fns |
+| Vera AI | Claude Haiku (vera-chat, support-chat, greeting-generator, scrape-website) |
 
-**Supabase:** https://kkrsvkxkefijmtbwykzv.supabase.co
-**Anon key (HS256 — use this, NOT sb_publishable_):** in `src/supabase.js`
+**Supabase:**
+- URL: https://kkrsvkxkefijmtbwykzv.supabase.co
+- Anon key (HS256 — ALWAYS use this, NEVER use sb_publishable_): in `src/supabase.js`
+- Service role key: in Vercel env vars only, never in frontend
+- RLS: ENABLED on all tables. Owner bypass: `supabase_owner_rls.sql` (already run)
+- SQL access: `POST https://api.supabase.com/v1/projects/kkrsvkxkefijmtbwykzv/database/query` with `Authorization: Bearer <SUPABASE_PAT>`. PAT is in `.env` as `SUPABASE_PAT`.
+
 **GitHub:** https://github.com/philsk1/verante-portal
-**Live URL:** https://verrante-portal.vercel.app
-**Note:** Vercel GitHub auto-deploy broken (builds fail in 0ms). Use `npx vercel deploy --prod` from project root to deploy manually until reconnected in Vercel Settings → Git.
+**Live URL:** https://verante-portal.vercel.app
+**Deploy command:** `NODE_OPTIONS=--use-system-ca npx vercel deploy --prod` (TLS fix for Node 24 on Windows)
+**Vercel GitHub auto-deploy:** broken — always deploy manually.
 
 ---
 
-## Visual Language — LOCKED
+## 3. LOCKED VISUAL RULES — NEVER VIOLATE
 
-All inline styles. No CSS files. No CSS variables.
+All styles are inline. No CSS files. No CSS variables. Ever. No exceptions.
 
 | Token | Value |
 |-------|-------|
@@ -84,504 +86,575 @@ All inline styles. No CSS files. No CSS variables.
 | Violet dark | `#4a2d6e` |
 | Violet deep | `#3a2057` |
 | Amber | `#f0a500` |
-| Amber text on buttons | `#1a0533` |
+| Amber text (on buttons) | `#1a0533` |
 | Page bg | `#f7f6f9` |
 | Card bg | `#ffffff` / border `0.5px solid rgba(94,59,135,0.1)` |
-| Success | `#3db87a` |
-| Text | `#1a1a1a` · `#666` · `#aaa` |
+| Success green | `#3db87a` |
+| Text primary | `#1a1a1a` |
+| Text secondary | `#666` |
+| Text muted | `#aaa` |
 
-Fonts: Syne 700 (headings, logo, numbers). DM Sans 300/400/500 (body). Google Fonts in index.html.
+Fonts: **Syne 700** (headings, logo, numbers) · **DM Sans 300/400/500** (body). Google Fonts in index.html.
 
-Primary button: `#f0a500` bg, `#1a0533` text, borderRadius 8px.
-Disabled: `#f5d98a` bg, `#7a5c1a` text.
-Secondary: white bg, violet border.
-Locked sections: `blur(3px)` + `opacity 0.45` + absolute white badge.
+Primary button: `#f0a500` bg · `#1a0533` text · `borderRadius 8px`
+Disabled button: `#f5d98a` bg · `#7a5c1a` text
+Secondary button: white bg · violet border
+Locked sections: `blur(3px)` + `opacity 0.45` + absolute white badge
 
 ---
 
-## Product Architecture — LOCKED 2026-06-10
+## 4. LOCKED CODE RULES — NEVER VIOLATE
+
+- **PowerShell does not support `&&`** — always two separate Bash calls
+- **Anon key in frontend only.** Service role key in API endpoints only. Never cross this.
+- **HS256 anon key only.** Never use the ES256 `sb_publishable_` key.
+- **`.maybeSingle()` not `.single()`** — prevents 406 errors on 0 rows
+- **Save guard on every mutation:** `if (isPreview || !tenantId) return`
+- **No comments** unless the WHY is non-obvious
+- **No CSS files, no CSS variables** — already stated but worth repeating
+- **Tier check pattern (canonical — always use this):**
+  ```js
+  const isProfessional = tier === 'professional'
+  const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
+  const isProfessionalOrAbove = isProfessional || isEnterprise
+  ```
+- **Vera speeches:** column is `context_key` (not `speech_key`)
+- **API limit:** 12/12 Vercel Hobby — AT CAPACITY. No new API files without consolidating first.
+- **Deploy:** `NODE_OPTIONS=--use-system-ca npx vercel deploy --prod`
+- **SQL via management API:** use Node.js with `NODE_OPTIONS=--use-system-ca` — curl fails on Windows/Node 24
+
+---
+
+## 5. PRODUCT ARCHITECTURE — LOCKED
 
 Three products. Two standalones. One augmentation layer.
 
 ### Answer (standalone)
-AI answers missed calls, triages intent, captures leads, routes to booking or callback. Core product.
+AI answers missed calls, triages intent, captures leads, routes to booking or callback.
+Core product. Most competitive space.
 
-### Schedule (standalone)
-Calendar and scheduling. **Basic tier always free** with any purchase. Multi-person scheduling is a paid add-on (£5/mo + £2 per additional person). Enterprise/Bespoke: multi-person included.
-Schedule is a deliberate Trojan horse — feature-rich beyond any competitor free offering, designed to hook buyers into the brand and upsell to Answer.
+### Schedule (standalone — market entry)
+Calendar and appointment scheduling. Basic tier (entry) is **always free** with any purchase — this is the Trojan horse strategy. Schedule is deliberately feature-rich to hook buyers into the brand and upsell to Answer.
+- `calendar_tier = 'entry'` — basic single-staff calendar
+- `calendar_tier = 'multi'` — multi-staff team calendar (paid add-on)
+- `calendar_tier = 'none'` — no Schedule product
 
-### Listen (augmentation layer — requires Answer OR paid Schedule)
-Real-time AI screen copilot activated when the owner picks up a call themselves. Hears the live conversation, surfaces context on screen: creates bookings as they speak, shows customer history, checks staff availability, suggests catalogue items. Owner confirms with one tap.
-- With **Answer**: augments human-answered calls alongside AI-answered ones
-- With **Schedule**: augments inbound booking calls for calendar-only buyers
-- **Cannot stand alone** — requires telephony infrastructure from Answer or paid Schedule
-- Priced at ~£10/mo + 3–4p per minute (to be confirmed)
-- **Not available on free Schedule tier**
-- Future extension: Alexa/ambient device integration (V2)
+### Listen (augmentation layer)
+Real-time AI screen copilot activated when owner picks up a call themselves. Surfaces context on screen: creates bookings as they speak, shows customer history, suggests catalogue items.
+- Requires Answer OR paid Schedule to function (needs telephony infrastructure)
+- Cannot stand alone
+- `listen_tier = 'none'` — not purchased
+- `listen_tier = 'standard'` — active
 
-### The complete call handling system
-| Scenario | Product |
-|----------|---------|
-| Owner unavailable — AI answers | Answer |
-| Owner picks up — AI augments live | Listen |
-| Caller wants to book — live booking created on screen | Listen |
-
----
-
-## Portal Structure
-
-Shell: 260px collapsible violet sidebar (60px collapsed) → `#f7f6f9` content. Nav is product-grouped. Default tab: Dashboard (Answer) or Calendar (Schedule-only).
-
-### Navigation by purchase combination
+### Product combinations and nav structure
 
 **Answer only:**
 ```
-ANSWER
-  ├── Dashboard
-  ├── AI Settings
-  ├── Analytics
-  └── Partners & Referrals
-────────────────
-  Integrations
-  Business Profile
-  Account & Billing
+ANSWER → Dashboard · AI Settings · Analytics · Partners
+PLATFORM → Integrations · Business Profile · Account & Billing
 ```
 
 **Answer + Listen:**
 ```
-ANSWER
-  ├── Dashboard
-  ├── AI Settings
-  ├── Analytics
-  └── Partners & Referrals
-LISTEN
-  └── Transcripts / Live Copilot
-────────────────
-  Integrations
-  Business Profile
-  Account & Billing
+ANSWER → Dashboard · AI Settings · Analytics · Partners
+LISTEN → Listen
+PLATFORM → Integrations · Business Profile · Account & Billing
 ```
 
 **Answer + Schedule:**
 ```
-ANSWER
-  ├── Dashboard
-  ├── AI Settings
-  ├── Analytics
-  └── Partners & Referrals
-SCHEDULE
-  ├── Calendar
-  └── Team
-────────────────
-  Integrations
-  Business Profile
-  Account & Billing
+ANSWER → Dashboard · AI Settings · Analytics · Partners
+SCHEDULE → Calendar · Team
+PLATFORM → Integrations · Business Profile · Account & Billing
 ```
 
 **Answer + Listen + Schedule:**
 ```
-ANSWER
-  └── ...
-LISTEN
-  └── Transcripts / Live Copilot
-SCHEDULE
-  ├── Calendar
-  └── Team
-────────────────
-  Integrations · Business Profile · Account & Billing
+ANSWER → Dashboard · AI Settings · Analytics · Partners
+LISTEN → Listen
+SCHEDULE → Calendar · Team
+PLATFORM → Integrations · Business Profile · Account & Billing
 ```
 
-**Schedule only (standalone entry point):**
+**Schedule only (dazzle nav — NOT YET BUILT):**
 ```
-SCHEDULE
-  ├── Calendar        ← they came for this
-  ├── Team            ← surprise
-  ├── Services        ← surprise
-  ├── Analytics       ← surprise
-  └── Partners        ← surprise
-────────────────
-  Integrations
-  Business Profile
-  Account & Billing   ← Answer visible here as upsell
-```
-
-### Nav rules
-- Product groups only render if that product is purchased
-- Locked products show as greyed group header with lock icon — clicking opens upgrade modal
-- Basic Schedule (free) always renders for any buyer — never locked
-- Multi-person Team features within Schedule locked unless multi-person add-on purchased
-- Listen locked on free Schedule tier
-- Active group stays open by default — no extra clicks for single-product buyers
-- Account & Billing tab is the silent salesperson — shows all products, one click to add
-
-### Tab inventory
-| Tab | File | Group | Status |
-|-----|------|-------|--------|
-| Dashboard | `ActivityDashboard.jsx` | Answer | BUILT |
-| AI Settings | `AIBehaviour.jsx` | Answer | BUILT |
-| Analytics | `DataAnalytics.jsx` | Answer | BUILT |
-| Partners & Referrals | `PartnersReferrals.jsx` | Answer | BUILT |
-| Calendar | `Calendar.jsx` | Schedule | BUILT |
-| Team | `StaffDirectory.jsx` | Schedule | BUILT — needs moving from Answer |
-| Services | `BusinessProfile.jsx` (catalogue section) | Schedule | BUILT — needs exposing as tab |
-| Listen | `ListenTab.jsx` | Listen | BUILT — needs live copilot mode |
-| Integrations | `Integrations.jsx` | Platform | BUILT |
-| Business Profile | `BusinessProfile.jsx` | Platform | BUILT |
-| Account & Billing | `AccountSettings.jsx` | Platform | BUILT |
-
-**Vera help mascot:** `src/components/HelpMascot.jsx` — violet owl, bobs top of every page. Click Vera → all `[data-help]` elements pulse amber (`.vera-hover-mode` body class). Hover any to get explanation bubble. "Need more help?" button opens glowing zone mode → click zone → draggable Claude Haiku dialogue panel. Label: "Click on Vera the owl / for suggestions" (12px, `#5e3b87`, italic).
-
-**Auth flow:** Login → Signup → Onboarding → Portal. Bidirectional guards.
-
----
-
-## Database
-
-**RLS:** ENABLED on all tables as of 2026-06-04. Script: `supabase_rls.sql`. Helper: `is_tenant_member(tid)`. HS256 anon key confirmed working with `auth.uid()`. Never switch to ES256 `sb_publishable_` key.
-
-**Vapi webhook uses service_role key — bypasses RLS on inserts. Correct.**
-
-Key columns added this session:
-- `tenants.data_retention_days` integer default 90 — ✅ migrated
-
-Key tables added session 13:
-- `catalogue_items` — service/product catalogue per tenant. Columns: item_type, name, description, price_from, price_to, duration_minutes, processing_minutes, category, sku, active. Foundation for Qerxel Assist real-time lookup. Migration: `supabase_catalogue_migration.sql` ✅ run.
-
-Column additions from session 15:
-- `staff_profiles.email`, `address`, `birthday`, `private_notes`, `colour` — ✅ migrated (`supabase_staff_profiles_v2.sql`)
-
-Pending migrations (not yet run):
-```sql
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number_id text;
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vapi_phone_number text;
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text DEFAULT 'none';
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text DEFAULT 'entry';
+SCHEDULE → Calendar · Team · Services · Analytics · Partners
+PLATFORM → Integrations · Business Profile · Account & Billing (Answer shown as upsell)
 ```
 
 ---
 
-## Key Files
+## 6. TIER STRUCTURE
 
+| Tier value | Price | Minutes/mo | Concurrent |
+|-----------|-------|-----------|-----------|
+| `free` | £0 (PAYG 35p/min) | 0 | 1 |
+| `light` | £29/mo | 120 | 1 |
+| `standard` | £49/mo | 250 | 1 |
+| `professional` | £69/mo | 450 | 2 |
+| `enterprise` | £249/mo | 1,000 | 3+ |
+| `bespoke` | Contact us | Custom | Custom |
+
+Overage: Premium voice £0.18/min · Standard voice £0.14/min · PAYG flat £0.35/min
+
+---
+
+## 7. DATABASE — TABLE MAP
+
+| Table | Purpose | Key writers | Key readers |
+|-------|---------|-------------|-------------|
+| `tenants` | Core config, tiers, AI settings | Onboarding, AccountSettings, all tabs | Every file |
+| `tenant_memberships` | auth.users → tenants link | Onboarding | Portal, all tabs (load tenantId) |
+| `staff_profiles` | Team members | StaffDirectory | Calendar, Portal, _build-prompt |
+| `staff_availability` | Working hours per staff/day | Calendar (StaffScheduleTab) | Calendar, BookingPage |
+| `appointments` | Booked slots | Calendar | Calendar, BookingPage |
+| `catalogue_items` | Services/products — AI reads this | BusinessProfile (catalogue section) | Calendar, CalendarIntelligence, _build-prompt |
+| `services` | ⚠️ LEGACY service list | BusinessProfile (services section), Onboarding | BusinessProfile only — AI does NOT read this |
+| `banned_services` | Topics AI won't handle | BusinessProfile | PartnersReferrals, _build-prompt |
+| `referral_partners` | Partner businesses | PartnersReferrals | _build-prompt, vapi-webhook |
+| `referral_service_map` | Intent → partner mapping | PartnersReferrals | _build-prompt |
+| `referral_log` | Referral events | vapi-webhook | PartnersReferrals |
+| `leads` | Captured leads | vapi-webhook, ActivityDashboard | ActivityDashboard |
+| `callers` | Caller phone records | vapi-webhook | ActivityDashboard |
+| `call_logs` | Every call | vapi-webhook | ActivityDashboard, DataAnalytics, ListenTab |
+| `tenant_catalogue` | Enterprise scraped content | (Firecrawl pipeline) | CalendarIntelligence |
+| `vera_seen` | Vera speeches seen | HelpMascot | HelpMascot |
+| `vera_speeches` | Vera speech content | (SQL seed) | HelpMascot |
+
+**`tenants` new column (2026-06-13):** `q_dismissals jsonb DEFAULT '{}'::jsonb` — stores per-page dismissal timestamps. Example: `{"ai": "2026-06-13T10:00:00Z", "dashboard": "2026-05-01T..."}`. Written by HelpMascot via QScoreContext `saveDismissal(pageKey)`. Read by QScoreContext on load.
+| `tenant_feedback` | Product feedback | AccountSettings | — |
+
+**NOTE: `callers` table uses `full_name` column, NOT `name`. Verified from schema 2026-06-11.**
+
+**GDPR columns on `caller_tenant_relationships`:** `marketing_opted_out bool DEFAULT false`, `opted_out_at timestamptz`, `is_hot_prospect bool DEFAULT false`, `deletion_requested bool DEFAULT false`, `deletion_requested_at timestamptz`
+
+**`catalogue_items`** has `internal_notes text` column (AI-invisible; owner notes only).
+
+**`campaigns` table:** tracks SMS campaign sends. Columns: `id, tenant_id, name, message, recipient_count, sent_count, failed_count, status, search_context, created_at, sent_at`. RLS enabled.
+
+**`tenants` new columns:** `keep_alive_topics text[] DEFAULT ARRAY['appointment booking','product enquiry','senior citizen']`, `keep_alive_max_minutes integer DEFAULT 5`
+
+---
+
+## 8. FILE MAP
+
+### Core
+| File | Role |
+|------|------|
+| `src/main.jsx` | Vite entry |
+| `src/App.jsx` | Router (AuthProvider + PreviewProvider wrap all routes) |
+| `src/supabase.js` | Supabase client — anon key |
+
+### Routes
+| Path | Component | Auth |
+|------|-----------|------|
+| `/login` | Login.jsx | public |
+| `/signup` | Signup.jsx | public |
+| `/onboarding` | Onboarding.jsx | protected |
+| `/portal` | Portal.jsx | protected |
+| `/owner/select` | OwnerSelector.jsx | protected (owner only) |
+| `/owner/audit` | OwnerAudit.jsx | protected (owner only) |
+| `/plans` | PlanSelector.jsx | protected |
+| `/book/:tenantId` | BookingPage.jsx | public |
+
+### Contexts
+| File | Provides |
+|------|---------|
+| `src/context/AuthContext.jsx` | user, session, signOut |
+| `src/context/PreviewContext.jsx` | isPreview, previewTenantId, previewBusinessName, enterPreview, exitPreview, tierOverride |
+| `src/context/QScoreContext.jsx` | globalScore, globalMood, globalCaption, qMode, configPillar, toolPillar, perfPillar, coachingPoints, qDismissals, saveDismissal(pageKey), refresh() — loaded once per portal session |
+
+### Portal shell
+`src/pages/Portal.jsx` — main shell. Owns sidebar nav, tab routing, preview banner, mobile nav. All tenant state delegated to `useTenantState()` hook. Icons imported from `PortalIcons.jsx`.
+`src/pages/PortalIcons.jsx` — 20 named SVG icon components (IcoDashboard, IcoAI, … IcoEye).
+`src/hooks/useTenantState.js` — custom hook: 17 tenant state vars + init effect (parallel Promise.all fetches) + preview-reload effect + `saveReturnDate`/`saveNotification` helpers.
+
+### Tab files
+| File | Tab ID | Product | Notes |
+|------|--------|---------|-------|
+| `ActivityDashboard.jsx` | dashboard | Answer | Zone 1/2/3, reads listen+calendar tier locally |
+| `AIBehaviour.jsx` | ai | Answer | Vapi config, prompt builder, tone/triage settings |
+| `DataAnalytics.jsx` | analytics | Answer | Charts, enterprise-gated competitive intel |
+| `PartnersReferrals.jsx` | referrals | Answer | Partner management, referral network |
+| `ListenTab.jsx` | listen | Listen | Transcript archive, copilot mode stub |
+| `Calendar.jsx` | calendar | Schedule | Full calendar — ⚠️ effectiveCalendarTier hardcoded 'multi' |
+| `CalendarIntelligence.jsx` | (sub-component of Calendar) | Schedule | Intelligence Hub sub-panel |
+| `StaffDirectory.jsx` | team | Schedule | Staff cards, slide-in panel, tag picker |
+| `BusinessProfile.jsx` | profile | Platform | Business config + 4 navigation tiles (Clients/Services/Products/Team) |
+| `ClientDirectory.jsx` | clients | Business | Searchable client list, hot prospects, opt-out, campaign composer |
+| `ServiceCatalogue.jsx` | services | Business | Searchable services, notes, tier-gated quota |
+| `ProductCatalogue.jsx` | products | Business | Searchable products with SKU, notes, tier-gated quota |
+| `Integrations.jsx` | integrations | Platform | Integration modules |
+| `AccountSettings.jsx` | settings | Platform | Billing, plan, notifications, GDPR |
+| `PhoneLines.jsx` | lines | Platform | Phone line management |
+
+### Components
+| File | Role |
+|------|------|
+| `HelpMascot.jsx` | Q mascot — per-page mood, decay logic, coaching panel, "I'm happy" dismissal, hover/zone/dialogue modes |
+| `VeraDialogue.jsx` | Draggable Claude Haiku chat panel |
+| `ProtectedRoute.jsx` | Auth redirect guard |
+| `QBotIcon.jsx` | SVG icon |
+| `QMood.jsx` | Legacy inline mood component — **no longer used on any page**, candidate for deletion |
+
+### Q Mood PNG assets — DO NOT MODIFY OR RECREATE
+`public/qmood/smile.png` · `content.png` · `sad.png` · `crying.png`
+- **Format:** PNG (switched from SVG 2026-06-13 — quality visibly better)
+- **Source:** Exported from Recraft by Philip. Philip places files directly into `public/qmood/` himself.
+- **Workflow (locked):** Philip copies new files into `public/qmood/` → Claude runs `ls` to verify exact filenames → Claude deploys. Never write image content via chat or Write tool.
+- **Code pattern:** `/qmood/${mood}.png` — all four moods PNG, no SVG fallback.
+- **Render sizes:** 155px (FloatingBubble) · 170px (HelpMascot face) · 68px (coaching panel header)
+- **If files look wrong:** check exact filename with `ls public/qmood/` — double extensions (e.g. `smile.png.png`) are a known gotcha on Windows.
+
+### API endpoints (12/12 — AT CAPACITY)
+| File | Route | Purpose |
+|------|-------|---------|
+| `api/admin.js` | /api/admin | Owner tenant list (service role) |
+| `api/chat.js` | /api/chat | vera-chat + support-chat (Claude Haiku) |
+| `api/export-data.js` | /api/export-data | GDPR CSV export |
+| `api/freeagent-invoice.js` | /api/freeagent-invoice | FreeAgent invoice create |
+| `api/freeagent-oauth.js` | /api/freeagent-oauth | FreeAgent + Xero OAuth |
+| `api/greeting-generator.js` | /api/greeting-generator | AI greeting generation |
+| `api/integrations.js` | /api/integrations | WhatsApp, CalDAV, GBP, Zapier, send-welcome, review-request |
+| `api/notify.js` | /api/notify | Daily cost, weekly summary, reminders + `?type=campaign` SMS campaigns (no auth on campaign route) |
+| `api/stripe-webhook.js` | /api/stripe-webhook | Stripe billing events |
+| `api/vapi-assistant-request.js` | /api/vapi-assistant-request | Dynamic Vapi config per call |
+| `api/vapi-sync.js` | /api/vapi-sync | Sync AI settings to Vapi on save |
+| `api/vapi-webhook.js` | /api/vapi-webhook | End-of-call: write call_log, leads, referrals |
+
+---
+
+## 9. DATA FLOWS
+
+### Inbound call
 ```
-src/supabase.js                     — HS256 anon key
-src/context/AuthContext.jsx
-src/pages/Portal.jsx                — shell, nav, tab routing
-src/pages/BusinessProfile.jsx
-src/pages/AIBehaviour.jsx
-src/pages/ActivityDashboard.jsx     — default tab
-src/pages/DataAnalytics.jsx
-src/pages/PartnersReferrals.jsx
-src/pages/AccountSettings.jsx
-src/pages/Onboarding.jsx
-src/components/HelpMascot.jsx       — Vera owl + hover/zone/dialogue system
-src/components/VeraDialogue.jsx     — draggable Claude Haiku chat panel
-api/vapi-webhook.js                 — end-of-call handler
-api/vapi-sync.js                    — patches Vapi assistant on AI Behaviour save
-api/_build-prompt.js                — system prompt builder (Layer 1–3)
-api/vera-chat.js                    — Vera dialogue (Claude Haiku)
-api/greeting-generator.js           — greeting generator (Claude Haiku)
-QERXEL-HANDOFF-V12.md              — full product spec, tier detail, AI architecture
-supabase_rls.sql                    — idempotent RLS script (safe to re-run)
-demo_seed.sql                       — demo data seed (safe to re-run)
-src/context/DemoContext.jsx         — demo data provider (fetches demo_* tables)
-src/context/PreviewContext.jsx      — enterPreview/exitPreview/isPreview for owner mode
-src/pages/Calendar.jsx              — Qerxel Calendar tab (react-big-calendar, DnD, appointment modal)
-src/pages/Integrations.jsx          — Integrations tab (module framework)
-src/pages/ListenTab.jsx             — transcript archive (/portal listen tab)
-src/pages/StaffDirectory.jsx        — team tab (card grid, slide-in panel, tag picker)
-src/pages/OwnerSelector.jsx          — owner tenant selector (/owner/select) — auto-redirect on owner login
-src/pages/DemoLogin.jsx             — demo login (/demo/login)
-src/pages/BusinessSelector.jsx      — 10 business cards (/demo/select)
-src/pages/TierSelector.jsx          — tier selection (/demo/tier/:id)
-src/pages/DemoPortal.jsx            — demo portal shell (/demo/portal/:id/:tier)
-src/pages/SalesPerformance.jsx      — aggregate rep dashboard (/demo/performance)
-src/components/DemoBanner.jsx       — amber banner + inline tier switcher
+Phone call → Vapi → /api/vapi-assistant-request
+  reads: tenants, staff_profiles, catalogue_items, referral_partners, referral_service_map
+  returns: dynamic assistant config (voice, prompt, tools)
+  call ends → /api/vapi-webhook
+  writes: call_logs, leads, referral_log
+  if escalated: SMS to business_phone + email to business_email
+```
+
+### Portal load
+```
+/portal → Portal.jsx
+  reads tenant_memberships (user_id → tenant_id)
+  reads tenants (name, subscription_tier, listen_tier, etc.)
+  sets baseTier, listenTier → derives hasListen, hasScheduleMulti
+  renders PRODUCTS nav → sidebar
+  tab switch → renders tab component → tab reads its own Supabase data
+```
+
+### Owner preview
+```
+/owner/select → OwnerSelector.jsx
+  calls /api/admin (service role, finsolsoffice@gmail.com only)
+  returns all tenants
+  click tenant → navigate /portal?ownerPreview=<id>&ownerName=<name>
+  Portal.jsx reads params → enterPreview() → clears URL
+  all mutations blocked by isPreview guard
+```
+
+### Onboarding → tenant creation
+```
+/signup → /onboarding
+  step 0: website scrape (Firecrawl + Claude Haiku)
+  steps 1-6: business details, AI config, plan selection
+  creates: tenants row, tenant_memberships row
+  calendar_tier: 'entry' if Schedule purchased, 'none' if Answer-only (IC-06 fixed)
+  → /portal
 ```
 
 ---
 
-## Current Build State (last updated: 2026-06-06, session 11)
+## 10. GATING LOGIC — INTENT vs CURRENT REALITY
 
-### Done — Section 1
-- [x] All 6 portal tabs — fully built and wired to Supabase
-- [x] Auth guards — bidirectional Portal ↔ Onboarding
-- [x] Visual language — full violet palette across all pages
-- [x] Deployed to Vercel — auto-deploys on push to master
-- [x] Vapi webhook — writes call_logs, leads, referral_log. End-to-end confirmed.
-- [x] Vapi sync — patches Vapi assistant on every AI Behaviour save
-- [x] System prompt builder — Layer 1 constants, tone, greeting, call rules, filters
-- [x] Vera mascot — hover explains, proactive speeches, glowing zones, draggable dialogue
-- [x] Tier structure — Professional £69, Enterprise £249, upgrade paths updated
-- [x] Greeting architecture — tone toggle, live preview, protected modal, generator
-- [x] Business outcome type — onboarding + AI Behaviour, wired to prompt builder
-- [x] Urgent callback config — response mins, escalation method
-- [x] Sensitive business types — minimal capture mode in prompt + webhook
-- [x] Holiday mode + cover email scanning — Account tab, wired to Supabase
-- [x] Provisional booking — Professional+ section, toggle + rule + slots/buffer/window
-- [x] Vera speeches — first-visit speech data for all 6 tabs
+### Intent (product architecture):
+```
+calendar_tier = 'none'  → Schedule hidden entirely
+calendar_tier = 'entry' → Basic calendar visible, team features locked
+calendar_tier = 'multi' → Full team calendar, Team tab unlocked
+listen_tier = 'none'    → Listen hidden
+listen_tier = 'standard'→ Listen visible
+```
 
-### Done — Section 2 (2026-06-04)
-- [x] Task 2 — GDPR: Privacy & Data section in Account tab (retention selector 30d/90d/1yr, export placeholder, delete two-stage modal, policy links). `data_retention_days` column migrated.
-- [x] Task 3 — RLS enabled on all tables. `supabase_rls.sql` updated to be idempotent, added vera_speeches, vera_seen, tenant_credits, minute_usage. Confirmed live.
-- [x] Vera UX — help zones pulse amber on Vera click. "Need more help?" button moved right of owl with gap. Label split two lines, 12px, violet `#5e3b87`.
+### Reality (current code — Portal.jsx — all ICs fixed):
+```js
+// Portal reads: subscription_tier, listen_tier, calendar_tier
+const hasSchedule = calendarTier !== 'none'
+const hasScheduleMulti = calendarTier === 'multi'
+const hasListen = listenTier !== 'none'  // explicit purchase required
+```
 
-### Done — Demo Session 1 (2026-06-05)
-- [x] All `demo_` tables created in Supabase — demo_businesses, demo_services, demo_staff, demo_partners, demo_call_logs, demo_leads, demo_referral_log, demo_pricing_intelligence, demo_competitor_intelligence, demo_users, demo_sessions
-- [x] 10 demo businesses seeded across all tiers (Light × 3, Standard × 4, Professional × 2, Enterprise × 1)
-- [x] ~480 call logs (26 today + generate_series history 26 days), outcomes tuned per business type
-- [x] 50 leads — mix of new/contacted/converted/lost, 2-3 actionable per business
-- [x] 40 referral log entries — several today per active business
-- [x] Pricing intelligence + competitor intelligence for Restore Physiotherapy (Enterprise)
-- [x] demo_users: demo@qerxel.app / QERXEL2026
-- [x] Seed script: `demo_seed.sql` in project root — safe to re-run
-
-### Done — Demo Sessions 2 + 3 (2026-06-05)
-- [x] `/demo` route family: login → select → tier → portal → performance
-- [x] `DemoContext.jsx` — fetches demo_businesses, demo_call_logs, demo_leads, demo_referral_log, demo_services, demo_staff, demo_partners. Shapes data for all 6 tabs.
-- [x] `DemoLogin.jsx` — checks demo_users table (email + access_code), stores session in localStorage
-- [x] `BusinessSelector.jsx` — 10 business cards with tier badge, minutes, credits, "Platform overview" link
-- [x] `TierSelector.jsx` — 4 tier cards, business's own tier flagged "Demo data", any tier selectable
-- [x] `DemoBanner.jsx` — amber strip with inline Light/Standard/Professional/Enterprise tier switcher
-- [x] `DemoPortal.jsx` — full portal shell, all 6 tabs live with demo data, no-op saves
-- [x] All 6 tabs wired to DemoContext (useDemo() hook, isDemo guard on all saves/mutations)
-- [x] `SalesPerformance.jsx` — aggregate stats across all demo businesses at `/demo/performance`
-- [x] `demo_sessions` tracking — insert on every DemoPortal mount
-
-### Done — Session 4 (2026-06-05)
-- [x] Tier minutes updated: Light 120, Standard 250, Professional 450, Enterprise 1,000
-- [x] Free tier (PAYG £0.35/min) — added throughout portal, onboarding, TierSelector
-- [x] Overage voice preference — Premium (£0.18/min) / Standard (£0.14/min) radio in AI Behaviour
-- [x] Daily PAYG cost report — api/notify-daily-cost.js, Resend email, vercel.json cron 09:00 UTC
-- [x] Website scraping step 0 in onboarding — api/scrape-website.js (Firecrawl + Claude Haiku)
-- [x] Plan selection step 6 in onboarding — subscription or PAYG with cost limit
-- [x] Owner preview mode — PreviewContext.jsx, Portal.jsx dropdown + amber banner, all 6 tabs wired
-- [x] api/owner-tenants.js — service role tenant list, email-gated
-- [x] Task 5 — Support chat: api/support-chat.js (Claude Haiku + live tenant context), AccountSettings.jsx wired
-- NOTE: api/support-chat.js untracked + AccountSettings.jsx unstaged — needs commit
-
-### Done — Session 5 (2026-06-05)
-- [x] Task 4 — Stripe billing: api/stripe-checkout.js + api/stripe-webhook.js + AccountSettings.jsx wired
-- [x] Integrations tab — Integrations.jsx, module framework, 19 coming-soon cards
-- [x] Calendar Session 1 — Calendar.jsx, react-big-calendar, DnD, appointment modal, status colours, slot warning
-- [x] DB migration file — supabase_migrations_session4.sql (all new columns + appointments + staff_availability + tenant_catalogue)
-- [x] QERXEL-HANDOFF-V12.md and CLAUDE.md updated
-
-### Done — Session 11 (2026-06-06) — Portal redesign sprint
-
-**Portal structure:**
-- [x] maxWidth constraint removed from Portal.jsx; index.css #root fixed (Vite boilerplate stripped)
-- [x] Left sidebar built: 260px violet, collapsible 60px, Vera owl trigger, Amber active border, smooth 0.22s transition
-- [x] Mobile: sidebar hidden, fixed bottom nav (5 items: Home, Calendar, AI, Analytics, Account)
-
-**Dashboard (ActivityDashboard.jsx) — full redesign Tasks A–J:**
-- [x] Task A — Three-zone layout with labelled dividers ("Today's Activity", "Patterns")
-- [x] Task B — Zone 1 AI status bar: live status, voice badge, arc gauge (SVG), triage pill, north star count, Configure→
-- [x] Task C — CallCard component: hover lift, urgent red border, filtered opacity, click-to-modal
-- [x] Task D — LeadCard component: urgent pulsing dot, time-since ("2h ago"), call back + view
-- [x] Task E — Full lead modal: 4 sections (AI summary, details, notes, history), sticky header+footer, auto-save notes on blur
-- [x] Task F — Zone 3 ApexCharts: donut (lead capture rate), spark bar (7-day volume), area line (30-day minutes)
-- [x] Task G — Animation pass: fadeInUp stagger, count-up on north star + Zone 3, modalIn entrance, urgentPulse dot
-- [x] Task H — Mobile responsive: Zone 1 scrolls, Zone 2+3 single column, modals = bottom drawers
-- [x] Task I — Skeleton loading (shimmer), EmptyState components, error + retry
-- [x] Task J — Quality check passed; prefers-reduced-motion added; market research critique delivered to ClWeb
-
-**New packages installed:**
-- react-apexcharts + apexcharts
-
-### Done — Session 12 (2026-06-06) — Audit + cleanup
-
-- [x] Task 1 — Staff extension recognition (Enterprise): confirmed complete. `_build-prompt.js` already injects OUR TEAM block with direct line DIDs. `BusinessProfile.jsx` and `vapi-sync.js` already complete.
-- [x] Calendar Session 2 — split appointments, team mode: confirmed already built in `Calendar.jsx`
-- [x] Integration builds — all Priority 1 complete: Google Calendar (CalDAV), WhatsApp, FreeAgent (OAuth), Xero (OAuth), Google Business Profile. All API endpoints exist and are wired. FreeAgent/Xero/Stripe invoice buttons in lead modal. Review request trigger in Calendar on appointment completion.
-- [x] ClWeb market research critique changes — confirmed applied in session 11
-
-### Done — Session 13 (2026-06-07) — Colour system + catalogue + strategy
-
-- [x] Colour pass: all tint backgrounds pushed from pastel (-100) to saturated (-200) across Dashboard, Analytics, Partners, Account
-- [x] Dashboard Zone 2: 3-column layout (Calls | Leads | Referrals Today). Referrals moved from Zone 3.
-- [x] Analytics: bolder headline cards + 4-tile outcome row (Booked | Leads | Referred | Filtered)
-- [x] Partners: 3-tile KPI row at top, Network Activity anchor bar, Referral Code moved to bottom
-- [x] BRIEF.md created — shared SOP file for strategy/coding window coordination
-- [x] Catalogue feature: `catalogue_items` table migrated, Services & Products section in Business Profile. Manual entry + CSV upload. Split appointment support (duration_minutes + processing_minutes). Foundation for Qerxel Assist.
-- [x] Qerxel Assist strategy confirmed — see BRIEF.md strategy notes
-
-### Done — Session 14 (2026-06-07) — Pick-and-mix + visual quality
-
-- [x] `PlanSelector.jsx` — three-product pick-and-mix configurator. Answer/Listen/Calendar columns, four named quick packages (Solo/Professional/Team/Enterprise), live price footer, Listen locks if PAYG Answer. Route `/plans`. Wired into AccountSettings Plan & Billing as "Build your Qerxel" CTA overlay.
-- [x] AIBehaviour: dark gradient status hero at top of page — shows live/mode/tone/outcome state as visual badges. Transforms settings form into live status surface.
-- [x] BusinessProfile: profile summary bar — stat pills for services/staff/clients/catalogue counts, completeness progress bar.
-- [x] PlanSelector: Listen-lock state mutation moved to useEffect (render-time side effect fix).
-- [x] DB migration needed: `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS listen_tier text default 'none'; ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_tier text default 'entry';`
-
-**Strategic decisions from ClWeb session (not yet implemented):**
-- Three products confirmed: Answer / Listen / Schedule (Calendar rename pending Philip confirmation)
-- Listen is Answer add-on only — Schedule + Listen alone parked until phone line product live
-- Staff specialities must become structured tags (not free text) before Listen layer is built — skills currently `text[]` in staff_profiles, will need enum/tag from catalogue_items
-- Mobile tile canvas spec confirmed — scrollable vertical canvas, half/full/icon states, top-left expand button, X dismiss. Build after desktop complete. See ClWeb thread for full spec.
-- New tier structure proposed (not yet confirmed/implemented): Starter £19 / Essential £39 / Professional £65 / Business £99 / Enterprise £199. Listen Standard included from Essential upward.
-- Component architecture instruction: build every component as a self-contained unit with clearly defined props. No hardcoded layout relationships between siblings. Wrapping not rebuilding for future tile system.
-
-### Done — Session 16 (2026-06-08) — Schema audit + demo fix + Listen tab
-
-**Schema mismatch audit (all production tables):**
-- [x] `api/vapi-assistant-request.js` — banned_services→banned_item, referral_partners→partner_name/contact_phone, referral_service_map→service_keyword. Partners normalised so _build-prompt.js still works.
-- [x] `api/vapi-sync.js` — same fixes (done prior session)
-- [x] `api/vapi-webhook.js` — partner lookup fixed
-- [x] `api/notify-daily-cost.js` — tier→subscription_tier, referral join fixed
-- [x] `src/pages/ActivityDashboard.jsx` — tier→subscription_tier, partner join fixed
-- [x] `src/pages/DataAnalytics.jsx` — duration/triage_outcome→duration_seconds/call_outcome
-- [x] `src/pages/PartnersReferrals.jsx` — all partner/referral column names corrected + normalised
-- [x] `src/pages/BusinessProfile.jsx` — banned_services.service_name→banned_item on select+insert+load
-- [x] `leads` table — added call_log_id, lead_contact_name, status columns (webhook inserts were silently failing)
-- [x] `tenants` table — added vapi_phone_number_id, vapi_phone_number, listen_tier, calendar_tier
-
-**Demo system:**
-- [x] Demo login completely rebuilt — `DemoLogin.jsx` now checks `demo_users` table + localStorage only (no Supabase auth). Old system was signing users into real Supabase accounts and dumping them in `/portal`.
-- [x] `App.jsx` — all new demo routes wired: `/demo/select`, `/demo/tier/:id`, `/demo/portal/:id/:tier`, `/demo/performance` (none were in the router before)
-- [x] `demo_users` table — consolidated to single account: finsolsoffice@gmail.com / Liverpool1!
-- [x] `.claude/settings.json` — permissions opened up (Bash/PowerShell/WebFetch/WebSearch all allowed)
-
-**Staff specialities:**
-- [x] `StaffDirectory.jsx` — specialist_services replaced free text with tag picker. Catalogue items show as clickable violet chips. Custom skills added via Enter key as green tags. Cards show individual tag chips.
-- [x] `api/_build-prompt.js` — joins specialist_services array cleanly for AI prompt
-- [x] Demo staff specialist_services updated to match catalogue names exactly (chips highlight correctly)
-
-**Listen tab:**
-- [x] `src/pages/ListenTab.jsx` — full transcript archive. Status bar, outcome filter pills, search, two-panel layout (call list left, transcript right). Chat bubble rendering for parseable transcripts. Graceful empty states.
-- [x] `ActivityDashboard.jsx` — "View transcript" button in lead modal → cross-tab navigate to Listen with `callId` prefill
-- [x] Portal.jsx — Listen unlocked, `listenPrefill` state, `handleNavigate` extended, `TAB_CONTEXT.listen = 'listen.first_visit'`
-- [x] DemoPortal.jsx — Listen added to NAV
-- [x] `demo_call_logs.transcript` column added. Sample transcripts seeded for 8 businesses: b01 (Hargreaves Plumbing ×4), b02 (Elegant Hair ×2), b03 (Greenfield ×2), b05 (Paws & Claws ×2), b06 (Premier Mortgage ×2), b07 (Valley View B&B ×2), b09 (Nationwide ×2), b10 (JB Sports ×2)
-- [x] `vera_speeches` — `listen.first_visit` speech seeded. `context_key` column confirmed (not `speech_key`).
-- [x] `QERXEL-HANDOFF-V12.md` — completely rewritten and trimmed to current state (session history collapsed into build inventory)
-
-### Done — Session 15 (2026-06-07) — Team tab + Calendar + cursor fix
-
-- [x] `StaffDirectory.jsx` — Team tab: card grid with avatar initials (colour-coded by name, active dot), slide-in detail panel. Fields: name, role, phone, email, address, birthday, specialist services, direct line DID, private notes. Add/edit/remove. DemoContext wired — demo businesses show their staff.
-- [x] `Portal.jsx` — Team tab added to sidebar under Answer product group (`IcoPeople` icon, `team` route)
-- [x] `supabase_staff_profiles_v2.sql` — email, address, birthday, private_notes, colour columns added to staff_profiles. ✅ migrated.
-- [x] `HelpMascot.jsx` — cursor:help moved into `.vera-hover-mode [data-help]` selector; question mark no longer appears when Vera is inactive
-- [x] `Calendar.jsx` — all controls (nav, view switcher, Smart/Solo/Team, staff filter, + New) merged into react-big-calendar toolbar; external header = h2 + sub-tab pills only (~80px saved)
-- [x] All 6 portal tabs wired to DemoContext — demo businesses show real seeded data across all tabs
-
-### Done — Session 17 (2026-06-09) — Notifications + email pipeline + API consolidation
-
-- [x] Urgent escalation notifications: SMS to `business_phone` + email to `business_email` on escalated calls (was `console.log` only). `emailUrgentEscalation` template added to `_emails.js`.
-- [x] Notifications section in AccountSettings — toggles for new-lead email, daily summary, weekly report. Bug fixed: state vars were referenced but never declared.
-- [x] `notify_daily_summary` default corrected to `!== false` (truthy-by-default) everywhere — Portal.jsx was using `=== true`.
-- [x] Daily cron respects `notify_daily_summary === false` opt-out.
-- [x] Weekly summary cron (`api/notify.js?type=weekly`) — Monday 07:00 UTC. `emailWeeklySummary` template. Joins callers table so lead phone numbers appear in email.
-- [x] Daily cron callers join fix — lead phone numbers now appear in daily summary emails.
-- [x] GDPR data export: `api/export-data.js` — real CSV export of call logs, leads, referrals, partners, staff. AccountSettings button wired.
-- [x] Welcome email: `api/send.js?type=welcome` — fires after onboarding completion.
-- [x] `ai_summary` now saved to leads table in webhook (respects isSensitive). Quick Capture in dashboard also fixed.
-- [x] `supabase_notify_columns.sql` — migration for `notify_new_lead`, `notify_daily_summary`, `notify_weekly_report` boolean columns (default true).
-- [x] AIBehaviour: SMS destination hint shown below urgent escalation method buttons.
-- [x] API consolidation: 6 functions → 3 merged handlers to stay within Vercel Hobby 12-function limit:
-  - `notify-daily-cost.js` + `notify-weekly-summary.js` → `api/notify.js`
-  - `send-welcome.js` + `send-review-request.js` → `api/send.js`
-  - `vera-chat.js` + `support-chat.js` → `api/chat.js`
-
-**API function inventory (12/12):**
-admin, chat, export-data, freeagent-invoice, freeagent-oauth, greeting-generator, integrations, notify, stripe-webhook, vapi-assistant-request, vapi-sync, vapi-webhook
-
-### Done — Session 18 (2026-06-09) — Infrastructure fixes + voice wiring
-
-- [x] `vapi-assistant-request.js` + `vapi-sync.js` — both now read `overage_voice_preference` from tenant. `getVoiceConfig()` helper: premium → Cartesia (if `CARTESIA_PREMIUM_VOICE_ID` env set) or Deepgram aura-luna-en; standard → Deepgram aura-stella-en. Voice included in both dynamic assistant config and PATCH on AI Behaviour save.
-- [x] `api/stripe-webhook.js` (was `_stripe-webhook.js`) — renamed public so Stripe can reach the endpoint. Function slot freed by retiring `send.js`.
-- [x] `send.js` logic merged into `integrations.js` (action: send-welcome / send-review). `send.js` → `_send.js`. Callers in `Calendar.jsx` and `Onboarding.jsx` updated.
-- [x] `_remind-appointments.js` — refactored to export `runReminders()`. Wired into `notify.js` as `type=remind`. Reachable via `POST /api/notify?type=remind` with CRON_SECRET — ready for external hourly cron (n8n/Make.com). Vercel Hobby min interval is 1 day so can't add a 3rd native cron.
-- [x] `vapi-assistant-request.js` — hardcoded webhook URL fixed to use `SITE_URL` env var.
-- [x] Multiple broken private-route callers fixed (WhatsApp, Zapier, CalDAV, Xero/Stripe/FreeAgent all now routed through public handlers). No broken `/api/*` references remain in frontend.
-- [x] `supabase_listen_columns.sql` — consolidated migration for transcript, callback_flagged, notify prefs, referral columns. Run this in Supabase SQL editor.
-- [x] Deployed to production.
-
-### Done — Session 19 (2026-06-09) — Owner selector + visual fixes
-
-- [x] `OwnerSelector.jsx` — full-page tenant selector at `/owner/select`. Cards show tier badge, feature bullets (Listen, Schedule, provisional booking, SMS, spam filter), mode tags (triage, outcome goal, PAYG). Owner login auto-redirects here.
-- [x] `Portal.jsx` — owner redirect: uses `?ownerPreview=<id>&ownerName=<name>` URL param instead of PreviewContext (fixes race condition where enterPreview + navigate fired simultaneously). Sidebar owner dropdown/controls removed entirely.
-- [x] Preview banner updated: "← Change business" link navigates back to `/owner/select`.
-- [x] `api/admin.js` — expanded tenant SELECT to include listen_tier, calendar_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo.
-- [x] `supabase_owner_rls.sql` — owner RLS bypass policies for finsolsoffice@gmail.com across 13 tables. **Already run via management API.**
-- [x] AIBehaviour — CONVERSATION_STYLES[0] ('Efficient' preset) was still pink; now amber `#fcbe03` matching TRIAGE_COLOUR.strict.
-- [x] Portal sidebar — "Build your Qerxel" card: title 0.9rem Syne 700, subtitle 0.75rem, text centred.
-- [x] Test accounts: 12 real Supabase auth accounts covering all visual states. Password: `Qerxel2026!`. Seed scripts: `seed-test-accounts.mjs`, `seed-two-accounts.mjs`.
-- [x] Cross-functional warnings across 5 tabs: booking link missing (Dashboard + AIBehaviour), PAYG + no daily summary (AccountSettings), banned item / partner specialty overlap (PartnersReferrals), staff DID + offline status (StaffDirectory).
-- [x] Listen tab gating: hidden when `listen_tier === 'none'`, compact `＋ Add Listen` upsell strip in sidebar.
-
-### Action Plan — Session 20 (2026-06-10) — Nav restructure + product architecture
-
-**Priority 1 — Sidebar rebuild (Portal.jsx)**
-- [ ] Replace flat tab list with product-grouped nav: Answer / Listen / Schedule / Platform
-- [ ] Group headers with product label, active dot (amber), collapse/expand
-- [ ] Gate logic: render group only if product purchased (`answer_tier`, `listen_tier`, `schedule_tier` fields on tenant)
-- [ ] Locked state: greyed group header + lock icon + click → upgrade modal
-- [ ] Move Team tab from Answer group to Schedule group
-- [ ] Basic Schedule always renders (never locked) — multi-person features locked within Calendar
-
-**Priority 2 — Schedule-only experience (dazzle)**
-- [ ] When tenant has Schedule only: expose Calendar, Team, Services, Analytics, Partners as full nav
-- [ ] Services tab: extract catalogue section from BusinessProfile into standalone Schedule nav item
-- [ ] Analytics tab: surface staff/appointment analytics for Schedule-only buyers
-- [ ] Account & Billing: Answer shown as upsell product with one-click add
-
-**Priority 3 — Listen architecture decision (park until pricing confirmed)**
-- [ ] Confirm Listen pricing (£10/mo + 3–4p/min)
-- [ ] Confirm Listen-with-Schedule infrastructure (Twilio conference monitoring likely)
-- [ ] Build live copilot UI mode for Listen tab (separate from transcript archive mode)
-
-**Priority 4 — Pricing tier update**
-- [ ] Confirm final tier names and prices (new structure proposed but not locked)
-- [ ] Update PlanSelector, onboarding, AccountSettings, all tier references
-- [ ] Confirm Schedule multi-person pricing: £5/mo + £2/person
-- [ ] Confirm Vera's permanent name
-
-**Decisions already locked (do not revisit):**
-- Product-grouped sidebar nav ✅
-- Two standalones: Answer + Schedule ✅
-- Listen = augmentation layer, requires Answer or paid Schedule ✅
-- Schedule basic = always free ✅
-- Team tab belongs under Schedule ✅
-- Listen sits below Answer, above Schedule in nav ✅
-- Schedule-only nav is feature-rich (dazzle strategy) ✅
+### Reality (Calendar.jsx):
+```js
+const effectiveCalendarTier = calendarTierProp || 'entry'  // driven by Portal prop
+```
 
 ---
 
-### Remaining (user actions required)
-- [ ] Run `supabase_listen_columns.sql` in Supabase SQL editor (all outstanding column additions — idempotent, safe to re-run)
-- [ ] Stripe setup: create products/prices in Stripe Dashboard, set webhook endpoint to `https://verrante-portal.vercel.app/api/stripe-webhook`, add 7 Vercel env vars (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_LIGHT, STRIPE_PRICE_STANDARD, STRIPE_PRICE_PROFESSIONAL, STRIPE_PRICE_ENTERPRISE, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-- [ ] FreeAgent + Xero: create dev OAuth apps, add FREEAGENT_CLIENT_ID/SECRET + XERO_CLIENT_ID/SECRET to Vercel env vars. Xero redirect URI: `https://verrante-portal.vercel.app/api/freeagent-oauth?provider=xero`
-- [ ] Appointment reminders (hourly): set up n8n or Make.com to POST `https://verrante-portal.vercel.app/api/notify?type=remind` hourly with header `Authorization: Bearer <CRON_SECRET>`
-- [ ] Premium voice (Cartesia): if using Cartesia TTS, add `CARTESIA_PREMIUM_VOICE_ID` to Vercel env vars
-- [ ] Confirm Schedule as product name (replaces Calendar throughout portal)
-- [ ] Confirm new tier pricing when ready to update portal
-- [ ] Vera rename — pending Philip choosing a name
+## 11. KNOWN ISSUES
 
-### DB — pending migration (run supabase_listen_columns.sql — supersedes supabase_notify_columns.sql)
-- `call_logs.transcript` text
-- `call_logs.callback_flagged` boolean DEFAULT false
-- `tenants.notify_new_lead` boolean DEFAULT true
-- `tenants.notify_daily_summary` boolean DEFAULT true
-- `tenants.notify_weekly_report` boolean DEFAULT true
-- `tenants.referral_code` text UNIQUE
-- `tenants.credit_balance_months` integer DEFAULT 0
+Issues are numbered IC-XX. Fix them in order when possible.
 
-### DB — already run this session
-- `supabase_owner_rls.sql` — owner bypass SELECT policies on 13 tables ✅ run 2026-06-09
+### Critical — affect product logic
+
+**IC-01: Schedule not gated in Portal** ✅ Fixed 2026-06-11
+Portal now reads `calendar_tier`, derives `hasSchedule = calendarTier !== 'none'`, gates Schedule group.
+
+**IC-02: Calendar effectiveCalendarTier hardcoded 'multi'** ✅ Fixed 2026-06-11
+`effectiveCalendarTier = calendarTierProp || 'entry'` — now driven by Portal prop.
+
+**IC-03: Listen auto-unlocks at enterprise** ✅ Fixed 2026-06-11
+`const hasListen = listenTier !== 'none'` — explicit purchase required.
+
+**IC-04: Team tab gated on Answer tier, not Schedule tier** ✅ Fixed 2026-06-11
+`const hasScheduleMulti = calendarTier === 'multi'` — now calendar-tier driven.
+
+**IC-05: services vs catalogue_items schema split** ✅ Fixed 2026-06-11
+BusinessProfile "Your Services" chip section now reads/writes `catalogue_items` (item_type='service'). Services are derived from the same catRes query — no extra DB round trip. `addService` inserts to catalogue_items and updates both `services` + `catalogueItems` state. `removeService` deletes from catalogue_items and syncs both states. `services` table no longer written to from BusinessProfile.
+
+**IC-06: Onboarding always sets calendar_tier = 'entry'** ✅ Fixed 2026-06-11
+`calendar_tier: isCalendar ? 'entry' : 'none'` — Answer-only new tenants correctly get 'none'.
+
+### Moderate — dead code / confusion
+
+**IC-07: isDemo ghost in Integrations.jsx** ✅ Fixed 2026-06-11
+Removed entirely — all `isDemo` references, prop passing, and sub-component signatures cleaned.
+
+**IC-08: CalendarTab calendarTier prop not passed from Portal** ✅ Fixed 2026-06-11
+Portal now passes `calendarTier={calendarTier}` to CalendarTab.
+
+**IC-09: ActivityDashboard tier default 'standard' not 'light'** ✅ Fixed 2026-06-11
+
+**IC-10: Listen tier values not normalised** ✅ Fixed 2026-06-11
+SQL migration run: `UPDATE tenants SET listen_tier = 'standard' WHERE listen_tier IN ('premium', 'advanced')`. One tenant updated. Canonical values: 'none' | 'standard'.
+
+**IC-11: Dead state variables in AIBehaviour.jsx** ✅ Fixed 2026-06-11
+Removed: `greetingModalShown`, `showProtectedModal`, `generateGreeting`, `CALL_MODES`, `currentMode`, `isEnterprise`, `generatingGreeting`, `numberSaving`, `setGeneratorNotes`.
+
+**IC-12: Dead state in Portal.jsx** ✅ Fixed 2026-06-11
+Removed: `isOwner`, `allTenants`, `setAllTenants`, `triageMode`, `tabs`.
+
+**IC-13: `{false && ...}` dead block Portal.jsx** ✅ Fixed 2026-06-11
+Holiday widget block deleted.
+
+**IC-14: OwnerSelector unused imports** ✅ Fixed 2026-06-11
+
+**IC-15: PhoneLines tenantId + isPreview unused** ✅ Fixed 2026-06-11
+`OfferPage` prop `tenantId` removed (form uses mailto, no DB write needed). `isPreview` destructured from usePreview removed — no preview guard needed here. `usePreview` import removed.
+
+**IC-19: `callers.full_name` vs assumed `name` column** ✅ Verified 2026-06-12
+ActivityDashboard uses `callers?.full_name` correctly (callerLabel helper, line 61). ClientDirectory joins `callers(id, full_name, phone_number)` and maps to `name: log.callers?.full_name` (line 82). Both correct — no fix needed.
+
+### Minor — lint / performance
+
+**IC-16: setState-in-effect violations**
+Multiple files call setState synchronously inside useEffect body, causing cascading renders.
+Files: HelpMascot.jsx (×3), AIBehaviour.jsx, AccountSettings.jsx, PlanSelector.jsx, StaffDirectory.jsx, Onboarding.jsx.
+Fix: Low priority unless performance issues arise.
+
+**IC-17: Missing useEffect dependencies**
+AIBehaviour, PartnersReferrals, StaffDirectory, OwnerSelector, OwnerAudit, PlanSelector, Onboarding.
+Usually intentional (avoid re-run on navigate ref change) — review before treating as bugs.
+
+**IC-18: PlanSelector dead package logic** ✅ Fixed 2026-06-11
+PACKAGES array, activePackage state, and applyPackage function removed.
 
 ---
 
-## Working Conventions
+## 12. CURRENT BUILD STATE
 
-- **Commit often.** End of every session: commit, push.
-- **Visual language is locked.** Check this file before adding any UI.
-- **No CSS files** — all inline styles only.
-- **PowerShell: no `&&`** — always two separate commands.
-- **`.maybeSingle()` not `.single()`** — prevents 406 on 0 rows.
-- **Supabase anon key** safe in frontend. Service role key NEVER in frontend.
-- **`data-help` attributes** on all section headings and key UI elements.
-- **Demo tables** prefixed `demo_`. Never join to production tables.
-- **Save guards** — always `if (isDemo || isPreview || !tenantId) return` on all mutations.
-- **Owner preview** — passes selection via `?ownerPreview=<id>&ownerName=<name>` URL param (NOT via PreviewContext directly — race condition). Portal.jsx reads params in init(), calls enterPreview(), then cleans URL. RLS bypass: `supabase_owner_rls.sql` (already run).
-- **Running SQL** — use management API: `POST https://api.supabase.com/v1/projects/kkrsvkxkefijmtbwykzv/database/query` with `Authorization: Bearer <SUPABASE_PAT>`. SUPABASE_PAT is in `.env.local`.
-- **End of session:** Update "Current Build State" above, commit, push.
+### Fully built and working
+- Auth flow: signup → onboarding → portal (bidirectional guards)
+- All 11 portal tabs + 3 Business tabs wired to Supabase
+- Vapi call handling end-to-end: webhook → call_log → leads → notifications
+- Owner preview mode: /owner/select → preview any tenant (RLS bypass in place)
+- AI prompt builder: layers 1-3, catalogue matching, staff extension recognition
+- Vera mascot: hover mode, zone mode, Claude Haiku dialogue
+- Email pipeline: daily cost, weekly summary, appointment reminders (Resend)
+- Urgent escalation: SMS + email on escalated calls
+- GDPR: data retention settings, CSV export, delete (two-stage)
+- Integrations: Google Calendar/CalDAV, WhatsApp, FreeAgent, Xero OAuth, Zapier, Checkatrade, Rated People, Google Business Profile, review request trigger
+- Booking page: /book/:tenantId for customer self-booking
+- Stripe: checkout + webhook (needs dashboard setup)
+- Calendar: full react-big-calendar with DnD, team mode, appointment modal, split appointments, booking rules, staff schedules
+- Staff directory: tag picker, catalogue skills, slide-in panel
+- Colour system: saturated palette across all tabs
+- Cross-functional warnings: 5 tabs warn on missing config
+- 15 real sample tenants seeded covering all feature combinations
+- **Meridian Hair & Beauty** (Professional tier) — fully seeded demo business: 45 named clients, 280 call logs (Jan 2025–Jun 2026), 177 leads, 44 client relationships, 20 services + 7 professional hair products in catalogue, 3 staff, 5 referral partners, 34 service→partner mappings, 17 banned_services, 63 upcoming appointments (3 weeks ahead)
+- **All 41 other demo tenants** — callers, call_logs, leads, CTR seeded; products seeded for 9 businesses
+- **Owner preview Edit mode**: `previewEditable` flag in PreviewContext; banner turns green, "✏ Edit mode / 🔒 Read-only" toggle; write guards use `previewReadOnly` not `isPreview`
+- **Staff availability**: `staff_availability` table drives BookingPage date selection; Meridian seeded 15 rows (Priya/Chloe/Marcus, covering Mon–Sun)
+- History search: comma/space splitting, `callers(full_name)` join, case-insensitive multi-term
+- Client Directory: searchable, hot prospects, opt-out flag, GDPR deletion, SMS campaign composer (tier-gated, "Reply STOP" auto-appended)
+- ServiceCatalogue + ProductCatalogue: dedicated full pages, tier-gated quota bars, internal notes
+- GDPR compliance: opt-out auto-detection in vapi-webhook.js transcript, deletion_requested flag
+- AI Settings: Keep-alive topics (green chips) + max-minutes control — pre-populated for all tenants; injected into AI prompt
+- **Q Mood system (redesigned 2026-06-13):** One Q per page — HelpMascot IS the mood Q. Inline QMood panels deleted from all 6 pages. Per-page mood: ai→configPillar, dashboard/listen→perfPillar, integrations→toolPillar, others→globalScore. Dismissal decay: "I'm happy" button stores timestamp in q_dismissals; mood steps sadder by 1/month (smile→content→sad→crying over 4 months); raw score always wins upward. All 4 moods now PNG (`/qmood/${mood}.png`). Performance score is 50/50 blend of all-time + last-10-days call outcomes.
+- Conceptual map built from code analysis: CONCEPTUAL_MAP.md (superseded by this file)
+
+### Not yet built
+- Mobile tile canvas
+- Two-tier Foundation view (tenant-facing polished vs owner editable)
+- Sentry tile-based redesign (tile dashboard replacing wizard — in progress 2026-06-12)
+
+---
+
+## 13. NEXT TASKS — IN ORDER
+
+1. ✅ Fixed IC-01–06, IC-08, IC-12–13 — product gating correct. 2026-06-11.
+2. ✅ Calendar viewport (Open/Compact toggle, staff stepper, arrow keys, drag-reorder, localStorage). 2026-06-11.
+3. ✅ AI Foundation tab (annotated guardrails, computed voice, config summary). 2026-06-11.
+4. ✅ Sidebar nav rebuild (product-grouped, collapsible). 2026-06-11.
+5. ✅ Dead code sweep (IC-07, IC-09–15, IC-18). 2026-06-11.
+6. ✅ Business data pages (ClientDirectory, ServiceCatalogue, ProductCatalogue). 2026-06-11.
+7. ✅ BusinessProfile dead code fixed. 2026-06-11.
+8. ✅ Keep-alive topics (AI Settings section, prompt injection). 2026-06-11.
+9. ✅ Meridian demo seeded (Professional, 280 calls, 45 clients, full catalogue). 2026-06-11.
+10. ✅ All 41 demo tenants seeded (callers, call_logs, leads, products). 2026-06-11.
+11. ✅ Meridian partners (5 partners, 34 mappings, 17 banned_services). 2026-06-11.
+12. ✅ Owner preview Edit mode (previewEditable toggle, banner turns green). 2026-06-11.
+13. ✅ Live/Away toggle removed; Q always live. 2026-06-11.
+14. ✅ Holiday mode notice removed; permanent AI active bar in ListenTab. 2026-06-11.
+15. ✅ Booking link button in Calendar toolbar. 2026-06-11.
+16. ✅ History search multi-term fix (callers.full_name join, comma/space split). 2026-06-11.
+17. ✅ Meridian hair products seeded (7 professional products). 2026-06-11.
+18. ✅ Meridian 63 upcoming appointments seeded (3-week window). 2026-06-11.
+19. ✅ Q scoring system (QScoreContext, three-pillar score, Q on 6 pages, HelpMascot mood). 2026-06-12.
+20. ✅ ProductCatalogue previewReadOnly fix. 2026-06-12.
+21. ✅ Staff gating per tier + PlanSelector staff feature lines. 2026-06-12.
+22. ✅ Owner selector Q score (face + score per card, perf sort, admin API scoring). 2026-06-12.
+23. ✅ Account & Billing added to sidebar Platform nav. 2026-06-12.
+24. ✅ Q coaching panel (pillar bars, 5 action points, red badge when sad). 2026-06-12.
+25. ✅ Listen live copilot UI mode (Live tab, caller history, services quick-ref). 2026-06-12.
+26. ✅ Schedule-only dazzle nav (special PRODUCTS, Answer upsell strip, auto-redirect). 2026-06-12.
+27. ✅ Booking customer fields + PlanSelector "Schedule" rename throughout. 2026-06-12.
+28. ✅ Sentry built (5 DB tables, canvas zone editor, variance dashboard, Q-guided wizard). 2026-06-12.
+29. ✅ Portal hooks bug fixed (scheduleOnly effect moved before conditional return). 2026-06-12.
+30. ✅ Portal.jsx Option C refactor (PortalIcons.jsx, useTenantState.js, 1046→490 lines). 2026-06-12.
+31. ✅ Account & Billing → silent salesperson (4-product card grid, active/inactive states). 2026-06-12.
+32. ✅ Sidebar sitemap / ⌘K command palette (grouped, keyboard nav, locked badge). 2026-06-12.
+33. ✅ Calendar stacking fix — vpOpen default 5 → 10. 2026-06-12.
+
+**Next tasks — in order:**
+1. **Sidebar collapsible product groups** — LOST FROM OTHER MACHINE, NEEDS REBUILD. Current sidebar (Portal.jsx) shows all product groups with tabs always visible and colored dots on all headings. Philip had built: collapsible product group headings (click to expand/collapse), glowing animated dot ONLY on products the tenant has active (Answer/Listen/Schedule). This was never committed. Rebuild from description.
+2. Sentry tile-based redesign (tile dashboard, staff→station assignment, cameras optional) — IN PROGRESS
+3. Clarify calendar tier pricing in PlanSelector (confirm before fixing)
+4. Listen multi-term search
+5. UX audit: group complex settings into collapsible sections
+6. Add AI Behaviour link to owner admin page
+7. Investigate Blackwood Restoration staff linking issue in DB
+
+---
+
+## 14. PARKED PRODUCT CONCEPT — QERXEL SENTRY
+
+**Status:** Built (task 28). Wizard-based v1 live. Tile-based redesign in progress (task 33+) — cameras made optional, staff→station assignment added.
+
+### Product positioning
+**Inside the portal.** Sentry lives as a gated section within the standard Qerxel portal — uses existing auth, RLS, tenant architecture. Accessible to the account owner only (not staff logins). Sits behind normal portal login; no separate subdomain or second password needed.
+
+**Sold as three things (the hook phrases — confirmed):**
+1. **Unlogged Service Detector** — finds services that happened physically but weren't recorded in Schedule
+2. **Human Error Detection** — flags data-entry mismatches (wrong service logged, duration mismatch)
+3. **Service Time Analyser** — estimated booking duration vs actual chair occupancy time
+
+**⚠️ Language rules — non-negotiable:**
+- NEVER use: "revenue leak", "theft", "off-the-books", "missing money", "fraud", "surveillance"
+- ALWAYS use: "service reconciliation", "booking accuracy", "data variance", "unlogged service time", "station performance"
+- Framing: this is a **data quality tool** — it checks whether what happened physically matches what was logged. The gap could be a data-entry error, a phone booking not entered, a service that ran long. No implication of intent, no implication of staff wrongdoing.
+
+**Paid upgrade** — add-on, not bundled with any base tier. Requires Schedule (needs appointment data for reconciliation).
+
+**Camera reality:** Most service businesses already have CCTV. Sentry activates cameras they already own. No hardware sale, no installation. Pitch: "Your cameras are already watching the shop. Qerxel Sentry reads what they see and cross-checks it against your bookings."
+
+**Compliance framing:** "Operational Efficiency & Station Performance Tool." Processes only pixel-change data per defined zone — no face detection, no biometrics, nothing personal stored or transmitted. Zones are abstract physical locations named by the owner (Chair 1, Wash Basin, Colour Station).
+
+### Pricing (confirmed)
+| Cameras | Monthly |
+|---|---|
+| Up to 3 | £20 |
+| Up to 5 | £25 |
+| Up to 7 | £30 |
+| Up to 9 | £35 |
+
+Base £20 covers up to 3 cameras/zones. Each additional pair of cameras adds £5/mo.
+
+### Report delivery (confirmed)
+**Both — email digest + portal depth.**
+- Weekly email to owner: headline only — "3 variances found this week. [View Sentry report →]" — nothing sensitive in the email body itself
+- Full data lives inside the Sentry section of the portal, behind normal login
+- Owner gets the nudge via email but all detail requires authentication to access
+
+### Onboarding — Q-guided setup (slow and deliberate)
+Q walks the owner through every step at their pace. No technical knowledge assumed.
+- Step 1: "Let's find your camera. Can you see its app on your phone? We need the camera's local IP address — here's how to find it in 3 steps..."
+- Step 2: "I'm going to fetch a live snapshot from your camera now. [shows the frame] Does this look right?"
+- Step 3: "Now draw a box around your first chair with your mouse. Take your time — you can redraw it as many times as you like."
+- Step 4: "What do you call this station? [Chair 1 / Wash Basin / Colour Station / Other]"
+- Step 5: Repeat for each zone. "I'm watching Chair 1 now for 5 minutes to make sure I can see activity correctly. I'll tell you what I detect."
+- Calibration test: "I saw Chair 1 go from empty to occupied at 14:32. Does that match what actually happened in your shop?"
+
+Q stays present throughout — this is the product differentiator. Competitors would give a PDF setup guide.
+
+### Technical architecture
+
+**Edge:** Owner's existing IP camera, HTTP snapshot URL (`http://[ip]/snapshot.jpg`). Fetched server-side once per minute.
+
+**Zone definition stored:** `{ zone_id, label, camera_id, x, y, w, h }` — crops applied server-side at ingest time.
+
+**Occupancy detection:** Frame N vs Frame N-1 (sharp delta only — no static baseline, immune to gradual light drift). `delta_pct > threshold (50%, adjustable)` → `occupied: 1`, else `0`.
+
+**Time-gate:** Zone must hold `occupied: 1` for ≥ 10 consecutive minutes → registers as a physical session `{ zone_id, start_ts, end_ts, duration_mins }`.
+
+**Reconciliation (no external POS — uses Qerxel's own data):**
+| Signal | Finding |
+|---|---|
+| Station occupied + no Schedule appointment | Revenue leakage / off-books service |
+| Station occupied > appointment duration by >20% | Service upgrade not logged |
+| Schedule appointment + station never occupied | No-show / DNA |
+| Call log re: booking → no appointment created | Lead not converted |
+| Weekly: physical chair-hours vs booked hours total | Manual variance report |
+
+**Output:** Owner-only Sentry dashboard — live zone status, flagged session list, weekly variance summary. PDF export (future).
+
+---
+
+## 15. PENDING OWNER DECISIONS
+
+- ✅ "Schedule" confirmed as final product name — PlanSelector updated 2026-06-12. Other files (Calendar.jsx, Portal.jsx nav labels) still reference "Calendar" internally — low priority cleanup.
+- Confirm Listen pricing: ~£10/mo + 3-4p/min
+- Confirm new tier names/prices when ready to update portal
+- Confirm Vera's permanent name
+- Stripe: create products/prices in dashboard, set webhook to `https://verante-portal.vercel.app/api/stripe-webhook`, add 7 env vars
+- FreeAgent + Xero: create dev OAuth apps, add client ID/secret to Vercel env vars
+- Appointment reminders (hourly): set up n8n/Make.com to POST `/api/notify?type=remind` hourly with `Authorization: Bearer <CRON_SECRET>`
+
+---
+
+## 15. OWNER PREVIEW — HOW IT WORKS
+
+Owner email: `finsolsoffice@gmail.com`
+Owner selector: `/owner/select`
+
+Flow:
+1. Owner logs in → redirected to /owner/select
+2. /api/admin returns all tenants (service role, email-gated)
+3. Click tenant → navigate `/portal?ownerPreview=<id>&ownerName=<name>`
+4. Portal.jsx reads URL params → calls `enterPreview()` → clears URL
+5. Amber banner shows "Owner preview · [business name]" with toggle + exit/change buttons
+   - "✏ Edit mode" button toggles `previewEditable` — banner turns green, full write access
+   - "🔒 Read-only" reverts — banner returns amber, all writes blocked
+6. All tab mutations return early on `previewReadOnly` check (not `isPreview` — allows edit mode)
+7. "Exit preview" → `exitPreview()` → `setActiveTab('dashboard')`
+8. "Change business" → `exitPreview()` → navigate `/owner/select`
+
+RLS bypass: `supabase_owner_rls.sql` — already run. Grants SELECT on 13 tables for owner email.
+
+---
+
+*Last updated: 2026-06-13*
+*Updated by: session — Q Mood full redesign (one Q per page, per-page mood, dismissal decay, PNG images); inline QMood removed from 6 pages; q_dismissals column added to tenants; sidebar collapsible work documented as lost/needs rebuild*
