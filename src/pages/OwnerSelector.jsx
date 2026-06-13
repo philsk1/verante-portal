@@ -40,6 +40,25 @@ const TRIAGE_LABEL = { strict: 'Strict', balanced: 'Balanced', open: 'Relaxed', 
 const OUTCOME_LABEL = { booking: 'Booking', callback: 'Callback', quote: 'Quote', enquiry: 'Enquiry' }
 const CALENDAR_LABEL = { entry: 'Single calendar', multi: 'Multi-staff calendar', none: 'No calendar' }
 
+const TIER_RANK = { free: 0, light: 1, standard: 2, professional: 3, enterprise: 4, bespoke: 5 }
+
+function productScore(t) {
+  let s = (TIER_RANK[t.subscription_tier] || 0) * 2
+  if (t.listen_tier && t.listen_tier !== 'none') s += 2
+  if (t.calendar_tier === 'multi') s += 1
+  if (t.sentry_tier && t.sentry_tier !== 'none') s += 2
+  if (t.triage_mode) s += 1
+  if (t.business_outcome_type) s += 1
+  return s
+}
+
+function qMood(score) {
+  if (score >= 12) return 'smile'
+  if (score >= 7)  return 'content'
+  if (score >= 4)  return 'sad'
+  return 'crying'
+}
+
 const OwnerSelector = () => {
   const { user, signOut } = useAuth()
   const preview = usePreview()
@@ -47,6 +66,7 @@ const OwnerSelector = () => {
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [sortBy, setSortBy] = useState('az')
 
   useEffect(() => {
     if (!user) return
@@ -71,6 +91,12 @@ const OwnerSelector = () => {
     await signOut()
     navigate('/login')
   }
+
+  const sorted = [...tenants].sort((a, b) => {
+    if (sortBy === 'tier') return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
+    if (sortBy === 'products') return productScore(b) - productScore(a)
+    return a.business_name.localeCompare(b.business_name)
+  })
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', sans-serif" }}>
@@ -103,13 +129,37 @@ const OwnerSelector = () => {
       {/* Content */}
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
-            Select a tenant
-          </h1>
-          <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
-            Click any account to view its portal. Use the tier override in the banner to test different subscription states.
-          </p>
+        <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#1a1a1a', margin: '0 0 0.4rem' }}>
+              Select a tenant
+            </h1>
+            <p style={{ color: '#888', fontSize: '0.875rem', margin: 0 }}>
+              {tenants.length} account{tenants.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {[
+              { key: 'az',       label: 'A–Z' },
+              { key: 'tier',     label: 'By tier' },
+              { key: 'products', label: 'By products' },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setSortBy(opt.key)}
+                style={{
+                  padding: '0.35rem 0.75rem', border: 'none', borderRadius: 6, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', fontWeight: 500,
+                  background: sortBy === opt.key ? '#5e3b87' : 'white',
+                  color: sortBy === opt.key ? 'white' : '#666',
+                  boxShadow: '0 1px 3px rgba(94,59,135,0.1)',
+                  transition: 'background 0.12s, color 0.12s',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && (
@@ -121,7 +171,9 @@ const OwnerSelector = () => {
 
         {!loading && !error && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-            {tenants.map(t => (
+            {sorted.map(t => {
+              const mood = qMood(productScore(t))
+              return (
               <div
                 key={t.id}
                 style={{
@@ -135,10 +187,13 @@ const OwnerSelector = () => {
               >
                 {/* Card body — click to open portal */}
                 <div onClick={() => select(t)} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
-                {/* Name + tier */}
+                {/* Name + tier + Q mood */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
-                    {t.business_name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                    <img src={`/qmood/${mood}.svg`} alt="Q" style={{ width: 28, height: 28, flexShrink: 0, objectFit: 'contain' }} />
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
+                      {t.business_name}
+                    </div>
                   </div>
                   <TierBadge tier={t.subscription_tier} />
                 </div>
@@ -219,7 +274,7 @@ const OwnerSelector = () => {
                   ))}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

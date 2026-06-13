@@ -345,7 +345,7 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabase
       .from('tenants')
-      .select('id, business_name, subscription_tier, listen_tier, calendar_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo')
+      .select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_tier, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo')
       .order('business_name')
 
     if (error) return res.status(500).json({ error: error.message })

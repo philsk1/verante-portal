@@ -46,8 +46,6 @@ const Portal = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Live operational state — passed as props to PortalSidebar
-  const [holidayMode, setHolidayMode] = useState(false)
-  const [holidayReturnDate, setHolidayReturnDate] = useState('')
   const [notifyNewLead, setNotifyNewLead] = useState(true)
   const [notifyDailySummary, setNotifyDailySummary] = useState(false)
   const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true)
@@ -96,14 +94,12 @@ const Portal = () => {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('business_name, holiday_mode, holiday_return_date, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, urgent_outcomes, listen_tier, sentry_tier, calendar_tier')
+        .select('business_name, notify_new_lead, notify_daily_summary, notify_weekly_report, subscription_tier, urgent_outcomes, listen_tier, sentry_tier, calendar_tier')
         .eq('id', membership.tenant_id)
         .maybeSingle()
 
       if (tenant) {
         setBusinessName(tenant.business_name || '')
-        setHolidayMode(tenant.holiday_mode || false)
-        setHolidayReturnDate(tenant.holiday_return_date || '')
         setNotifyNewLead(tenant.notify_new_lead !== false)
         setNotifyDailySummary(tenant.notify_daily_summary !== false)
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
@@ -145,19 +141,6 @@ const Portal = () => {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     navigate('/login')
-  }
-
-  const saveHolidayToggle = async (val) => {
-    setHolidayMode(val)
-    if (!tenantId || preview.isPreview) return
-    const { error } = await supabase.from('tenants').update({ holiday_mode: val }).eq('id', tenantId)
-    if (error) { console.error('Holiday mode save failed:', error); setHolidayMode(!val) }
-  }
-
-  const saveReturnDate = async (val) => {
-    setHolidayReturnDate(val)
-    if (!tenantId || preview.isPreview) return
-    await supabase.from('tenants').update({ holiday_return_date: val || null }).eq('id', tenantId)
   }
 
   const saveNotification = async (field, val) => {
@@ -222,10 +205,6 @@ const Portal = () => {
           uncontactedCount={uncontactedCount}
           sidebarCollapsed={sidebarCollapsed}
           onCollapseToggle={() => setSidebarCollapsed(c => !c)}
-          holidayMode={holidayMode}
-          onHolidayToggle={saveHolidayToggle}
-          holidayReturnDate={holidayReturnDate}
-          onReturnDateChange={saveReturnDate}
           isPreview={preview.isPreview}
           notifPanelOpen={notifPanelOpen}
           onNotifToggle={() => setNotifPanelOpen(o => !o)}
@@ -304,9 +283,10 @@ const Portal = () => {
           background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
         }}>
           {(() => {
+            const noMascot = new Set(['settings', 'profile', 'calendar'])
+            if (noMascot.has(activeTab)) return null
             const veraAlert = (() => {
               if (activeTab === 'dashboard' || activeTab === 'analytics') {
-                if (holidayMode) return '🌙 Q: Holiday mode is on — your AI is paused. Disable it in Settings when you\'re back.'
                 if (uncontactedCount >= 5) return `⚡ Q: ${uncontactedCount} leads are waiting. The first hour matters most — callers who aren't called back often move on.`
                 if (uncontactedCount >= 2) return `💡 Q: ${uncontactedCount} leads need a follow-up. A quick call now could convert them.`
               }
@@ -314,8 +294,7 @@ const Portal = () => {
               if (activeTab === 'team' && uncontactedCount > 0) return `💡 Q: ${uncontactedCount} lead${uncontactedCount !== 1 ? 's' : ''} waiting on the dashboard. Your team might be able to help with follow-up calls.`
               return null
             })()
-            const mascot = <HelpMascot activeTab={activeTab} businessName={displayName} tenantId={activeTenantId} contextKey={TAB_CONTEXT[activeTab]} veraAlert={veraAlert} />
-            return activeTab !== 'calendar' ? mascot : null
+            return <HelpMascot activeTab={activeTab} businessName={displayName} tenantId={activeTenantId} contextKey={TAB_CONTEXT[activeTab]} veraAlert={veraAlert} />
           })()}
           {renderTab()}
           {activeTab === 'calendar' && (

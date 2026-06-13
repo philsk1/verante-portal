@@ -179,10 +179,6 @@ export default function PortalSidebar({
   uncontactedCount,
   sidebarCollapsed,
   onCollapseToggle,
-  holidayMode,
-  onHolidayToggle,
-  holidayReturnDate,
-  onReturnDateChange,
   isPreview,
   notifPanelOpen,
   onNotifToggle,
@@ -445,63 +441,22 @@ export default function PortalSidebar({
       transition: 'width 0.22s ease', overflow: 'hidden', zIndex: 10,
     }}>
 
-      {/* Logo + status */}
+      {/* Logo */}
       <div style={{
         height: 64, display: 'flex', alignItems: 'center',
-        justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+        justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
         padding: sidebarCollapsed ? 0 : '0 0.9rem 0 1.25rem',
         borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, boxSizing: 'border-box',
       }}>
         {sidebarCollapsed ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: holidayMode ? '#f0a500' : '#3db87a', display: 'block' }} />
-          </div>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
         ) : (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Qerxel</span>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
-            </div>
-            <button
-              onClick={() => onHolidayToggle(!holidayMode)}
-              title={holidayMode ? 'Click to go live' : 'Click to set away'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-                background: holidayMode ? 'rgba(240,165,0,0.15)' : 'rgba(61,184,122,0.15)',
-                border: `1px solid ${holidayMode ? 'rgba(240,165,0,0.35)' : 'rgba(61,184,122,0.3)'}`,
-                borderRadius: 20, padding: '0.2rem 0.55rem', cursor: 'pointer',
-                fontSize: '0.65rem', fontFamily: "'DM Sans', sans-serif",
-                color: holidayMode ? '#f0a500' : 'rgba(255,255,255,0.8)',
-                whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 500, transition: 'opacity 0.15s',
-              }}
-            >
-              {holidayMode
-                ? <><IcoMoon /><span style={{ marginLeft: 3 }}>Away</span></>
-                : <><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3db87a', display: 'inline-block', flexShrink: 0 }} /><span style={{ marginLeft: 2 }}>Live</span></>
-              }
-            </button>
-          </>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Qerxel</span>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
+          </div>
         )}
       </div>
-
-      {/* Return date strip */}
-      {holidayMode && !sidebarCollapsed && (
-        <div style={{ padding: '0.35rem 0.9rem', background: 'rgba(240,165,0,0.08)', borderBottom: '1px solid rgba(240,165,0,0.15)', flexShrink: 0 }}>
-          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.2rem' }}>Return date (optional)</div>
-          <input
-            type="date"
-            value={holidayReturnDate}
-            onChange={e => onReturnDateChange(e.target.value)}
-            style={{
-              width: '100%', fontSize: '0.68rem', padding: '0.22rem 0.35rem', borderRadius: 4,
-              border: '1px solid rgba(240,165,0,0.3)', background: 'rgba(0,0,0,0.2)',
-              color: holidayReturnDate ? '#f0a500' : 'rgba(255,255,255,0.35)',
-              fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', cursor: 'pointer', colorScheme: 'dark',
-            }}
-          />
-        </div>
-      )}
 
       {/* Nav */}
       <style>{`#qerxel-nav::-webkit-scrollbar { display: none }`}</style>
