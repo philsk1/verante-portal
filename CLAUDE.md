@@ -168,7 +168,7 @@ SCHEDULE → Calendar · Team
 PLATFORM → Integrations · Business Profile · Account & Billing
 ```
 
-**Answer + Listen + Schedule:**
+**Answer + Listen:**
 ```
 ANSWER → Dashboard · AI Settings · Analytics · Partners
 LISTEN → Listen

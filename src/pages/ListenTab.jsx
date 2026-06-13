@@ -579,14 +579,12 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
         {/* ── Call list ─────────────────────────────────────────────────────── */}
         <div style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0, minHeight: 0 }}>
 
-          {/* Search — Call Log only */}
-          {activeTab === 'log' && (
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search calls, names, summaries…"
-              style={{ padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', outline: 'none', marginBottom: '0.6rem', flexShrink: 0, boxSizing: 'border-box', width: '100%' }}
-            />
-          )}
+          {/* Search — all tabs */}
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search calls, names, summaries…"
+            style={{ padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', outline: 'none', marginBottom: '0.6rem', flexShrink: 0, boxSizing: 'border-box', width: '100%' }}
+          />
 
           {/* Search tab — multi-term progressive search */}
           {activeTab === 'search' && (

@@ -380,6 +380,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
               {TAB_TAGLINES[activeTab] || 'Q knows everything'}
             </span>
             <button
+              id="vera-ask-btn"
               onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
               style={{
                 padding: '0.22rem 0.6rem',

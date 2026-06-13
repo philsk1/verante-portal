@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import MoodQ from '../components/MoodQ'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -803,6 +804,25 @@ const ActivityDashboard = ({ onNavigate }) => {
   const actionableLeads = leads.filter(l => !l.status || l.status === 'new')
   const recentCalls = calls.slice(0, 5)
 
+  const perfMood = callsThisMonth >= 50 ? 'smile'
+    : callsThisMonth >= 20 ? 'content'
+    : callsThisMonth >= 5  ? 'sad'
+    : 'crying'
+  const perfReason = perfMood !== 'smile' ? (
+    callsThisMonth === 0
+      ? 'No calls handled yet this month. Your AI is ready but hasn\'t received any traffic.'
+      : callsThisMonth < 5
+      ? `Only ${callsThisMonth} call${callsThisMonth === 1 ? '' : 's'} this month — your AI is active but getting very little traffic.`
+      : 'Activity is building, but there\'s more capacity here.'
+  ) : ''
+  const perfTip = perfMood === 'crying'
+    ? 'Check that your phone line is forwarding missed calls to your Qerxel number.'
+    : perfMood === 'sad'
+    ? 'Make sure call forwarding is active and your greeting is set in AI Settings.'
+    : perfMood === 'content'
+    ? 'Promote your number — every missed call is a captured lead.'
+    : ''
+
   // ── proactive alerts ─────────────────────────────────────────────────────────
 
   const DAY_MS = 24 * 60 * 60 * 1000
@@ -1352,6 +1372,14 @@ const ActivityDashboard = ({ onNavigate }) => {
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>This month</div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: callsThisMonth === 0 ? '#d1d5db' : '#5e3b87', lineHeight: 1 }}>{callsThisMonth}</div>
               <div style={{ fontSize: '0.72rem', color: '#aaaaaa', marginTop: 4, fontFamily: "'DM Sans', sans-serif" }}>total calls</div>
+            </div>
+
+            {vDiv}
+
+            {/* Performance mood */}
+            <div style={{ padding: '1.1rem 1.5rem', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'DM Sans', sans-serif" }}>Performance</div>
+              <MoodQ mood={perfMood} reason={perfReason} tip={perfTip} size={36} />
             </div>
 
             <div style={{ flex: 1 }} />

@@ -380,7 +380,7 @@ const Portal = () => {
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'DM Sans', system-ui, sans-serif", background: '#f7f6f9' }}>
       <style>{`@keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }`}</style>
 
-      {/* ── Sidebar (desktop only) ─────────────────────────────────────────── */}
+      {/* Sidebar (desktop only) */}
       {!isMobile && (
         <aside style={{
           position: 'sticky', top: 0, alignSelf: 'flex-start',
@@ -640,7 +640,7 @@ const Portal = () => {
         </aside>
       )}
 
-      {/* ── Content ──────────────────────────────────────────────────────────── */}
+      {/* Content */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', ...(activeTab === 'listen' && { height: '100vh', overflow: 'hidden' }) }}>
 
         {/* Owner preview banner */}
@@ -659,13 +659,13 @@ const Portal = () => {
               </button>
               <button
                 onClick={() => { preview.exitPreview(); navigate('/owner/select') }}
-                style={{ background: 'none', border: 'none', color: 'rgba(26,5,51,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
+                style={{ background: 'none', border: 'none', color: preview.previewEditable ? 'rgba(255,255,255,0.7)' : 'rgba(26,5,51,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0', fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
               >
                 ← Change business
               </button>
               <button
                 onClick={() => { preview.exitPreview(); setActiveTab('dashboard') }}
-                style={{ background: 'rgba(26,5,51,0.15)', border: '1px solid rgba(26,5,51,0.25)', borderRadius: '5px', color: '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
+                style={{ background: preview.previewEditable ? 'rgba(255,255,255,0.2)' : 'rgba(26,5,51,0.15)', border: `1px solid ${preview.previewEditable ? 'rgba(255,255,255,0.3)' : 'rgba(26,5,51,0.25)'}`, borderRadius: '5px', color: preview.previewEditable ? 'white' : '#1a0533', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.2rem 0.65rem', fontFamily: "'DM Sans', sans-serif" }}
               >
                 Exit preview
               </button>
@@ -737,7 +737,7 @@ const Portal = () => {
 
       </div>
 
-      {/* ── Bottom nav (mobile only) ──────────────────────────────────────────── */}
+      {/* Bottom nav (mobile only) */}
       {isMobile && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 58, background: '#5e3b87', display: 'flex', zIndex: 200, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           {mobileNavTabs.map(tab => {

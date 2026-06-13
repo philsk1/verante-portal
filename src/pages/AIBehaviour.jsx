@@ -863,6 +863,27 @@ const AIBehaviour = ({ onNavigate }) => {
   const outcomeLabels = { booking: 'Books appointments', quote: 'Discusses & quotes', custom: 'Custom outcome' }
   const outcomeLabel  = outcomeLabels[businessOutcomeType] || 'Discusses & quotes'
 
+  const hasGreeting = greetingMessage.trim().length > 0
+  const hasSmsOrBooking = smsFollowupEnabled || bookingLink.trim().length > 0
+  const configMood = hasGreeting && hasSmsOrBooking ? 'smile'
+    : hasGreeting ? 'content'
+    : hasSmsOrBooking ? 'sad'
+    : 'crying'
+  const configReason = configMood !== 'smile' ? (
+    !hasGreeting && !hasSmsOrBooking
+      ? "Your AI greeting isn't set and there's no booking link or SMS follow-up configured."
+      : !hasGreeting
+      ? "Your AI has a booking link or SMS follow-up, but no custom greeting — callers will hear a default opening."
+      : "Greeting is set, but callers aren't being offered a booking link or follow-up SMS."
+  ) : ''
+  const configTip = configMood === 'crying'
+    ? 'Write your greeting first — use the Generator below if you need a starting point.'
+    : configMood === 'sad'
+    ? 'Set your greeting — it\'s the first thing every caller hears.'
+    : configMood === 'content'
+    ? 'Add a booking link under Outcome Settings, or enable SMS follow-up.'
+    : ''
+
   return (
     <div>
 
@@ -896,8 +917,9 @@ const AIBehaviour = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Right — style + outcome badges */}
+          {/* Right — Q mood + style + outcome badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <MoodQ mood={configMood} reason={configReason} tip={configTip} size={40} />
             {/* Style badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.35rem 0.7rem', border: '1px solid rgba(255,255,255,0.12)' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: modeInfo.dot }} />

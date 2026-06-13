@@ -109,6 +109,22 @@ const OwnerSelector = () => {
     navigate('/login')
   }
 
+  const handleSort = (field) => {
+    setSort(prev => {
+      if (prev.field !== field) return { field, dir: 'desc' }
+      if (prev.dir === 'desc') return { field, dir: 'asc' }
+      return { field: null, dir: 'desc' }
+    })
+  }
+
+  const sorted = [...tenants].sort((a, b) => {
+    if (!sort.field) return a.business_name.localeCompare(b.business_name)
+    const va = getSortVal(a, sort.field)
+    const vb = getSortVal(b, sort.field)
+    const diff = sort.field === 'az' ? va.localeCompare(vb) : (va < vb ? -1 : va > vb ? 1 : 0)
+    return sort.dir === 'desc' ? -diff : diff
+  })
+
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', sans-serif" }}>
 
@@ -261,12 +277,11 @@ const OwnerSelector = () => {
             {filtered.map(t => (
               <button
                 key={t.id}
-                onClick={() => select(t)}
                 style={{
                   background: 'white', border: '0.5px solid rgba(94,59,135,0.12)', borderRadius: '12px',
-                  padding: '1.25rem', cursor: 'pointer', textAlign: 'left',
+                  cursor: 'pointer', textAlign: 'left',
                   boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s',
-                  fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', gap: '0.85rem',
+                  fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}

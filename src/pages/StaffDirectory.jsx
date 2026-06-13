@@ -270,15 +270,15 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
         <div style={{ width: 260, flexShrink: 0 }}>
           {staff.length === 0 && !adding ? (
             <div
-              onClick={!isPreview ? () => setAdding(true) : undefined}
-              style={{ background: 'white', borderRadius: 14, border: '1.5px dashed rgba(94,59,135,0.18)', padding: '2rem 1.25rem', textAlign: 'center', cursor: !isPreview ? 'pointer' : 'default', transition: 'border-color 0.15s, background 0.15s' }}
-              onMouseEnter={e => { if (!isPreview) { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' } }}
+              onClick={!previewReadOnly ? () => setAdding(true) : undefined}
+              style={{ background: 'white', borderRadius: 14, border: '1.5px dashed rgba(94,59,135,0.18)', padding: '2rem 1.25rem', textAlign: 'center', cursor: !previewReadOnly ? 'pointer' : 'default', transition: 'border-color 0.15s, background 0.15s' }}
+              onMouseEnter={e => { if (!previewReadOnly) { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' } }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(94,59,135,0.18)'; e.currentTarget.style.background = 'white' }}
             >
               <div style={{ fontSize: '1.75rem', marginBottom: '0.65rem' }}>👥</div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>No team members yet</div>
-              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: !isPreview ? '1rem' : 0, lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
-              {!isPreview && (
+              <div style={{ fontSize: '0.78rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginBottom: !previewReadOnly ? '1rem' : 0, lineHeight: 1.5 }}>Add your first team member to enable staff routing and calendar column view.</div>
+              {!previewReadOnly && (
                 <button onClick={e => { e.stopPropagation(); setAdding(true) }} style={{ padding: '0.45rem 1.1rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                   + Add first member
                 </button>
@@ -432,7 +432,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
               <div style={{ marginBottom: '0.9rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                   {lbl('Specialist services / skills')}
-                  {!isPreview && !editingSkills && (
+                  {!previewReadOnly && !editingSkills && (
                     <button onClick={() => setEditingSkills(true)}
                       style={{ fontSize: '0.72rem', fontWeight: 600, color: '#5e3b87', background: '#f0ebf8', border: 'none', borderRadius: 6, padding: '0.2rem 0.55rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>
                       Edit
@@ -447,7 +447,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
                     return (
                       <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0.22rem 0.55rem', borderRadius: 20, background: isCatalogue ? '#f0ebf8' : '#e6f5ee', color: isCatalogue ? '#5e3b87' : '#1e7a4a', fontSize: '0.73rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
                         {tag}
-                        {!isPreview && (
+                        {!previewReadOnly && (
                           <button onClick={() => setDraft(d => ({ ...d, specialist_services: (d.specialist_services || []).filter(s => s !== tag) }))}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '0.9rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', marginLeft: 1 }}>×</button>
                         )}

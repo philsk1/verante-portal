@@ -381,7 +381,7 @@ const PartnersReferrals = ({ onNavigate }) => {
 
                   {/* Remove + log */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    {!isPreview && (
+                    {!previewReadOnly && (
                       <button
                         onClick={() => logInbound(p.id)}
                         title="Log a referral received from this partner"
@@ -392,7 +392,7 @@ const PartnersReferrals = ({ onNavigate }) => {
                     )}
                     <button
                       onClick={() => removePartner(p.id)}
-                      style={{ background: 'none', border: 'none', cursor: isPreview ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                      style={{ background: 'none', border: 'none', cursor: previewReadOnly ? 'default' : 'pointer', color: '#e0e0e0', fontSize: '1rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
                       title="Remove partner"
                     >×</button>
                   </div>

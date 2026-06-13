@@ -1322,7 +1322,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           )}
 
           {/* Review requests */}
-          {status === 'completed' && !isPreview && (
+          {status === 'completed' && !previewReadOnly && (
             <div>
               <Label>Review requests</Label>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: 4 }}>
@@ -1345,7 +1345,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Edit
           </button>
-          {!isPreview && (
+          {!previewReadOnly && (
             <button onClick={handleDelete} disabled={saving}
               style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 7, background: 'white', color: '#e05252', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.6 : 1 }}>
               Delete
@@ -1547,7 +1547,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         </div>
       )}
       <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(94,59,135,0.08)', flexShrink: 0, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        {panelMode === 'edit' && !isPreview && (
+        {panelMode === 'edit' && !previewReadOnly && (
           <button onClick={handleDelete} disabled={saving}
             style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 7, background: 'white', color: '#e05252', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginRight: 'auto' }}>
             Delete
@@ -2057,7 +2057,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                             style={{ flex: 1, padding: '0.6rem', border: 'none', borderRadius: 8, background: !svcDraft.name.trim() || svcAdding ? '#f5d98a' : '#f0a500', color: !svcDraft.name.trim() || svcAdding ? '#7a5c1a' : '#1a0533', fontSize: '0.875rem', fontWeight: 700, cursor: !svcDraft.name.trim() || svcAdding ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                             {svcAdding ? 'Saving…' : svcModal.mode === 'add' ? '+ Add service' : 'Save changes'}
                           </button>
-                          {svcModal.mode === 'edit' && !isPreview && (
+                          {svcModal.mode === 'edit' && !previewReadOnly && (
                             <button onClick={() => { deleteService(svcModal.id); setSvcModal(null) }}
                               style={{ padding: '0.6rem 1rem', border: '1px solid rgba(220,80,80,0.25)', borderRadius: 8, background: 'white', color: '#e05252', fontSize: '0.825rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                               Remove
