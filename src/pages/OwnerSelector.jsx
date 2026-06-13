@@ -62,8 +62,9 @@ const OwnerSelector = () => {
       .catch(() => { setError('Could not load tenants'); setLoading(false) })
   }, [user])
 
-  const select = (tenant) => {
-    navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}`)
+  const select = (tenant, tab = '') => {
+    const tabParam = tab ? `&tab=${tab}` : ''
+    navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}${tabParam}`)
   }
 
   const handleSignOut = async () => {
@@ -121,18 +122,19 @@ const OwnerSelector = () => {
         {!loading && !error && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
             {tenants.map(t => (
-              <button
+              <div
                 key={t.id}
-                onClick={() => select(t)}
                 style={{
                   background: 'white', border: '0.5px solid rgba(94,59,135,0.12)', borderRadius: '12px',
-                  padding: '1.25rem', cursor: 'pointer', textAlign: 'left',
+                  cursor: 'pointer', textAlign: 'left',
                   boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s',
-                  fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', gap: '0.85rem',
+                  fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}
               >
+                {/* Card body — click to open portal */}
+                <div onClick={() => select(t)} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
                 {/* Name + tier */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
                   <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', lineHeight: 1.25 }}>
@@ -190,7 +192,33 @@ const OwnerSelector = () => {
                     </span>
                   )}
                 </div>
-              </button>
+                </div>
+
+                {/* Quick-access row */}
+                <div style={{ display: 'flex', borderTop: '1px solid rgba(94,59,135,0.06)', background: '#faf9fc' }}>
+                  {[
+                    { label: 'Dashboard',   tab: '' },
+                    { label: 'AI Settings', tab: 'ai' },
+                    { label: 'Calendar',    tab: 'calendar' },
+                  ].map((link, i, arr) => (
+                    <button
+                      key={link.tab}
+                      onClick={e => { e.stopPropagation(); select(t, link.tab) }}
+                      style={{
+                        flex: 1, padding: '0.5rem 0.25rem', border: 'none',
+                        borderRight: i < arr.length - 1 ? '1px solid rgba(94,59,135,0.06)' : 'none',
+                        background: 'transparent', cursor: 'pointer',
+                        fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+                        transition: 'background 0.1s, color 0.1s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#f0ebf8'; e.currentTarget.style.color = '#5e3b87' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888' }}
+                    >
+                      {link.label} →
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

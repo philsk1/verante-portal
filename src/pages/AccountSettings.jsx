@@ -527,6 +527,8 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
   const [tier, setTier] = useState('light')
   const [calendarTier, setCalendarTier] = useState('entry')
   const [listenTier, setListenTier] = useState('none')
+  const [sentryTier, setSentryTier] = useState('none')
+  const [linesTier, setLinesTier] = useState('none')
   useEffect(() => { if (preview.tierOverride !== null) setTier(preview.tierOverride) }, [preview.tierOverride])
   const [tenantCreatedAt, setTenantCreatedAt] = useState(null)
   const [vapiPhone, setVapiPhone] = useState(null)
@@ -606,7 +608,7 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, sentry_tier, lines_tier')
           .eq('id', tid)
           .maybeSingle()
 
@@ -615,6 +617,8 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
           setTier(tenant.subscription_tier || 'light')
           setCalendarTier(tenant.calendar_tier || 'entry')
           setListenTier(tenant.listen_tier || 'none')
+          setSentryTier(tenant.sentry_tier || 'none')
+          setLinesTier(tenant.lines_tier || 'none')
           setTenantCreatedAt(tenant.created_at)
           setFeedbackShown(tenant.feedback_prompt_shown || false)
           setNotifyNewLead(tenant.notify_new_lead !== false)
@@ -863,6 +867,70 @@ const AccountSettings = ({ onNavigate, onPlanChange, onListenTierChange, trigger
           </div>
         </div>
       )}
+
+      {/* Your products */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle}>Your Qerxel products</h3>
+        <p style={s.sectionSubtitle}>Everything switched on for your account. Add or upgrade any time.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          {[
+            { key: 'answer',   label: 'Answer',   tagline: 'AI call answering & lead capture',     active: tier !== 'free',       badge: tier !== 'free' ? (TIERS[tier]?.label || tier) : null },
+            { key: 'schedule', label: 'Schedule', tagline: 'Calendar & appointment booking',       active: true,                  badge: calendarTier === 'multi' ? 'Multi-staff' : 'Entry' },
+            { key: 'listen',   label: 'Listen',   tagline: 'AI copilot for live calls',            active: listenTier !== 'none', badge: listenTier !== 'none' ? 'Standard' : null },
+            { key: 'sentry',   label: 'Sentry',   tagline: 'Booking accuracy & variance tracking', active: sentryTier !== 'none', badge: sentryTier !== 'none' ? 'Active' : null },
+          ].map(prod => (
+            <div key={prod.key} style={{ border: prod.active ? '1.5px solid rgba(94,59,135,0.28)' : '1.5px dashed rgba(94,59,135,0.13)', borderRadius: 12, padding: '0.9rem 1rem', background: prod.active ? 'white' : '#f9f8fc', display: 'flex', flexDirection: 'column', gap: '0.35rem', boxShadow: prod.active ? '0 2px 8px rgba(94,59,135,0.06)' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.1rem' }}>
+                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: prod.active ? '#1a1a1a' : '#aaa' }}>{prod.label}</span>
+                {prod.active
+                  ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: '#3db87a', background: '#e6f9ef', borderRadius: '999px', padding: '0.2rem 0.6rem' }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3db87a', display: 'inline-block' }} />Active
+                    </span>
+                  : <span style={{ fontSize: '0.7rem', color: '#bbb', fontWeight: 500 }}>Not active</span>
+                }
+              </div>
+              <div style={{ fontSize: '0.775rem', color: prod.active ? '#666' : '#bbb', lineHeight: 1.4 }}>{prod.tagline}</div>
+              {prod.active && prod.badge && (
+                <span style={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 600, background: 'rgba(94,59,135,0.07)', color: '#5e3b87', borderRadius: '6px', padding: '0.2rem 0.55rem', marginTop: '0.15rem' }}>{prod.badge}</span>
+              )}
+              {!prod.active && (
+                <button onClick={() => setShowPlanSelector(true)} style={{ alignSelf: 'flex-start', marginTop: '0.3rem', padding: '0.35rem 0.85rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: '7px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Add →
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Lines — infrastructure add-on, single compact tile */}
+        {(() => {
+          const linesActive = linesTier !== 'none'
+          return (
+            <div style={{
+              marginTop: '0.75rem',
+              border: linesActive ? '1.5px solid rgba(13,148,136,0.35)' : '1.5px dashed rgba(13,148,136,0.18)',
+              borderRadius: 12, padding: '0.65rem 1rem',
+              background: linesActive ? 'white' : '#f7fffe',
+              display: 'flex', alignItems: 'center', gap: '1rem',
+              boxShadow: linesActive ? '0 2px 8px rgba(13,148,136,0.07)' : 'none',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0d9488', flexShrink: 0 }} />
+                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: linesActive ? '#1a1a1a' : '#aaa' }}>Lines</span>
+                <span style={{ fontSize: '0.72rem', color: linesActive ? '#888' : '#bbb', marginLeft: '0.25rem' }}>Managed phone lines & number porting</span>
+              </div>
+              {linesActive
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: '#0d9488', background: '#e6f7f6', borderRadius: '999px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#0d9488', display: 'inline-block' }} />Active
+                  </span>
+                : <button onClick={() => setShowPlanSelector(true)} style={{ padding: '0.3rem 0.8rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: '7px', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+                    Add →
+                  </button>
+              }
+            </div>
+          )
+        })()}
+      </div>
 
       {/* Plan & Billing */}
       <div style={s.section}>

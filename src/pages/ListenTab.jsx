@@ -217,13 +217,11 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
   const tabDef   = TABS.find(t => t.id === activeTab)
   const effectiveFilter = activeTab === 'urgent' ? urgentFilter : activeTab === 'callback' ? callbackFilter : tabDef.filter
   const tabCalls = calls.filter(effectiveFilter)
-  const visible  = activeTab === 'log' && search
+  const visible  = search
     ? tabCalls.filter(c => {
-        const q = search.toLowerCase()
-        return (c.caller_phone?.toLowerCase().includes(q)) ||
-               (c.caller_name?.toLowerCase().includes(q)) ||
-               (c.ai_summary?.toLowerCase().includes(q)) ||
-               (c.transcript?.toLowerCase().includes(q))
+        const terms = search.toLowerCase().split(/[\s,]+/).filter(Boolean)
+        const hay = [c.caller_phone, c.caller_name, c.ai_summary, c.transcript].join(' ').toLowerCase()
+        return terms.every(t => hay.includes(t))
       })
     : tabCalls
 
@@ -324,14 +322,12 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
         {/* ── Call list ─────────────────────────────────────────────────────── */}
         <div style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0, minHeight: 0 }}>
 
-          {/* Search — Call Log only */}
-          {activeTab === 'log' && (
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search calls, names, summaries…"
-              style={{ padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', outline: 'none', marginBottom: '0.6rem', flexShrink: 0, boxSizing: 'border-box', width: '100%' }}
-            />
-          )}
+          {/* Search — all tabs */}
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search calls, names, summaries…"
+            style={{ padding: '0.5rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', background: 'white', outline: 'none', marginBottom: '0.6rem', flexShrink: 0, boxSizing: 'border-box', width: '100%' }}
+          />
 
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {loading ? (
