@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useQScore } from '../context/QScoreContext'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -189,10 +190,14 @@ export default function PortalSidebar({
   onPlanSelectorOpen,
   onCmdOpen,
   onSignOut,
-  qScore,
-  qMood,
-  qPillars,
 }) {
+  const { globalScore: qScore, globalMood: qMood, configPillar, toolPillar, perfPillar } = useQScore()
+  const qPillars = (configPillar != null || toolPillar != null) ? {
+    setup:    { label: 'Config',      score: configPillar ?? 0, max: 100 },
+    tools:    { label: 'Tools',       score: toolPillar   ?? 0, max: 100 },
+    activity: { label: 'Performance', score: perfPillar   ?? 0, max: 100 },
+  } : null
+
   const [sections, setSections] = useState(() => {
     try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') }
     catch { return {} }
@@ -520,7 +525,7 @@ export default function PortalSidebar({
                 fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
               }}
             >
-              <img src={`/qmood/${qMood || 'smile'}.svg`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
+              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health</span>
               <span style={{
                 fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif",

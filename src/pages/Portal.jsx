@@ -20,6 +20,7 @@ import ProductCatalogue from './ProductCatalogue'
 import SentryTab from './Sentry'
 import HelpMascot from '../components/HelpMascot'
 import { QScoreProvider } from '../context/QScoreContext'
+import PortalSidebar from './PortalSidebar'
 import {
   IcoDashboard, IcoAI, IcoAnalytics, IcoPartners, IcoCalendar,
   IcoIntegrations, IcoVera, IcoSignOut, IcoChevronLeft, IcoChevronRight,
@@ -147,7 +148,6 @@ const Portal = () => {
   const { user } = useAuth()
   const isMobile = useIsMobile()
   const navigate = useNavigate()
-  const notifPanelRef = useRef(null)
 
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -159,7 +159,6 @@ const Portal = () => {
   const [calendarPrefill, setCalendarPrefill]     = useState(null)
   const [listenPrefill, setListenPrefill]         = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed]   = useState(false)
-  const [hoveredNav, setHoveredNav]               = useState(null)
   const [notifPanelOpen, setNotifPanelOpen]       = useState(false)
   const [planSelectorTrigger, setPlanSelectorTrigger] = useState(0)
   const [teamOpenAdd, setTeamOpenAdd]             = useState(false)
@@ -192,15 +191,6 @@ const Portal = () => {
   useEffect(() => {
     if (scheduleOnly && activeTab === 'dashboard') setActiveTab('calendar')
   }, [scheduleOnly])
-
-  useEffect(() => {
-    if (!notifPanelOpen) return
-    const handler = (e) => {
-      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) setNotifPanelOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [notifPanelOpen])
 
   useEffect(() => {
     const handler = (e) => {
@@ -325,6 +315,15 @@ const Portal = () => {
     { id: 'settings',  label: 'Settings', icon: <IcoGear /> },
   ], [scheduleOnly])
 
+  const hasSentry = sentryCameraLimit > 0
+
+  const handleNotifChange = useCallback((field, v) => {
+    if (field === 'notify_new_lead') setNotifyNewLead(v)
+    else if (field === 'notify_daily_summary') setNotifyDailySummary(v)
+    else if (field === 'notify_weekly_report') setNotifyWeeklyReport(v)
+    saveNotification(field, v)
+  }, [setNotifyNewLead, setNotifyDailySummary, setNotifyWeeklyReport, saveNotification])
+
   if (checking) return null
 
   // ── Sitemap items (built after check so PRODUCTS is available) ─────────────
@@ -382,262 +381,27 @@ const Portal = () => {
 
       {/* Sidebar (desktop only) */}
       {!isMobile && (
-        <aside style={{
-          position: 'sticky', top: 0, alignSelf: 'flex-start',
-          height: '100vh', width: sidebarW, flexShrink: 0,
-          background: '#5e3b87', display: 'flex', flexDirection: 'column',
-          transition: 'width 0.22s ease', overflow: 'hidden', zIndex: 10,
-        }}>
-
-          {/* Logo */}
-          <div
-            onClick={() => setSitemapOpen(true)}
-            title="Search pages  ⌘K"
-            style={{
-              height: 64, display: 'flex', alignItems: 'center',
-              justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-              padding: sidebarCollapsed ? 0 : '0 0.9rem 0 1.25rem',
-              borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, boxSizing: 'border-box',
-              cursor: 'pointer',
-            }}
-          >
-            {sidebarCollapsed ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3db87a', display: 'block' }} />
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-                  Qerxel
-                </span>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
-              </div>
-            )}
-          </div>
-
-          {/* Holiday return date strip */}
-          {holidayMode && !sidebarCollapsed && (
-            <div style={{ padding: '0.4rem 0.9rem', background: 'rgba(240,165,0,0.08)', borderBottom: '1px solid rgba(240,165,0,0.15)', flexShrink: 0 }}>
-              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.2rem' }}>Return date (optional)</div>
-              <input
-                type="date"
-                value={holidayReturnDate}
-                onChange={e => saveReturnDate(e.target.value)}
-                style={{
-                  width: '100%', fontSize: '0.68rem', padding: '0.25rem 0.35rem', borderRadius: 4,
-                  border: '1px solid rgba(240,165,0,0.3)', background: 'rgba(0,0,0,0.2)',
-                  color: holidayReturnDate ? '#f0a500' : 'rgba(255,255,255,0.35)',
-                  fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', cursor: 'pointer', colorScheme: 'dark',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Nav */}
-          <style>{`#qerxel-nav::-webkit-scrollbar { width: 4px } #qerxel-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 2px }`}</style>
-          <nav id="qerxel-nav" style={{ flex: 1, minHeight: 0, paddingTop: '0.35rem', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.18) transparent' }}>
-            {PRODUCTS.map((product, pi) => {
-
-              if (product.buildCard) {
-                return (
-                  <button
-                    key="_build_card"
-                    onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,165,0,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    title={sidebarCollapsed ? 'More products' : undefined}
-                    style={{
-                      width: '100%', height: 40, display: 'flex', alignItems: 'center',
-                      justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                      gap: '0.65rem', padding: sidebarCollapsed ? 0 : '0 1.25rem',
-                      border: 'none', borderLeft: '3px solid transparent',
-                      background: 'transparent', cursor: 'pointer', transition: 'background 0.12s', boxSizing: 'border-box',
-                    }}
-                  >
-                    <span style={{ fontSize: '0.85rem', color: 'rgba(240,165,0,0.7)', flexShrink: 0, lineHeight: 1 }}>✦</span>
-                    {!sidebarCollapsed && (
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: 400, color: 'rgba(240,165,0,0.65)', whiteSpace: 'nowrap' }}>
-                        More products
-                      </span>
-                    )}
-                  </button>
-                )
-              }
-
-              if (product.upsell) {
-                if (sidebarCollapsed) return null
-                const isAnswerUpsell = product.upsell === 'answer'
-                return (
-                  <div key={`_${product.upsell}_upsell`}>
-                    <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
-                    <button
-                      onClick={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
-                      onMouseEnter={e => { e.currentTarget.querySelector('span').style.color = isAnswerUpsell ? 'rgba(240,165,0,0.75)' : 'rgba(255,255,255,0.5)' }}
-                      onMouseLeave={e => { e.currentTarget.querySelector('span').style.color = isAnswerUpsell ? 'rgba(240,165,0,0.42)' : 'rgba(255,255,255,0.28)' }}
-                      style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: isAnswerUpsell ? '0.55rem 1.25rem 0.7rem' : '0.45rem 1.25rem 0.35rem', textAlign: 'left' }}
-                    >
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.7rem', fontWeight: isAnswerUpsell ? 500 : 400, color: isAnswerUpsell ? 'rgba(240,165,0,0.42)' : 'rgba(255,255,255,0.28)', transition: 'color 0.15s', letterSpacing: '0.01em' }}>
-                        {isAnswerUpsell ? '✦ Add Answer — never miss a lead' : '＋ Add Listen'}
-                      </span>
-                    </button>
-                  </div>
-                )
-              }
-
-              return (
-                <div key={product.id}>
-                  {!sidebarCollapsed && product.label && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: pi === 0 ? '0.55rem 1.25rem 0.2rem' : '0.7rem 1.25rem 0.2rem' }}>
-                      {product.dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: product.dot, flexShrink: 0 }} />}
-                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.11em', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                        {product.label}
-                      </span>
-                      {product.locked && (
-                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'rgba(255,255,255,0.22)', background: 'rgba(255,255,255,0.07)', borderRadius: 3, padding: '0.05rem 0.3rem', letterSpacing: '0.06em' }}>
-                          + Add
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {sidebarCollapsed && pi > 0 && (
-                    <div style={{ height: 1, margin: '0.25rem 0.75rem', background: 'rgba(255,255,255,0.08)' }} />
-                  )}
-
-                  {product.tabs.map(tab => {
-                    const isActive  = activeTab === tab.id
-                    const isHovered = hoveredNav === tab.id
-                    const isLocked  = !!tab.locked
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => isLocked ? (setPlanSelectorTrigger(t => t + 1), setActiveTab('settings')) : setActiveTab(tab.id)}
-                        onMouseEnter={() => setHoveredNav(tab.id)}
-                        onMouseLeave={() => setHoveredNav(null)}
-                        title={sidebarCollapsed ? (isLocked ? `Add ${product.label}` : tab.label) : undefined}
-                        style={{
-                          width: '100%', height: 40, display: 'flex', alignItems: 'center',
-                          justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                          gap: '0.65rem', padding: sidebarCollapsed ? 0 : '0 1.25rem',
-                          border: 'none', borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
-                          marginLeft: isActive ? -3 : 0,
-                          background: isActive ? 'rgba(255,255,255,0.15)' : isHovered && !isLocked ? 'rgba(255,255,255,0.05)' : 'transparent',
-                          color: isLocked ? 'rgba(255,255,255,0.22)' : isActive ? 'white' : 'rgba(255,255,255,0.62)',
-                          cursor: isLocked ? 'default' : 'pointer',
-                          transition: 'background 0.12s, color 0.12s', boxSizing: 'border-box',
-                          fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', fontWeight: isActive ? 500 : 400,
-                        }}
-                      >
-                        {tab.icon}
-                        {!sidebarCollapsed && (
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
-                            {tab.label}
-                          </span>
-                        )}
-                        {!sidebarCollapsed && tab.id === 'dashboard' && uncontactedCount > 0 && (
-                          <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f0a500', color: '#1a0533', borderRadius: 10, padding: '0.05rem 0.38rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-                            {uncontactedCount}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-
-                  {!sidebarCollapsed && pi < PRODUCTS.length - 1 && !PRODUCTS[pi + 1]?.buildCard && !PRODUCTS[pi]?.buildCard && (
-                    <div style={{ height: 1, margin: '0.3rem 0.75rem 0', background: 'rgba(255,255,255,0.07)' }} />
-                  )}
-                </div>
-              )
-            })}
-          </nav>
-
-          {/* Bottom controls */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-            {!sidebarCollapsed && (
-              <div style={{ padding: '0.6rem 1.25rem 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
-                {displayName || user?.email}
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '0.4rem' }}>
-              {[
-                { id: 'bell',    icon: <IcoBell />,    label: 'Notifications', action: () => setNotifPanelOpen(o => !o),                                   active: notifPanelOpen },
-                { id: 'gear',    icon: <IcoGear />,    label: 'Settings',      action: () => setActiveTab('settings'),                                      active: activeTab === 'settings' },
-                { id: 'vera',    icon: <IcoVera />,    label: 'Ask Q',         action: () => document.getElementById('vera-trigger-btn')?.click(),          active: false },
-                { id: 'signout', icon: <IcoSignOut />, label: 'Sign out',      action: handleSignOut,                                                       active: false },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={item.action}
-                  title={item.label}
-                  onMouseEnter={() => setHoveredNav(item.id)}
-                  onMouseLeave={() => setHoveredNav(null)}
-                  style={{
-                    flex: 1, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: 'none', borderTop: item.active ? '2px solid #f0a500' : '2px solid transparent',
-                    background: item.active ? 'rgba(255,255,255,0.12)' : hoveredNav === item.id ? 'rgba(255,255,255,0.06)' : 'transparent',
-                    color: item.active ? '#f0a500' : 'rgba(255,255,255,0.5)',
-                    cursor: 'pointer', transition: 'all 0.12s', padding: 0, boxSizing: 'border-box',
-                  }}
-                >
-                  {item.icon}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Collapse toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(c => !c)}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            style={{
-              position: 'fixed', left: sidebarW - 12, top: '50%', transform: 'translateY(-50%)',
-              width: 24, height: 24, borderRadius: '50%',
-              background: 'white', border: '1px solid rgba(94,59,135,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', zIndex: 30, boxShadow: '0 2px 8px rgba(94,59,135,0.15)',
-              color: '#5e3b87', padding: 0, transition: 'left 0.22s ease',
-            }}
-          >
-            {sidebarCollapsed ? <IcoChevronRight /> : <IcoChevronLeft />}
-          </button>
-
-          {/* Notification panel */}
-          {notifPanelOpen && (
-            <div
-              ref={notifPanelRef}
-              style={{
-                position: 'fixed', left: sidebarW, bottom: 0, width: 280,
-                background: 'white', borderRadius: '0 12px 0 0',
-                boxShadow: '6px -4px 28px rgba(0,0,0,0.16)', padding: '1.25rem',
-                zIndex: 200, borderTop: '3px solid #f0a500', fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
-              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>
-                Notifications
-              </div>
-              {[
-                { label: 'New lead captured',  desc: 'Immediate alert when your AI captures a lead.',        val: notifyNewLead,      field: 'notify_new_lead',      set: setNotifyNewLead },
-                { label: 'Daily summary',      desc: 'End-of-day digest of calls, leads, referrals.',        val: notifyDailySummary, field: 'notify_daily_summary', set: setNotifyDailySummary },
-                { label: 'Weekly report',      desc: 'Monday morning overview of the week.',                 val: notifyWeeklyReport, field: 'notify_weekly_report', set: setNotifyWeeklyReport },
-              ].map((item, i, arr) => (
-                <div key={item.field} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
-                  paddingBottom: i < arr.length - 1 ? '0.9rem' : 0,
-                  marginBottom:  i < arr.length - 1 ? '0.9rem' : 0,
-                  borderBottom:  i < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#1a1a1a', marginBottom: '0.15rem' }}>{item.label}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#999', lineHeight: 1.4 }}>{item.desc}</div>
-                  </div>
-                  <Toggle checked={item.val} onChange={v => { item.set(v); saveNotification(item.field, v) }} />
-                </div>
-              ))}
-            </div>
-          )}
-
-        </aside>
+        <PortalSidebar
+          displayName={displayName}
+          user={user}
+          activeTab={activeTab}
+          onTabSelect={setActiveTab}
+          hasListen={hasListen}
+          hasSentry={hasSentry}
+          uncontactedCount={uncontactedCount}
+          sidebarCollapsed={sidebarCollapsed}
+          onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+          isPreview={preview.isPreview}
+          notifPanelOpen={notifPanelOpen}
+          onNotifToggle={() => setNotifPanelOpen(o => !o)}
+          notifyNewLead={notifyNewLead}
+          notifyDailySummary={notifyDailySummary}
+          notifyWeeklyReport={notifyWeeklyReport}
+          onNotifChange={handleNotifChange}
+          onPlanSelectorOpen={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
+          onCmdOpen={() => setSitemapOpen(o => !o)}
+          onSignOut={handleSignOut}
+        />
       )}
 
       {/* Content */}
