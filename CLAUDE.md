@@ -495,9 +495,10 @@ BusinessProfile currently links to these — they need to exist.
 
 **Priority 4 ✅ Done 2026-06-12 — dead code cleanup (IC-11, IC-12, IC-13)**
 
-**Priority 5 — Owner preview Edit mode:**
+**Priority 5 ✅ Done 2026-06-13 — Owner preview Edit mode:**
 PreviewContext: `previewEditable` state, `previewReadOnly` computed (= isPreview && !previewEditable), toggle via `setPreviewEditable`.
-Portal banner: amber → green when editing. Write guards: `isPreview` → `previewReadOnly`.
+Portal banner: amber → green when editing. Write guards: `isPreview` → `previewReadOnly` across all 10 tab files.
+Kept as `isPreview` (never editable): Stripe upgrade, subscription cancel, data export (AccountSettings).
 
 **Priority 6 — Q scoring system:**
 QScoreContext: three pillars (Setup 40%, Activity 35%, Follow-up 25%), combined 0-100 score, mood.
@@ -519,7 +520,7 @@ DemoContext is deeply imported by 3+ tab files. Medium priority, deferred.
 - Listen multi-term search ✅ Done 2026-06-13
 - OwnerSelector quick-access row ✅ Done 2026-06-13
 - MoodQ clickable component ✅ Done 2026-06-13 (ActivityDashboard + AIBehaviour)
-- smile.svg proper fix: Philip to reshare actual smiling illustration (currently using content.svg as placeholder)
+- smile.svg proper fix: Philip to drop new smiling Q file (solid teal eyes, replaces hollow-eyes version) in chat — ready to receive
 - Investigate Blackwood Restoration staff linking issue in DB (needs fresh SUPABASE_PAT)
 - UX audit: group complex settings into collapsible sections
 - Schedule pricing model (dimension-based) — park until strategy session
@@ -594,4 +595,4 @@ RLS bypass: `supabase_owner_rls.sql` — already run. Grants SELECT on tables fo
 ---
 
 *Last updated: 2026-06-13*
-*Updated by: MoodQ.jsx built and deployed to ActivityDashboard (perfMood) and AIBehaviour (configMood). OwnerSelector 8-pill sort + Q mood scoring. qmood SVG blobs stripped. smile.svg placeholder (awaiting real smiling illustration from Philip). MoodQ.jsx added to components table.*
+*Updated by: MoodQ.jsx built (ActivityDashboard + AIBehaviour). Owner Preview Edit mode: amber→green banner toggle, previewReadOnly guards across 10 tab files. smile.svg still placeholder — awaiting solid-eyes Q from Philip.*

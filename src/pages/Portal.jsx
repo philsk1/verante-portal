@@ -16,6 +16,7 @@ import ListenTab from './ListenTab'
 import PhoneLines from './PhoneLines'
 import HelpMascot from '../components/HelpMascot'
 import PortalSidebar, { IcoDashboard, IcoCalendar, IcoAI, IcoAnalytics, IcoGear } from './PortalSidebar'
+import { useQScore } from '../hooks/useQScore'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -60,6 +61,9 @@ const Portal = () => {
   const [teamOpenAdd, setTeamOpenAdd] = useState(false)
 
   const navigate = useNavigate()
+  const { qScore, qMood, qPillars } = useQScore(
+    preview.isPreview ? preview.previewTenantId : tenantId
+  )
 
   const handleNavigate = (tabId, prefillData) => {
     setActiveTab(tabId)
@@ -214,6 +218,9 @@ const Portal = () => {
           onNotifChange={handleNotifChange}
           onPlanSelectorOpen={() => { setPlanSelectorTrigger(t => t + 1); setActiveTab('settings') }}
           onSignOut={handleSignOut}
+          qScore={qScore}
+          qMood={qMood}
+          qPillars={qPillars}
         />
       )}
 

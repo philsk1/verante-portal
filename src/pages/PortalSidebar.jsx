@@ -189,6 +189,9 @@ export default function PortalSidebar({
   onPlanSelectorOpen,
   onCmdOpen,
   onSignOut,
+  qScore,
+  qMood,
+  qPillars,
 }) {
   const [sections, setSections] = useState(() => {
     try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') }
@@ -202,6 +205,7 @@ export default function PortalSidebar({
 
   const [hoveredTab, setHoveredTab]   = useState(null)
   const [hoveredIcon, setHoveredIcon] = useState(null)
+  const [qPanelOpen, setQPanelOpen]   = useState(false)
   const notifPanelRef = useRef(null)
   const sidebarW = sidebarCollapsed ? 60 : 260
 
@@ -501,6 +505,60 @@ export default function PortalSidebar({
             <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
               {displayName || user?.email}
             </div>
+          </div>
+        )}
+
+        {/* Q Score health block */}
+        {!sidebarCollapsed && qScore !== null && (
+          <div style={{ margin: '0.45rem 0.85rem 0' }}>
+            <button
+              onClick={() => setQPanelOpen(o => !o)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8, padding: '0.4rem 0.65rem', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
+              }}
+            >
+              <img src={`/qmood/${qMood || 'smile'}.svg`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
+              <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health</span>
+              <span style={{
+                fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif",
+                color: qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171',
+              }}>
+                {qScore}<span style={{ fontSize: '0.58rem', fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>/100</span>
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.65rem', transform: qPanelOpen ? 'rotate(0deg)' : 'rotate(-90deg)', display: 'inline-block', transition: 'transform 0.15s', lineHeight: 1 }}>▾</span>
+            </button>
+
+            {qPanelOpen && qPillars && (
+              <div style={{ marginTop: '0.3rem', padding: '0.55rem 0.65rem', background: 'rgba(0,0,0,0.18)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {Object.values(qPillars).map(p => {
+                  const pct = Math.round((p.score / p.max) * 100)
+                  const barColor = pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171'
+                  return (
+                    <div key={p.label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
+                      </div>
+                      <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+                {qScore < 75 && (
+                  <div style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.45, marginTop: '0.1rem', fontFamily: "'DM Sans', sans-serif" }}>
+                    {qPillars.setup.score < 30
+                      ? 'Add catalogue items and configure your greeting to boost your score.'
+                      : qPillars.activity.score < 10
+                      ? 'No calls yet this month — is your number shared with customers?'
+                      : 'Call your leads back — the first hour converts best.'}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
