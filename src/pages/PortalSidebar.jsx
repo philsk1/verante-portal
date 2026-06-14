@@ -208,9 +208,11 @@ export default function PortalSidebar({
     catch { return [] }
   })
 
-  const [hoveredTab, setHoveredTab]   = useState(null)
-  const [hoveredIcon, setHoveredIcon] = useState(null)
-  const [qPanelOpen, setQPanelOpen]   = useState(false)
+  const [hoveredTab, setHoveredTab]     = useState(null)
+  const [hoveredIcon, setHoveredIcon]   = useState(null)
+  const [healthDismissed, setHealthDismissed] = useState(() => {
+    try { return localStorage.getItem('qerxel_health_dismissed') } catch { return null }
+  })
   const notifPanelRef = useRef(null)
   const sidebarW = sidebarCollapsed ? 60 : 260
 
@@ -269,6 +271,25 @@ export default function PortalSidebar({
   const activeProductId = PRODUCTS.find(p => p.tabs?.some(t => t.id === activeTab))?.id
   const allTabs         = PRODUCTS.flatMap(p => p.tabs || [])
   const pinnedTabs      = allTabs.filter(t => pins.includes(t.id))
+
+  const isPoorHealth     = qScore !== null && qScore < 75
+  const healthSuppressed = !!healthDismissed && (Date.now() - new Date(healthDismissed).getTime()) < 30 * 24 * 60 * 60 * 1000
+  const showHealthAtTop  = isPoorHealth && !healthSuppressed && !sidebarCollapsed
+
+  const healthTarget = (() => {
+    const scores = [
+      { s: configPillar ?? 100, tab: 'ai' },
+      { s: toolPillar   ?? 100, tab: 'integrations' },
+      { s: perfPillar   ?? 100, tab: 'dashboard' },
+    ]
+    return scores.reduce((a, b) => a.s < b.s ? a : b).tab
+  })()
+
+  const dismissHealth = () => {
+    const now = new Date().toISOString()
+    setHealthDismissed(now)
+    try { localStorage.setItem('qerxel_health_dismissed', now) } catch {}
+  }
 
   // ── Auto-expand the section containing the active tab ─────────────────────
 
@@ -471,6 +492,39 @@ export default function PortalSidebar({
       <style>{`#qerxel-nav::-webkit-scrollbar { display: none }`}</style>
       <nav id="qerxel-nav" style={{ flex: 1, paddingTop: '0.25rem', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none' }}>
 
+        {/* Health check warning — shown at top when score is poor */}
+        {showHealthAtTop && (
+          <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(0,0,0,0.22)', borderRadius: 9, padding: '0.65rem 0.7rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem' }}>
+              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 26, height: 26, objectFit: 'contain', flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>Health check</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>{qScore}</span>
+              <button onClick={dismissHealth} title="Dismiss for 1 month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.22)', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+            </div>
+            {qPillars && (() => {
+              const worst = Object.values(qPillars).reduce((a, b) => a.score < b.score ? a : b)
+              const pct   = Math.round((worst.score / worst.max) * 100)
+              return (
+                <div style={{ marginBottom: '0.45rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{worst.label}</span>
+                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.22)', fontFamily: "'DM Sans', sans-serif" }}>{worst.score}/{worst.max}</span>
+                  </div>
+                  <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
+                  </div>
+                </div>
+              )
+            })()}
+            <button
+              onClick={() => onTabSelect(healthTarget)}
+              style={{ width: '100%', padding: '0.28rem 0', background: 'rgba(240,165,0,0.14)', border: '1px solid rgba(240,165,0,0.28)', borderRadius: 6, color: '#f0a500', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Fix this →
+            </button>
+          </div>
+        )}
+
         {/* Favourites — only when pins exist */}
         {pinnedTabs.length > 0 && (
           <div>
@@ -513,11 +567,11 @@ export default function PortalSidebar({
           </div>
         )}
 
-        {/* Q Score health block */}
+        {/* Q Score health check — bottom link */}
         {!sidebarCollapsed && qScore !== null && (
           <div style={{ margin: '0.45rem 0.85rem 0' }}>
             <button
-              onClick={() => setQPanelOpen(o => !o)}
+              onClick={() => onTabSelect(healthTarget)}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem',
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
@@ -526,44 +580,15 @@ export default function PortalSidebar({
               }}
             >
               <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
-              <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health</span>
+              <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health check</span>
               <span style={{
                 fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif",
                 color: qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171',
               }}>
                 {qScore}<span style={{ fontSize: '0.58rem', fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>/100</span>
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.65rem', transform: qPanelOpen ? 'rotate(0deg)' : 'rotate(-90deg)', display: 'inline-block', transition: 'transform 0.15s', lineHeight: 1 }}>▾</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.65rem', lineHeight: 1 }}>→</span>
             </button>
-
-            {qPanelOpen && qPillars && (
-              <div style={{ marginTop: '0.3rem', padding: '0.55rem 0.65rem', background: 'rgba(0,0,0,0.18)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                {Object.values(qPillars).map(p => {
-                  const pct = Math.round((p.score / p.max) * 100)
-                  const barColor = pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171'
-                  return (
-                    <div key={p.label}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
-                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
-                      </div>
-                      <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 2, transition: 'width 0.4s ease' }} />
-                      </div>
-                    </div>
-                  )
-                })}
-                {qScore < 75 && (
-                  <div style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.45, marginTop: '0.1rem', fontFamily: "'DM Sans', sans-serif" }}>
-                    {qPillars.setup.score < 30
-                      ? 'Add catalogue items and configure your greeting to boost your score.'
-                      : qPillars.activity.score < 10
-                      ? 'No calls yet this month — is your number shared with customers?'
-                      : 'Call your leads back — the first hour converts best.'}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
