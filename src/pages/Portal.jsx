@@ -553,7 +553,7 @@ const Portal = () => {
               placeholder="Search pages…"
               style={{ flex: 1, border: 'none', outline: 'none', fontSize: '0.9375rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", background: 'transparent' }}
             />
-            <kbd style={{ fontSize: '0.7rem', color: '#aaa', background: '#f3f4f6', borderRadius: 5, padding: '0.2rem 0.5rem', fontFamily: 'monospace', border: '1px solid #e5e7eb', flexShrink: 0 }}>Esc</kbd>
+            <button onClick={() => setSitemapOpen(false)} style={{ fontSize: '0.7rem', color: '#888', background: '#f3f4f6', borderRadius: 5, padding: '0.2rem 0.5rem', fontFamily: 'monospace', border: '1px solid #e5e7eb', flexShrink: 0, cursor: 'pointer' }}>Esc ×</button>
           </div>
 
           {/* Results */}
@@ -612,7 +612,7 @@ const Portal = () => {
           <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)', padding: '0.5rem 1.1rem', display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.7rem', color: '#c0b8d0' }}>
             <span><kbd style={{ fontFamily: 'monospace', marginRight: 3 }}>↑↓</kbd>navigate</span>
             <span><kbd style={{ fontFamily: 'monospace', marginRight: 3 }}>↵</kbd>open</span>
-            <span><kbd style={{ fontFamily: 'monospace', marginRight: 3 }}>Esc</kbd>close</span>
+            <button onClick={() => setSitemapOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}><kbd style={{ fontFamily: 'monospace', marginRight: 3 }}>Esc</kbd>close</button>
             <span style={{ marginLeft: 'auto', opacity: 0.7 }}>⌘K anywhere</span>
           </div>
         </div>

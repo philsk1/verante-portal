@@ -213,6 +213,7 @@ export default function PortalSidebar({
   const [healthDismissed, setHealthDismissed] = useState(() => {
     try { return localStorage.getItem('qerxel_health_dismissed') } catch { return null }
   })
+  const [healthExpanded, setHealthExpanded] = useState(false)
   const notifPanelRef = useRef(null)
   const sidebarW = sidebarCollapsed ? 60 : 260
 
@@ -494,34 +495,35 @@ export default function PortalSidebar({
 
         {/* Health check warning — shown at top when score is poor */}
         {showHealthAtTop && (
-          <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(0,0,0,0.22)', borderRadius: 9, padding: '0.65rem 0.7rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem' }}>
-              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 26, height: 26, objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(255,255,255,0.07)', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+            <button
+              onClick={() => setHealthExpanded(e => !e)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
+            >
+              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>Health check</span>
               <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>{qScore}</span>
-              <button onClick={dismissHealth} title="Dismiss for 1 month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.22)', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-            </div>
-            {qPillars && (() => {
-              const worst = Object.values(qPillars).reduce((a, b) => a.score < b.score ? a : b)
-              const pct   = Math.round((worst.score / worst.max) * 100)
-              return (
-                <div style={{ marginBottom: '0.45rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
-                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{worst.label}</span>
-                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.22)', fontFamily: "'DM Sans', sans-serif" }}>{worst.score}/{worst.max}</span>
-                  </div>
-                  <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
-                  </div>
-                </div>
-              )
-            })()}
-            <button
-              onClick={() => onTabSelect(healthTarget)}
-              style={{ width: '100%', padding: '0.28rem 0', background: 'rgba(240,165,0,0.14)', border: '1px solid rgba(240,165,0,0.28)', borderRadius: 6, color: '#f0a500', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-            >
-              Fix this →
+              <button onClick={e => { e.stopPropagation(); dismissHealth() }} title="Dismiss for 1 month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.15s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
             </button>
+            {healthExpanded && qPillars && (
+              <div style={{ padding: '0 0.7rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {Object.values(qPillars).map(p => {
+                  const pct = Math.round((p.score / p.max) * 100)
+                  return (
+                    <div key={p.label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.12rem' }}>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.22)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
+                      </div>
+                      <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -567,28 +569,38 @@ export default function PortalSidebar({
           </div>
         )}
 
-        {/* Q Score health check — bottom link */}
+        {/* Q Score health check — bottom expandable */}
         {!sidebarCollapsed && qScore !== null && (
-          <div style={{ margin: '0.45rem 0.85rem 0' }}>
+          <div style={{ margin: '0.45rem 0.85rem 0', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden' }}>
             <button
-              onClick={() => onTabSelect(healthTarget)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem',
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, padding: '0.4rem 0.65rem', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
-              }}
+              onClick={() => setHealthExpanded(e => !e)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.65rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
             >
               <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health check</span>
-              <span style={{
-                fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif",
-                color: qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171',
-              }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171' }}>
                 {qScore}<span style={{ fontSize: '0.58rem', fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>/100</span>
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.65rem', lineHeight: 1 }}>→</span>
+              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.15s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
             </button>
+            {healthExpanded && qPillars && (
+              <div style={{ padding: '0 0.65rem 0.55rem', display: 'flex', flexDirection: 'column', gap: '0.38rem' }}>
+                {Object.values(qPillars).map(p => {
+                  const pct = Math.round((p.score / p.max) * 100)
+                  return (
+                    <div key={p.label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.12rem' }}>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.25)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
+                      </div>
+                      <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -597,10 +609,10 @@ export default function PortalSidebar({
             onClick={onCmdOpen}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 1rem', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '0.15rem' }}
           >
-            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.25)', fontFamily: "'DM Sans', sans-serif" }}>Navigate</span>
+            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif" }}>Navigate</span>
             <div style={{ display: 'flex', gap: '0.2rem' }}>
               {['⌘', 'K'].map(k => (
-                <span key={k} style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.07)', borderRadius: 4, padding: '0.1rem 0.35rem', fontFamily: "'DM Sans', sans-serif" }}>{k}</span>
+                <span key={k} style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.12)', borderRadius: 4, padding: '0.1rem 0.35rem', fontFamily: "'DM Sans', sans-serif" }}>{k}</span>
               ))}
             </div>
           </button>
