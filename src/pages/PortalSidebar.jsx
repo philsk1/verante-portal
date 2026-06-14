@@ -507,19 +507,20 @@ export default function PortalSidebar({
               <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.15s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
             </button>
             {healthExpanded && qPillars && (
-              <div style={{ padding: '0 0.7rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {Object.values(qPillars).map(p => {
+              <div style={{ padding: '0 0.7rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {Object.entries(qPillars).map(([key, p]) => {
                   const pct = Math.round((p.score / p.max) * 100)
+                  const tab = { setup: 'ai', tools: 'integrations', activity: 'dashboard' }[key]
                   return (
-                    <div key={p.label}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.12rem' }}>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.22)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
+                    <button key={key} onClick={() => onTabSelect(tab)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.12rem' }}>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max} →</span>
                       </div>
                       <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${pct}%`, background: pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
                       </div>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -569,54 +570,6 @@ export default function PortalSidebar({
           </div>
         )}
 
-        {/* Q Score health check — bottom expandable */}
-        {!sidebarCollapsed && qScore !== null && (
-          <div style={{ margin: '0.45rem 0.85rem 0', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden' }}>
-            <button
-              onClick={() => setHealthExpanded(e => !e)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.65rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
-            >
-              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
-              <span style={{ flex: 1, textAlign: 'left', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>Health check</span>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171' }}>
-                {qScore}<span style={{ fontSize: '0.58rem', fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>/100</span>
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.15s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
-            </button>
-            {healthExpanded && qPillars && (
-              <div style={{ padding: '0 0.65rem 0.55rem', display: 'flex', flexDirection: 'column', gap: '0.38rem' }}>
-                {Object.values(qPillars).map(p => {
-                  const pct = Math.round((p.score / p.max) * 100)
-                  return (
-                    <div key={p.label}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.12rem' }}>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.38)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.25)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max}</span>
-                      </div>
-                      <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {!sidebarCollapsed && onCmdOpen && (
-          <button
-            onClick={onCmdOpen}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 1rem', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '0.15rem' }}
-          >
-            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif" }}>Navigate</span>
-            <div style={{ display: 'flex', gap: '0.2rem' }}>
-              {['⌘', 'K'].map(k => (
-                <span key={k} style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.12)', borderRadius: 4, padding: '0.1rem 0.35rem', fontFamily: "'DM Sans', sans-serif" }}>{k}</span>
-              ))}
-            </div>
-          </button>
-        )}
 
         {/* Icon row */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '0.35rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '0.3rem' }}>
