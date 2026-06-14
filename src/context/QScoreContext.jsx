@@ -4,25 +4,18 @@ import { useAuth } from './AuthContext'
 import { usePreview } from './PreviewContext'
 import {
   configScore, toolScore, performanceScore, qMoodFromScore, qCaption,
-  answerChannelHealth, scheduleChannelHealth, sentryChannelHealth,
+  buildAnswerIssues, answerChannelHealth, scheduleChannelHealth, sentryChannelHealth,
 } from '../utils/qScore.js'
 
 const QScoreContext = createContext(null)
 export const useQScore = () => useContext(QScoreContext) || {}
 
-function buildCoachingPoints(tenant, ps) {
-  const points = []
-  if (!tenant.greeting_message?.trim())         points.push({ label: 'Write a custom AI greeting',          tab: 'ai',        severity: 'high' })
-  if (!tenant.additional_instructions?.trim())  points.push({ label: 'Add AI instructions',                  tab: 'ai',        severity: 'high' })
-  if (!tenant.callback_preference_note?.trim()) points.push({ label: 'Set callback preference wording',      tab: 'ai',        severity: 'medium' })
-  if (!tenant.booking_link?.trim())             points.push({ label: 'Add your booking link',                tab: 'ai',        severity: 'medium' })
-  if (!tenant.lead_contact_name?.trim())        points.push({ label: 'Set your name as lead contact',        tab: 'profile',   severity: 'medium' })
-  if (!tenant.sms_followup_enabled)             points.push({ label: 'Enable SMS follow-up for leads',       tab: 'ai',        severity: 'medium' })
-  if (!tenant.provisional_booking_enabled)      points.push({ label: 'Enable provisional booking',          tab: 'ai',        severity: 'low' })
-  if (!tenant.emergency_keywords?.length)       points.push({ label: 'Set emergency keywords',               tab: 'ai',        severity: 'low' })
-  if (ps !== null && ps < 40)                   points.push({ label: 'Review call outcomes in Analytics',    tab: 'analytics', severity: 'high' })
-  const SEV = { high: 0, medium: 1, low: 2 }
-  return points.sort((a, b) => SEV[a.severity] - SEV[b.severity]).slice(0, 5)
+const SEV = { high: 0, medium: 1, low: 2 }
+
+function buildCoachingPoints(tenant, ps, catalogueCount = 0) {
+  return buildAnswerIssues(tenant, { catalogueCount, ps })
+    .sort((a, b) => SEV[a.severity] - SEV[b.severity])
+    .slice(0, 5)
 }
 
 export const QScoreProvider = ({ children }) => {
@@ -60,7 +53,7 @@ export const QScoreProvider = ({ children }) => {
 
     const [tenantRes, callRes, recentCallRes, staffRes, availRes, zonesRes, catRes] = await Promise.all([
       supabase.from('tenants')
-        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, listen_tier, sentry_camera_limit, blocked_phone_numbers, q_mode, q_dismissals')
+        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, opening_hours, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, listen_tier, sentry_camera_limit, blocked_phone_numbers, q_mode, q_dismissals')
         .eq('id', tid).maybeSingle(),
       supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid),
       supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid).gte('created_at', tenDaysAgo),
@@ -94,10 +87,12 @@ export const QScoreProvider = ({ children }) => {
       ? Math.round((psAll + psRecent) / 2)
       : (psRecent ?? psAll)
 
+    const catalogueCount = catRes.count ?? 0
+
     setConfigPillar(cs)
     setToolPillar(ts)
     setPerfPillar(ps)
-    setCoachingPoints(buildCoachingPoints(tenant, ps))
+    setCoachingPoints(buildCoachingPoints(tenant, ps, catalogueCount))
 
     // ── Per-channel health ────────────────────────────────────────────────────
     const hasSchedule = tenant.calendar_tier && tenant.calendar_tier !== 'none'
@@ -105,13 +100,13 @@ export const QScoreProvider = ({ children }) => {
 
     const channels = []
 
-    channels.push(answerChannelHealth(tenant, ps))
+    channels.push(answerChannelHealth(tenant, ps, catalogueCount))
 
     if (hasSchedule) {
       channels.push(scheduleChannelHealth({
-        staffCount:       staffRes.count ?? 0,
+        staffCount:        staffRes.count ?? 0,
         availabilityCount: availRes.count ?? 0,
-        catalogueCount:   catRes.count   ?? 0,
+        catalogueCount,
       }))
     }
 

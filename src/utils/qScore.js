@@ -71,15 +71,26 @@ export function qScore({ tenant, outcomeCounts, weights = { config: 0.4, tool: 0
 // Only include channels for products the tenant owns.
 // Global health score = average of owned channel scores.
 
-export function answerChannelHealth(tenant, ps) {
+// Single source of truth for all Answer issues — used by both health score and Q coaching panel.
+// Keeps health score expansion and Q's coaching panel in perfect sync.
+export function buildAnswerIssues(tenant, { catalogueCount = 0, ps = null } = {}) {
   const issues = []
-  if (!tenant.greeting_message?.trim())         issues.push({ label: 'Write a custom AI greeting',              tab: 'ai',        severity: 'high' })
-  if (!tenant.additional_instructions?.trim())  issues.push({ label: 'Add AI instructions',                    tab: 'ai',        severity: 'high' })
-  if (!tenant.callback_preference_note?.trim()) issues.push({ label: 'Set callback preference wording',        tab: 'ai',        severity: 'medium' })
-  if (!tenant.booking_link?.trim())             issues.push({ label: 'Add your booking link',                  tab: 'ai',        severity: 'medium' })
-  if (!tenant.lead_contact_name?.trim())        issues.push({ label: 'Set your name as lead contact',          tab: 'profile',   severity: 'medium' })
-  if (!tenant.emergency_keywords?.length)       issues.push({ label: 'Set emergency keywords',                 tab: 'ai',        severity: 'low' })
-  if (ps !== null && ps < 40)                   issues.push({ label: 'Call capture rate is low',               tab: 'analytics', severity: 'high' })
+  if (!tenant.greeting_message?.trim())         issues.push({ label: 'Write a custom AI greeting',         tab: 'ai',        severity: 'high' })
+  if (!tenant.additional_instructions?.trim())  issues.push({ label: 'Add AI instructions',                tab: 'ai',        severity: 'high' })
+  if (!tenant.opening_hours?.trim())            issues.push({ label: 'Add your opening hours',             tab: 'profile',   severity: 'high' })
+  if (ps !== null && ps < 40)                   issues.push({ label: 'Call capture rate is low',           tab: 'analytics', severity: 'high' })
+  if (!tenant.callback_preference_note?.trim()) issues.push({ label: 'Set callback preference wording',    tab: 'ai',        severity: 'medium' })
+  if (!tenant.booking_link?.trim())             issues.push({ label: 'Add your booking link',              tab: 'ai',        severity: 'medium' })
+  if (catalogueCount === 0)                     issues.push({ label: 'Add services to your catalogue',     tab: 'profile',   severity: 'medium' })
+  if (!tenant.lead_contact_name?.trim())        issues.push({ label: 'Set your name as lead contact',      tab: 'profile',   severity: 'medium' })
+  if (!tenant.sms_followup_enabled)             issues.push({ label: 'Enable SMS follow-up for leads',     tab: 'ai',        severity: 'low' })
+  if (!tenant.provisional_booking_enabled)      issues.push({ label: 'Enable provisional booking',         tab: 'ai',        severity: 'low' })
+  if (!tenant.emergency_keywords?.length)       issues.push({ label: 'Set emergency keywords',             tab: 'ai',        severity: 'low' })
+  return issues
+}
+
+export function answerChannelHealth(tenant, ps, catalogueCount = 0) {
+  const issues = buildAnswerIssues(tenant, { catalogueCount, ps })
   const cs = configScore(tenant)
   const score = ps === null ? cs : Math.round(cs * 0.55 + ps * 0.45)
   return { id: 'answer', label: 'Answer', score, issues }
