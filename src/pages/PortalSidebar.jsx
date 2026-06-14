@@ -175,6 +175,7 @@ export default function PortalSidebar({
   user,
   activeTab,
   onTabSelect,
+  hasSchedule,
   hasListen,
   hasSentry,
   uncontactedCount,
@@ -223,7 +224,7 @@ export default function PortalSidebar({
     {
       id: 'answer',
       label: 'Answer',
-      dot: '#f0a500',
+      dot: '#3db87a',
       tabs: [
         { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
         { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
@@ -231,16 +232,23 @@ export default function PortalSidebar({
       ],
     },
     {
+      id: 'listen',
+      label: 'Listen',
+      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.2)',
+      locked: !hasListen,
+      tabs: [{ id: 'listen', label: 'Listen', icon: <IcoListen /> }],
+    },
+    {
       id: 'schedule',
       label: 'Schedule',
-      dot: '#1d4ed8',
+      dot: hasSchedule ? '#3db87a' : 'rgba(255,255,255,0.2)',
+      locked: !hasSchedule,
       tabs: [
         { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
         { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
       ],
     },
-    ...(hasSentry ? [{ id: 'sentry', label: 'Sentry', dot: '#5e3b87', tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] }] : []),
-    ...(hasListen ? [{ id: 'listen', label: 'Listen', dot: '#3db87a', tabs: [{ id: 'listen', label: 'Listen', icon: <IcoListen /> }] }] : []),
+    ...(hasSentry ? [{ id: 'sentry', label: 'Sentry', dot: '#3db87a', tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] }] : []),
     {
       id: 'lines',
       label: 'Lines',
@@ -252,7 +260,7 @@ export default function PortalSidebar({
     {
       id: 'business',
       label: 'Business',
-      dot: null,
+      dot: '#60a5fa',
       tabs: [
         { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
         { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
@@ -262,7 +270,7 @@ export default function PortalSidebar({
     {
       id: 'platform',
       label: 'Platform',
-      dot: null,
+      dot: '#60a5fa',
       tabs: [
         { id: 'settings', label: 'Account & Billing', icon: <IcoGear /> },
       ],
@@ -297,10 +305,10 @@ export default function PortalSidebar({
   useEffect(() => {
     if (!activeProductId) return
     setSections(prev => {
-      if (prev[activeProductId]) return prev
+      if (prev[activeProductId] === true) return prev
       return { ...prev, [activeProductId]: true }
     })
-  }, [activeTab, activeProductId])
+  }, [activeTab])
 
   // ── Persist state ─────────────────────────────────────────────────────────
 
@@ -321,10 +329,11 @@ export default function PortalSidebar({
   // ── Section + pin helpers ─────────────────────────────────────────────────
 
   const toggleSection = (sectionId) => {
-    const isActiveSection = sectionId === activeProductId
-    const isFavWithActivePin = sectionId === '_favourites' && pins.includes(activeTab)
-    if (isActiveSection || isFavWithActivePin) return
-    setSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }))
+    if (sectionId === '_favourites' && pins.includes(activeTab)) return
+    setSections(prev => {
+      const isCurrentlyOpen = prev[sectionId] === true
+      return { ...prev, [sectionId]: !isCurrentlyOpen }
+    })
   }
 
   const togglePin = (tabId, e) => {
@@ -334,19 +343,18 @@ export default function PortalSidebar({
 
   const isSectionOpen = (sectionId) => {
     if (sidebarCollapsed) return true
-    if (sectionId === activeProductId) return true
     if (sectionId === '_favourites') return sections['_favourites'] !== false
     return sections[sectionId] === true
   }
 
   // ── Tab row ───────────────────────────────────────────────────────────────
 
-  const renderTab = (tab, inFavourites = false) => {
+  const renderTab = (tab, inFavourites = false, locked = false) => {
     const isActive  = activeTab === tab.id
     const isHovered = hoveredTab === tab.id && !sidebarCollapsed
     const isPinned  = pins.includes(tab.id)
     const showBadge = tab.id === 'dashboard' && uncontactedCount > 0
-    const showStar  = !sidebarCollapsed && !inFavourites && (isPinned || isHovered) && !showBadge
+    const showStar  = !sidebarCollapsed && !inFavourites && !locked && (isPinned || isHovered) && !showBadge
     const showFavStar = !sidebarCollapsed && inFavourites
 
     return (
@@ -366,7 +374,7 @@ export default function PortalSidebar({
           borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
           marginLeft: isActive ? -3 : 0,
           background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-          color: isActive ? 'white' : 'rgba(255,255,255,0.62)',
+          color: isActive ? 'white' : locked ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.62)',
           cursor: 'pointer',
           transition: 'background 0.12s, color 0.12s',
           boxSizing: 'border-box',
@@ -385,6 +393,12 @@ export default function PortalSidebar({
               <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f0a500', color: '#1a0533', borderRadius: 10, padding: '0.05rem 0.38rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
                 {uncontactedCount}
               </span>
+            )}
+            {locked && !showBadge && (
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
             )}
             {showStar && (
               <button
@@ -415,7 +429,7 @@ export default function PortalSidebar({
   const renderSectionHeader = (product, pi, isOpen) => {
     const isActiveSection = product.id === activeProductId
     const isFav           = product.id === '_favourites'
-    const locked          = isActiveSection || (isFav && pins.includes(activeTab))
+    const isFavLocked     = isFav && pins.includes(activeTab)
 
     if (sidebarCollapsed) {
       return pi > 0 ? (
@@ -425,12 +439,12 @@ export default function PortalSidebar({
 
     return (
       <button
-        onClick={() => toggleSection(product.id)}
+        onClick={() => !isFavLocked && toggleSection(product.id)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: '0.35rem',
           padding: pi === 0 ? '0.5rem 0.85rem 0.15rem 1.25rem' : '0.65rem 0.85rem 0.15rem 1.25rem',
           background: 'none', border: 'none',
-          cursor: locked ? 'default' : 'pointer',
+          cursor: isFavLocked ? 'default' : 'pointer',
           textAlign: 'left', boxSizing: 'border-box',
         }}
       >
@@ -443,13 +457,19 @@ export default function PortalSidebar({
         )}
         <span style={{
           fontSize: '0.585rem', fontWeight: 700,
-          color: isActiveSection ? 'rgba(255,255,255,0.42)' : product.subtle ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.28)',
+          color: product.locked ? 'rgba(255,255,255,0.18)' : isActiveSection ? 'rgba(255,255,255,0.42)' : product.subtle ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.28)',
           textTransform: 'uppercase', letterSpacing: '0.12em',
           fontFamily: "'DM Sans', sans-serif", flex: 1, whiteSpace: 'nowrap', transition: 'color 0.12s',
         }}>
           {product.label}
         </span>
-        {!locked && (
+        {product.locked && (
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: '0.1rem' }}>
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        )}
+        {!isFavLocked && (
           <span style={{
             color: 'rgba(255,255,255,0.18)', fontSize: '0.65rem', lineHeight: 1,
             display: 'inline-block', transition: 'transform 0.15s',
@@ -553,7 +573,7 @@ export default function PortalSidebar({
           return (
             <div key={product.id}>
               {renderSectionHeader(product, labelIndex, isOpen)}
-              {isOpen && product.tabs.map(tab => renderTab(tab))}
+              {isOpen && product.tabs.map(tab => renderTab(tab, false, !!product.locked))}
             </div>
           )
         })}

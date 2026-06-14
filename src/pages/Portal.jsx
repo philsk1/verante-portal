@@ -154,8 +154,9 @@ const Portal = () => {
     if (params.get('upgraded')) return 'settings'
     if (params.get('tab') === 'integrations') return 'integrations'
     if (params.get('ownerTab')) return params.get('ownerTab')
-    return 'dashboard'
+    try { return localStorage.getItem('qerxel_last_tab') || 'dashboard' } catch { return 'dashboard' }
   })
+  const [upsellModal, setUpsellModal] = useState(null)
   const [calendarPrefill, setCalendarPrefill]     = useState(null)
   const [listenPrefill, setListenPrefill]         = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed]   = useState(false)
@@ -166,6 +167,10 @@ const Portal = () => {
   const [sitemapQuery, setSitemapQuery]           = useState('')
   const [sitemapIdx, setSitemapIdx]               = useState(0)
   const sitemapInputRef = useRef(null)
+
+  useEffect(() => {
+    try { localStorage.setItem('qerxel_last_tab', activeTab) } catch {}
+  }, [activeTab])
 
   const handleNavigate = useCallback((tabId, prefillData) => {
     setActiveTab(tabId)
@@ -186,6 +191,9 @@ const Portal = () => {
   const hasSchedule     = calendarTier !== 'none'
   const hasScheduleMulti = ['multi', 'small_team', 'growth', 'large_team'].includes(calendarTier)
   const scheduleOnly    = hasSchedule && !hasAnswerProduct
+  const lockedProduct   = !hasListen && activeTab === 'listen' ? 'Listen'
+    : !hasSchedule && ['calendar', 'team'].includes(activeTab) ? 'Schedule'
+    : null
 
   // Must stay before conditional return — hooks cannot follow a return statement
   useEffect(() => {
@@ -386,6 +394,7 @@ const Portal = () => {
           user={user}
           activeTab={activeTab}
           onTabSelect={setActiveTab}
+          hasSchedule={hasSchedule}
           hasListen={hasListen}
           hasSentry={hasSentry}
           uncontactedCount={uncontactedCount}
@@ -474,6 +483,17 @@ const Portal = () => {
           padding: activeTab === 'listen' ? 0 : (isMobile ? '1rem 1rem 5rem' : '2rem'),
           background: (activeTab === 'settings' || activeTab === 'profile') ? '#faf9fc' : '#f7f6f9',
         }}>
+          {lockedProduct && (
+            <div style={{ background: 'rgba(94,59,135,0.06)', borderBottom: '1px solid rgba(94,59,135,0.1)', padding: '0.6rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0, marginBottom: '1rem', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span style={{ fontSize: '0.8125rem', color: '#5e3b87', fontWeight: 500 }}>Viewing <strong>{lockedProduct}</strong> in preview — inputs are disabled</span>
+              </div>
+              <button onClick={() => setActiveTab('settings')} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a0533', background: '#f0a500', border: 'none', borderRadius: 6, padding: '0.3rem 0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0, whiteSpace: 'nowrap' }}>
+                Add to my plan →
+              </button>
+            </div>
+          )}
           {activeTab !== 'calendar' && (
             <HelpMascot
               activeTab={activeTab}
@@ -485,7 +505,13 @@ const Portal = () => {
               onNavigate={setActiveTab}
             />
           )}
-          {renderTab()}
+          <div onClickCapture={lockedProduct ? (e) => {
+            const tag = e.target.tagName.toLowerCase()
+            const isInteractive = ['input', 'button', 'select', 'textarea'].includes(tag) || e.target.getAttribute('role') === 'button'
+            if (isInteractive) { e.preventDefault(); e.stopPropagation(); setUpsellModal(lockedProduct) }
+          } : undefined}>
+            {renderTab()}
+          </div>
           {activeTab === 'calendar' && (
             <HelpMascot
               activeTab={activeTab}
@@ -521,6 +547,25 @@ const Portal = () => {
       )}
 
     </div>
+
+    {/* ── Upsell modal ───────────────────────────────────────────────────────── */}
+    {upsellModal && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,5,51,0.4)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setUpsellModal(null)}>
+        <div style={{ background: 'white', borderRadius: 14, padding: '2rem', maxWidth: 360, width: '90%', textAlign: 'center', boxShadow: '0 24px 64px rgba(94,59,135,0.25)', fontFamily: "'DM Sans', sans-serif" }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(94,59,135,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5e3b87" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: '1rem', fontWeight: 700, color: '#1a1a1a', margin: '0 0 0.5rem' }}>{upsellModal} isn't on your plan yet</h3>
+          <p style={{ fontSize: '0.8125rem', color: '#666', lineHeight: 1.55, margin: '0.5rem 0 1.5rem' }}>
+            Think about adding <strong>{upsellModal}</strong> to your product range — it's how solo traders stay ahead.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <button onClick={() => setUpsellModal(null)} style={{ fontSize: '0.8rem', color: '#888', background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.5rem 1rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Not now</button>
+            <button onClick={() => { setActiveTab('settings'); setUpsellModal(null) }} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a0533', background: '#f0a500', border: 'none', borderRadius: 8, padding: '0.5rem 1.25rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Add to my plan →</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* ── Sitemap overlay ────────────────────────────────────────────────────── */}
     {sitemapOpen && (

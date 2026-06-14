@@ -84,6 +84,7 @@ const OwnerSelector = () => {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('name')
+  const [lastPreview] = useState(() => { try { return localStorage.getItem('qerxel_last_preview') } catch { return null } })
 
   useEffect(() => {
     if (!user) return
@@ -100,6 +101,7 @@ const OwnerSelector = () => {
   }, [user])
 
   const select = (tenant, tab = '') => {
+    try { localStorage.setItem('qerxel_last_preview', tenant.id) } catch {}
     const tabParam = tab ? `&ownerTab=${tab}` : ''
     navigate(`/portal?ownerPreview=${tenant.id}&ownerName=${encodeURIComponent(tenant.business_name)}${tabParam}`)
   }
@@ -279,13 +281,16 @@ const OwnerSelector = () => {
                 key={t.id}
                 onClick={() => select(t)}
                 style={{
-                  background: 'white', border: '0.5px solid rgba(94,59,135,0.12)', borderRadius: '12px',
+                  background: t.id === lastPreview ? 'rgba(94,59,135,0.04)' : 'white',
+                  border: t.id === lastPreview ? '1.5px solid rgba(94,59,135,0.35)' : '0.5px solid rgba(94,59,135,0.12)',
+                  borderRadius: '12px',
                   cursor: 'pointer', textAlign: 'left', padding: '0.9rem 1rem',
-                  boxShadow: '0 2px 8px rgba(94,59,135,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s',
+                  boxShadow: t.id === lastPreview ? '0 4px 16px rgba(94,59,135,0.1)' : '0 2px 8px rgba(94,59,135,0.04)',
+                  transition: 'box-shadow 0.15s, border-color 0.15s',
                   fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.12)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = t.id === lastPreview ? '0 4px 16px rgba(94,59,135,0.1)' : '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = t.id === lastPreview ? 'rgba(94,59,135,0.35)' : 'rgba(94,59,135,0.12)' }}
               >
                 {/* Name + Q score + tier */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
