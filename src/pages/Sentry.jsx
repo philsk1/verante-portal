@@ -37,7 +37,7 @@ const TILES = [
 ]
 
 function QFace({ size = 68 }) {
-  return <img src="/qmood/content.svg" alt="Q" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
+  return <img src="/qmood/content.png" alt="Q" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
 }
 
 function ZoneEditorCanvas({ canvasRef, onMouseDown, onMouseMove, onMouseUp }) {

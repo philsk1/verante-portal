@@ -131,7 +131,7 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
   const pageScore = (() => {
     const raw = activeTab === 'ai' ? configPillar
       : (activeTab === 'dashboard' || activeTab === 'listen') ? perfPillar
-      : activeTab === 'integrations' ? toolPillar
+      : activeTab === 'integrations' ? 100
       : globalScore
     return raw ?? globalScore ?? 100
   })()
@@ -163,13 +163,12 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
   const pageMoodTitle = (() => {
     if (activeTab === 'ai') return mood === 'crying' ? "My AI setup needs attention" : "My AI setup could be stronger"
     if (activeTab === 'dashboard' || activeTab === 'listen') return "Call performance needs attention"
-    if (activeTab === 'integrations') return "Some tools aren't fully activated"
     if (activeTab === 'profile') return "Profile could be more complete"
     return mood === 'crying' ? "I need some attention" : "A few things would help me"
   })()
 
-  const pagePillarScore = { ai: configPillar, dashboard: perfPillar, listen: perfPillar, integrations: toolPillar }[activeTab] ?? null
-  const pagePillarLabel = { ai: 'Config', dashboard: 'Performance', listen: 'Performance', integrations: 'Tools' }[activeTab] ?? null
+  const pagePillarScore = { ai: configPillar, dashboard: perfPillar, listen: perfPillar }[activeTab] ?? null
+  const pagePillarLabel = { ai: 'Config', dashboard: 'Performance', listen: 'Performance' }[activeTab] ?? null
   const [alertDismissed, setAlertDismissed] = useState(false)
   const [coachingOpen, setCoachingOpen] = useState(false)
 
