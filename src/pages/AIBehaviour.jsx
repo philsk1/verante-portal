@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
 import { User, ArrowLeftRight, PhoneOff, Truck, FileText } from 'lucide-react'
 import AIFoundation from './AIFoundation'
+import MoodQ from '../components/MoodQ'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
