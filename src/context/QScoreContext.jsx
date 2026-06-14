@@ -2,7 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { supabase } from '../supabase'
 import { useAuth } from './AuthContext'
 import { usePreview } from './PreviewContext'
-import { configScore, toolScore, performanceScore, qMoodFromScore, qCaption } from '../utils/qScore.js'
+import {
+  configScore, toolScore, performanceScore, qMoodFromScore, qCaption,
+  answerChannelHealth, scheduleChannelHealth, sentryChannelHealth,
+} from '../utils/qScore.js'
 
 const QScoreContext = createContext(null)
 export const useQScore = () => useContext(QScoreContext) || {}
@@ -35,6 +38,7 @@ export const QScoreProvider = ({ children }) => {
   const [perfPillar,     setPerfPillar]     = useState(null)
   const [coachingPoints, setCoachingPoints] = useState([])
   const [qDismissals,    setQDismissals]    = useState({})
+  const [channelHealth,  setChannelHealth]  = useState([])
   const tenantIdRef = useRef(null)
 
   const tenantId = preview?.isPreview ? preview.previewTenantId : null
@@ -54,17 +58,16 @@ export const QScoreProvider = ({ children }) => {
 
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
 
-    const [tenantRes, callRes, recentCallRes] = await Promise.all([
+    const [tenantRes, callRes, recentCallRes, staffRes, availRes, zonesRes, catRes] = await Promise.all([
       supabase.from('tenants')
-        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, blocked_phone_numbers, q_mode, q_dismissals')
+        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, listen_tier, sentry_camera_limit, blocked_phone_numbers, q_mode, q_dismissals')
         .eq('id', tid).maybeSingle(),
-      supabase.from('call_logs')
-        .select('call_outcome')
-        .eq('tenant_id', tid),
-      supabase.from('call_logs')
-        .select('call_outcome')
-        .eq('tenant_id', tid)
-        .gte('created_at', tenDaysAgo),
+      supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid),
+      supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid).gte('created_at', tenDaysAgo),
+      supabase.from('staff_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+      supabase.from('staff_availability').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+      supabase.from('sentry_zones').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+      supabase.from('catalogue_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('active', true),
     ])
 
     const tenant = tenantRes.data
@@ -74,6 +77,7 @@ export const QScoreProvider = ({ children }) => {
     setQMode(mode)
     setQDismissals(tenant.q_dismissals || {})
 
+    // ── Legacy pillar scores (still used by HelpMascot) ──────────────────────
     const cs = configScore(tenant)
     const ts = toolScore(tenant)
     const outcomeCounts = (callRes.data || []).reduce((a, c) => {
@@ -84,23 +88,44 @@ export const QScoreProvider = ({ children }) => {
       a[c.call_outcome] = (a[c.call_outcome] || 0) + 1
       return a
     }, {})
-    const psAll = performanceScore(outcomeCounts)
+    const psAll    = performanceScore(outcomeCounts)
     const psRecent = performanceScore(recentOutcomeCounts)
     const ps = (psAll !== null && psRecent !== null)
       ? Math.round((psAll + psRecent) / 2)
       : (psRecent ?? psAll)
 
-    const combined = ps === null
-      ? Math.round(cs * 0.6 + ts * 0.4)
-      : Math.round(cs * 0.4 + ts * 0.3 + ps * 0.3)
-
-    setGlobalScore(combined)
-    setGlobalMood(qMoodFromScore(combined))
-    setGlobalCaption(qCaption(combined, mode))
     setConfigPillar(cs)
     setToolPillar(ts)
     setPerfPillar(ps)
     setCoachingPoints(buildCoachingPoints(tenant, ps))
+
+    // ── Per-channel health ────────────────────────────────────────────────────
+    const hasSchedule = tenant.calendar_tier && tenant.calendar_tier !== 'none'
+    const hasSentry   = (tenant.sentry_camera_limit ?? 0) > 0
+
+    const channels = []
+
+    channels.push(answerChannelHealth(tenant, ps))
+
+    if (hasSchedule) {
+      channels.push(scheduleChannelHealth({
+        staffCount:       staffRes.count ?? 0,
+        availabilityCount: availRes.count ?? 0,
+        catalogueCount:   catRes.count   ?? 0,
+      }))
+    }
+
+    if (hasSentry) {
+      channels.push(sentryChannelHealth({ zonesCount: zonesRes.count ?? 0 }))
+    }
+
+    setChannelHealth(channels)
+
+    // Global score = average of owned channel scores
+    const avg = Math.round(channels.reduce((s, c) => s + c.score, 0) / channels.length)
+    setGlobalScore(avg)
+    setGlobalMood(qMoodFromScore(avg))
+    setGlobalCaption(qCaption(avg, mode))
   }, [user, tenantId])
 
   const saveDismissal = useCallback(async (pageKey) => {
@@ -115,7 +140,7 @@ export const QScoreProvider = ({ children }) => {
   useEffect(() => { compute() }, [compute])
 
   return (
-    <QScoreContext.Provider value={{ globalScore, globalMood, globalCaption, qMode, configPillar, toolPillar, perfPillar, coachingPoints, qDismissals, saveDismissal, refresh: compute }}>
+    <QScoreContext.Provider value={{ globalScore, globalMood, globalCaption, qMode, configPillar, toolPillar, perfPillar, coachingPoints, qDismissals, saveDismissal, channelHealth, refresh: compute }}>
       {children}
     </QScoreContext.Provider>
   )

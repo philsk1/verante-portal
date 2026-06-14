@@ -189,12 +189,7 @@ export default function PortalSidebar({
   onNotifChange,
   onSignOut,
 }) {
-  const { globalScore: qScore, globalMood: qMood, configPillar, toolPillar, perfPillar } = useQScore()
-  const qPillars = (configPillar != null || toolPillar != null) ? {
-    setup:    { label: 'Config',      score: configPillar ?? 0, max: 100 },
-    tools:    { label: 'Tools',       score: toolPillar   ?? 0, max: 100 },
-    activity: { label: 'Performance', score: perfPillar   ?? 0, max: 100 },
-  } : null
+  const { globalScore: qScore, channelHealth } = useQScore()
 
   const [sections, setSections] = useState(() => {
     try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') }
@@ -206,11 +201,8 @@ export default function PortalSidebar({
     catch { return [] }
   })
 
-  const [hoveredTab, setHoveredTab]     = useState(null)
-  const [hoveredIcon, setHoveredIcon]   = useState(null)
-  const [healthDismissed, setHealthDismissed] = useState(() => {
-    try { return localStorage.getItem('qerxel_health_dismissed') } catch { return null }
-  })
+  const [hoveredTab, setHoveredTab]       = useState(null)
+  const [hoveredIcon, setHoveredIcon]     = useState(null)
   const [healthExpanded, setHealthExpanded] = useState(false)
   const notifPanelRef = useRef(null)
   const sidebarW = sidebarCollapsed ? 60 : 260
@@ -277,16 +269,6 @@ export default function PortalSidebar({
   const activeProductId = PRODUCTS.find(p => p.tabs?.some(t => t.id === activeTab))?.id
   const allTabs         = PRODUCTS.flatMap(p => p.tabs || [])
   const pinnedTabs      = allTabs.filter(t => pins.includes(t.id))
-
-  const isPoorHealth     = qScore !== null && qScore < 75
-  const healthSuppressed = !!healthDismissed && (Date.now() - new Date(healthDismissed).getTime()) < 30 * 24 * 60 * 60 * 1000
-  const showHealthAtTop  = isPoorHealth && !healthSuppressed && !sidebarCollapsed
-
-  const dismissHealth = () => {
-    const now = new Date().toISOString()
-    setHealthDismissed(now)
-    try { localStorage.setItem('qerxel_health_dismissed', now) } catch {}
-  }
 
   // ── Auto-expand the section containing the active tab ─────────────────────
 
@@ -501,34 +483,63 @@ export default function PortalSidebar({
       <style>{`#qerxel-nav::-webkit-scrollbar { display: none }`}</style>
       <nav id="qerxel-nav" style={{ flex: 1, paddingTop: '0.25rem', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none' }}>
 
-        {/* Health check warning — shown at top when score is poor */}
-        {showHealthAtTop && (
+        {/* Health score — always visible, cannot be dismissed */}
+        {!sidebarCollapsed && (
           <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(255,255,255,0.07)', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+
+            {/* Collapsed header — always shown */}
             <button
               onClick={() => setHealthExpanded(e => !e)}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
             >
-              <img src={`/qmood/${qMood || 'smile'}.png`} alt="" style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>Health check</span>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>{qScore}</span>
-              <button onClick={e => { e.stopPropagation(); dismissHealth() }} title="Dismiss for 1 month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.15s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: qScore === null ? 'rgba(255,255,255,0.2)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171' }} />
+              <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.03em' }}>Health</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore === null ? 'rgba(255,255,255,0.25)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>
+                {qScore ?? '—'}
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.18s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
             </button>
-            {healthExpanded && qPillars && (
-              <div style={{ padding: '0 0.7rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {Object.entries(qPillars).map(([key, p]) => {
-                  const pct = Math.round((p.score / p.max) * 100)
-                  const tab = { setup: 'ai', tools: 'integrations', activity: 'dashboard' }[key]
+
+            {/* Expanded — per-channel breakdown */}
+            {healthExpanded && channelHealth.length > 0 && (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.5rem' }}>
+                {channelHealth.map((ch, ci) => {
+                  const scoreColor = ch.score >= 75 ? '#3db87a' : ch.score >= 50 ? '#f0a500' : '#f87171'
                   return (
-                    <button key={key} onClick={() => onTabSelect(tab)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.12rem' }}>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>{p.label}</span>
-                        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{p.score}/{p.max} →</span>
+                    <div key={ch.id} style={{ marginTop: ci === 0 ? '0.5rem' : '0.75rem' }}>
+
+                      {/* Channel header row */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.7rem 0.3rem' }}>
+                        <span style={{ fontSize: '0.565rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{ch.label}</span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: scoreColor }}>{ch.score}</span>
                       </div>
-                      <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: pct >= 75 ? '#3db87a' : pct >= 50 ? '#f0a500' : '#f87171', borderRadius: 2 }} />
+
+                      {/* Score bar */}
+                      <div style={{ height: 2, margin: '0 0.7rem 0.4rem', background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${ch.score}%`, background: scoreColor, borderRadius: 2, transition: 'width 0.3s' }} />
                       </div>
-                    </button>
+
+                      {/* Issues list */}
+                      {ch.issues.length === 0 ? (
+                        <div style={{ padding: '0.1rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.62rem', color: '#3db87a', lineHeight: 1 }}>✓</span>
+                          <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>All good</span>
+                        </div>
+                      ) : (
+                        ch.issues.map((issue, ii) => (
+                          <button
+                            key={ii}
+                            onClick={() => { onTabSelect(issue.tab); setHealthExpanded(false) }}
+                            style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: '0.22rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <span style={{ fontSize: '0.55rem', color: issue.severity === 'high' ? '#f87171' : issue.severity === 'medium' ? '#f0a500' : 'rgba(255,255,255,0.3)', marginTop: 2, flexShrink: 0 }}>●</span>
+                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>{issue.label} →</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   )
                 })}
               </div>

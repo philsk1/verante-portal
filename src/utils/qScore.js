@@ -1,4 +1,4 @@
-// Q scoring engine — three pillars: data completeness, tool activation, performance
+// Q scoring engine — per-channel health + legacy pillar support for HelpMascot
 
 const POSITIVE_OUTCOMES = new Set([
   'booked', 'lead_captured', 'callback_scheduled',
@@ -64,6 +64,41 @@ export function qScore({ tenant, outcomeCounts, weights = { config: 0.4, tool: 0
     return Math.round(cs * 0.6 + ts * 0.4)
   }
   return Math.round(cs * weights.config + ts * weights.tool + ps * weights.perf)
+}
+
+// ── Per-channel health ───────────────────────────────────────────────────────
+// Each returns { id, label, score (0–100), issues: [{ label, tab, severity }] }
+// Only include channels for products the tenant owns.
+// Global health score = average of owned channel scores.
+
+export function answerChannelHealth(tenant, ps) {
+  const issues = []
+  if (!tenant.greeting_message?.trim())         issues.push({ label: 'Write a custom AI greeting',              tab: 'ai',        severity: 'high' })
+  if (!tenant.additional_instructions?.trim())  issues.push({ label: 'Add AI instructions',                    tab: 'ai',        severity: 'high' })
+  if (!tenant.callback_preference_note?.trim()) issues.push({ label: 'Set callback preference wording',        tab: 'ai',        severity: 'medium' })
+  if (!tenant.booking_link?.trim())             issues.push({ label: 'Add your booking link',                  tab: 'ai',        severity: 'medium' })
+  if (!tenant.lead_contact_name?.trim())        issues.push({ label: 'Set your name as lead contact',          tab: 'profile',   severity: 'medium' })
+  if (!tenant.emergency_keywords?.length)       issues.push({ label: 'Set emergency keywords',                 tab: 'ai',        severity: 'low' })
+  if (ps !== null && ps < 40)                   issues.push({ label: 'Call capture rate is low',               tab: 'analytics', severity: 'high' })
+  const cs = configScore(tenant)
+  const score = ps === null ? cs : Math.round(cs * 0.55 + ps * 0.45)
+  return { id: 'answer', label: 'Answer', score, issues }
+}
+
+export function scheduleChannelHealth({ staffCount = 0, availabilityCount = 0, catalogueCount = 0 }) {
+  const issues = []
+  let pts = 100
+  if (staffCount === 0)        { issues.push({ label: 'Add at least one staff member',         tab: 'team',    severity: 'high' });   pts -= 40 }
+  if (availabilityCount === 0) { issues.push({ label: 'Set staff working hours',               tab: 'team',    severity: 'high' });   pts -= 30 }
+  if (catalogueCount === 0)    { issues.push({ label: 'Add services to your catalogue',        tab: 'profile', severity: 'medium' }); pts -= 30 }
+  return { id: 'schedule', label: 'Schedule', score: Math.max(0, pts), issues }
+}
+
+export function sentryChannelHealth({ zonesCount = 0 }) {
+  const issues = []
+  let pts = 100
+  if (zonesCount === 0) { issues.push({ label: 'No stations defined — Sentry has nothing to watch', tab: 'sentry', severity: 'high' }); pts -= 80 }
+  return { id: 'sentry', label: 'Sentry', score: Math.max(0, pts), issues }
 }
 
 // Map score → mood state
