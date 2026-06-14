@@ -176,18 +176,15 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
           tid = m.tenant_id
         }
         setTenantId(tid)
-        const [callRes, tenantRes, catRes] = await Promise.all([
+        const [callRes, catRes] = await Promise.all([
           supabase
             .from('call_logs')
             .select('id, created_at, duration_seconds, call_outcome, ai_summary, caller_phone, caller_name, transcript, callback_flagged, callers(full_name)')
             .eq('tenant_id', tid)
             .order('created_at', { ascending: false })
             .limit(500),
-          supabase.from('tenants').select('q_mode').eq('id', tid).maybeSingle(),
           supabase.from('catalogue_items').select('id, name, price_from, price_to, duration_minutes').eq('tenant_id', tid).eq('active', true).order('name'),
         ])
-        if (tenantRes.data) {
-        }
         setCatalogue(catRes.data || [])
         const { data } = callRes
         setCalls((data || []).map(c => ({

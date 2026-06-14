@@ -125,7 +125,7 @@ function moodFromScore(score) {
 }
 
 const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = [], onNavigate }) => {
-  const { globalMood = 'smile', globalScore, configPillar, toolPillar, perfPillar, coachingPoints = [], qDismissals = {}, saveDismissal } = useQScore()
+  const { globalScore, configPillar, perfPillar, coachingPoints = [], qDismissals = {}, saveDismissal } = useQScore()
 
   // ── Per-page mood with dismissal decay ────────────────────────────────────
   const pageScore = (() => {

@@ -23,8 +23,7 @@ import { QScoreProvider } from '../context/QScoreContext'
 import PortalSidebar from './PortalSidebar'
 import {
   IcoDashboard, IcoAI, IcoAnalytics, IcoPartners, IcoCalendar,
-  IcoIntegrations, IcoVera, IcoSignOut, IcoChevronLeft, IcoChevronRight,
-  IcoBell, IcoGear, IcoPeople, IcoBuilding, IcoClients, IcoServices,
+  IcoIntegrations, IcoGear, IcoPeople, IcoBuilding, IcoClients, IcoServices,
   IcoProducts, IcoListen, IcoPhone, IcoEye,
 } from './PortalIcons'
 import { useTenantState } from '../hooks/useTenantState'
@@ -98,24 +97,6 @@ function getVeraAlert(activeTab, holidayMode, uncontactedCount) {
   return null
 }
 
-// ─── Toggle ────────────────────────────────────────────────────────────────────
-
-const Toggle = ({ checked, onChange }) => (
-  <button
-    onClick={() => onChange(!checked)}
-    style={{
-      width: 38, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', flexShrink: 0,
-      background: checked ? '#3db87a' : '#d1d5db', position: 'relative', transition: 'background 0.18s', padding: 0,
-    }}
-  >
-    <div style={{
-      width: 16, height: 16, borderRadius: '50%', background: 'white',
-      position: 'absolute', top: 3, left: checked ? 19 : 3, transition: 'left 0.18s',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-    }} />
-  </button>
-)
-
 // ─── useIsMobile ───────────────────────────────────────────────────────────────
 
 const useIsMobile = () => {
@@ -134,14 +115,14 @@ const Portal = () => {
   const {
     checking,
     businessName, tenantId,
-    holidayMode, holidayReturnDate,
+    holidayMode,
     notifyNewLead,      setNotifyNewLead,
     notifyDailySummary, setNotifyDailySummary,
     notifyWeeklyReport, setNotifyWeeklyReport,
     baseTier, urgentOutcomes, uncontactedCount,
     listenTier,  setListenTier,
     calendarTier, hasAnswerProduct, sentryCameraLimit,
-    gapData, saveReturnDate, saveNotification,
+    gapData, saveNotification,
   } = useTenantState()
 
   const preview = usePreview()
@@ -378,7 +359,6 @@ const Portal = () => {
 
   const displayName    = preview.isPreview ? preview.previewBusinessName : businessName
   const activeTenantId = preview.isPreview ? preview.previewTenantId    : tenantId
-  const sidebarW       = sidebarCollapsed ? 60 : 260
 
   // ── Render ─────────────────────────────────────────────────────────────────
 

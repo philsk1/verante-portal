@@ -203,7 +203,7 @@ export default function SentryTab({ cameraLimit = 3 }) {
     const { x, y } = getCanvasXY(e)
     setPreviewRect({ x: Math.min(x, drawStart.x), y: Math.min(y, drawStart.y), w: Math.abs(x - drawStart.x), h: Math.abs(y - drawStart.y) })
   }
-  const onMouseUp = (e) => {
+  const onMouseUp = (_e) => {
     if (!isDrawing) return
     setIsDrawing(false)
     if (previewRect && previewRect.w > 20 && previewRect.h > 20) {
@@ -304,9 +304,7 @@ export default function SentryTab({ cameraLimit = 3 }) {
 
   // ── Tile stats ──────────────────────────────────────────────────────────────
 
-  const standaloneZones = zones.filter(z => !z.camera_id)
   const cameraZones = zones.filter(z => z.camera_id)
-  const assignedZones = zones.filter(z => z.staff_profile_id)
   const assignedStaff = new Set(zones.map(z => z.staff_profile_id).filter(Boolean)).size
 
   if (loading) return null
@@ -329,7 +327,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
 
   const renderPanel = () => {
     if (!activePanel) return null
-    const tile = TILES.find(t => t.id === activePanel)
 
     // ── STATIONS PANEL ─────────────────────────────────────────────────────────
     if (activePanel === 'stations') return (
@@ -366,7 +363,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
             {zones.map(z => {
-              const assignedStaffMember = staff.find(s => s.id === z.staff_profile_id)
               return (
                 <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: ztBg(z.zone_type), borderRadius: 9, border: `1px solid ${ztColor(z.zone_type)}33` }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: ztColor(z.zone_type), flexShrink: 0 }} />

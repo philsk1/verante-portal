@@ -181,15 +181,12 @@ export default function PortalSidebar({
   uncontactedCount,
   sidebarCollapsed,
   onCollapseToggle,
-  isPreview,
   notifPanelOpen,
   onNotifToggle,
   notifyNewLead,
   notifyDailySummary,
   notifyWeeklyReport,
   onNotifChange,
-  onPlanSelectorOpen,
-  onCmdOpen,
   onSignOut,
 }) {
   const { globalScore: qScore, globalMood: qMood, configPillar, toolPillar, perfPillar } = useQScore()
@@ -284,15 +281,6 @@ export default function PortalSidebar({
   const isPoorHealth     = qScore !== null && qScore < 75
   const healthSuppressed = !!healthDismissed && (Date.now() - new Date(healthDismissed).getTime()) < 30 * 24 * 60 * 60 * 1000
   const showHealthAtTop  = isPoorHealth && !healthSuppressed && !sidebarCollapsed
-
-  const healthTarget = (() => {
-    const scores = [
-      { s: configPillar ?? 100, tab: 'ai' },
-      { s: toolPillar   ?? 100, tab: 'integrations' },
-      { s: perfPillar   ?? 100, tab: 'dashboard' },
-    ]
-    return scores.reduce((a, b) => a.s < b.s ? a : b).tab
-  })()
 
   const dismissHealth = () => {
     const now = new Date().toISOString()

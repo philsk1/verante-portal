@@ -269,6 +269,15 @@ Overage: Premium voice £0.18/min · Standard voice £0.14/min · PAYG flat £0.
 `src/pages/PortalIcons.jsx` — 20 named SVG icon components (IcoDashboard, IcoAI, … IcoEye).
 `src/hooks/useTenantState.js` — custom hook: 17 tenant state vars + init effect (parallel Promise.all fetches) + preview-reload effect + `saveReturnDate`/`saveNotification` helpers.
 
+**localStorage keys (portal):**
+| Key | Owner | Purpose |
+|-----|-------|---------|
+| `qerxel_last_tab` | Portal.jsx | Active tab — restored on reload |
+| `qerxel_sb_sections` | PortalSidebar.jsx | Section open/closed state (JSON map) — collapsed by default (`=== true` to open) |
+| `qerxel_sb_pins` | PortalSidebar.jsx | Pinned tabs set |
+| `qerxel_last_preview` | OwnerSelector.jsx | Last previewed tenant ID — highlighted on return |
+| `qerxel_health_dismissed` | PortalSidebar.jsx | Health check dismissal timestamp (30-day suppress) |
+
 ### Tab files
 | File | Tab ID | Product | Notes |
 |------|--------|---------|-------|
@@ -464,6 +473,34 @@ PACKAGES array, activePackage state, and applyPackage function removed.
 
 ---
 
+### 2026-06-14 Forensic Audit — all fixed in this session
+
+Full ESLint audit run across 26 files (75 errors → 40 errors after fixes). All remaining errors are intentional patterns (setState-in-effect, react-refresh export constraints) — not real bugs.
+
+**IC-20: `reco` undefined — crash in ActivityDashboard mobile tile** ✅ Fixed 2026-06-14
+`reco` used at 3 locations inside `tileContent.status` JSX (mobile tile) but never defined anywhere in file. Real `ReferenceError` crash on mobile. Fixed: replaced `reco` / `reco.title` / `reco.body` with `alerts[0]` / `alerts[0].title` / `alerts[0].body` — which IS defined (line 832) and has the same `{ title, body }` shape.
+
+**IC-21: `previewReadOnly` not in scope in IntegrationCard** ✅ Fixed 2026-06-14
+`previewReadOnly` defined in `Integrations()` body (line 333) but `IntegrationCard` is a SEPARATE named function outside that scope. ESLint flagged 7 usages as undefined. In production, `previewReadOnly` was `undefined` → falsy → preview write-guard silently failed → preview users could write. Fixed: added `previewReadOnly` to `cardProps` passed to all card instances + added to `IntegrationCard` function signature.
+
+**IC-22: Dead fetch in Integrations.jsx + ListenTab.jsx** ✅ Fixed 2026-06-14
+- Integrations.jsx: `tenantRes` was fetched (tenant data query) and passed to `setTenantToolData()`, but `tenantToolData` was never read. Removed: the state declaration, the setter call, and the entire tenant fetch from the Promise.all. Simplified to a single-item Promise.all for `tenant_integrations` only.
+- ListenTab.jsx: `tenantRes` (q_mode query) fetched but immediately discarded — empty `if (tenantRes.data) {}` block was the only consumer. Removed the fetch and the empty block.
+
+**IC-23: Dead code sweep (2026-06-14 audit)** ✅ Fixed 2026-06-14
+Files cleaned in one pass:
+- `ActivityDashboard.jsx` — mobile status tile `reco` crash (see IC-20)
+- `OwnerSelector.jsx` — removed `handleSort()` function and `sorted` variable (broken dead code: `handleSort` never called from UI; `sorted` treated `sort` as object but state is a string; actual sort at line 262 uses string `sort` correctly)
+- `Portal.jsx` — removed unused icon imports (`IcoVera`, `IcoSignOut`, `IcoChevronLeft`, `IcoChevronRight`, `IcoBell`); removed dead `Toggle` component (defined but never rendered); removed `holidayReturnDate` and `saveReturnDate` from useTenantState destructuring; removed `sidebarW` computed var
+- `PortalSidebar.jsx` — removed `isPreview`, `onPlanSelectorOpen`, `onCmdOpen` from props signature (never passed by Portal.jsx); removed dead `healthTarget` IIFE
+- `HelpMascot.jsx` — removed `globalMood` and `toolPillar` from QScoreContext destructuring (both unused: mood computed locally from `pageScore`, integrations tab hardcoded to 100)
+- `AccountSettings.jsx` — removed `sentryTier`/`setSentryTier` and `linesTier`/`setLinesTier` state (set from DB but never read)
+- `Integrations.jsx` — removed `import { toolScore }` (never used); removed `tenantToolData` state (see IC-22)
+- `ListenTab.jsx` — removed dead `q_mode` fetch (see IC-22)
+- `Sentry.jsx` — prefixed unused `e` param in `onMouseUp` to `_e`; removed `standaloneZones` and `assignedZones` computeds; removed `const tile = TILES.find(...)` inside `renderPanel()` (assigned, never read); removed `const assignedStaffMember = staff.find(...)` inside `zones.map` callback (assigned, never read)
+
+---
+
 ## 12. CURRENT BUILD STATE
 
 ### Fully built and working
@@ -499,7 +536,6 @@ PACKAGES array, activePackage state, and applyPackage function removed.
 ### Not yet built
 - Mobile tile canvas
 - Two-tier Foundation view (tenant-facing polished vs owner editable)
-- Sentry tile-based redesign (tile dashboard replacing wizard — in progress 2026-06-12)
 
 ---
 
@@ -539,14 +575,17 @@ PACKAGES array, activePackage state, and applyPackage function removed.
 32. ✅ Sidebar sitemap / ⌘K command palette (grouped, keyboard nav, locked badge). 2026-06-12.
 33. ✅ Calendar stacking fix — vpOpen default 5 → 10. 2026-06-12.
 
+34. ✅ Sidebar redesign — green/blue dots, all sections collapsible + persistent, locked preview mode, upsell modal, activeTab + lastPreview localStorage. 2026-06-14.
+35. ✅ AIBehaviour.jsx crash fix — missing `import MoodQ from '../components/MoodQ'`. 2026-06-14.
+36. ✅ Forensic audit complete — IC-20 through IC-23 fixed; Integrations preview-write bug fixed; 35 lint errors eliminated. 2026-06-14.
+
 **Next tasks — in order:**
-1. **Sidebar collapsible product groups** — LOST FROM OTHER MACHINE, NEEDS REBUILD. Current sidebar (Portal.jsx) shows all product groups with tabs always visible and colored dots on all headings. Philip had built: collapsible product group headings (click to expand/collapse), glowing animated dot ONLY on products the tenant has active (Answer/Listen/Schedule). This was never committed. Rebuild from description.
-2. Sentry tile-based redesign (tile dashboard, staff→station assignment, cameras optional) — IN PROGRESS
-3. Clarify calendar tier pricing in PlanSelector (confirm before fixing)
-4. Listen multi-term search
-5. UX audit: group complex settings into collapsible sections
-6. Add AI Behaviour link to owner admin page
-7. Investigate Blackwood Restoration staff linking issue in DB
+1. Clarify calendar tier pricing in PlanSelector (confirm before fixing)
+2. Listen multi-term search
+3. UX audit: group complex settings into collapsible sections
+4. Add AI Behaviour link to owner admin page
+5. Investigate Blackwood Restoration staff linking issue in DB
+6. Sentry: 4-digit PIN before tab renders; always visible in sidebar (locked for non-subscribers); add to PlanSelector / AccountSettings
 
 ---
 
@@ -656,5 +695,5 @@ RLS bypass: `supabase_owner_rls.sql` — already run. Grants SELECT on 13 tables
 
 ---
 
-*Last updated: 2026-06-13*
-*Updated by: session — Q Mood full redesign (one Q per page, per-page mood, dismissal decay, PNG images); inline QMood removed from 6 pages; q_dismissals column added to tenants; sidebar collapsible work documented as lost/needs rebuild*
+*Last updated: 2026-06-14*
+*Updated by: session — Sidebar redesign (green/blue dots, collapsible sections, locked product previews, upsell modal, localStorage persistence); AIBehaviour crash fix (MoodQ import); forensic audit across 26 files (IC-20–23 fixed, previewReadOnly scope bug in Integrations, 35 lint errors eliminated, build clean)*

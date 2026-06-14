@@ -1010,10 +1010,10 @@ const ActivityDashboard = ({ onNavigate }) => {
               <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, background: triage.bg, color: triage.color, fontFamily: "'DM Sans', sans-serif" }}>{triage.label}</span>
             </div>
           </div>
-          {reco && (
+          {alerts[0] && (
             <div style={{ background: '#f0ebf8', borderRadius: 12, padding: '0.85rem 1rem', borderLeft: '4px solid #5e3b87' }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', marginBottom: 4 }}>{reco.title}</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', lineHeight: 1.5 }}>{reco.body}</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', marginBottom: 4 }}>{alerts[0].title}</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666', lineHeight: 1.5 }}>{alerts[0].body}</div>
             </div>
           )}
         </div>

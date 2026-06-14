@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { toolScore } from '../utils/qScore.js'
 
 // Integration module definitions — each is self-contained
 // status: 'connected' | 'coming_soon' | 'available'
@@ -334,7 +333,6 @@ export default function Integrations({ _onNavigate }) {
   const previewReadOnly = preview?.previewReadOnly ?? isPreview
 
   const [tenantId, setTenantId] = useState(null)
-  const [tenantToolData, setTenantToolData] = useState(null)
   const [activeCategory, setActiveCategory] = useState('All')
   const [connectedMap, setConnectedMap] = useState({}) // { whatsapp: { settings: {} }, ... }
   const [expandedId, setExpandedId] = useState(null)
@@ -372,24 +370,20 @@ export default function Integrations({ _onNavigate }) {
     getTid()
   }, [user, isPreview])
 
-  // ── Load connected integrations + tenant tool data ────────────────────────────
+  // ── Load connected integrations ────────────────────────────────────────────
   useEffect(() => {
     if (!tenantId) return
     const load = async () => {
-      const [intRes, tenantRes] = await Promise.all([
+      const [intRes] = await Promise.all([
         supabase.from('tenant_integrations')
           .select('integration_id, enabled, settings, connected_at')
           .eq('tenant_id', tenantId),
-        supabase.from('tenants')
-          .select('sms_followup_enabled, provisional_booking_enabled, booking_link, emergency_keywords, keep_alive_topics, blocked_phone_numbers, calendar_tier')
-          .eq('id', tenantId).maybeSingle(),
       ])
       const map = {}
       for (const row of (intRes.data || [])) {
         if (row.enabled) map[row.integration_id] = { settings: row.settings || {}, connected_at: row.connected_at }
       }
       setConnectedMap(map)
-      if (tenantRes.data) setTenantToolData(tenantRes.data)
     }
     load()
   }, [tenantId])
@@ -419,7 +413,7 @@ export default function Integrations({ _onNavigate }) {
   const availableList = filtered.filter(i => !i.isConnected && i.status === 'available')
   const comingSoonList = filtered.filter(i => !i.isConnected && i.status === 'coming_soon')
 
-  const cardProps = { tenantId, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }
+  const cardProps = { tenantId, isPreview, previewReadOnly, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }
 
   return (
     <div style={s.page}>
@@ -471,7 +465,7 @@ export default function Integrations({ _onNavigate }) {
   )
 }
 
-function IntegrationCard({ integration, tenantId, isPreview, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }) {
+function IntegrationCard({ integration, tenantId, isPreview, previewReadOnly, expandedId, setExpandedId, connectedMap, setConnectedMap, showToast, handleDisconnect }) {
   const { id, name, description, category, priority, status, icon, isConnected } = integration
   const isExpanded = expandedId === id
   const [saving, setSaving] = useState(false)
