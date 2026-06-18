@@ -210,6 +210,24 @@ Parallel work is permitted within a domain. Across domains it requires Philip's 
 
 ---
 
+## PROCEDURE 11 — WORK PRESERVATION RULE
+
+All completed work must be committed and pushed to GitHub as soon as it is appropriate to do so.
+
+**What "appropriate" means:** As soon as a coherent unit of work is complete and not in a broken intermediate state. A finished feature, a bug fix, a document, a set of related changes — push it. Do not accumulate sessions of work locally.
+
+**Why this rule exists:** The absence of this rule caused the entire build to exist only on one machine. A computer switch required a full re-diagnosis and emergency push. Work that is not on GitHub does not exist from any other machine's perspective.
+
+**How to apply:**
+- At natural break points within a session — push
+- At the end of every session — push
+- After any significant fix that should not be lost — push immediately
+- Deploy command: `NODE_OPTIONS=--use-system-ca npx vercel deploy --prod` (requires Philip's instruction for production deploy — commit and push to GitHub does not require separate instruction)
+
+**Credentials check before pushing:** Verify `.gitignore` covers all files containing hardcoded keys, PATs, or service role credentials before any `git add`. Scripts with hardcoded credentials must never reach GitHub.
+
+---
+
 ## HOW THESE PROCEDURES APPLY IN PRACTICE
 
 At the start of any piece of work, Claude states:
