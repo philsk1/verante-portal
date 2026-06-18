@@ -13,8 +13,18 @@ const fmtPrice = (from, to) => {
 }
 
 const PALETTE = [
-  '#02F4F7','#F71B02','#F79902','#F3F702','#02F712',
-  '#0233F7','#F702F3','#F702A1','#43686E','#354D33','#221140',
+  '#FF0000', // red
+  '#FF00FF', // fuchsia
+  '#800000', // maroon
+  '#800080', // purple
+  '#000080', // navy
+  '#0000FF', // blue
+  '#00FFFF', // aqua
+  '#00FF00', // lime
+  '#008000', // green
+  '#808000', // olive
+  '#FFFF00', // yellow (bright)
+  '#008080', // teal
 ]
 
 const ServiceCatalogue = () => {
