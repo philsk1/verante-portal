@@ -35,20 +35,31 @@ const STATUS_LABELS = {
 
 // ─── Category colour palette (service-type colouring) ────────────────────────
 const CATEGORY_PALETTE = [
-  { bg: '#ede9fe', border: '#7c3aed', text: '#4c1d95' },
-  { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
-  { bg: '#dbeafe', border: '#2563eb', text: '#1e3a8a' },
-  { bg: '#fef3c7', border: '#d97706', text: '#92400e' },
-  { bg: '#fce7f3', border: '#db2777', text: '#831843' },
-  { bg: '#e0f2fe', border: '#0284c7', text: '#075985' },
-  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
-  { bg: '#f3e8ff', border: '#a855f7', text: '#6b21a8' },
+  { bg: '#ddd6fe', border: '#6d28d9', text: '#3b0764' },
+  { bg: '#bbf7d0', border: '#15803d', text: '#14532d' },
+  { bg: '#bfdbfe', border: '#1d4ed8', text: '#1e3a8a' },
+  { bg: '#fed7aa', border: '#c2410c', text: '#7c2d12' },
+  { bg: '#fbcfe8', border: '#be185d', text: '#831843' },
+  { bg: '#bae6fd', border: '#0369a1', text: '#0c4a6e' },
+  { bg: '#fde68a', border: '#b45309', text: '#78350f' },
+  { bg: '#e9d5ff', border: '#9333ea', text: '#581c87' },
 ]
 function getCategoryColour(category) {
   if (!category) return null
   let h = 0
   for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) % CATEGORY_PALETTE.length
   return CATEGORY_PALETTE[Math.abs(h)]
+}
+
+// Full-column layout — appointments never shunt sideways, they stack over each other
+function fullColumnLayout({ events, slotMetrics, accessors }) {
+  return events.map(event => {
+    const { top, height } = slotMetrics.getRange(
+      accessors.start(event),
+      accessors.end(event)
+    )
+    return { event, style: { top, height, width: 100, xOffset: 0 } }
+  })
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -1037,7 +1048,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return {
       style: {
         background: isSplit ? 'transparent' : c.bg,
-        border: isSplit ? 'none' : `1px solid ${c.border}`,
+        border: `2px solid ${c.border}`,
         borderLeft: 'none',
         color: c.text,
         borderRadius: 5,
@@ -1046,6 +1057,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       },
     }
   }, [catalogue])
+
+  // ─── Slot prop — hide 5-min lines, show only 30-min marks ───────────────────
+  const slotPropGetter = useCallback((date) => {
+    const mins = date.getMinutes()
+    if (mins % 30 !== 0) return { style: { borderTop: 'none' } }
+    return {}
+  }, [])
 
   // ─── Slot select → create panel ──────────────────────────────────────────────
   const handleSelectSlot = useCallback(({ start, end, resourceId }) => {
@@ -1848,9 +1866,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                   scrollToTime={new Date(0, 0, 0, 7, 0, 0)}
                   min={new Date(0, 0, 0, 7, 0, 0)}
                   max={new Date(0, 0, 0, 21, 0, 0)}
+                  step={5}
+                  timeslots={6}
+                  slotPropGetter={slotPropGetter}
+                  dayLayoutAlgorithm={fullColumnLayout}
                   formats={{
                     timeGutterFormat: 'HH:mm',
-                    eventTimeRangeFormat: ({ start, end }) => `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
+                    eventTimeRangeFormat: () => '',
                   }}
                   messages={{ today: 'Today', previous: '‹', next: '›' }}
                 />
