@@ -218,12 +218,14 @@ function AppointmentCard({ event, title, catalogue }) {
     : catalogueItem ? getCategoryColour(catalogueItem.category) : null
   const c = catC || statusC
 
+  const svcName = appt.appointment_type || catalogueItem?.name || (title || '').split(' — ')[0] || title
+  const clientName = appt.client_name || ''
+
   const hasCatSplit = (catalogueItem?.processing_minutes || 0) > 0
   const hasStoredSplit = !!(appt.processing_start_time && appt.processing_end_time)
   const isSplit = hasCatSplit || hasStoredSplit
 
   if (isSplit) {
-    // Prefer service-defined proportions (stable across drags); fall back to stored timestamps
     let p1, p2, p3
     if (hasCatSplit) {
       p1 = catalogueItem.duration_minutes || 1
@@ -236,15 +238,15 @@ function AppointmentCard({ event, title, catalogue }) {
     }
     return (
       <div style={{ position: 'relative', height: '100%', overflow: 'hidden', borderRadius: 5 }}>
-        {/* Continuous left accent bar — the whole thing reads as one block */}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c.border, zIndex: 2 }} />
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingLeft: 3 }}>
           <div style={{ flex: p1, background: c.bg, padding: '2px 4px', overflow: 'hidden', minHeight: 12 }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.7rem', color: c.text, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{title}</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.7rem', color: c.text, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{svcName}</div>
+            {clientName && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.62rem', color: c.text, opacity: 0.8, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{clientName}</div>}
           </div>
           <div style={{ flex: p2, background: 'rgba(255,255,255,0.6)', minHeight: 8 }} />
           <div style={{ flex: p3, background: c.bg, padding: '2px 4px', overflow: 'hidden', minHeight: 8 }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.62rem', color: c.text, opacity: 0.75, lineHeight: 1.2 }}>finish</div>
+            {clientName && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.62rem', color: c.text, opacity: 0.75, lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{clientName}</div>}
           </div>
         </div>
       </div>
@@ -255,11 +257,11 @@ function AppointmentCard({ event, title, catalogue }) {
     <div style={{ position: 'relative', height: '100%', padding: '2px 4px 2px 9px', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c.border, borderRadius: '2px 0 0 2px' }} />
       <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.75rem', color: c.text, lineHeight: 1.25, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-        {title}
+        {svcName}
       </div>
-      {appt.appointment_type && (
-        <div style={{ fontSize: '0.65rem', color: c.text, opacity: 0.72, marginTop: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-          {appt.appointment_type}
+      {clientName && (
+        <div style={{ fontSize: '0.65rem', color: c.text, opacity: 0.8, marginTop: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          {clientName}
         </div>
       )}
     </div>
@@ -500,6 +502,25 @@ function Row({ label, desc, children }) {
 }
 
 // ─── Calendar settings tab ────────────────────────────────────────────────────
+const SVC_PALETTE = [
+  '#ec4899','#3b82f6','#ef4444','#22c55e','#f97316',
+  '#06b6d4','#eab308','#8b5cf6','#f43f5e','#14b8a6',
+  '#f59e0b','#6366f1','#84cc16','#a855f7','#10b981',
+]
+
+const OVERLAP_CHANNELS = [
+  { key: 'customer', label: 'Customer (booking page)', desc: 'Client books themselves online — most conservative' },
+  { key: 'stylist',  label: 'Stylist (manual)',        desc: 'Stylist creates a booking in the salon — most permissive' },
+  { key: 'q_answer', label: 'Q Answer',                desc: 'Q takes a booking during an inbound call' },
+  { key: 'q_listen', label: 'Q Listen',                desc: 'Q proactively slots a booking from a detected intent' },
+]
+const DEFAULT_OVERLAP = {
+  customer: { max_mins: 60, max_pct: 50 },
+  stylist:  { max_mins: 120, max_pct: 75 },
+  q_answer: { max_mins: 60, max_pct: 50 },
+  q_listen: { max_mins: 60, max_pct: 50 },
+}
+
 function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = [], vpOpen, vpCompact, onVpOpen, onVpCompact, staffOrder, onStaffOrder }) {
   const [bufferMins, setBufferMins] = useState(15)
   const [reminder48h, setReminder48h] = useState(true)
@@ -511,13 +532,14 @@ function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = []
   const [cancelCutoffHrs, setCancelCutoffHrs] = useState(24)
   const [chargeLateCancel, setChargeLateCancel] = useState(false)
   const [clientCanReschedule, setClientCanReschedule] = useState(true)
+  const [overlapSettings, setOverlapSettings] = useState(DEFAULT_OVERLAP)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     if (!tenantId) return
     supabase.from('tenants')
-      .select('booking_buffer_mins, reminder_48h, reminder_24h, reminder_1h, no_show_fee, no_show_fee_type, no_show_fee_pct, cancel_cutoff_hrs, charge_late_cancel, client_can_reschedule')
+      .select('booking_buffer_mins, reminder_48h, reminder_24h, reminder_1h, no_show_fee, no_show_fee_type, no_show_fee_pct, cancel_cutoff_hrs, charge_late_cancel, client_can_reschedule, overlap_settings')
       .eq('id', tenantId).maybeSingle()
       .then(({ data }) => {
         if (!data) return
@@ -531,8 +553,18 @@ function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = []
         setCancelCutoffHrs(data.cancel_cutoff_hrs ?? 24)
         setChargeLateCancel(!!data.charge_late_cancel)
         setClientCanReschedule(data.client_can_reschedule !== false)
+        if (data.overlap_settings && Object.keys(data.overlap_settings).length > 0) {
+          setOverlapSettings({ ...DEFAULT_OVERLAP, ...data.overlap_settings })
+        }
       })
   }, [tenantId])
+
+  const setOverlapField = (channel, field, val) => {
+    setOverlapSettings(prev => ({
+      ...prev,
+      [channel]: { ...prev[channel], [field]: val === '' ? '' : Number(val) },
+    }))
+  }
 
   const save = async () => {
     if (previewReadOnly || !tenantId) return
@@ -548,6 +580,7 @@ function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = []
       cancel_cutoff_hrs:     cancelCutoffHrs,
       charge_late_cancel:    chargeLateCancel,
       client_can_reschedule: clientCanReschedule,
+      overlap_settings:      overlapSettings,
     }).eq('id', tenantId)
     setSaving(false)
     setSaved(true)
@@ -649,6 +682,46 @@ function CalendarSettingsTab({ tenantId, _isPreview, previewReadOnly, staff = []
         <Row label="48-hour reminder"><Toggle val={reminder48h} set={setReminder48h} /></Row>
         <Row label="24-hour reminder"><Toggle val={reminder24h} set={setReminder24h} /></Row>
         <Row label="1-hour reminder"><Toggle val={reminder1h} set={setReminder1h} /></Row>
+      </div>
+
+      {/* ── Booking overlap rules ─────────────────────────────────────── */}
+      <div style={{ background: 'white', borderRadius: 12, border: '0.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.25rem' }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Booking overlap rules</div>
+        <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.85rem', lineHeight: 1.55 }}>
+          Controls how much one booking can overlap another, per booking route. Both limits apply simultaneously — whichever is more restrictive wins. Processing time is always exempt (stylist is genuinely free). Hard rule: no booking can sit 100% on top of another.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 0.75rem', alignItems: 'center', marginBottom: '0.3rem' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>Booking route</div>
+          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif", textAlign: 'right', minWidth: 96 }}>Max overlap (mins)</div>
+          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif", textAlign: 'right', minWidth: 96 }}>Max overlap (%)</div>
+        </div>
+        {OVERLAP_CHANNELS.map(({ key, label, desc }) => (
+          <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 0.75rem', alignItems: 'center', padding: '0.55rem 0', borderTop: '1px solid rgba(94,59,135,0.06)' }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{label}</div>
+              <div style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 1 }}>{desc}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+              <input type="number" min="0" max="480" step="5"
+                value={overlapSettings[key]?.max_mins ?? ''}
+                onChange={e => setOverlapField(key, 'max_mins', e.target.value)}
+                disabled={previewReadOnly}
+                style={{ ...inputSt, width: 64, textAlign: 'right' }} />
+              <span style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>min</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+              <input type="number" min="0" max="100" step="5"
+                value={overlapSettings[key]?.max_pct ?? ''}
+                onChange={e => setOverlapField(key, 'max_pct', e.target.value)}
+                disabled={previewReadOnly}
+                style={{ ...inputSt, width: 56, textAlign: 'right' }} />
+              <span style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>%</span>
+            </div>
+          </div>
+        ))}
+        <div style={{ marginTop: '0.65rem', fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+          Example: a 45-min booking at 50% max = 22 min overlap cap from the % rule. If the mins cap is 60 min, the % rule is more restrictive and applies.
+        </div>
       </div>
 
       <button onClick={save} disabled={saving || previewReadOnly}
@@ -826,7 +899,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // Quick-access panel state
   const [quickPanel, setQuickPanel] = useState(null) // null | 'services' | 'staff'
-  const EMPTY_SVC = { name: '', description: '', category: '', duration_minutes: '', processing_minutes: '', completion_minutes: '', price_from: '', price_to: '', cost_price: '' }
+  const EMPTY_SVC = { name: '', description: '', category: '', duration_minutes: '', processing_minutes: '', completion_minutes: '', price_from: '', price_to: '', cost_price: '', colour: '' }
   const [svcModal, setSvcModal] = useState(null) // null | { mode: 'add' | 'edit', id?: string }
   const [svcDraft, setSvcDraft] = useState(EMPTY_SVC)
   const [svcAdding, setSvcAdding] = useState(false)
@@ -1666,6 +1739,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       name: svcDraft.name.trim(),
       description: svcDraft.description?.trim() || null,
       category: svcDraft.category?.trim() || null,
+      colour: svcDraft.colour || SVC_PALETTE[catalogue.filter(c => !c.item_type || c.item_type === 'service').length % SVC_PALETTE.length],
       duration_minutes: svcDraft.duration_minutes ? parseInt(svcDraft.duration_minutes) : null,
       processing_minutes: svcDraft.processing_minutes ? parseInt(svcDraft.processing_minutes) : null,
       completion_minutes: svcDraft.completion_minutes ? parseInt(svcDraft.completion_minutes) : null,
@@ -1689,6 +1763,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       name: draft.name?.trim(),
       description: draft.description?.trim() || null,
       category: draft.category?.trim() || null,
+      colour: draft.colour || null,
       duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes) : null,
       processing_minutes: draft.processing_minutes ? parseInt(draft.processing_minutes) : null,
       completion_minutes: draft.completion_minutes ? parseInt(draft.completion_minutes) : null,
@@ -2092,6 +2167,17 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                               style={{ width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.75rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 8, fontSize: '0.825rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', resize: 'vertical', minHeight: 60, lineHeight: 1.5 }} />
                           </div>
 
+                          {/* Calendar colour */}
+                          <div style={{ marginBottom: '0.9rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.45rem', fontFamily: "'DM Sans', sans-serif" }}>Calendar colour</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                              {SVC_PALETTE.map(pc => (
+                                <button key={pc} type="button" onClick={() => setSvcDraft(d => ({ ...d, colour: pc }))}
+                                  style={{ width: 26, height: 26, borderRadius: '50%', background: pc, border: svcDraft.colour === pc ? '3px solid #1a0533' : '2px solid rgba(0,0,0,0.1)', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} />
+                              ))}
+                            </div>
+                          </div>
+
                           {/* Split appointment toggle */}
                           <div style={{ background: '#faf9fc', borderRadius: 10, border: '1px solid rgba(94,59,135,0.1)', padding: '0.9rem 1rem', marginBottom: '0.9rem' }}>
                             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
@@ -2189,12 +2275,15 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                         const totalMins = (svc.duration_minutes || 0) + (svc.processing_minutes || 0) + (svc.completion_minutes || 0)
                         return (
                           <div key={svc.id}
-                            onClick={() => { setSvcError(null); setSvcDraft({ name: svc.name || '', description: svc.description || '', category: svc.category || '', duration_minutes: svc.duration_minutes ?? '', processing_minutes: svc.processing_minutes ?? '', completion_minutes: svc.completion_minutes ?? '', price_from: svc.price_from ?? '', price_to: svc.price_to ?? '', cost_price: svc.cost_price ?? '' }); setSvcModal({ mode: 'edit', id: svc.id }) }}
+                            onClick={() => { setSvcError(null); setSvcDraft({ name: svc.name || '', description: svc.description || '', category: svc.category || '', duration_minutes: svc.duration_minutes ?? '', processing_minutes: svc.processing_minutes ?? '', completion_minutes: svc.completion_minutes ?? '', price_from: svc.price_from ?? '', price_to: svc.price_to ?? '', cost_price: svc.cost_price ?? '', colour: svc.colour || '' }); setSvcModal({ mode: 'edit', id: svc.id }) }}
                             style={{ background: 'white', borderRadius: 10, border: '1px solid rgba(94,59,135,0.1)', padding: '0.85rem', cursor: 'pointer', transition: 'all 0.15s', minHeight: 90, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#5e3b87'; e.currentTarget.style.background = '#faf9fc' }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(94,59,135,0.1)'; e.currentTarget.style.background = 'white' }}
                           >
-                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.82rem', color: '#1a1a1a', lineHeight: 1.3, marginBottom: '0.5rem' }}>{svc.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                              {svc.colour && <span style={{ width: 10, height: 10, borderRadius: '50%', background: svc.colour, border: '1.5px solid rgba(0,0,0,0.15)', flexShrink: 0, display: 'inline-block' }} />}
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.82rem', color: '#1a1a1a', lineHeight: 1.3 }}>{svc.name}</div>
+                            </div>
                             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                               {totalMins > 0 && (
                                 <span style={{ fontSize: '0.67rem', color: '#5e3b87', background: '#ede8f5', borderRadius: 4, padding: '0.12rem 0.35rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>⏱ {totalMins}min</span>

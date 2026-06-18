@@ -135,6 +135,11 @@ Q Intelligence tab added to DataAnalytics.jsx: Revenue Evaporation, At-Risk Clie
 9. **AccountSettings UX audit** — group infrequently-used sections (Privacy & Data, Feedback, Danger Zone) into collapsible wrappers to reduce page length. Low priority — 1606-line file, careful touch needed.
 10. **Listen Pro tier** — add `listen_tier = 'pro'` handling when billing is active. `product_url` field on catalogue_items is already in place for the hand-off feature.
 11. **Contacts: caller_tenant_relationship for booking-only contacts** — booking-only contacts currently can't be starred as hot-prospect or opted-out (no relationship row). Add relationship support for phone-keyed contacts.
+12. **Staging environment** — two-part decision (data window 2026-06-20):
+    - Part A: Vercel preview branch workflow (15 min) — push to `staging` branch gets a preview URL for UI/code testing before merging to master
+    - Part B: Second Supabase project (half day) — needed before any migration runs against a DB with real client data
+    - **Procedure note:** When staging is built, Procedure 5 (authority boundaries) and deploy sections of CLAUDE-RULES.md must be reviewed — staging changes the deploy workflow and what "production deploy" means. Philip to confirm authority to edit procedures at that point.
+    - **Also:** Agree Philip's preferred deploy cadence for live site (maintenance windows, change notices, changelog format) and lock it into procedures before first real client beyond Bloom & Co.
 
 ---
 

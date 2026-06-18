@@ -12,11 +12,23 @@ const fmtPrice = (from, to) => {
   return `£${from || to}`
 }
 
-// Vivid, clearly distinct colours — each service gets its own
+// Vivid, maximally-distinct palette — adjacent indices are very different colours
 const PALETTE = [
-  '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#eab308',
-  '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#14b8a6',
-  '#f59e0b', '#f43f5e', '#6366f1', '#10b981', '#84cc16',
+  '#ec4899', // 0  pink
+  '#3b82f6', // 1  blue
+  '#ef4444', // 2  red
+  '#22c55e', // 3  green
+  '#f97316', // 4  orange
+  '#06b6d4', // 5  cyan
+  '#eab308', // 6  yellow
+  '#8b5cf6', // 7  purple
+  '#f43f5e', // 8  rose
+  '#14b8a6', // 9  teal
+  '#f59e0b', // 10 amber
+  '#6366f1', // 11 indigo
+  '#84cc16', // 12 lime
+  '#a855f7', // 13 violet
+  '#10b981', // 14 emerald
 ]
 
 const ServiceCatalogue = () => {
@@ -130,6 +142,20 @@ const ServiceCatalogue = () => {
     setColourPickerOpenId(null)
   }
 
+  const resetAllColours = async () => {
+    if (previewReadOnly || !tenantId) return
+    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name))
+    await Promise.all(sorted.map((item, idx) => {
+      const colour = PALETTE[idx % PALETTE.length]
+      return supabase.from('catalogue_items').update({ colour }).eq('id', item.id)
+    }))
+    setItems(prev => {
+      const sorted2 = [...prev].sort((a, b) => a.name.localeCompare(b.name))
+      return sorted2.map((item, idx) => ({ ...item, colour: PALETTE[idx % PALETTE.length] }))
+    })
+    showToast('Colours reset.')
+  }
+
   const saveNote = async (item) => {
     if (previewReadOnly) return
     setSavingNote(item.id)
@@ -155,6 +181,11 @@ const ServiceCatalogue = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search services…" style={{ padding: '0.5rem 0.85rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", width: 190, color: '#1a1a1a' }} />
+          {!previewReadOnly && items.length > 0 && (
+            <button onClick={resetAllColours} style={{ padding: '0.5rem 0.85rem', background: 'transparent', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.78rem', color: '#5e3b87', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              Reset colours
+            </button>
+          )}
           <button onClick={() => setAddOpen(o => !o)} disabled={atLimit || previewReadOnly} style={{ padding: '0.5rem 1rem', background: atLimit ? '#f5d98a' : '#f0a500', color: '#1a0533', border: 'none', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: atLimit ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
             + Add Service
           </button>
@@ -240,20 +271,8 @@ const ServiceCatalogue = () => {
             <div key={item.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: '10px', padding: '0.85rem 1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
 
-                {/* Colour button — always visible, click to open inline picker */}
-                <button
-                  onClick={() => setColourPickerOpenId(pickerOpen ? null : item.id)}
-                  disabled={previewReadOnly}
-                  title="Change calendar colour"
-                  style={{
-                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: previewReadOnly ? 'default' : 'pointer',
-                    background: item.colour || '#e5e7eb',
-                    border: item.colour ? '2px solid rgba(0,0,0,0.18)' : '2px dashed #9ca3af',
-                    outline: pickerOpen ? '2px solid #5e3b87' : 'none',
-                    outlineOffset: 2,
-                    transition: 'outline 0.1s',
-                  }}
-                />
+                {/* Colour swatch — visible dot showing current colour */}
+                <span style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: item.colour || '#e5e7eb', border: '2px solid rgba(0,0,0,0.15)', display: 'inline-block' }} />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
@@ -262,6 +281,13 @@ const ServiceCatalogue = () => {
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexShrink: 0 }}>
                   {item.duration_minutes && <span style={{ fontSize: '0.78rem', color: '#5e3b87', background: '#f0ebf8', borderRadius: '4px', padding: '0.15rem 0.5rem' }}>{item.duration_minutes} min</span>}
                   <span style={{ fontSize: '0.85rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#1a1a1a' }}>{fmtPrice(item.price_from, item.price_to)}</span>
+                  {!previewReadOnly && (
+                    <button onClick={() => setColourPickerOpenId(pickerOpen ? null : item.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: pickerOpen ? '#ede8f5' : 'transparent', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '6px', padding: '0.25rem 0.55rem', cursor: 'pointer', fontSize: '0.7rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.colour || '#e5e7eb', border: '1.5px solid rgba(0,0,0,0.15)', display: 'inline-block', flexShrink: 0 }} />
+                      Colour
+                    </button>
+                  )}
                   <button onClick={() => setExpandedId(expanded ? null : item.id)} style={{ background: expanded ? '#ede8f5' : 'transparent', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '6px', padding: '0.25rem 0.55rem', cursor: 'pointer', fontSize: '0.7rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>Notes</button>
                   {!previewReadOnly && (
                     <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ddd', fontSize: '1rem', lineHeight: 1, padding: 0 }}
