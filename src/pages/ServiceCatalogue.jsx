@@ -12,10 +12,11 @@ const fmtPrice = (from, to) => {
   return `£${from || to}`
 }
 
+// Vivid, clearly distinct colours — each service gets its own
 const PALETTE = [
-  '#c084fc','#f9a8d4','#fca5a5','#a78bfa','#86efac',
-  '#d4a373','#67e8f9','#93c5fd','#fde68a','#6ee7b7',
-  '#cbd5e1','#fb923c','#4ade80','#f472b6','#38bdf8',
+  '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#eab308',
+  '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#14b8a6',
+  '#f59e0b', '#f43f5e', '#6366f1', '#10b981', '#84cc16',
 ]
 
 const ServiceCatalogue = () => {
@@ -31,7 +32,8 @@ const ServiceCatalogue = () => {
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [colourSaving, setColourSaving] = useState(null)
-  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '#a78bfa' })
+  const [colourPickerOpenId, setColourPickerOpenId] = useState(null)
+  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[0] })
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notesDrafts, setNotesDrafts] = useState({})
@@ -54,7 +56,19 @@ const ServiceCatalogue = () => {
       const { data: tenant } = await supabase.from('tenants').select('subscription_tier').eq('id', tid).maybeSingle()
       setTier(tenant?.subscription_tier || 'light')
       const { data } = await supabase.from('catalogue_items').select('*').eq('tenant_id', tid).eq('item_type', 'service').eq('active', true).order('name')
-      setItems(data || [])
+      const rows = data || []
+
+      // Auto-assign distinct palette colours to any services that don't have one
+      const uncoloured = rows.filter(i => !i.colour)
+      if (uncoloured.length > 0 && !isPreview) {
+        await Promise.all(
+          uncoloured.map(item => {
+            const colour = PALETTE[rows.indexOf(item) % PALETTE.length]
+            return supabase.from('catalogue_items').update({ colour }).eq('id', item.id)
+          })
+        )
+      }
+      setItems(rows.map((item, idx) => item.colour ? item : { ...item, colour: PALETTE[idx % PALETTE.length] }))
       setLoading(false)
     }
     load()
@@ -73,6 +87,8 @@ const ServiceCatalogue = () => {
   const addItem = async () => {
     if (previewReadOnly || !tenantId || !draft.name.trim() || atLimit) return
     setSaving(true)
+    // Pick next unused palette colour
+    const nextColour = draft.colour || PALETTE[items.length % PALETTE.length]
     const { data, error } = await supabase.from('catalogue_items').insert({
       tenant_id: tenantId,
       item_type: 'service',
@@ -81,13 +97,14 @@ const ServiceCatalogue = () => {
       price_from: draft.price_from ? parseFloat(draft.price_from) : null,
       price_to: draft.price_to ? parseFloat(draft.price_to) : null,
       duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes) : null,
-      colour: draft.colour || null,
+      colour: nextColour,
       active: true,
     }).select().maybeSingle()
     setSaving(false)
     if (!error && data) {
-      setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '#a78bfa' })
+      const newItems = [...items, data].sort((a, b) => a.name.localeCompare(b.name))
+      setItems(newItems)
+      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[newItems.length % PALETTE.length] })
       setAddOpen(false)
       showToast('Service added.')
       window.dispatchEvent(new Event('qscore-refresh'))
@@ -110,6 +127,7 @@ const ServiceCatalogue = () => {
     await supabase.from('catalogue_items').update({ colour: val }).eq('id', item.id)
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, colour: val } : i))
     setColourSaving(null)
+    setColourPickerOpenId(null)
   }
 
   const saveNote = async (item) => {
@@ -185,11 +203,9 @@ const ServiceCatalogue = () => {
             <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>Calendar colour</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
               {PALETTE.map(c => (
-                <button key={c} onClick={() => setDraft(p => ({ ...p, colour: p.colour === c ? '' : c }))} style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: draft.colour === c ? '3px solid #1a0533' : '2px solid transparent', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} title={c} />
+                <button key={c} onClick={() => setDraft(p => ({ ...p, colour: c }))}
+                  style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: draft.colour === c ? '3px solid #1a0533' : '2px solid transparent', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} title={c} />
               ))}
-              {draft.colour && (
-                <button onClick={() => setDraft(p => ({ ...p, colour: '' }))} style={{ fontSize: '0.7rem', color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', fontFamily: "'DM Sans', sans-serif" }}>clear</button>
-              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -218,11 +234,27 @@ const ServiceCatalogue = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
         {filtered.map(item => {
           const expanded = expandedId === item.id
+          const pickerOpen = colourPickerOpenId === item.id
           const noteDraft = notesDrafts[item.id] ?? item.internal_notes ?? ''
           return (
             <div key={item.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: '10px', padding: '0.85rem 1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                {item.colour && <div style={{ width: 12, height: 12, borderRadius: '50%', background: item.colour, flexShrink: 0 }} />}
+
+                {/* Colour button — always visible, click to open inline picker */}
+                <button
+                  onClick={() => setColourPickerOpenId(pickerOpen ? null : item.id)}
+                  disabled={previewReadOnly}
+                  title="Change calendar colour"
+                  style={{
+                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: previewReadOnly ? 'default' : 'pointer',
+                    background: item.colour || '#e5e7eb',
+                    border: item.colour ? '2px solid rgba(0,0,0,0.18)' : '2px dashed #9ca3af',
+                    outline: pickerOpen ? '2px solid #5e3b87' : 'none',
+                    outlineOffset: 2,
+                    transition: 'outline 0.1s',
+                  }}
+                />
+
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
                   {item.description && <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.15rem', lineHeight: 1.4 }}>{item.description}</div>}
@@ -238,22 +270,27 @@ const ServiceCatalogue = () => {
                   )}
                 </div>
               </div>
+
+              {/* Inline colour picker — opens directly below the card header */}
+              {pickerOpen && (
+                <div style={{ marginTop: '0.6rem', paddingTop: '0.6rem', borderTop: '1px solid rgba(94,59,135,0.06)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                  {PALETTE.map(pc => (
+                    <button key={pc}
+                      onClick={() => saveColour(item, pc)}
+                      disabled={colourSaving === item.id}
+                      style={{ width: 26, height: 26, borderRadius: '50%', background: pc, border: item.colour === pc ? '3px solid #1a0533' : '2px solid rgba(0,0,0,0.1)', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }}
+                      title={pc}
+                    />
+                  ))}
+                  {colourSaving === item.id && (
+                    <span style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>Saving…</span>
+                  )}
+                </div>
+              )}
+
+              {/* Notes expansion */}
               {expanded && (
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.06)' }}>
-                  <div style={{ marginBottom: '0.65rem' }}>
-                    <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>Calendar colour</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-                      {PALETTE.map(pc => (
-                        <button key={pc} onClick={() => saveColour(item, item.colour === pc ? '' : pc)} disabled={colourSaving === item.id || previewReadOnly}
-                          style={{ width: 22, height: 22, borderRadius: '50%', background: pc, border: item.colour === pc ? '2.5px solid #1a0533' : '2px solid rgba(0,0,0,0.08)', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} title={pc} />
-                      ))}
-                      {item.colour && (
-                        <button onClick={() => saveColour(item, '')} disabled={colourSaving === item.id} style={{ fontSize: '0.68rem', color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', fontFamily: "'DM Sans', sans-serif" }}>
-                          {colourSaving === item.id ? 'Saving…' : 'clear'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
                   <textarea
                     value={noteDraft}
                     onChange={e => setNotesDrafts(p => ({ ...p, [item.id]: e.target.value }))}
