@@ -945,7 +945,7 @@ const Onboarding = () => {
         billing_model: data.billing_model || 'subscription',
         subscription_tier: data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard'),
         monthly_cost_limit: data.billing_model === 'payg' ? (data.monthly_cost_limit || 20) : null,
-        calendar_tier: isCalendar ? 'entry' : 'none',
+        calendar_tier: isCalendar ? 'entry' : 'entry',
         active: true,
       })
       .select()
