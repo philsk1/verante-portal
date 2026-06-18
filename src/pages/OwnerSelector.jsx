@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { qScore, qMoodFromScore } from '../utils/qScore.js'
 
-const OWNER_EMAIL = 'finsolsoffice@gmail.com'
+const OWNER_EMAILS = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
 
 const TIER_STYLE = {
-  free:         { label: 'Free',         color: '#888',    bg: '#f0f0f0' },
-  light:        { label: 'Light',        color: '#5e3b87', bg: '#ede8f5' },
-  standard:     { label: 'Standard',     color: '#1e7a4a', bg: '#e6f5ee' },
-  professional: { label: 'Professional', color: '#b07a00', bg: '#fef3d9' },
-  enterprise:   { label: 'Enterprise',   color: '#1e3a8a', bg: '#dbeafe' },
-  bespoke:      { label: 'Bespoke',      color: '#78460a', bg: '#fef3c7' },
+  free:          { label: 'Free',          color: '#888',    bg: '#f0f0f0' },
+  light:         { label: 'Light',         color: '#5e3b87', bg: '#ede8f5' },
+  standard:      { label: 'Standard',      color: '#1e7a4a', bg: '#e6f5ee' },
+  professional:  { label: 'Professional',  color: '#b07a00', bg: '#fef3d9' },
+  enterprise:    { label: 'Enterprise',    color: '#1e3a8a', bg: '#dbeafe' },
+  bespoke:       { label: 'Bespoke',       color: '#78460a', bg: '#fef3c7' },
+  schedule_only: { label: 'Schedule Only', color: '#065f46', bg: '#d1fae5' },
 }
 
 const TierBadge = ({ tier }) => {
@@ -86,10 +87,19 @@ const OwnerSelector = () => {
   const [sort, setSort] = useState('name')
   const [lastPreview] = useState(() => { try { return localStorage.getItem('qerxel_last_preview') } catch { return null } })
 
+  // Ground Zero state
+  const [gzPhase, setGzPhase] = useState(null) // null | 'confirm' | 'running' | 'done'
+  const [gzProgress, setGzProgress] = useState({ current: 0, total: 0, name: '' })
+  const [gzResult, setGzResult] = useState({ count: 0, totalAppts: 0 })
+
   useEffect(() => {
     if (!user) return
-    if (user.email !== OWNER_EMAIL) { navigate('/portal', { replace: true }); return }
+    if (!OWNER_EMAILS.includes(user.email)) { navigate('/portal', { replace: true }); return }
+    loadTenants()
+  }, [user])
 
+  const loadTenants = () => {
+    setLoading(true)
     fetch('/api/admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,7 +108,30 @@ const OwnerSelector = () => {
       .then(r => r.json())
       .then(d => { setTenants(d.tenants || []); setLoading(false) })
       .catch(() => { setError('Could not load tenants'); setLoading(false) })
-  }, [user])
+  }
+
+  const runGroundZero = async () => {
+    const calTenants = tenants.filter(t => t.calendar_tier && t.calendar_tier !== 'none')
+    setGzPhase('running')
+    setGzProgress({ current: 0, total: calTenants.length, name: '' })
+    let totalAppts = 0
+    for (let i = 0; i < calTenants.length; i++) {
+      const t = calTenants[i]
+      setGzProgress({ current: i + 1, total: calTenants.length, name: t.business_name })
+      try {
+        const res = await fetch('/api/ground-zero', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId: t.id, ownerEmail: user.email }),
+        })
+        const data = await res.json()
+        if (data.appointments) totalAppts += data.appointments
+      } catch {}
+    }
+    setGzResult({ count: calTenants.length, totalAppts })
+    setGzPhase('done')
+    loadTenants()
+  }
 
   const select = (tenant, tab = '') => {
     try { localStorage.setItem('qerxel_last_preview', tenant.id) } catch {}
@@ -112,10 +145,10 @@ const OwnerSelector = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: 'radial-gradient(ellipse at 70% 0%, #c8bee8 0%, #e9e4f3 55%)', fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* Header */}
-      <div style={{ background: '#5e3b87', padding: '0 2rem', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+      <div style={{ background: '#140c2a', padding: '0 2rem', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em' }}>Qerxel</span>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginBottom: 8, flexShrink: 0 }} />
@@ -141,6 +174,14 @@ const OwnerSelector = () => {
             DB Audit →
           </a>
           <button
+            onClick={() => setGzPhase('confirm')}
+            style={{ padding: '0.375rem 0.9rem', border: '1px solid rgba(240,165,0,0.45)', borderRadius: '6px', background: 'rgba(240,165,0,0.08)', color: '#f0a500', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.01em' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(240,165,0,0.18)'; e.currentTarget.style.borderColor = 'rgba(240,165,0,0.7)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(240,165,0,0.08)'; e.currentTarget.style.borderColor = 'rgba(240,165,0,0.45)' }}
+          >
+            Ground Zero
+          </button>
+          <button
             onClick={handleSignOut}
             style={{ padding: '0.375rem 0.85rem', border: '1px solid rgba(255,255,255,0.22)', borderRadius: '6px', background: 'transparent', color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
           >
@@ -161,11 +202,13 @@ const OwnerSelector = () => {
             {/* Sort controls */}
             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
               {[
-                { id: 'name',       label: 'A–Z' },
-                { id: 'q_asc',      label: 'Q score ↑' },
-                { id: 'q_desc',     label: 'Q score ↓' },
-                { id: 'calls_desc', label: 'Most active' },
-                { id: 'tier',       label: 'Tier' },
+                { id: 'name',          label: 'A–Z' },
+                { id: 'density_desc',  label: 'Data richest' },
+                { id: 'density_asc',   label: 'Data lightest' },
+                { id: 'q_asc',         label: 'Q score ↑' },
+                { id: 'q_desc',        label: 'Q score ↓' },
+                { id: 'calls_desc',    label: 'Most active' },
+                { id: 'tier',          label: 'Tier' },
               ].map(opt => (
                 <button key={opt.id} onClick={() => setSort(opt.id)} style={{
                   padding: '0.3rem 0.7rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
@@ -242,13 +285,16 @@ const OwnerSelector = () => {
           }) : [...withScores]
 
           // Sort
-          const CALLS = t => t.landscape?.calls30d ?? 0
+          const CALLS   = t => t.landscape?.calls30d ?? 0
+          const DENSITY = t => t.landscape?.totalAppts ?? 0
           filtered.sort((a, b) => {
-            if (sort === 'name')       return (a.business_name || '').localeCompare(b.business_name || '')
-            if (sort === 'q_asc')      return a._qScore - b._qScore
-            if (sort === 'q_desc')     return b._qScore - a._qScore
-            if (sort === 'calls_desc') return CALLS(b) - CALLS(a)
-            if (sort === 'tier')       return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
+            if (sort === 'name')          return (a.business_name || '').localeCompare(b.business_name || '')
+            if (sort === 'density_desc')  return DENSITY(b) - DENSITY(a)
+            if (sort === 'density_asc')   return DENSITY(a) - DENSITY(b)
+            if (sort === 'q_asc')         return a._qScore - b._qScore
+            if (sort === 'q_desc')        return b._qScore - a._qScore
+            if (sort === 'calls_desc')    return CALLS(b) - CALLS(a)
+            if (sort === 'tier')          return (TIER_RANK[b.subscription_tier] || 0) - (TIER_RANK[a.subscription_tier] || 0)
             return 0
           })
 
@@ -269,12 +315,12 @@ const OwnerSelector = () => {
                   border: t.id === lastPreview ? '1.5px solid rgba(94,59,135,0.35)' : '0.5px solid rgba(94,59,135,0.12)',
                   borderRadius: '12px',
                   cursor: 'pointer', textAlign: 'left', padding: '0.9rem 1rem',
-                  boxShadow: t.id === lastPreview ? '0 4px 16px rgba(94,59,135,0.1)' : '0 2px 8px rgba(94,59,135,0.04)',
+                  boxShadow: t.id === lastPreview ? '0 4px 20px rgba(94,59,135,0.18)' : '0 2px 8px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04)',
                   transition: 'box-shadow 0.15s, border-color 0.15s',
                   fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(94,59,135,0.12)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = t.id === lastPreview ? '0 4px 16px rgba(94,59,135,0.1)' : '0 2px 8px rgba(94,59,135,0.04)'; e.currentTarget.style.borderColor = t.id === lastPreview ? 'rgba(94,59,135,0.35)' : 'rgba(94,59,135,0.12)' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(94,59,135,0.18), 0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = 'rgba(94,59,135,0.28)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = t.id === lastPreview ? '0 4px 20px rgba(94,59,135,0.18)' : '0 2px 8px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = t.id === lastPreview ? 'rgba(94,59,135,0.35)' : 'rgba(94,59,135,0.12)' }}
               >
                 {/* Name + Q score + tier */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
@@ -319,6 +365,15 @@ const OwnerSelector = () => {
                   />
                 </div>
 
+                {/* Appointment density chip */}
+                {(t.landscape?.totalAppts ?? 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#5e3b87', background: '#ede8f5', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                      {t.landscape.totalAppts.toLocaleString()} appointments
+                    </span>
+                  </div>
+                )}
+
                 {/* Landscape intel */}
                 <LandscapeStrip landscape={t.landscape} />
 
@@ -360,6 +415,81 @@ const OwnerSelector = () => {
           )
         })()}
       </div>
+
+      {/* Ground Zero modal */}
+      {gzPhase && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,12,42,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(3px)' }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '2rem 2.25rem', width: 440, maxWidth: '90vw', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', fontFamily: "'DM Sans', sans-serif" }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f0a500', flexShrink: 0 }} />
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.125rem', color: '#140c2a' }}>Ground Zero</span>
+            </div>
+
+            {gzPhase === 'confirm' && (
+              <>
+                <p style={{ fontSize: '0.875rem', color: '#444', lineHeight: 1.6, margin: '0 0 0.6rem' }}>
+                  Resets all calendar-enabled businesses to their canonical demo state, anchored to today's date.
+                </p>
+                <p style={{ fontSize: '0.82rem', color: '#888', lineHeight: 1.55, margin: '0 0 1.5rem' }}>
+                  Services, products and appointments are rebuilt from the ground-zero configuration. All existing calendar data for these businesses will be replaced.
+                </p>
+                <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setGzPhase(null)}
+                    style={{ padding: '0.5rem 1.1rem', border: '1px solid #ddd', borderRadius: '8px', background: 'white', color: '#666', fontSize: '0.85rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={runGroundZero}
+                    style={{ padding: '0.5rem 1.4rem', border: 'none', borderRadius: '8px', background: '#f0a500', color: '#1a0533', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Run Ground Zero
+                  </button>
+                </div>
+              </>
+            )}
+
+            {gzPhase === 'running' && (
+              <>
+                <p style={{ fontSize: '0.82rem', color: '#888', margin: '0 0 1.25rem' }}>
+                  Resetting {gzProgress.total} businesses — do not close this window.
+                </p>
+                {/* Progress bar */}
+                <div style={{ background: '#f0ebff', borderRadius: '6px', height: 8, marginBottom: '0.75rem', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: '#5e3b87', borderRadius: '6px', width: `${gzProgress.total ? (gzProgress.current / gzProgress.total) * 100 : 0}%`, transition: 'width 0.3s' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#888', marginBottom: '0.9rem' }}>
+                  <span style={{ color: '#1a1a1a', fontWeight: 600, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gzProgress.name}</span>
+                  <span>{gzProgress.current} / {gzProgress.total}</span>
+                </div>
+                <p style={{ fontSize: '0.75rem', color: '#bbb', margin: 0, textAlign: 'center' }}>Working…</p>
+              </>
+            )}
+
+            {gzPhase === 'done' && (
+              <>
+                <p style={{ fontSize: '0.875rem', color: '#1a1a1a', fontWeight: 600, margin: '0 0 0.4rem' }}>
+                  Done — {gzResult.count} businesses reset
+                </p>
+                <p style={{ fontSize: '0.82rem', color: '#888', margin: '0 0 1.5rem' }}>
+                  {gzResult.totalAppts.toLocaleString()} appointments seeded across all calendar tenants, anchored to today.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setGzPhase(null)}
+                    style={{ padding: '0.5rem 1.4rem', border: 'none', borderRadius: '8px', background: '#f0a500', color: '#1a0533', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

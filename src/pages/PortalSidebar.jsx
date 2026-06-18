@@ -145,6 +145,30 @@ export const IcoSentry = () => (
   </svg>
 )
 
+export const IcoDesk = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="2.5" y="1.5" width="11" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+    <line x1="5" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="5" y1="7.5" x2="11" y2="7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="5" y1="10" x2="8.5" y2="10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
+const IcoSupport = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+)
+
+const IcoCommand = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <rect x="3" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+    <rect x="14" y="14" width="7" height="7" rx="1"/>
+  </svg>
+)
+
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 
 const Toggle = ({ checked, onChange }) => (
@@ -165,17 +189,20 @@ const Toggle = ({ checked, onChange }) => (
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
-const SECTIONS_KEY = 'qerxel_sb_sections'
-const PINS_KEY     = 'qerxel_sb_pins'
+const PINS_KEY = 'qerxel_sb_pins'
 
 // ─── PortalSidebar ────────────────────────────────────────────────────────────
 
 export default function PortalSidebar({
   displayName,
   user,
+  tenantId,
+  isPreview,
+  scheduleOnly,
   activeTab,
   onTabSelect,
   hasSchedule,
+  hasScheduleMulti,
   hasListen,
   hasSentry,
   uncontactedCount,
@@ -188,13 +215,27 @@ export default function PortalSidebar({
   notifyWeeklyReport,
   onNotifChange,
   onSignOut,
+  onPlanSelectorOpen,
+  isDemoMode,
+  onDemoEnd,
+  baseTier,
 }) {
   const { globalScore: qScore, channelHealth } = useQScore()
 
+  const sectionsKey = `qerxel_sb_sections_${tenantId || 'anon'}`
+
   const [sections, setSections] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') }
+    if (isPreview) return {}
+    try { return JSON.parse(localStorage.getItem(sectionsKey) || '{}') }
     catch { return {} }
   })
+
+  // Reset to clean state whenever switching tenant in preview
+  useEffect(() => {
+    if (isPreview) { setSections({}); return }
+    try { setSections(JSON.parse(localStorage.getItem(sectionsKey) || '{}')) }
+    catch { setSections({}) }
+  }, [tenantId])
 
   const [pins, setPins] = useState(() => {
     try { return JSON.parse(localStorage.getItem(PINS_KEY) || '[]') }
@@ -209,7 +250,32 @@ export default function PortalSidebar({
 
   // ── Product / section map ─────────────────────────────────────────────────
 
-  const PRODUCTS = [
+  const PRODUCTS = scheduleOnly ? [
+    {
+      id: 'schedule',
+      label: 'Schedule',
+      dot: '#3db87a',
+      tabs: [
+        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
+        { id: 'team',      label: 'Team',       icon: <IcoPeople />, locked: !hasScheduleMulti },
+        { id: 'services',  label: 'Services',   icon: <IcoGear /> },
+        { id: 'analytics', label: 'Analytics',  icon: <IcoAnalytics /> },
+        { id: 'referrals', label: 'Partners',   icon: <IcoPartners /> },
+      ],
+    },
+    { id: 'sentry', label: 'Sentry', dot: hasSentry ? '#ef4444' : 'rgba(255,255,255,0.2)', locked: !hasSentry, tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] },
+    { id: '_divider', divider: true, tabs: [] },
+    {
+      id: 'platform',
+      label: 'Platform',
+      dot: '#60a5fa',
+      tabs: [
+        { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
+        { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
+        ...(!isDemoMode ? [{ id: 'settings', label: 'Account & Billing', icon: <IcoGear /> }] : []),
+      ],
+    },
+  ] : [
     {
       id: 'answer',
       label: 'Answer',
@@ -237,7 +303,7 @@ export default function PortalSidebar({
         { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
       ],
     },
-    ...(hasSentry ? [{ id: 'sentry', label: 'Sentry', dot: '#3db87a', tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] }] : []),
+    { id: 'sentry', label: 'Sentry', dot: hasSentry ? '#ef4444' : 'rgba(255,255,255,0.2)', locked: !hasSentry, tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] },
     {
       id: 'lines',
       label: 'Lines',
@@ -251,19 +317,32 @@ export default function PortalSidebar({
       label: 'Business',
       dot: '#60a5fa',
       tabs: [
+        { id: 'business',     label: 'Business Desk',    icon: <IcoDesk /> },
         { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
         { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
         { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
       ],
     },
-    {
+    ...(!isDemoMode ? [{
       id: 'platform',
       label: 'Platform',
       dot: '#60a5fa',
       tabs: [
         { id: 'settings', label: 'Account & Billing', icon: <IcoGear /> },
       ],
-    },
+    }] : []),
+    ...(['finsolsoffice@gmail.com','philoffice@btconnect.com'].includes(user?.email) ? [{
+      id: 'support',
+      label: 'Support',
+      dot: '#dc2626',
+      tabs: [{ id: 'support', label: 'Support Intel', icon: <IcoSupport /> }],
+    }] : []),
+    ...(['finsolsoffice@gmail.com','philoffice@btconnect.com'].includes(user?.email) ? [{
+      id: 'command',
+      label: 'Command',
+      dot: '#dc2626',
+      tabs: [{ id: 'command', label: 'Master Control', icon: <IcoCommand /> }],
+    }] : []),
   ]
 
   const activeProductId = PRODUCTS.find(p => p.tabs?.some(t => t.id === activeTab))?.id
@@ -282,7 +361,7 @@ export default function PortalSidebar({
 
   // ── Persist state ─────────────────────────────────────────────────────────
 
-  useEffect(() => { localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections)) }, [sections])
+  useEffect(() => { if (!isPreview) localStorage.setItem(sectionsKey, JSON.stringify(sections)) }, [sections])
   useEffect(() => { localStorage.setItem(PINS_KEY, JSON.stringify(pins)) }, [pins])
 
   // ── Outside click for notification panel ──────────────────────────────────
@@ -343,7 +422,7 @@ export default function PortalSidebar({
           border: 'none',
           borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
           marginLeft: isActive ? -3 : 0,
-          background: isActive ? 'rgba(255,255,255,0.15)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+          background: isActive ? 'rgba(240,165,0,0.1)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
           color: isActive ? 'white' : locked ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.62)',
           cursor: 'pointer',
           transition: 'background 0.12s, color 0.12s',
@@ -427,7 +506,7 @@ export default function PortalSidebar({
         )}
         <span style={{
           fontSize: '0.585rem', fontWeight: 700,
-          color: product.locked ? 'rgba(255,255,255,0.18)' : isActiveSection ? 'rgba(255,255,255,0.42)' : product.subtle ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.28)',
+          color: product.locked ? 'rgba(255,255,255,0.18)' : isActiveSection ? 'rgba(255,255,255,0.55)' : product.subtle ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.38)',
           textTransform: 'uppercase', letterSpacing: '0.12em',
           fontFamily: "'DM Sans', sans-serif", flex: 1, whiteSpace: 'nowrap', transition: 'color 0.12s',
         }}>
@@ -457,25 +536,22 @@ export default function PortalSidebar({
   return (
     <aside style={{
       position: 'sticky', top: 0, alignSelf: 'flex-start', height: '100vh',
-      width: sidebarW, flexShrink: 0, background: '#5e3b87',
+      width: sidebarW, flexShrink: 0, background: '#140c2a',
       display: 'flex', flexDirection: 'column',
       transition: 'width 0.22s ease', overflow: 'hidden', zIndex: 10,
     }}>
 
       {/* Logo */}
       <div style={{
-        height: 64, display: 'flex', alignItems: 'center',
+        height: 120, display: 'flex', alignItems: 'center',
         justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
         padding: sidebarCollapsed ? 0 : '0 0.9rem 0 1.25rem',
-        borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, boxSizing: 'border-box',
+        borderBottom: '1px solid rgba(255,255,255,0.12)', flexShrink: 0, boxSizing: 'border-box',
       }}>
         {sidebarCollapsed ? (
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f0a500', display: 'block' }} />
+          <img src="/Qerxel%20logo.png" alt="Qerxel" style={{ height: 84, width: 'auto', objectFit: 'contain' }} />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1.125rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Qerxel</span>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0a500', display: 'inline-block', marginLeft: 3, marginBottom: 8, flexShrink: 0 }} />
-          </div>
+          <img src="/Qerxel%20logo.png" alt="Qerxel" style={{ height: 108, width: 'auto', objectFit: 'contain', maxWidth: 240 }} />
         )}
       </div>
 
@@ -578,6 +654,16 @@ export default function PortalSidebar({
         })}
       </nav>
 
+      {/* Demo end button */}
+      {isDemoMode && !sidebarCollapsed && (
+        <button
+          onClick={onDemoEnd}
+          style={{ margin: '0.5rem 0.65rem', padding: '0.55rem 1rem', background: 'rgba(13,148,136,0.15)', border: '1px solid rgba(13,148,136,0.35)', borderRadius: 8, color: '#5eead4', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", width: 'calc(100% - 1.3rem)', textAlign: 'center', flexShrink: 0 }}
+        >
+          End demo →
+        </button>
+      )}
+
       {/* Bottom controls */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
 
@@ -594,7 +680,7 @@ export default function PortalSidebar({
         <div style={{ display: 'flex', alignItems: 'center', padding: '0.35rem 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '0.3rem' }}>
           {[
             { id: 'bell',    icon: <IcoBell />,    label: 'Notifications', action: onNotifToggle,                                           active: notifPanelOpen },
-            { id: 'gear',    icon: <IcoGear />,    label: 'Settings',      action: () => onTabSelect('settings'),                          active: activeTab === 'settings' },
+            { id: 'plans',   icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>, label: 'Plans & Billing', action: onPlanSelectorOpen, active: false },
             { id: 'vera',    icon: <IcoVera />,    label: 'Ask Q',         action: () => document.getElementById('vera-ask-btn')?.click(), active: false },
             { id: 'signout', icon: <IcoSignOut />, label: 'Sign out',      action: onSignOut,                                               active: false },
           ].map(item => (

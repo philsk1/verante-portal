@@ -252,7 +252,7 @@ export default function PhoneLines() {
   if (loading) return null
 
   return (
-    <div style={s.page}>
+    <div data-help-score={phoneNumber ? 95 : 20} style={s.page}>
       <div style={s.pageHeader}>
         <h1 style={s.h1}>Qerxel Lines</h1>
         <p style={s.sub}>Your dedicated business phone number — works with Qerxel AI, or completely standalone.</p>

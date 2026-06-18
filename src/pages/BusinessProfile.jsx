@@ -504,6 +504,7 @@ const BusinessProfile = ({ onNavigate }) => {
       setDetailsToast({ msg: 'Details saved.', type: 'success' })
       setTimeout(() => setDetailsToast({ msg: '', type: '' }), 3000)
       syncVapi(tenantId)
+      window.dispatchEvent(new Event('qscore-refresh'))
     }
   }
 
@@ -568,7 +569,7 @@ const BusinessProfile = ({ onNavigate }) => {
 
       {/* Business Details */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Business Details are the basics your AI uses to represent you on every call — your trading name, phone number, email address, and where you're based.">Business Details</h3>
+        <h3 style={s.sectionTitle} data-help="Business Details are the basics your AI uses to represent you on every call — your trading name, phone number, email address, and where you're based." data-help-score={!details.opening_hours?.trim() ? 20 : !details.booking_link?.trim() ? 50 : 95}>Business Details</h3>
         <p style={s.sectionSubtitle}>Used to personalise your AI and appears in caller communications.</p>
         <div style={s.row}>
           <Field label="Business name" value={details.business_name} onChange={v => setDetails(p => ({ ...p, business_name: v }))} />

@@ -82,6 +82,7 @@ const ServiceCatalogue = () => {
       setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '' })
       setAddOpen(false)
       showToast('Service added.')
+      window.dispatchEvent(new Event('qscore-refresh'))
     } else {
       showToast(error?.message || 'Could not save', 'error')
     }
@@ -91,6 +92,7 @@ const ServiceCatalogue = () => {
     if (previewReadOnly) return
     await supabase.from('catalogue_items').update({ active: false }).eq('id', id)
     setItems(prev => prev.filter(i => i.id !== id))
+    window.dispatchEvent(new Event('qscore-refresh'))
   }
 
   const saveNote = async (item) => {
@@ -108,7 +110,7 @@ const ServiceCatalogue = () => {
   }
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem', fontFamily: "'DM Sans', sans-serif" }}>
+    <div data-help-score={items.length === 0 ? 20 : items.length < 3 ? 65 : 95} style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem', fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>

@@ -3,7 +3,13 @@
 
 // ── Layer 1 — Qerxel owned. Always injected. Never editable by tenant. ──────
 
-const LAYER_1_CORE_VALUES = `You are a warm, professional, and considerate assistant. You speak in human terms at all times — with kindness, willingness, and genuine care for the person you are speaking with. You are never robotic, never bureaucratic, never cold. You do not perform warmth — you express it naturally through the way you phrase things, the pace you set, and the care you take with every caller. Even in your most formal register you remain considerate and human. You never claim to be a person but you always behave like one worth trusting.`
+const LAYER_1_CORE_VALUES = `You are a warm, professional, and considerate assistant. You speak in human terms at all times — with kindness, willingness, and genuine care for the person you are speaking with. You are never robotic, never bureaucratic, never cold. You do not perform warmth — you express it naturally through the way you phrase things, the pace you set, and the care you take with every caller. Even in your most formal register you remain considerate and human. You never claim to be a person but you always behave like one worth trusting.
+
+LANGUAGE — NEVER USE THESE:
+"Absolutely", "Certainly", "Of course!" as openers — they perform helpfulness without delivering it. Simply respond.
+"Great question" — patronising. Remove it entirely.
+"I'd be happy to help" / "Happy to help with that" — corporate filler. Cut it.
+Apologise once if something genuinely warrants it. Never repeatedly. Then move forward.`
 
 const LAYER_1_JUDGEMENT = `You are an intelligent assistant, not a rule-following robot. If a caller's tone, words, or situation clearly falls outside the scope of normal business enquiries — personal urgency, distress, safety concerns, or anything that common sense tells you requires immediate human attention — escalate immediately regardless of any other instructions. Always err on the side of the human.`
 
@@ -53,29 +59,45 @@ function buildCallTypeSection(type, tenant, rulesByType) {
 }
 
 // ── Greeting builder ──────────────────────────────────────────────────────────
+// Qerxel owns this structure. The tenant's greeting_message field is an optional
+// addendum only — a legal note, language note, or specific phrase they want appended.
+// The core structure never changes and is never coached on or critiqued.
+//
+// SENSITIVE BUSINESSES (legal, medical): no capability claim, no invitation to speak,
+// no discussion of any kind. Name, number, who they want. That is all.
 
-function buildGreeting(tenant) {
-  const name = tenant.business_name || 'this business'
-  const owner = tenant.lead_contact_name || tenant.business_name || 'the owner'
-  const tone = tenant.tone_register || 'warm'
-  const outcomeType = tenant.business_outcome_type || 'quote'
+export function buildGreeting(tenant, callHourUTC, isSensitive) {
+  const name   = tenant.business_name    || 'this business'
+  const owner  = tenant.lead_contact_name || 'the team'
+  const formal = tenant.tone_register === 'formal'
 
-  const resolution = outcomeType === 'booking' && tenant.booking_link
-    ? "I'll be taking a brief note and sending you a booking link."
-    : outcomeType === 'booking'
-      ? "I'll be taking a brief note to get you booked in."
-      : outcomeType === 'custom' && tenant.custom_outcome_text
-        ? `I'll be taking a brief note — ${tenant.custom_outcome_text.trim()}.`
-        : tenant.callback_preference_note
-          ? `I'll be taking a brief note, ${owner} will call you back ${tenant.callback_preference_note}.`
-          : `I'll be taking a brief note so ${owner} can call you back to discuss what you need.`
+  const opener = (() => {
+    if (!formal) return `${name}.`
+    const h = callHourUTC ?? new Date().getUTCHours()
+    const tod = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+    return `${tod}, ${name}.`
+  })()
 
-  const base = tone === 'formal'
-    ? `Good morning. You have reached ${name}. ${owner} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${owner}'s personal attention. How may I assist you?`
-    : `Good morning, ${name}. ${owner} is busy — I'm their virtual assistant. ${resolution} How can I help you?`
-
-  // Tenant can only append to the system greeting — critical elements always remain
   const addition = tenant.greeting_message?.trim()
+
+  // Legal, medical, confidential — sealed. No invitation to discuss. Name, number, who.
+  if (isSensitive) {
+    const base = `${opener} I'm Q, ${owner}'s AI assistant. I'll make sure your message reaches the right person — I just need your name, number, and who you'd like to speak with.`
+    return addition ? `${base} ${addition}` : base
+  }
+
+  // Capability claim varies by business type
+  const outcomeType = tenant.business_outcome_type || 'quote'
+  const capability = (() => {
+    if (formal)                return 'Enquiries and appointment scheduling I can handle myself'
+    if (outcomeType === 'booking') return 'Appointments, availability and prices I can handle myself'
+    if (outcomeType === 'quote')   return 'Information, availability and bookings I can handle myself'
+    if (outcomeType === 'custom' && tenant.custom_outcome_text)
+      return `${tenant.custom_outcome_text.trim().replace(/\.$/, '')} I can handle myself`
+    return 'Information and bookings I can handle myself'
+  })()
+
+  const base = `${opener} I'm Q, ${owner}'s AI assistant. Please tell me what you need, and I will make it happen. ${capability}—and for anything I can't do, I'll take a note and get ${owner} to call you straight back.`
   return addition ? `${base} ${addition}` : base
 }
 
@@ -209,12 +231,11 @@ export function buildSystemPrompt(data) {
   if (tenant.sales_call_handling !== false) filters.push('Sales call handling is active — decline unsolicited sales calls politely but firmly.')
   if (tenant.autodialler_detection !== false) filters.push('Autodialler detection is active — if you detect an autodialler pause, treat as spam.')
 
-  const greeting = buildGreeting(tenant)
+  const greeting = buildGreeting(tenant, undefined, isSensitive)
   const pleaseAllowMe = buildPleaseAllowMe(tenant)
 
   // ── Sensitive business type override ─────────────────────────────────────
   if (isSensitive) {
-    const owner = tenant.lead_contact_name || tenant.business_name || 'the owner'
     return `${LAYER_1_CORE_VALUES}
 
 ${LAYER_1_JUDGEMENT}
@@ -224,7 +245,7 @@ You represent ${name}.
 ${SENSITIVE_INSTRUCTION}
 
 GREETING:
-"Good morning, ${name}. ${owner} is unavailable — I'm the AI assistant. Please allow me to take your name and number so ${owner} can call you back. For confidentiality reasons I'm not able to take details of your enquiry on this call."
+"${greeting}"
 
 OUTCOME:
 Every call ends as: escalated (name + number + urgency taken, owner to call back).
@@ -252,6 +273,12 @@ ${tenant.business_context ? tenant.business_context : ''}
 SERVICES WE OFFER:
 ${serviceBlock}
 ${tenant.booking_link ? `\nBookings: ${tenant.booking_link}` : ''}
+${tenant.business_outcome_type === 'quote' ? `
+PRICING RULE — NON-NEGOTIABLE:
+Any prices listed above are rough guides only — they exist for standard, predictable jobs.
+If a caller asks about price, you may reference catalogue prices if they are listed.
+You MUST follow every price mention with: "That's a rough guide — ${name} would need to see the job to give you an accurate quote."
+Never estimate, speculate, or discuss price for any job not listed. Take the enquiry and let the owner call back with a figure.` : ''}
 ${staffBlock ? `\n━━━ OUR TEAM ━━━\nIf a caller asks for a specific team member by name, confirm who they are asking for and give their direct line if listed. If no direct line is listed, take a message for that person.\n${staffBlock}` : ''}
 
 ━━━ SERVICES WE REFER TO PARTNERS ━━━
@@ -331,7 +358,7 @@ Also capture: caller_name (if given), referred_to (partner name, if referred).`
 export function buildAnalysisPlan() {
   return {
     summaryPrompt: 'Write 1–2 sentences summarising this call for the business owner. State what the caller needed and what action was taken. Be factual and concise.',
-    structuredDataPrompt: 'Extract the following fields from this call transcript.',
+    structuredDataPrompt: 'Extract the following fields from this call transcript. For appointment_datetime, use ISO 8601 format if a date or time was mentioned. For appointment_address, include the full address exactly as stated by the caller.',
     structuredDataSchema: {
       type: 'object',
       properties: {
@@ -342,11 +369,27 @@ export function buildAnalysisPlan() {
         },
         caller_name: {
           type: 'string',
-          description: "Caller's name if they provided it",
+          description: "Caller's full name if they provided it",
+        },
+        caller_email: {
+          type: 'string',
+          description: "Caller's email address if they provided it",
         },
         referred_to: {
           type: 'string',
           description: 'Partner business name if the caller was referred',
+        },
+        service_requested: {
+          type: 'string',
+          description: 'The main service or reason for the call, in a few words',
+        },
+        appointment_address: {
+          type: 'string',
+          description: 'Full address provided by the caller for the job or appointment, exactly as stated',
+        },
+        appointment_datetime: {
+          type: 'string',
+          description: 'Date and/or time agreed or requested for the appointment, in ISO 8601 format if possible',
         },
       },
       required: ['triage_outcome'],

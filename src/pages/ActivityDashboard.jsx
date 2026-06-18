@@ -554,6 +554,7 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [connectedIntegrations, setConnectedIntegrations] = useState(new Set())
   const [notesSaved, setNotesSaved] = useState(false)
   const [tileStates, setTileStates] = useState({ status: 'half', calls: 'half', leads: 'half', charts: 'icon' })
+  const [totalUncontactedCount, setTotalUncontactedCount] = useState(0)
   const setTile = (id, state) => setTileStates(prev => ({ ...prev, [id]: state }))
   const [holidayMode, setHolidayMode] = useState(false)
   const [outcomeType, setOutcomeType] = useState('')
@@ -578,6 +579,13 @@ const ActivityDashboard = ({ onNavigate }) => {
   const [calendarTier, setCalendarTier] = useState('entry')
   const [provisionalCount, setProvisionalCount] = useState(0)
   const [featureNoticeClosed, setFeatureNoticeClosed] = useState(false)
+  const [readinessOpen, setReadinessOpen] = useState(true)
+  const [vapiAssistantId, setVapiAssistantId] = useState(null)
+  const [vapiPhoneNumber, setVapiPhoneNumber] = useState(null)
+  const [hasOpeningHours, setHasOpeningHours] = useState(false)
+  const [hasAdditionalInstructions, setHasAdditionalInstructions] = useState(false)
+  const [hasLeadContactName, setHasLeadContactName] = useState(false)
+  const [hasBusinessName, setHasBusinessName] = useState(false)
 
   useEffect(() => {
     if (!user && !isPreview) return
@@ -598,7 +606,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier, business_outcome_type, booking_link, q_mode')
+          .select('business_name, included_minutes, subscription_tier, triage_mode, overage_voice_preference, holiday_mode, listen_tier, calendar_tier, business_outcome_type, booking_link, q_mode, vapi_assistant_id, vapi_phone_number, opening_hours, additional_instructions, lead_contact_name')
           .eq('id', tid)
           .maybeSingle()
 
@@ -612,11 +620,17 @@ const ActivityDashboard = ({ onNavigate }) => {
           setCalendarTier(tenant.calendar_tier || 'entry')
           setOutcomeType(tenant.business_outcome_type || '')
           setOutcomeBookingLink(tenant.booking_link || '')
+          setVapiAssistantId(tenant.vapi_assistant_id || null)
+          setVapiPhoneNumber(tenant.vapi_phone_number || null)
+          setHasOpeningHours(!!(tenant.opening_hours?.trim?.()))
+          setHasAdditionalInstructions(!!(tenant.additional_instructions?.trim?.()))
+          setHasLeadContactName(!!(tenant.lead_contact_name?.trim?.()))
+          setHasBusinessName(!!(tenant.business_name?.trim?.()))
         }
 
         const monthIso = startOfMonth().toISOString()
 
-        const [callRes, leadRes, refRes, pCountRes, sCountRes, cCountRes, apptRes] = await Promise.all([
+        const [callRes, leadRes, refRes, pCountRes, sCountRes, cCountRes, apptRes, allTimeLeadCountRes] = await Promise.all([
           supabase
             .from('call_logs')
             .select('id, created_at, duration_seconds, ai_summary, call_outcome, caller_phone, callers(phone_number, full_name)')
@@ -645,6 +659,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           supabase.from('staff_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
           supabase.from('catalogue_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
           supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'provisional').gte('start_time', new Date().toISOString()),
+          supabase.from('leads').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).or('status.is.null,status.eq.new'),
         ])
 
         setCalls(callRes.data || [])
@@ -654,6 +669,7 @@ const ActivityDashboard = ({ onNavigate }) => {
         setStaffCount(sCountRes.count ?? 0)
         setCatalogueCount(cCountRes.count ?? 0)
         setProvisionalCount(apptRes.count ?? 0)
+        setTotalUncontactedCount(allTimeLeadCountRes.count ?? 0)
 
         try {
           const { data: integrations } = await supabase
@@ -1039,9 +1055,9 @@ const ActivityDashboard = ({ onNavigate }) => {
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
             Leads requiring action
-            {actionableLeads.length > 0 && <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: 10, padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>{actionableLeads.length}</span>}
+            {totalUncontactedCount > 0 && <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: 10, padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>{totalUncontactedCount}</span>}
           </div>
-          {actionableLeads.length === 0
+          {totalUncontactedCount === 0
             ? <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up." />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {actionableLeads.slice(0, 6).map((lead, i) => (
@@ -1229,6 +1245,71 @@ const ActivityDashboard = ({ onNavigate }) => {
   return (
     <div>
 
+      {/* ── READINESS CHECKLIST ─────────────────────────────────────────────── */}
+      {(() => {
+        const checks = [
+          { key: 'assistant', ok: !!vapiAssistantId, label: 'AI assistant created', fix: 'Settings → AI', tab: 'ai' },
+          { key: 'phone',     ok: !!vapiPhoneNumber, label: 'Phone number assigned', fix: 'Contact support', tab: null },
+          { key: 'name',      ok: hasBusinessName,   label: 'Business name set', fix: 'Settings → Account', tab: 'settings' },
+          { key: 'hours',     ok: hasOpeningHours,   label: 'Opening hours set', fix: 'Settings → AI', tab: 'ai' },
+          { key: 'contact',   ok: hasLeadContactName,label: 'Contact name set (Q uses this in calls)', fix: 'Settings → Account', tab: 'settings' },
+          { key: 'ai',        ok: hasAdditionalInstructions, label: 'AI instructions added', fix: 'Settings → AI', tab: 'ai' },
+          { key: 'catalogue', ok: catalogueCount > 0,label: 'Services or products in catalogue', fix: 'Business → Catalogue', tab: 'catalogue' },
+        ]
+        const pending = checks.filter(c => !c.ok)
+        if (pending.length === 0) return null
+        return (
+          <div style={{ background: '#fffbeb', borderRadius: 14, border: '1px solid rgba(240,165,0,0.35)', marginBottom: '1.25rem', overflow: 'hidden' }}>
+            <div
+              onClick={() => setReadinessOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1.1rem', cursor: 'pointer', userSelect: 'none' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f0a500', animation: 'urgentPulse 2s ease-in-out infinite', flexShrink: 0 }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '0.85rem', color: '#78460a' }}>
+                  Before you go live — {pending.length} item{pending.length !== 1 ? 's' : ''} to check
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: '#b07a00', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{readinessOpen ? 'Hide ▲' : 'Show ▼'}</span>
+            </div>
+            {readinessOpen && (
+              <div style={{ padding: '0 1.1rem 0.9rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {checks.map(c => (
+                  <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${c.ok ? '#3db87a' : '#f0a500'}`, background: c.ok ? '#e6f5ee' : '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {c.ok
+                        ? <svg width="10" height="10" fill="none" stroke="#3db87a" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        : <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500' }} />
+                      }
+                    </div>
+                    <span style={{ flex: 1, fontSize: '0.8rem', color: c.ok ? '#1e7a4a' : '#78460a', fontFamily: "'DM Sans', sans-serif", fontWeight: c.ok ? 400 : 500 }}>{c.label}</span>
+                    {!c.ok && c.tab && (
+                      <button onClick={() => onNavigate && onNavigate(c.tab)} style={{ fontSize: '0.72rem', color: '#5e3b87', background: 'rgba(94,59,135,0.07)', border: 'none', borderRadius: 5, padding: '0.2rem 0.55rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', fontWeight: 500 }}>
+                        {c.fix} →
+                      </button>
+                    )}
+                    {!c.ok && !c.tab && (
+                      <span style={{ fontSize: '0.72rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>{c.fix}</span>
+                    )}
+                  </div>
+                ))}
+                <div style={{ marginTop: '0.5rem', paddingTop: '0.6rem', borderTop: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif" }}>Ready to test?</span>
+                  <button onClick={() => onNavigate && onNavigate('ai')} style={{ fontSize: '0.78rem', fontWeight: 600, color: 'white', background: '#f0a500', border: 'none', borderRadius: 6, padding: '0.3rem 0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    Test your AI →
+                  </button>
+                  {tenantId && (
+                    <a href={`/book/${tenantId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.78rem', fontWeight: 500, color: '#5e3b87', background: 'rgba(94,59,135,0.07)', borderRadius: 6, padding: '0.3rem 0.8rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>
+                      Preview booking page ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── HUB STRIP — product status ─────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
 
@@ -1239,11 +1320,11 @@ const ActivityDashboard = ({ onNavigate }) => {
             <div style={{ fontSize: '0.825rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>
               {callsToday > 0 ? `${callsToday} call${callsToday !== 1 ? 's' : ''} today` : 'No calls today'}
             </div>
-            {actionableLeads.length > 0 ? (
+            {totalUncontactedCount > 0 ? (
               <div
                 onClick={() => leadsZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 style={{ fontSize: '0.72rem', color: '#c0392b', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>
-                {actionableLeads.length} lead{actionableLeads.length !== 1 ? 's' : ''} need follow-up ↓
+                {totalUncontactedCount} lead{totalUncontactedCount !== 1 ? 's' : ''} need follow-up ↓
               </div>
             ) : callsThisMonth > 0 ? (
               <div style={{ fontSize: '0.72rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif", marginTop: 2, fontWeight: 500 }}>All leads handled</div>
@@ -1318,7 +1399,7 @@ const ActivityDashboard = ({ onNavigate }) => {
 
         return (
           <div
-            data-help="Your AI status panel — live status, voice tier, minutes used, triage mode, and quick access to AI configuration."
+            data-help="Your AI status panel — live status, voice tier, minutes used, triage mode, and quick access to AI configuration." data-help-score={vapiAssistantId && vapiPhoneNumber ? 95 : vapiAssistantId ? 50 : 20}
             style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', overflowX: isMobile ? 'auto' : 'hidden', overflowY: 'hidden' }}
           >
             {/* North star */}
@@ -1424,11 +1505,11 @@ const ActivityDashboard = ({ onNavigate }) => {
         {/* COL 2 — Leads requiring action */}
         <div ref={leadsZoneRef}>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaaaaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}
-            data-help="Leads requiring action are people who called in and need a follow-up. The quicker you respond, the higher the conversion rate.">
+            data-help="Leads requiring action are people who called in and need a follow-up. The quicker you respond, the higher the conversion rate." data-help-score={actionableLeads.length === 0 ? 95 : staleLeads.length === 0 ? 75 : staleLeads.length < 3 ? 50 : 20}>
             Leads requiring action
-            {actionableLeads.length > 0 && (
+            {totalUncontactedCount > 0 && (
               <span style={{ background: '#d1f5e4', color: '#1e7a4a', borderRadius: '10px', padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>
-                {actionableLeads.length}
+                {totalUncontactedCount}
               </span>
             )}
             <span style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem' }}>
@@ -1487,7 +1568,7 @@ const ActivityDashboard = ({ onNavigate }) => {
                 </div>
               )
             })()
-          ) : actionableLeads.length === 0 ? (
+          ) : totalUncontactedCount === 0 ? (
             <div style={s.section}>
               <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear as soon as your AI captures them." />
             </div>
@@ -1507,10 +1588,10 @@ const ActivityDashboard = ({ onNavigate }) => {
                   />
                 </motion.div>
               ))}
-              {actionableLeads.length > 5 && (
+              {totalUncontactedCount > 5 && (
                 <button onClick={() => setPipelineView(true)}
                   style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600, background: 'none', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, padding: '0.3rem 0.65rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left' }}>
-                  +{actionableLeads.length - 5} more — view all →
+                  +{totalUncontactedCount - 5} more — view all →
                 </button>
               )}
             </div>
@@ -2201,7 +2282,7 @@ function FreeAgentInvoiceButton({ leadId, tenantId }) {
   const handleCreate = async () => {
     setStatus('loading')
     try {
-      const res = await fetch('/api/freeagent-invoice', {
+      const res = await fetch('/api/freeagent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenantId, leadId }),
@@ -2252,7 +2333,7 @@ function XeroInvoiceButton({ leadId, tenantId }) {
   const handleCreate = async () => {
     setStatus('loading')
     try {
-      const res = await fetch('/api/freeagent-invoice', {
+      const res = await fetch('/api/freeagent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'xero', tenantId, leadId }),
@@ -2295,7 +2376,7 @@ function StripePaymentButton({ tenantId, leadId, leadName }) {
     if (!amount || parseFloat(amount) <= 0) return
     setStatus('loading')
     try {
-      const res = await fetch('/api/freeagent-invoice', {
+      const res = await fetch('/api/freeagent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'stripe-link', tenantId, leadId, amountPounds: amount, description: desc }),

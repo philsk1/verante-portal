@@ -146,6 +146,42 @@ export function emailNewLead({ businessName, callerName, callerPhone, summary, o
   }
 }
 
+// Client appointment reminder — 24h or 1h before (sent to client email)
+export function emailClientReminder({ clientName, businessName, businessPhone, appointment, hoursAhead, manageUrl }) {
+  const start = new Date(appointment.start_time)
+  const timeStr = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  const label = hoursAhead === 24 ? 'tomorrow' : 'in about an hour'
+  const svcRow = appointment.appointment_type
+    ? `<tr><td style="padding:0.4rem 0;color:#aaa;font-size:0.78rem;">Service</td><td style="padding:0.4rem 0;font-weight:600;text-align:right;color:#5e3b87;">${appointment.appointment_type}</td></tr>`
+    : ''
+  const manageLink = manageUrl
+    ? `<p style="font-size:0.82rem;color:#666;margin-top:1rem;">Need to cancel? <a href="${manageUrl}" style="color:#5e3b87;font-weight:600;text-decoration:none;">Manage your booking →</a></p>`
+    : ''
+  const phoneNote = businessPhone
+    ? `<p style="font-size:0.82rem;color:#666;">Questions? Call <a href="tel:${businessPhone}" style="color:#5e3b87;font-weight:600;text-decoration:none;">${businessPhone}</a>.</p>`
+    : ''
+  return {
+    subject: `Reminder: your appointment ${label} — ${businessName}`,
+    html: `<!DOCTYPE html><html><body style="font-family:'DM Sans',Arial,sans-serif;max-width:520px;margin:0 auto;padding:2rem 1rem;color:#1a1a1a;">
+      <div style="margin-bottom:1.5rem;"><span style="font-weight:700;color:#5e3b87;font-size:1.125rem;">${businessName}</span></div>
+      <h2 style="font-size:1.125rem;font-weight:700;color:#1a1a1a;margin:0 0 0.5rem;">Hi ${clientName || 'there'} 👋</h2>
+      <p style="color:#666;font-size:0.875rem;margin:0 0 1.25rem;">Just a reminder — you have an appointment <strong>${label}</strong>.</p>
+      <div style="background:#f5f3ff;border:1px solid rgba(94,59,135,0.15);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);color:#aaa;font-size:0.78rem;">Date</td><td style="padding:0.4rem 0;border-bottom:1px solid rgba(94,59,135,0.08);font-weight:600;text-align:right;">${dateStr}</td></tr>
+          <tr><td style="padding:0.4rem 0;${svcRow ? 'border-bottom:1px solid rgba(94,59,135,0.08);' : ''}color:#aaa;font-size:0.78rem;">Time</td><td style="padding:0.4rem 0;${svcRow ? 'border-bottom:1px solid rgba(94,59,135,0.08);' : ''}font-weight:600;text-align:right;">${timeStr}</td></tr>
+          ${svcRow}
+        </table>
+      </div>
+      ${manageLink}
+      ${phoneNote}
+      <hr style="border:none;border-top:1px solid #eee;margin:2rem 0 1rem;">
+      <p style="color:#aaa;font-size:0.75rem;margin:0;">Booking powered by Qerxel</p>
+    </body></html>`,
+  }
+}
+
 // Appointment reminder — 24h or 1h before
 export function emailAppointmentReminder({ businessName, appointment, hoursAhead }) {
   const start = new Date(appointment.start_time)

@@ -519,6 +519,9 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackSaving, setFeedbackSaving] = useState(false)
   const [feedbackDone, setFeedbackDone] = useState(false)
+  const [privacyOpen,  setPrivacyOpen]  = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [dangerOpen,   setDangerOpen]   = useState(false)
 
   // Support chat
   const [chatMessages, setChatMessages] = useState([
@@ -540,6 +543,33 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   // Products
   const [hasAnswerProduct, setHasAnswerProduct] = useState(true)
   const [sentryCameraLimit, setSentryCameraLimit] = useState(0)
+
+  // Sentry PIN management
+  const [sentryPinDb, setSentryPinDb]       = useState(undefined)
+  const [sentryPinEdit, setSentryPinEdit]   = useState(false)
+  const [newPin, setNewPin]                 = useState('')
+  const [confirmPin, setConfirmPin]         = useState('')
+  const [pinSaveError, setPinSaveError]     = useState(null)
+  const [pinSaving, setPinSaving]           = useState(false)
+
+  // Sentry camera tier selector
+  const [sentryTierOpen, setSentryTierOpen]     = useState(false)
+  const [sentryTierChoice, setSentryTierChoice] = useState(3)
+
+  // Booking page customisation
+  const [brandColour, setBrandColour]           = useState('#5e3b87')
+  const [logoUrl, setLogoUrl]                   = useState('')
+  const [promoText, setPromoText]               = useState('')
+  const [promoExpires, setPromoExpires]         = useState('')
+  const [hideQerxelAd, setHideQerxelAd]        = useState(false)
+  const [bookingOverlapMins, setBookingOverlapMins] = useState(0)
+  const [bookingPageSaving, setBookingPageSaving] = useState(false)
+  const [bookingPageToast, setBookingPageToast]   = useState({ msg: '', type: '' })
+
+  // Appointment reminders
+  const [remindersEnabled, setRemindersEnabled] = useState(false)
+  const [reminderSaving, setReminderSaving] = useState(false)
+  const [reminderToast, setReminderToast] = useState({ msg: '', type: '' })
 
   // GDPR & Data
   const [notifyNewLead, setNotifyNewLead] = useState(true)
@@ -584,13 +614,13 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, q_mode, sentry_camera_limit')
+          .select('business_name, subscription_tier, created_at, feedback_prompt_shown, data_retention_days, billing_model, monthly_cost_limit, vapi_phone_number, notify_new_lead, notify_daily_summary, notify_weekly_report, calendar_tier, listen_tier, q_mode, sentry_camera_limit, sentry_pin, brand_colour, logo_url, booking_promo_text, booking_promo_expires_at, hide_qerxel_ad, reminders_enabled, booking_overlap_mins')
           .eq('id', tid)
           .maybeSingle()
 
         if (tenant) {
           setDisplayName(tenant.business_name || '')
-          setTier(tenant.subscription_tier || 'light')
+          setTier(tenant.subscription_tier && tenant.subscription_tier !== 'schedule_only' ? tenant.subscription_tier : 'light')
           setCalendarTier(tenant.calendar_tier || 'entry')
           setListenTier(tenant.listen_tier || 'none')
           setTenantCreatedAt(tenant.created_at)
@@ -603,8 +633,16 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
           setMonthlyCostLimit(tenant.monthly_cost_limit ?? 20)
           setVapiPhone(tenant.vapi_phone_number || null)
           setQMode(tenant.q_mode || 'jump_in')
-          setHasAnswerProduct(!!tenant.subscription_tier)
+          setHasAnswerProduct(!!tenant.subscription_tier && tenant.subscription_tier !== 'schedule_only')
           setSentryCameraLimit(tenant.sentry_camera_limit || 0)
+          setSentryPinDb(tenant.sentry_pin ?? null)
+          setBrandColour(tenant.brand_colour || '#5e3b87')
+          setLogoUrl(tenant.logo_url || '')
+          setPromoText(tenant.booking_promo_text || '')
+          setPromoExpires(tenant.booking_promo_expires_at ? tenant.booking_promo_expires_at.slice(0, 10) : '')
+          setHideQerxelAd(tenant.hide_qerxel_ad || false)
+          setRemindersEnabled(tenant.reminders_enabled || false)
+          setBookingOverlapMins(tenant.booking_overlap_mins ?? 0)
         }
 
         const [pRes, lRes, rRes] = await Promise.all([
@@ -641,7 +679,7 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
   const handleUpgrade = async (targetTier) => {
     if (previewReadOnly || !tenantId) return
     try {
-      const res = await fetch('/api/freeagent-invoice', {
+      const res = await fetch('/api/freeagent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'stripe-checkout', tenantId, targetTier }),
@@ -688,6 +726,16 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
     }).eq('id', tenantId)
     setNotifySaving(false)
     showNotifyToast(error ? 'Could not save. Please try again.' : 'Preferences saved.', error ? 'error' : 'success')
+  }
+
+  const saveReminders = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    setRemindersEnabled(val)
+    setReminderSaving(true)
+    const { error } = await supabase.from('tenants').update({ reminders_enabled: val }).eq('id', tenantId)
+    setReminderSaving(false)
+    setReminderToast({ msg: error ? 'Could not save.' : val ? 'Reminders enabled.' : 'Reminders disabled.', type: error ? 'error' : 'success' })
+    setTimeout(() => setReminderToast({ msg: '', type: '' }), 3000)
   }
 
   const showDataToast = (msg, type = 'success') => {
@@ -777,9 +825,34 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
     navigate('/login')
   }
 
+  const showBookingPageToast = (msg, type = 'success') => {
+    setBookingPageToast({ msg, type })
+    setTimeout(() => setBookingPageToast({ msg: '', type: '' }), 3000)
+  }
+
+  const saveBookingPage = async () => {
+    if (previewReadOnly || !tenantId) return
+    setBookingPageSaving(true)
+    const updates = {
+      booking_promo_text: promoText.trim() || null,
+      booking_promo_expires_at: promoExpires ? new Date(promoExpires + 'T23:59:59').toISOString() : null,
+      booking_overlap_mins: bookingOverlapMins,
+    }
+    if (hasBranding) {
+      updates.brand_colour = brandColour !== '#5e3b87' ? brandColour : null
+      updates.logo_url = logoUrl.trim() || null
+    }
+    if (canHideAd) updates.hide_qerxel_ad = hideQerxelAd
+    const { error } = await supabase.from('tenants').update(updates).eq('id', tenantId)
+    setBookingPageSaving(false)
+    showBookingPageToast(error ? 'Could not save. Please try again.' : 'Booking page saved.', error ? 'error' : 'success')
+  }
+
   // ── computed ────────────────────────────────────────────────────────────────
 
   const tierInfo = TIERS[tier] || TIERS.light
+  const hasBranding = hasAnswerProduct || calendarTier === 'multi'
+  const canHideAd   = ['professional', 'enterprise', 'bespoke'].includes(tier) && hasAnswerProduct
   // eslint-disable-next-line react-hooks/purity
   const now = useMemo(() => Date.now(), [])
   const sixWeeksAgo = new Date(now - 42 * 24 * 60 * 60 * 1000)
@@ -805,6 +878,27 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
     if (answer !== tier && answer !== 'free') {
       handleUpgrade(answer)
     }
+  }
+
+  const SENTRY_TIER_PRICES = { 3: '£20', 5: '£25', 7: '£30', 9: '£35' }
+
+  const handleSentryActivate = async () => {
+    if (previewReadOnly || !tenantId) return
+    await supabase.from('tenants').update({ sentry_camera_limit: sentryTierChoice }).eq('id', tenantId)
+    setSentryCameraLimit(sentryTierChoice)
+    setSentryTierOpen(false)
+  }
+
+  const handleSentryPinSave = async () => {
+    if (newPin.length !== 4) { setPinSaveError('PIN must be 4 digits'); return }
+    if (newPin !== confirmPin) { setPinSaveError('PINs do not match'); setConfirmPin(''); return }
+    if (previewReadOnly || !tenantId) return
+    setPinSaving(true)
+    await supabase.from('tenants').update({ sentry_pin: newPin }).eq('id', tenantId)
+    setSentryPinDb(newPin)
+    setSentryPinEdit(false)
+    setNewPin(''); setConfirmPin(''); setPinSaveError(null)
+    setPinSaving(false)
   }
 
   return (
@@ -846,9 +940,136 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
       {/* Booking Link */}
       {tenantId && (
         <div style={s.section}>
-          <h3 style={s.sectionTitle} data-help="Your Booking Link is the page where clients can book appointments directly. Share it on your website, social media, or add it to your email signature. Clients can choose a service, pick a date and time, and confirm their details — all without calling.">Booking Link</h3>
+          <h3 style={s.sectionTitle} data-help="Your Booking Link is the page where clients can book appointments directly. Share it on your website, social media, or add it to your email signature. Clients can choose a service, pick a date and time, and confirm their details — all without calling." data-help-score={calendarTier !== 'none' ? 95 : 65}>Booking Link</h3>
           <p style={s.sectionSubtitle}>Share this link so clients can book online, 24/7.</p>
           <BookingLinkRow tenantId={tenantId} />
+        </div>
+      )}
+
+      {/* Booking Page Settings */}
+      {tenantId && (
+        <div style={s.section}>
+          <h3 style={s.sectionTitle}>Booking page</h3>
+          <p style={s.sectionSubtitle}>Customise what clients see when they visit your booking link.</p>
+
+          {/* Promotion */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={s.label}>Promotion (optional)</label>
+            <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '0.5rem', marginTop: 0, lineHeight: 1.5 }}>
+              A banner shown to every visitor on your booking page — offers, seasonal messages, new services.
+            </p>
+            <textarea
+              value={promoText}
+              onChange={e => setPromoText(e.target.value.slice(0, 160))}
+              placeholder="e.g. Book this week and get a free consultation — mention ONLINE when you arrive"
+              rows={2}
+              style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.875rem', color: '#1a1a1a', boxSizing: 'border-box', outline: 'none', resize: 'none', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5, marginBottom: '0.5rem' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <label style={s.label}>Expires (optional — hides banner after this date)</label>
+                <input type="date" value={promoExpires} onChange={e => setPromoExpires(e.target.value)} style={{ ...s.input, maxWidth: 200 }} />
+              </div>
+              <div style={{ fontSize: '0.72rem', color: promoText.length >= 140 ? '#e05252' : '#aaa', marginTop: '1.2rem' }}>{promoText.length}/160</div>
+            </div>
+          </div>
+
+          {/* Brand colour */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={s.label}>Brand colour {!hasBranding && <span style={{ color: '#f0a500', fontSize: '0.62rem', textTransform: 'none', letterSpacing: 0 }}>— paid plans only</span>}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', opacity: hasBranding ? 1 : 0.45, pointerEvents: hasBranding ? 'auto' : 'none' }}>
+              <input
+                type="color"
+                value={brandColour}
+                onChange={e => setBrandColour(e.target.value)}
+                style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid rgba(94,59,135,0.2)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: '#1a1a1a', fontWeight: 500 }}>{brandColour}</div>
+                <div style={{ fontSize: '0.72rem', color: '#aaa' }}>Applied to your booking page header and selected states</div>
+              </div>
+              {brandColour !== '#5e3b87' && (
+                <button onClick={() => setBrandColour('#5e3b87')} style={{ ...s.ghostBtn, fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>Reset</button>
+              )}
+            </div>
+          </div>
+
+          {/* Logo URL */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={s.label}>Logo URL {!hasBranding && <span style={{ color: '#f0a500', fontSize: '0.62rem', textTransform: 'none', letterSpacing: 0 }}>— paid plans only</span>}</label>
+            <input
+              type="url"
+              value={logoUrl}
+              onChange={e => setLogoUrl(e.target.value)}
+              placeholder="https://yourwebsite.com/logo.png"
+              disabled={!hasBranding}
+              style={hasBranding ? s.input : s.inputReadOnly}
+            />
+            <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.35rem' }}>
+              Use a white or light-coloured version — it appears on your dark header. Hosted image URL only (upload it to your website first).
+            </div>
+          </div>
+
+          {/* Hide discovery card — Professional+ only */}
+          {canHideAd && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 0', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1a1a1a', marginBottom: '0.15rem' }}>Hide product recommendations</div>
+                <div style={{ fontSize: '0.775rem', color: '#999', lineHeight: 1.45 }}>
+                  Removes the Qerxel product discovery card from your booking confirmation. "Powered by Qerxel" will still appear.
+                </div>
+              </div>
+              <button
+                onClick={() => setHideQerxelAd(p => !p)}
+                style={{ width: 40, height: 22, borderRadius: 11, background: hideQerxelAd ? '#5e3b87' : '#ddd', border: 'none', cursor: 'pointer', flexShrink: 0, marginTop: 2, position: 'relative', transition: 'background 0.2s' }}
+              >
+                <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', position: 'absolute', top: 2, left: hideQerxelAd ? 20 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              </button>
+            </div>
+          )}
+
+          {/* Booking overlap allowance */}
+          {calendarTier !== 'none' && (
+            <div style={{ paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.06)', marginBottom: '1rem' }}>
+              <label style={s.label}>Processing time overlap</label>
+              <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '0.75rem', marginTop: 0, lineHeight: 1.5 }}>
+                Allow clients to book into an existing appointment's processing time. Useful when a service has unattended time (e.g. colour developing, treatments). Maximum 30 minutes.
+              </p>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {[0, 10, 15, 20, 25, 30].map(mins => {
+                  const active = bookingOverlapMins === mins
+                  return (
+                    <button
+                      key={mins}
+                      onClick={() => setBookingOverlapMins(mins)}
+                      style={{
+                        padding: '0.38rem 0.85rem', borderRadius: 8, fontSize: '0.8rem', fontWeight: active ? 700 : 400,
+                        fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+                        background: active ? '#5e3b87' : 'white',
+                        color: active ? 'white' : '#555',
+                        border: `1.5px solid ${active ? '#5e3b87' : 'rgba(94,59,135,0.15)'}`,
+                        transition: 'all 0.12s',
+                      }}
+                    >
+                      {mins === 0 ? 'None' : `${mins} min`}
+                    </button>
+                  )
+                })}
+              </div>
+              {bookingOverlapMins > 0 && (
+                <div style={{ marginTop: '0.55rem', fontSize: '0.75rem', color: '#5e3b87' }}>
+                  Clients can book up to {bookingOverlapMins} minutes into an existing appointment's time slot.
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button onClick={saveBookingPage} disabled={bookingPageSaving || previewReadOnly} style={bookingPageSaving || previewReadOnly ? s.saveBtnDisabled : s.saveBtn}>
+              {bookingPageSaving ? 'Saving…' : 'Save booking page'}
+            </button>
+            {bookingPageToast.msg && <span style={s.toast(bookingPageToast.type)}>{bookingPageToast.msg}</span>}
+          </div>
         </div>
       )}
 
@@ -895,7 +1116,7 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
 
       {/* Notifications */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Notifications controls which emails Qerxel sends you — new leads, daily summaries, and weekly reports. Lead notifications fire immediately when your AI captures an enquiry.">Notifications</h3>
+        <h3 style={s.sectionTitle} data-help="Notifications controls which emails Qerxel sends you — new leads, daily summaries, and weekly reports. Lead notifications fire immediately when your AI captures an enquiry." data-help-score={notifyNewLead ? 95 : 50}>Notifications</h3>
         <p style={s.sectionSubtitle}>Choose what Qerxel emails you and when.</p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
@@ -963,9 +1184,37 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
         </div>
       </div>
 
+      {/* Appointment Reminders */}
+      {calendarTier !== 'none' && (
+        <div style={s.section}>
+          <h3 style={s.sectionTitle}>Appointment reminders</h3>
+          <p style={s.sectionSubtitle}>Automated emails to clients 24 hours and 1 hour before their appointment. Cancellation and reschedule links are included.</p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: reminderToast.msg ? '0.75rem' : 0 }}>
+            <div>
+              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.15rem' }}>
+                {remindersEnabled ? 'Reminders active' : 'Reminders off'}
+              </div>
+              <div style={{ fontSize: '0.775rem', color: '#999', lineHeight: 1.45 }}>
+                {remindersEnabled
+                  ? 'Clients receive a reminder 24 hours and 1 hour before their appointment.'
+                  : 'Toggle on to start sending automated reminders to clients before their appointments.'}
+              </div>
+            </div>
+            <button
+              onClick={() => saveReminders(!remindersEnabled)}
+              disabled={reminderSaving || previewReadOnly}
+              style={{ flexShrink: 0, width: 40, height: 22, borderRadius: 999, background: remindersEnabled ? '#5e3b87' : '#e0d8ed', border: 'none', cursor: reminderSaving || previewReadOnly ? 'default' : 'pointer', position: 'relative', transition: 'background 0.15s', marginTop: 2 }}
+            >
+              <span style={{ position: 'absolute', top: 3, left: remindersEnabled ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s' }} />
+            </button>
+          </div>
+          {reminderToast.msg && <span style={s.toast(reminderToast.type)}>{reminderToast.type === 'success' ? '✓' : '!'} {reminderToast.msg}</span>}
+        </div>
+      )}
+
       {/* Account Details */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Account Details lets you update your business name — this is the name your AI uses to introduce itself on calls. Your email address is the login for this account and where all notifications are sent.">Account Details</h3>
+        <h3 style={s.sectionTitle} data-help="Account Details lets you update your business name — this is the name your AI uses to introduce itself on calls. Your email address is the login for this account and where all notifications are sent." data-help-score={displayName?.trim() ? 95 : 20}>Account Details</h3>
         <p style={s.sectionSubtitle}>Your business name and login details. Set once and leave.</p>
 
         <div style={s.fieldRow}>
@@ -1069,8 +1318,43 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
                 ? `Monitoring ${sentryCameraLimit} zone${sentryCameraLimit !== 1 ? 's' : ''} — cross-checking bookings against station activity.`
                 : 'Cross-checks your booking data against camera activity. Finds unlogged services and no-shows.',
               price: 'From £20/month',
-              btn: sentryCameraLimit > 0 ? 'Manage →' : 'Coming soon',
-              action: sentryCameraLimit > 0 ? () => setShowPlanSelector(true) : null,
+              btn: sentryCameraLimit > 0 ? null : (sentryTierOpen ? 'Cancel' : 'Add Sentry →'),
+              action: sentryCameraLimit > 0 ? null : () => setSentryTierOpen(o => !o),
+              extra: sentryCameraLimit > 0 ? (
+                <div style={{ borderTop: '1px solid rgba(239,68,68,0.12)', paddingTop: '0.75rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#777', marginBottom: '0.45rem' }}>
+                    PIN protection: <strong>{sentryPinDb ? '●●●● set' : 'not configured'}</strong>
+                  </div>
+                  {!sentryPinEdit ? (
+                    <button onClick={() => setSentryPinEdit(true)} style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}>
+                      {sentryPinDb ? 'Change PIN →' : 'Set PIN →'}
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <input type="password" inputMode="numeric" maxLength={4} value={newPin} autoFocus onChange={e => { setNewPin(e.target.value.replace(/\D/g,'').slice(0,4)); setPinSaveError(null) }} placeholder="New PIN (4 digits)" style={{ padding: '0.4rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <input type="password" inputMode="numeric" maxLength={4} value={confirmPin} onChange={e => { setConfirmPin(e.target.value.replace(/\D/g,'').slice(0,4)); setPinSaveError(null) }} onKeyDown={e => e.key === 'Enter' && handleSentryPinSave()} placeholder="Confirm PIN" style={{ padding: '0.4rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      {pinSaveError && <span style={{ fontSize: '0.72rem', color: '#ef4444' }}>{pinSaveError}</span>}
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={handleSentryPinSave} disabled={pinSaving} style={{ flex: 1, padding: '0.4rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.775rem', fontWeight: 600, cursor: pinSaving ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{pinSaving ? 'Saving…' : 'Save PIN'}</button>
+                        <button onClick={() => { setSentryPinEdit(false); setNewPin(''); setConfirmPin(''); setPinSaveError(null) }} style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.775rem', color: '#888', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : sentryTierOpen ? (
+                <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', paddingTop: '0.75rem' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', marginBottom: '0.6rem' }}>Choose your camera limit:</div>
+                  {[3, 5, 7, 9].map(limit => (
+                    <button key={limit} onClick={() => setSentryTierChoice(limit)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.42rem 0.65rem', marginBottom: '0.3rem', border: sentryTierChoice === limit ? '1.5px solid #ef4444' : '1.5px solid rgba(94,59,135,0.1)', borderRadius: 8, background: sentryTierChoice === limit ? '#fff5f5' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ fontSize: '0.78rem', color: '#1a1a1a', fontWeight: sentryTierChoice === limit ? 600 : 400 }}>Up to {limit} cameras</span>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: sentryTierChoice === limit ? '#ef4444' : '#999' }}>{SENTRY_TIER_PRICES[limit]}/mo</span>
+                    </button>
+                  ))}
+                  <button onClick={handleSentryActivate} style={{ width: '100%', padding: '0.5rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginTop: '0.1rem' }}>
+                    Activate Sentry — {SENTRY_TIER_PRICES[sentryTierChoice]}/month
+                  </button>
+                </div>
+              ) : null,
             },
           ].map(p => (
             <div key={p.name} style={{ borderRadius: 12, border: p.on ? `1.5px solid ${p.color}` : '1.5px solid rgba(94,59,135,0.1)', padding: '1rem 1.1rem', background: p.on ? p.bgActive : 'white', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
@@ -1087,13 +1371,16 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
                 {p.body}
               </div>
               {!p.on && <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e3b87' }}>{p.price}</div>}
-              <button
-                onClick={p.action || undefined}
-                disabled={!p.action}
-                style={{ alignSelf: 'flex-start', padding: '0.4rem 0.85rem', borderRadius: 7, fontSize: '0.775rem', fontWeight: 600, cursor: p.action ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif", border: p.on ? '1.5px solid rgba(94,59,135,0.2)' : 'none', background: p.action ? (p.on ? 'white' : '#f0a500') : '#f5f3ff', color: p.action ? (p.on ? '#5e3b87' : '#1a0533') : 'rgba(94,59,135,0.4)', opacity: p.action ? 1 : 0.65 }}
-              >
-                {p.btn}
-              </button>
+              {p.btn != null && (
+                <button
+                  onClick={p.action || undefined}
+                  disabled={!p.action}
+                  style={{ alignSelf: 'flex-start', padding: '0.4rem 0.85rem', borderRadius: 7, fontSize: '0.775rem', fontWeight: 600, cursor: p.action ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif", border: p.on ? '1.5px solid rgba(94,59,135,0.2)' : 'none', background: p.action ? (p.on ? 'white' : '#f0a500') : '#f5f3ff', color: p.action ? (p.on ? '#5e3b87' : '#1a0533') : 'rgba(94,59,135,0.4)', opacity: p.action ? 1 : 0.65 }}
+                >
+                  {p.btn}
+                </button>
+              )}
+              {p.extra}
             </div>
           ))}
         </div>
@@ -1124,7 +1411,14 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
 
       {/* Privacy & Data */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Privacy and Data covers your GDPR rights — how long Qerxel keeps your call records and leads, how to request a full export of your data, and how to request account deletion. Sensitive business types (solicitors, medical, therapists etc.) are always capped at 30 days regardless of this setting.">Privacy &amp; Data</h3>
+        <div onClick={() => setPrivacyOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}>
+          <div>
+            <h3 style={{ ...s.sectionTitle, marginBottom: 0 }} data-help="Privacy and Data covers your GDPR rights — how long Qerxel keeps your call records and leads, how to request a full export of your data, and how to request account deletion. Sensitive business types (solicitors, medical, therapists etc.) are always capped at 30 days regardless of this setting.">Privacy &amp; Data</h3>
+            {!privacyOpen && <p style={{ ...s.sectionSubtitle, marginBottom: 0 }}>Data rights, retention period, export.</p>}
+          </div>
+          <span style={{ color: '#ccc', fontSize: 13 }}>{privacyOpen ? '▲' : '▼'}</span>
+        </div>
+        {privacyOpen && <>
         <p style={s.sectionSubtitle}>Your data rights under GDPR. Control how long records are kept and request exports or deletion.</p>
 
         <div style={{ marginBottom: '1.5rem' }}>
@@ -1177,11 +1471,19 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
           <span style={{ margin: '0 0.5rem', color: '#ccc' }}>·</span>
           <a href="/data-covenant.pdf" target="_blank" rel="noopener noreferrer" style={{ color: '#5e3b87', textDecoration: 'none', fontWeight: 500 }}>Data Covenant ↗</a>
         </div>
+        </>}
       </div>
 
       {/* Feedback */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Share Your Feedback unlocks after six weeks of use — long enough to form a real opinion. Your feedback goes directly to the founder and influences what gets built next. It is never used for marketing.">Share Your Feedback</h3>
+        <div onClick={() => setFeedbackOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}>
+          <div>
+            <h3 style={{ ...s.sectionTitle, marginBottom: 0 }} data-help="Share Your Feedback unlocks after six weeks of use — long enough to form a real opinion. Your feedback goes directly to the founder and influences what gets built next. It is never used for marketing.">Share Your Feedback</h3>
+            {!feedbackOpen && <p style={{ ...s.sectionSubtitle, marginBottom: 0 }}>Rate Qerxel and tell us what to build next.</p>}
+          </div>
+          <span style={{ color: '#ccc', fontSize: 13 }}>{feedbackOpen ? '▲' : '▼'}</span>
+        </div>
+        {feedbackOpen && <>
         <p style={s.sectionSubtitle}>
           {feedbackUnlocked
             ? 'You\'ve been using Qerxel for over six weeks. Your honest take helps shape what gets built next.'
@@ -1232,6 +1534,7 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
             </div>
           </div>
         )}
+        </>}
       </div>
 
       {/* Support chat */}
@@ -1271,11 +1574,15 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
 
       {/* Danger Zone */}
       <div style={{ ...s.section, border: '1px solid rgba(185,28,28,0.2)', background: '#fffafa' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <h3 style={{ ...s.sectionTitle, color: '#b91c1c', margin: 0 }}>Danger Zone</h3>
+        <div onClick={() => setDangerOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <h3 style={{ ...s.sectionTitle, color: '#b91c1c', margin: 0 }}>Danger Zone</h3>
+          </div>
+          <span style={{ color: '#ccc', fontSize: 13 }}>{dangerOpen ? '▲' : '▼'}</span>
         </div>
-        <p style={{ ...s.sectionSubtitle, marginBottom: '1.25rem' }}>These actions are irreversible. Take care.</p>
+        {dangerOpen && <>
+        <p style={{ ...s.sectionSubtitle, marginBottom: '1.25rem', marginTop: '0.5rem' }}>These actions are irreversible. Take care.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
           <div style={{ padding: '1rem', background: 'white', borderRadius: 10, border: '1px solid rgba(185,28,28,0.12)' }}>
@@ -1296,6 +1603,7 @@ const AccountSettings = ({ onListenTierChange, triggerPlanSelector }) => {
             <button style={s.cancelBtn} onClick={() => { setShowDeleteModal(true); setDeleteConfirm(false) }}>Delete my data</button>
           </div>
         </div>
+        </>}
       </div>
 
       {/* Retention modal */}

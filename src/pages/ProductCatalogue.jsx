@@ -24,7 +24,7 @@ const ProductCatalogue = () => {
   const [items, setItems] = useState([])
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
-  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', sku: '' })
+  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', sku: '', product_url: '' })
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notesDrafts, setNotesDrafts] = useState({})
@@ -74,12 +74,13 @@ const ProductCatalogue = () => {
       price_from: draft.price_from ? parseFloat(draft.price_from) : null,
       price_to: draft.price_to ? parseFloat(draft.price_to) : null,
       sku: draft.sku.trim() || null,
+      product_url: draft.product_url.trim() || null,
       active: true,
     }).select().maybeSingle()
     setSaving(false)
     if (!error && data) {
       setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setDraft({ name: '', description: '', price_from: '', price_to: '', sku: '' })
+      setDraft({ name: '', description: '', price_from: '', price_to: '', sku: '', product_url: '' })
       setAddOpen(false)
       showToast('Product added.')
     } else {
@@ -162,6 +163,10 @@ const ProductCatalogue = () => {
             <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.3rem' }}>Description (AI reads this)</label>
             <input value={draft.description} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} placeholder="What is this product? What does it do?" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '7px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', color: '#1a1a1a' }} />
           </div>
+          <div style={{ marginBottom: '0.65rem' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.3rem' }}>Product URL (checkout / info page)</label>
+            <input value={draft.product_url} onChange={e => setDraft(p => ({ ...p, product_url: e.target.value }))} placeholder="https://…" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '7px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', color: '#1a1a1a' }} />
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={addItem} disabled={!draft.name.trim() || saving} style={{ padding: '0.5rem 1.1rem', background: draft.name.trim() ? '#f0a500' : '#f5d98a', color: '#1a0533', border: 'none', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 600, cursor: draft.name.trim() ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
               {saving ? 'Saving…' : 'Save product'}
@@ -194,9 +199,10 @@ const ProductCatalogue = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.15rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.15rem', flexWrap: 'wrap' }}>
                     {item.description && <span style={{ fontSize: '0.75rem', color: '#999', lineHeight: 1.4 }}>{item.description}</span>}
                     {item.sku && <span style={{ fontSize: '0.68rem', color: '#aaa', background: '#f7f6f9', borderRadius: '4px', padding: '0.1rem 0.4rem', flexShrink: 0 }}>SKU: {item.sku}</span>}
+                    {item.product_url && <a href={item.product_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.68rem', color: '#5e3b87', background: '#f0ebf8', borderRadius: '4px', padding: '0.1rem 0.5rem', textDecoration: 'none', flexShrink: 0, fontWeight: 500 }}>↗ Link</a>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexShrink: 0 }}>

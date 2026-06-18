@@ -12,10 +12,11 @@ export const useQScore = () => useContext(QScoreContext) || {}
 
 const SEV = { high: 0, medium: 1, low: 2 }
 
-function buildCoachingPoints(tenant, ps, catalogueCount = 0) {
-  return buildAnswerIssues(tenant, { catalogueCount, ps })
+function buildCoachingPoints(tenant, ps, catalogueCount = 0, hasAnswerProduct = true, messagingSettings = {}) {
+  if (!hasAnswerProduct) return []
+  return buildAnswerIssues(tenant, { catalogueCount, ps, messagingSettings })
     .sort((a, b) => SEV[a.severity] - SEV[b.severity])
-    .slice(0, 5)
+    .slice(0, 8)
 }
 
 export const QScoreProvider = ({ children }) => {
@@ -51,16 +52,16 @@ export const QScoreProvider = ({ children }) => {
 
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
 
-    const [tenantRes, callRes, recentCallRes, staffRes, availRes, zonesRes, catRes] = await Promise.all([
+    const [tenantRes, callRes, recentCallRes, staffRes, zonesRes, catRes, msgRes] = await Promise.all([
       supabase.from('tenants')
-        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, opening_hours, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, listen_tier, sentry_camera_limit, blocked_phone_numbers, q_mode, q_dismissals')
+        .select('greeting_message, additional_instructions, business_name, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, opening_hours, sms_followup_enabled, provisional_booking_enabled, keep_alive_topics, calendar_tier, listen_tier, sentry_camera_limit, blocked_phone_numbers, q_mode, q_dismissals, subscription_tier')
         .eq('id', tid).maybeSingle(),
       supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid),
       supabase.from('call_logs').select('call_outcome').eq('tenant_id', tid).gte('created_at', tenDaysAgo),
-      supabase.from('staff_profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-      supabase.from('staff_availability').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+      supabase.from('staff_profiles').select('id').eq('tenant_id', tid),
       supabase.from('sentry_zones').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
       supabase.from('catalogue_items').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('active', true),
+      supabase.from('tenant_integrations').select('settings').eq('tenant_id', tid).eq('integration_id', 'messaging').maybeSingle(),
     ])
 
     const tenant = tenantRes.data
@@ -69,6 +70,17 @@ export const QScoreProvider = ({ children }) => {
     const mode = tenant.q_mode || 'jump_in'
     setQMode(mode)
     setQDismissals(tenant.q_dismissals || {})
+
+    // staff_availability has no tenant_id — query via staff_profile_id list
+    const staffIds = (staffRes.data || []).map(s => s.id)
+    const staffCount = staffIds.length
+    let availCount = 0
+    if (staffIds.length > 0) {
+      const { count } = await supabase.from('staff_availability')
+        .select('id', { count: 'exact', head: true })
+        .in('staff_profile_id', staffIds)
+      availCount = count ?? 0
+    }
 
     // ── Legacy pillar scores (still used by HelpMascot) ──────────────────────
     const cs = configScore(tenant)
@@ -88,11 +100,13 @@ export const QScoreProvider = ({ children }) => {
       : (psRecent ?? psAll)
 
     const catalogueCount = catRes.count ?? 0
+    const hasAnswerProduct = !!tenant.subscription_tier && tenant.subscription_tier !== 'schedule_only'
+    const messagingSettings = msgRes?.data?.settings || {}
 
     setConfigPillar(cs)
     setToolPillar(ts)
     setPerfPillar(ps)
-    setCoachingPoints(buildCoachingPoints(tenant, ps, catalogueCount))
+    setCoachingPoints(buildCoachingPoints(tenant, ps, catalogueCount, hasAnswerProduct, messagingSettings))
 
     // ── Per-channel health ────────────────────────────────────────────────────
     const hasSchedule = tenant.calendar_tier && tenant.calendar_tier !== 'none'
@@ -100,12 +114,12 @@ export const QScoreProvider = ({ children }) => {
 
     const channels = []
 
-    channels.push(answerChannelHealth(tenant, ps, catalogueCount))
+    if (hasAnswerProduct) channels.push(answerChannelHealth(tenant, ps, catalogueCount))
 
     if (hasSchedule) {
       channels.push(scheduleChannelHealth({
-        staffCount:        staffRes.count ?? 0,
-        availabilityCount: availRes.count ?? 0,
+        staffCount,
+        availabilityCount: availCount,
         catalogueCount,
       }))
     }
@@ -133,6 +147,13 @@ export const QScoreProvider = ({ children }) => {
   }, [qDismissals])
 
   useEffect(() => { compute() }, [compute])
+
+  // Any page can dispatch 'qscore-refresh' after a save to recompute scores without prop-drilling
+  useEffect(() => {
+    const handler = () => compute()
+    window.addEventListener('qscore-refresh', handler)
+    return () => window.removeEventListener('qscore-refresh', handler)
+  }, [compute])
 
   return (
     <QScoreContext.Provider value={{ globalScore, globalMood, globalCaption, qMode, configPillar, toolPillar, perfPillar, coachingPoints, qDismissals, saveDismissal, channelHealth, refresh: compute }}>

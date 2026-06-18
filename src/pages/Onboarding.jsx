@@ -957,6 +957,21 @@ const Onboarding = () => {
       return
     }
 
+    // Membership must be created before any other data writes — RLS on services,
+    // catalogue_items, staff_profiles etc. all require is_tenant_member() to pass.
+    const { error: membershipError } = await supabase.from('tenant_memberships').insert({
+      tenant_id: tenantData.id,
+      user_id: user.id,
+      role: 'owner',
+    })
+
+    if (membershipError) {
+      console.error('Membership insert error:', membershipError)
+      setError(`Account created but could not link your user: ${membershipError.message}`)
+      setLoading(false)
+      return
+    }
+
     const activeServices = data.services.filter(s => s.service_name.trim() !== '')
     if (activeServices.length > 0) {
       if (isCalendar) {
@@ -1036,24 +1051,18 @@ const Onboarding = () => {
       )
     }
 
-    const { error: membershipError } = await supabase.from('tenant_memberships').insert({
-      tenant_id: tenantData.id,
-      user_id: user.id,
-      role: 'owner',
-    })
-
-    if (membershipError) {
-      console.error('Membership insert error:', membershipError)
-      setError(`Account created but could not link your user: ${membershipError.message}`)
-      setLoading(false)
-      return
-    }
-
     // Fire welcome email — fire and forget, don't block navigation
     fetch('/api/integrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'send-welcome', tenantId: tenantData.id }),
+    }).catch(() => {})
+
+    // Create Vapi assistant — fire and forget
+    fetch('/api/vapi-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: tenantData.id }),
     }).catch(() => {})
 
     navigate('/portal')

@@ -267,7 +267,7 @@ const PartnersReferrals = ({ onNavigate }) => {
       </div>
 
       {/* ── PARTNER LIST ──────────────────────────────────────────────────── */}
-      <Card data-help="Your partner network — every partner your AI can refer callers to. Referrals sent is how many callers your AI has referred to them. Received is how many they've sent back. Reciprocate means they sign up to Qerxel and add you as their partner.">
+      <Card data-help="Your partner network — every partner your AI can refer callers to. Referrals sent is how many callers your AI has referred to them. Received is how many they've sent back. Reciprocate means they sign up to Qerxel and add you as their partner." data-help-score={partners.length === 0 ? 20 : partners.length >= 3 ? 95 : 65}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           <SectionLabel>Your Partner Network</SectionLabel>
           <Badge bg="#e6f5ee" color="#1e7a4a">All plans · unlimited</Badge>
@@ -424,7 +424,7 @@ const PartnersReferrals = ({ onNavigate }) => {
       </Card>
 
       {/* ── NETWORK ACTIVITY ──────────────────────────────────────────────── */}
-      <Card data-help="How your referral network is performing. Reciprocation means your partners sign up to Qerxel and add you as their partner — then their AI starts sending callers to you.">
+      <Card data-help="How your referral network is performing. Reciprocation means your partners sign up to Qerxel and add you as their partner — then their AI starts sending callers to you." data-help-score={partners.length === 0 ? 65 : partners.filter(p => p.sentCount > 0 && p.inboundCount === 0).length === 0 ? 95 : 50}>
         <div style={{ background: 'linear-gradient(135deg, #5e3b87 0%, #3a2057 100%)', borderRadius: '12px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -451,7 +451,7 @@ const PartnersReferrals = ({ onNavigate }) => {
 
       {/* ── REFERRAL CODE ─────────────────────────────────────────────────── */}
       <div style={{ background: 'linear-gradient(135deg, #4a2d6e 0%, #3a2057 60%, #2d1a45 100%)', borderRadius: '20px', padding: '2rem', marginBottom: '1rem', boxShadow: '0 8px 32px rgba(94,59,135,0.35)', position: 'relative', overflow: 'hidden' }}
-        data-help="Your Referral Code is the quickest way to push partners to reciprocate. Share it with any partner — when they sign up using your code, you earn one free month and they automatically start as your network partner.">
+        data-help="Your Referral Code is the quickest way to push partners to reciprocate. Share it with any partner — when they sign up using your code, you earn one free month and they automatically start as your network partner." data-help-score={creditMonths > 0 ? 95 : partners.length > 0 ? 75 : 65}>
         <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
 

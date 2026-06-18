@@ -24,6 +24,17 @@ const fmtDuration = (secs) => {
 
 const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0)
 
+const fmtAgo = (iso) => {
+  if (!iso) return '—'
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (d === 0) return 'today'
+  if (d === 1) return 'yesterday'
+  if (d < 7) return `${d} days ago`
+  if (d < 30) return `${Math.round(d / 7)} weeks ago`
+  if (d < 365) return `${Math.round(d / 30)} months ago`
+  return `${Math.round(d / 365)}yr ago`
+}
+
 // ─── styles ───────────────────────────────────────────────────────────────────
 
 const s = {
@@ -328,6 +339,36 @@ const LiveCard = ({ title, desc, children, helpText }) => (
   </div>
 )
 
+// ─── outreach contact row ─────────────────────────────────────────────────────
+
+const ContactRow = ({ contact, signal, isLast }) => {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(contact.phone)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1.25rem', borderBottom: isLast ? 'none' : '1px solid rgba(94,59,135,0.05)' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.name}</div>
+        <div style={{ fontSize: '0.72rem', color: '#999' }}>{signal}</div>
+      </div>
+      {contact.phone && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: '0.75rem' }}>
+          <span style={{ fontSize: '0.78rem', color: '#5e3b87', fontFamily: 'monospace', letterSpacing: '0.02em' }}>{contact.phone}</span>
+          <button
+            onClick={copy}
+            style={{ background: copied ? '#3db87a' : '#f3f1f6', border: 'none', borderRadius: 6, padding: '0.28rem 0.55rem', fontSize: '0.7rem', color: copied ? 'white' : '#5e3b87', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap' }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── drill-down panel ────────────────────────────────────────────────────────
 
 const drillLabel = {
@@ -377,6 +418,19 @@ const DataAnalytics = ({ onNavigate }) => {
   const [leadsByStatus, setLeadsByStatus] = useState({ new: 0, contacted: 0, converted: 0, lost: 0 })
   const [durationBuckets, setDurationBuckets] = useState({ short: 0, medium: 0, long: 0 })
 
+  const [tenantId, setTenantId] = useState(null)
+  const [activeTab, setActiveTab] = useState('performance')
+  const [hasSchedule, setHasSchedule] = useState(false)
+  const [qLoading, setQLoading] = useState(false)
+  const [appointments, setAppointments] = useState([])
+  const [staffList, setStaffList] = useState([])
+  const [qDrillOpen, setQDrillOpen] = useState(null)
+
+  const [outreachLoading, setOutreachLoading] = useState(false)
+  const [outreachCallLogs, setOutreachCallLogs] = useState([])
+  const [outreachAppts, setOutreachAppts] = useState([])
+  const [outreachSegment, setOutreachSegment] = useState('callback')
+
   useEffect(() => {
     if (!user && !isPreview) return
     const load = async () => {
@@ -394,11 +448,16 @@ const DataAnalytics = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('subscription_tier')
+          .select('subscription_tier, calendar_tier')
           .eq('id', tid)
           .maybeSingle()
 
-        if (tenant) setTier(tenant.subscription_tier || 'light')
+        if (tenant) {
+          setTier(tenant.subscription_tier || 'light')
+          setTenantId(tid)
+          setHasSchedule((tenant.calendar_tier || 'none') !== 'none')
+          if (tenant.subscription_tier === 'schedule_only') setActiveTab('intelligence')
+        }
 
         const [callRes, leadRes] = await Promise.all([
           supabase
@@ -458,9 +517,180 @@ const DataAnalytics = ({ onNavigate }) => {
     load()
   }, [user, isPreview])
 
+  useEffect(() => {
+    if (activeTab !== 'intelligence' || !tenantId) return
+    const loadQ = async () => {
+      setQLoading(true)
+      const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+      const [apptRes, staffRes] = await Promise.all([
+        supabase.from('appointments')
+          .select('id,client_name,client_phone,appointment_type,start_time,status,staff_profile_id')
+          .eq('tenant_id', tenantId)
+          .gte('start_time', cutoff)
+          .order('start_time'),
+        supabase.from('staff_profiles')
+          .select('id,name,colour')
+          .eq('tenant_id', tenantId)
+          .or('active.eq.true,active.is.null'),
+      ])
+      setAppointments(apptRes.data || [])
+      setStaffList(staffRes.data || [])
+      setQLoading(false)
+    }
+    loadQ()
+  }, [activeTab, tenantId])
+
+  useEffect(() => {
+    if (activeTab !== 'outreach' || !tenantId) return
+    const load = async () => {
+      setOutreachLoading(true)
+      const [callRes, apptRes] = await Promise.all([
+        supabase.from('call_logs')
+          .select('id,caller_phone,caller_name,callback_flagged,created_at')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        supabase.from('appointments')
+          .select('id,client_phone,client_name,status,start_time')
+          .eq('tenant_id', tenantId)
+          .order('start_time', { ascending: false })
+          .limit(3000),
+      ])
+      setOutreachCallLogs(callRes.data || [])
+      setOutreachAppts(apptRes.data || [])
+      setOutreachLoading(false)
+    }
+    load()
+  }, [activeTab, tenantId])
+
   const leadCapturedCount = outcomeBreakdown.lead_captured || 0
   const leadRate = pct(leadCapturedCount, totalCalls)
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
+  const hasAnswerProduct = tier && tier !== 'schedule_only'
+
+  // Q Intelligence derived values — computed on each render from appointments state
+  const qNow = Date.now()
+  const qThirtyAgo = qNow - 30 * 24 * 60 * 60 * 1000
+  const qNinetyAgo = qNow - 90 * 24 * 60 * 60 * 1000
+  const qFortyFiveAgo = qNow - 45 * 24 * 60 * 60 * 1000
+  const qSixMonthsAgo = qNow - 180 * 24 * 60 * 60 * 1000
+
+  const clientMap = {}
+  appointments.forEach(a => {
+    if (!a.client_phone) return
+    if (!clientMap[a.client_phone]) clientMap[a.client_phone] = { name: a.client_name || 'Unknown', phone: a.client_phone, appts: [] }
+    clientMap[a.client_phone].appts.push(a)
+  })
+  const clientGroups = Object.values(clientMap)
+
+  const fragilityClients = clientGroups
+    .filter(c => c.appts.filter(a => a.status === 'cancelled' && new Date(a.start_time).getTime() > qNinetyAgo).length >= 2)
+    .map(c => ({ ...c, cancels: c.appts.filter(a => a.status === 'cancelled' && new Date(a.start_time).getTime() > qNinetyAgo).length }))
+    .sort((a, b) => b.cancels - a.cancels)
+    .slice(0, 6)
+
+  let ritualCount = 0, explorerCount = 0, lapsedCount = 0
+  clientGroups.forEach(c => {
+    const done = c.appts.filter(a => a.status !== 'cancelled').sort((x, y) => new Date(x.start_time) - new Date(y.start_time))
+    if (done.length < 2) return
+    const lastT = new Date(done[done.length - 1].start_time).getTime()
+    if (lastT < qFortyFiveAgo && lastT > qSixMonthsAgo) { lapsedCount++; return }
+    if (done.length >= 3) {
+      const days = done.map(a => new Date(a.start_time).getDay())
+      const svcs = done.map(a => a.appointment_type || 'general')
+      const dayMode = days.reduce((a, b) => days.filter(v => v === a).length >= days.filter(v => v === b).length ? a : b)
+      const svcMode = svcs.reduce((a, b) => svcs.filter(v => v === a).length >= svcs.filter(v => v === b).length ? a : b)
+      if (days.filter(d => d === dayMode).length / days.length >= 0.65 && svcs.filter(s => s === svcMode).length / svcs.length >= 0.65) { ritualCount++; return }
+      if (new Set(svcs).size >= 3) explorerCount++
+    }
+  })
+
+  const cancelledThisMonth = appointments.filter(a => a.status === 'cancelled' && new Date(a.start_time).getTime() > qThirtyAgo)
+  const unconvertedLeads = totalLeads - (leadsByStatus.converted || 0)
+
+  const staffStats = {}
+  staffList.forEach(s => { staffStats[s.id] = { id: s.id, name: s.name, colour: s.colour, total: 0, rebooks: 0 } })
+  appointments
+    .filter(a => a.status !== 'cancelled' && a.staff_profile_id && staffStats[a.staff_profile_id])
+    .forEach(a => {
+      staffStats[a.staff_profile_id].total++
+      const t = new Date(a.start_time).getTime()
+      const ninetyMs = 90 * 24 * 60 * 60 * 1000
+      if (appointments.some(b => b.client_phone && b.client_phone === a.client_phone && b.id !== a.id && b.status !== 'cancelled' && new Date(b.start_time).getTime() > t && new Date(b.start_time).getTime() < t + ninetyMs)) {
+        staffStats[a.staff_profile_id].rebooks++
+      }
+    })
+  const staffIntel = Object.values(staffStats)
+    .filter(s => s.total >= 5)
+    .map(s => ({ ...s, rate: Math.round((s.rebooks / s.total) * 100) }))
+    .sort((a, b) => b.rate - a.rate)
+
+  // ── Outreach segments ────────────────────────────────────────────────────
+
+  const isLightTier = !tier || tier === 'light' || tier === 'free'
+
+  const callByPhone = {}
+  outreachCallLogs.forEach(c => {
+    if (!c.caller_phone) return
+    const p = c.caller_phone
+    if (!callByPhone[p]) callByPhone[p] = { name: c.caller_name || 'Unknown', phone: p, count: 0, latest: c.created_at, callbackFlagged: false }
+    callByPhone[p].count++
+    if (c.callback_flagged) callByPhone[p].callbackFlagged = true
+    if (c.created_at > callByPhone[p].latest) callByPhone[p].latest = c.created_at
+  })
+
+  const apptByPhone = {}
+  outreachAppts.forEach(a => {
+    if (!a.client_phone) return
+    if (!apptByPhone[a.client_phone]) apptByPhone[a.client_phone] = { name: a.client_name || 'Unknown', phone: a.client_phone, appts: [] }
+    apptByPhone[a.client_phone].appts.push(a)
+  })
+
+  const orNow = Date.now()
+  const ninetyMs = 90 * 24 * 60 * 60 * 1000
+  const sixtyMs  = 60 * 24 * 60 * 60 * 1000
+  const yearMs   = 365 * 24 * 60 * 60 * 1000
+
+  const callbackOverdue = Object.values(callByPhone)
+    .filter(c => c.callbackFlagged)
+    .sort((a, b) => a.latest < b.latest ? 1 : -1)
+    .slice(0, 50)
+
+  const neverBooked = Object.values(callByPhone)
+    .filter(c => !apptByPhone[c.phone])
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 50)
+
+  const lapsedContacts = Object.values(apptByPhone).map(p => {
+    const done = p.appts.filter(a => a.status === 'completed')
+    if (!done.length) return null
+    const last = done.reduce((l, a) => a.start_time > l.start_time ? a : l)
+    const ms = orNow - new Date(last.start_time).getTime()
+    if (ms < ninetyMs) return null
+    return { ...p, lastVisit: last.start_time, visitCount: done.length, ms }
+  }).filter(Boolean).sort((a, b) => b.ms - a.ms).slice(0, 50)
+
+  const noShows = Object.values(apptByPhone).map(p => {
+    const recent = p.appts.filter(a => a.status === 'no_show' && orNow - new Date(a.start_time).getTime() < sixtyMs)
+    if (!recent.length) return null
+    return { ...p, lastNoShow: recent[0].start_time, noShowCount: recent.length }
+  }).filter(Boolean).sort((a, b) => a.lastNoShow < b.lastNoShow ? 1 : -1).slice(0, 50)
+
+  const loyalContacts = Object.values(apptByPhone).map(p => {
+    const done = p.appts.filter(a => a.status === 'completed')
+    if (done.length < 3) return null
+    const last = done.reduce((l, a) => a.start_time > l.start_time ? a : l)
+    if (orNow - new Date(last.start_time).getTime() > yearMs) return null
+    return { ...p, visitCount: done.length, lastVisit: last.start_time }
+  }).filter(Boolean).sort((a, b) => b.visitCount - a.visitCount).slice(0, 50)
+
+  const OUTREACH_SEGS = [
+    { id: 'callback',     label: 'Callback overdue',     color: '#ef4444', bg: '#fef2f2', contacts: callbackOverdue,  signal: c => `Called ${fmtAgo(c.latest)} — flagged for callback` },
+    { id: 'never_booked', label: 'Called, never booked', color: '#f0a500', bg: '#fff8f0', contacts: neverBooked,      signal: c => `${c.count} call${c.count > 1 ? 's' : ''} · last ${fmtAgo(c.latest)}` },
+    { id: 'lapsed',       label: 'Lapsed 90+ days',      color: '#1d4ed8', bg: '#eff6ff', contacts: lapsedContacts,   signal: c => `Last visit ${fmtAgo(c.lastVisit)} · ${c.visitCount} visits` },
+    { id: 'no_show',      label: 'No-shows',              color: '#7c3aed', bg: '#f5f3ff', contacts: noShows,          signal: c => `No-showed ${fmtAgo(c.lastNoShow)}` },
+    { id: 'loyal',        label: 'Loyal clients',         color: '#16a34a', bg: '#f0fdf4', contacts: loyalContacts,    signal: c => `${c.visitCount} visits · last ${fmtAgo(c.lastVisit)}` },
+  ]
 
   // ── recommendation ────────────────────────────────────────────────────────
 
@@ -519,6 +749,31 @@ const DataAnalytics = ({ onNavigate }) => {
   return (
     <div>
 
+      {/* Sub-tab switcher */}
+      {hasAnswerProduct && hasSchedule && (
+        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.5rem', background: '#f3f1f6', borderRadius: 10, padding: '0.3rem' }}>
+          <button
+            onClick={() => setActiveTab('performance')}
+            style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: 7, border: 'none', background: activeTab === 'performance' ? 'white' : 'transparent', color: activeTab === 'performance' ? '#1a1a1a' : '#888', fontWeight: activeTab === 'performance' ? 600 : 400, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s', boxShadow: activeTab === 'performance' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}
+          >
+            Call Performance
+          </button>
+          <button
+            onClick={() => setActiveTab('intelligence')}
+            style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: 7, border: 'none', background: activeTab === 'intelligence' ? 'white' : 'transparent', color: activeTab === 'intelligence' ? '#1a1a1a' : '#888', fontWeight: activeTab === 'intelligence' ? 600 : 400, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s', boxShadow: activeTab === 'intelligence' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}
+          >
+            Q Intelligence
+          </button>
+          <button
+            onClick={() => setActiveTab('outreach')}
+            style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: 7, border: 'none', background: activeTab === 'outreach' ? 'white' : 'transparent', color: activeTab === 'outreach' ? '#1a1a1a' : '#888', fontWeight: activeTab === 'outreach' ? 600 : 400, fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s', boxShadow: activeTab === 'outreach' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}
+          >
+            Outreach
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'performance' && <>
       {/* Headline numbers */}
       {(() => {
         const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
@@ -749,6 +1004,266 @@ const DataAnalytics = ({ onNavigate }) => {
         )}
 
       </div>
+      </>}
+
+      {/* ── Q Intelligence tab ────────────────────────────────────────────────── */}
+      {activeTab === 'intelligence' && (
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
+            Q's read on your business
+          </div>
+          <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+            The analysis tools big business uses — now working on yours. Q runs these checks automatically from your booking data.
+          </div>
+
+          {qLoading ? (
+            <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Q is reading your data…</div>
+          ) : appointments.length < 5 ? (
+            <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
+              <div style={{ fontSize: '0.875rem', color: '#888', lineHeight: 1.7 }}>
+                Q Intelligence needs a few weeks of appointment data to find patterns.<br />
+                <span style={{ color: '#5e3b87', fontWeight: 500 }}>Come back as your calendar fills up.</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 640 ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
+
+              {/* ── Revenue Evaporation ── */}
+              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Revenue Evaporation</div>
+                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Where bookings slipped away this month</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div
+                    style={{ flex: 1, background: '#fff5f5', borderRadius: 10, padding: '0.75rem', textAlign: 'center', cursor: cancelledThisMonth.length > 0 ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
+                    onClick={cancelledThisMonth.length > 0 ? (e) => {
+                      const n = cancelledThisMonth.length
+                      const atRisk = fragilityClients.length
+                      document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+                        zoneText: `Revenue Evaporation: ${n} appointment${n !== 1 ? 's' : ''} cancelled this month. ${atRisk > 0 ? `${atRisk} client${atRisk !== 1 ? 's' : ''} have cancelled 2+ times in 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}.` : 'No repeat-cancellation clients flagged.'} Look at patterns, root causes, and what the portal offers to reduce this.`,
+                        zoneName: `${n} cancelled this month`,
+                        tabName: 'Analytics',
+                        rect: e.currentTarget.getBoundingClientRect(),
+                        initialBotMessage: `I can see ${n} appointment${n !== 1 ? 's were' : ' was'} cancelled this month${atRisk > 0 ? `, and ${atRisk} client${atRisk !== 1 ? 's are' : ' is'} showing repeat cancellations` : ''}. Shall I look at what might be driving this and what you can do about it?`,
+                      }}))
+                    } : undefined}
+                    onMouseEnter={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = '0 0 0 2px #ef444440' } : undefined}
+                    onMouseLeave={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = 'none' } : undefined}
+                  >
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#ef4444' }}>{cancelledThisMonth.length}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>cancelled this month</div>
+                    {cancelledThisMonth.length > 0 && <div style={{ fontSize: '0.6rem', color: '#ef4444', marginTop: 4, fontWeight: 600 }}>Ask Q →</div>}
+                  </div>
+                  {hasAnswerProduct && (
+                    <div style={{ flex: 1, background: '#fff8f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#f0a500' }}>{unconvertedLeads}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>leads not converted</div>
+                    </div>
+                  )}
+                </div>
+                {cancelledThisMonth.length === 0 && (!hasAnswerProduct || unconvertedLeads === 0) ? (
+                  <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500 }}>No evaporation to report this month. Good work.</div>
+                ) : (
+                  <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+                    {cancelledThisMonth.length > 0 && (
+                      <span>
+                        {cancelledThisMonth.length} appointment{cancelledThisMonth.length !== 1 ? 's' : ''} cancelled this month.
+                        That's time in your diary that didn't earn.{' '}
+                      </span>
+                    )}
+                    {hasAnswerProduct && unconvertedLeads > 0 && (
+                      <span>
+                        {unconvertedLeads} lead{unconvertedLeads !== 1 ? 's' : ''} came in and didn't convert to a booking.
+                        Worth reviewing those caller notes.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── At-Risk Clients (Fragility) ── */}
+              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div
+                  style={{ cursor: fragilityClients.length > 0 ? 'pointer' : 'default' }}
+                  onClick={fragilityClients.length > 0 ? (e) => {
+                    const n = fragilityClients.length
+                    document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+                      zoneText: `At-Risk Clients (Fragility Index): ${n} client${n !== 1 ? 's have' : ' has'} cancelled 2 or more times in the last 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}. Repeated cancellations are an early warning sign before a client stops booking entirely. Advise on specific retention options available in the portal.`,
+                      zoneName: `${n} at-risk client${n !== 1 ? 's' : ''}`,
+                      tabName: 'Analytics',
+                      rect: e.currentTarget.getBoundingClientRect(),
+                      initialBotMessage: `${n} client${n !== 1 ? 's are' : ' is'} showing repeat cancellations — this is often the first sign of a drifting relationship. Shall I look at what might help retain them?`,
+                    }}))
+                  } : undefined}
+                >
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    At-Risk Clients
+                    {fragilityClients.length > 0 && <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#f0a500', cursor: 'pointer' }}>Ask Q →</span>}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Clients who've cancelled 2+ times in 90 days</div>
+                </div>
+                {fragilityClients.length === 0 ? (
+                  <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500, paddingTop: '0.25rem' }}>
+                    No clients showing repeat cancellations right now.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {fragilityClients.map((c, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.6rem', background: '#fef9f0', borderRadius: 8 }}>
+                          <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{c.name}</span>
+                          <span style={{ fontSize: '0.72rem', color: '#f0a500', fontWeight: 700, background: '#fde68a', borderRadius: 8, padding: '0.1rem 0.45rem' }}>
+                            {c.cancels} cancel{c.cancels !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+                      Repeated rescheduling is the earliest sign of a drifting relationship — often before a client stops booking altogether.
+                      A personal message to each of these clients costs nothing.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ── Behavioural Segments ── */}
+              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Client Segments</div>
+                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Your clients grouped by how they actually behave</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {[
+                    { label: 'Ritual', count: ritualCount, bg: '#f0f4ff', col: '#1d4ed8', desc: 'Same day, same service, same routine. They\'re loyal — protect their schedule.' },
+                    { label: 'Explorer', count: explorerCount, bg: '#f0fdf4', col: '#16a34a', desc: 'Trying different services. High upsell potential — they\'re curious.' },
+                    { label: 'Lapsed', count: lapsedCount, bg: '#fff8f0', col: '#f0a500', desc: 'Went quiet in the last 3–6 months. Worth a re-engagement message.' },
+                  ].map(seg => (
+                    <div key={seg.label} style={{ flex: 1, background: seg.bg, borderRadius: 10, padding: '0.75rem 0.6rem', textAlign: 'center' }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.4rem', color: seg.col }}>{seg.count}</div>
+                      <div style={{ fontSize: '0.7rem', color: seg.col, fontWeight: 600, marginTop: 2 }}>{seg.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  {ritualCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#1d4ed8' }}>Ritual</span> — loyal and schedule-sensitive. Avoid changing their usual slot without warning.</div>}
+                  {explorerCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#16a34a' }}>Explorer</span> — trying different services. Good candidates for new offerings.</div>}
+                  {lapsedCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#f0a500' }}>Lapsed</span> — gone quiet but not gone. A message referencing their last visit often works.</div>}
+                  {ritualCount === 0 && explorerCount === 0 && lapsedCount === 0 && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Not enough repeat bookings yet to identify patterns. Check back when clients have visited 3+ times.</div>}
+                </div>
+              </div>
+
+              {/* ── Staff Intelligence ── */}
+              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Staff Intelligence</div>
+                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Who keeps clients coming back within 90 days</div>
+                </div>
+                {staffIntel.length === 0 ? (
+                  <div style={{ fontSize: '0.8125rem', color: '#aaa', lineHeight: 1.6 }}>
+                    Q needs at least 5 completed appointments per team member to calculate re-booking rates.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {staffIntel.map((s, i) => (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.colour || '#5e3b87', flexShrink: 0 }} />
+                          <div style={{ flex: 1, fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{s.name}</div>
+                          <div style={{ width: `${s.rate}%`, maxWidth: '40%', height: 6, background: i === 0 ? '#5e3b87' : 'rgba(94,59,135,0.25)', borderRadius: 4, minWidth: 4 }} />
+                          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: i === 0 ? '#5e3b87' : '#555', minWidth: 36, textAlign: 'right' }}>{s.rate}%</div>
+                        </div>
+                      ))}
+                    </div>
+                    {staffIntel.length >= 2 && (
+                      <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+                        {staffIntel[0].name} brings clients back at a {staffIntel[0].rate}% rate — the highest in the team.
+                        {staffIntel[staffIntel.length - 1].rate < staffIntel[0].rate - 20 && (
+                          <span> {staffIntel[staffIntel.length - 1].name}'s rate is {staffIntel[staffIntel.length - 1].rate}% — worth understanding what's different.</span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Outreach tab ─────────────────────────────────────────────────────── */}
+      {activeTab === 'outreach' && (
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
+            Outreach
+          </div>
+          <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+            Your contacts sorted by who most needs to hear from you. Pick a segment and start working through it.
+          </div>
+
+          {outreachLoading ? (
+            <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Loading contacts…</div>
+          ) : isLightTier ? (
+            <div style={{ background: '#faf9fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.1)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Solo+</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.4rem' }}>Outreach requires a paid plan</div>
+              <div style={{ fontSize: '0.8125rem', color: '#888' }}>Upgrade to Solo or above to see your segmented contact lists.</div>
+            </div>
+          ) : (
+            <>
+              {/* Segment pills */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                {OUTREACH_SEGS.map(seg => (
+                  <button
+                    key={seg.id}
+                    onClick={() => setOutreachSegment(seg.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.8rem', borderRadius: 20, border: outreachSegment === seg.id ? `1.5px solid ${seg.color}` : '1.5px solid rgba(0,0,0,0.1)', background: outreachSegment === seg.id ? seg.bg : 'white', color: outreachSegment === seg.id ? seg.color : '#888', fontFamily: "'DM Sans', sans-serif", fontSize: '0.8rem', fontWeight: outreachSegment === seg.id ? 700 : 400, cursor: 'pointer' }}
+                  >
+                    {seg.label}
+                    <span style={{ background: outreachSegment === seg.id ? seg.color : '#e5e7eb', color: outreachSegment === seg.id ? 'white' : '#666', borderRadius: 10, padding: '0.05rem 0.45rem', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.6 }}>
+                      {seg.contacts.length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Contact list */}
+              {(() => {
+                const seg = OUTREACH_SEGS.find(s => s.id === outreachSegment)
+                if (!seg) return null
+
+                if (seg.contacts.length === 0) {
+                  return (
+                    <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
+                      <div style={{ fontSize: '0.875rem', color: '#888' }}>No contacts in this segment right now.</div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.06)', background: '#faf9fc' }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a' }}>{seg.label}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#aaa' }}>{seg.contacts.length} contact{seg.contacts.length !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div style={{ maxHeight: 440, overflowY: 'auto' }}>
+                      {seg.contacts.map((c, i) => (
+                        <ContactRow
+                          key={`${seg.id}-${c.phone}-${i}`}
+                          contact={c}
+                          signal={seg.signal(c)}
+                          isLast={i === seg.contacts.length - 1}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Drill panels ─────────────────────────────────────────────────────── */}
 

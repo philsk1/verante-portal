@@ -660,7 +660,7 @@ export default function SentryTab({ cameraLimit = 3 }) {
   const panelOpen = !!activePanel
 
   return (
-    <div style={{ padding: '0 0 3rem' }}>
+    <div data-help-score={zones.length === 0 ? 20 : assignedStaff === 0 ? 50 : 95} style={{ padding: '0 0 3rem' }}>
 
       {/* Header */}
       <div style={{ marginBottom: '1.5rem' }}>

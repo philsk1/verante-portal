@@ -1,48 +1,52 @@
 import { useState, useRef, useEffect } from 'react'
 
 export default function MoodQ({ mood = 'smile', reason = '', tip = '', size = 44 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const isSmiling = mood === 'smile'
+  const [open, setOpen]   = useState(false)
+  const [pos, setPos]     = useState(null)
+  const imgRef            = useRef(null)
+  const isSmiling         = mood === 'smile'
 
   useEffect(() => {
     if (!open) return
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+      if (imgRef.current && !imgRef.current.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  const handleClick = () => {
+    if (isSmiling) return
+    if (imgRef.current) {
+      const r = imgRef.current.getBoundingClientRect()
+      setPos({ top: r.top, left: r.left + r.width / 2 })
+    }
+    setOpen(o => !o)
+  }
+
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+    <>
       <img
-        src={`/qmood/${mood}.svg`}
+        ref={imgRef}
+        src={`/qmood/${mood}.png`}
         alt={`Q is ${mood}`}
-        style={{
-          width: size,
-          height: size,
-          objectFit: 'contain',
-          cursor: isSmiling ? 'default' : 'pointer',
-          flexShrink: 0,
-          display: 'block',
-        }}
-        onClick={() => { if (!isSmiling) setOpen(o => !o) }}
+        style={{ width: size, height: size, objectFit: 'contain', cursor: isSmiling ? 'default' : 'pointer', flexShrink: 0, display: 'block' }}
+        onClick={handleClick}
         title={isSmiling ? undefined : "Click to see Q's feedback"}
       />
-      {open && (
+      {open && pos && (
         <div style={{
-          position: 'absolute',
-          bottom: size + 8,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          position: 'fixed',
+          top: pos.top - 8,
+          left: pos.left,
+          transform: 'translate(-50%, -100%)',
           background: 'white',
           border: '1px solid rgba(94,59,135,0.18)',
           borderRadius: 12,
           boxShadow: '0 8px 32px rgba(94,59,135,0.18)',
           padding: '0.85rem 1rem',
           width: 230,
-          zIndex: 300,
+          zIndex: 9999,
           fontFamily: "'DM Sans', sans-serif",
         }}>
           <div style={{
@@ -75,6 +79,6 @@ export default function MoodQ({ mood = 'smile', reason = '', tip = '', size = 44
           )}
         </div>
       )}
-    </div>
+    </>
   )
 }

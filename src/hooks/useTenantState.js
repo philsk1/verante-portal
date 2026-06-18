@@ -12,6 +12,7 @@ const TENANT_SELECT = [
   'subscription_tier', 'urgent_outcomes', 'listen_tier', 'calendar_tier',
   'booking_link', 'opening_hours', 'callback_preference_note',
   'emergency_keywords', 'business_outcome_type', 'sentry_camera_limit',
+  'is_ephemeral', 'demo_sector',
 ].join(', ')
 
 export function useTenantState() {
@@ -35,6 +36,8 @@ export function useTenantState() {
   const [hasAnswerProduct, setHasAnswerProduct] = useState(true)
   const [sentryCameraLimit, setSentryCameraLimit] = useState(0)
   const [gapData, setGapData]                 = useState(null)
+  const [isDemoMode, setIsDemoMode]           = useState(false)
+  const [demoSector, setDemoSector]           = useState(null)
 
   // ── Initial load ────────────────────────────────────────────────────────────
 
@@ -56,8 +59,8 @@ export function useTenantState() {
         setNotifyNewLead(tenant.notify_new_lead !== false)
         setNotifyDailySummary(tenant.notify_daily_summary !== false)
         setNotifyWeeklyReport(tenant.notify_weekly_report !== false)
-        setBaseTier(tenant.subscription_tier || 'light')
-        setHasAnswerProduct(!!tenant.subscription_tier)
+        setBaseTier(tenant.subscription_tier && tenant.subscription_tier !== 'schedule_only' ? tenant.subscription_tier : 'light')
+        setHasAnswerProduct(!!tenant.subscription_tier && tenant.subscription_tier !== 'schedule_only')
         setUrgentOutcomes(
           Array.isArray(tenant.urgent_outcomes) && tenant.urgent_outcomes.length > 0
             ? tenant.urgent_outcomes : ['escalated']
@@ -65,6 +68,8 @@ export function useTenantState() {
         setListenTier(tenant.listen_tier || 'none')
         setCalendarTier(tenant.calendar_tier || 'entry')
         setSentryCameraLimit(tenant.sentry_camera_limit || 0)
+        setIsDemoMode(tenant.is_ephemeral === true)
+        setDemoSector(tenant.demo_sector || null)
       }
 
       const [{ count: leadCount }, { count: catCount }] = await Promise.all([
@@ -120,8 +125,8 @@ export function useTenantState() {
         if (!data) return
         setListenTier(data.listen_tier || 'none')
         setCalendarTier(data.calendar_tier || 'entry')
-        setBaseTier(data.subscription_tier || 'light')
-        setHasAnswerProduct(!!data.subscription_tier)
+        setBaseTier(data.subscription_tier && data.subscription_tier !== 'schedule_only' ? data.subscription_tier : 'light')
+        setHasAnswerProduct(!!data.subscription_tier && data.subscription_tier !== 'schedule_only')
         setSentryCameraLimit(data.sentry_camera_limit || 0)
       })
   }, [preview.previewTenantId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -156,6 +161,8 @@ export function useTenantState() {
     hasAnswerProduct,
     sentryCameraLimit,
     gapData,
+    isDemoMode,
+    demoSector,
     saveReturnDate,
     saveNotification,
   }

@@ -2,7 +2,7 @@
 // Finds appointments in 24h and 1h windows, sends email reminders, marks sent.
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail, emailAppointmentReminder } from './_emails.js'
+import { sendEmail, emailAppointmentReminder, emailClientReminder } from './_emails.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
@@ -22,12 +22,12 @@ export async function runReminders() {
 
   const [res24, res1h] = await Promise.all([
     supabase.from('appointments')
-      .select('id, title, start_time, appointment_type, tenant_id')
+      .select('id, title, start_time, appointment_type, tenant_id, client_name, client_email, cancel_token')
       .gte('start_time', win24Start).lte('start_time', win24End)
       .eq('reminder_sent_24h', false)
       .not('status', 'in', '("cancelled","no_show")'),
     supabase.from('appointments')
-      .select('id, title, start_time, appointment_type, tenant_id')
+      .select('id, title, start_time, appointment_type, tenant_id, client_name, client_email, cancel_token')
       .gte('start_time', win1Start).lte('start_time', win1End)
       .eq('reminder_sent_1h', false)
       .not('status', 'in', '("cancelled","no_show")'),
@@ -41,28 +41,51 @@ export async function runReminders() {
 
   const { data: tenants } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email')
+    .select('id, business_name, business_email, business_phone, reminders_enabled')
     .in('id', allIds)
 
   const tMap = Object.fromEntries((tenants || []).map(t => [t.id, t]))
+  const siteUrl = process.env.SITE_URL || 'https://verante-portal.vercel.app'
   let sent = 0
 
   for (const appt of appts24) {
     const t = tMap[appt.tenant_id]
-    if (!t?.business_email) continue
-    const tmpl = emailAppointmentReminder({ businessName: t.business_name, appointment: appt, hoursAhead: 24 })
-    await sendEmail({ to: t.business_email, ...tmpl })
-    await supabase.from('appointments').update({ reminder_sent_24h: true }).eq('id', appt.id)
-    sent++
+    if (!t?.reminders_enabled) continue
+    const tasks = []
+    if (t?.business_email) {
+      const tmpl = emailAppointmentReminder({ businessName: t.business_name, appointment: appt, hoursAhead: 24 })
+      tasks.push(sendEmail({ to: t.business_email, ...tmpl }))
+    }
+    if (appt.client_email) {
+      const manageUrl = appt.cancel_token ? `${siteUrl}/manage-booking/${appt.cancel_token}` : null
+      const tmpl = emailClientReminder({ clientName: appt.client_name, businessName: t?.business_name, businessPhone: t?.business_phone, appointment: appt, hoursAhead: 24, manageUrl })
+      tasks.push(sendEmail({ to: appt.client_email, ...tmpl }))
+    }
+    if (tasks.length) {
+      await Promise.allSettled(tasks)
+      await supabase.from('appointments').update({ reminder_sent_24h: true }).eq('id', appt.id)
+      sent++
+    }
   }
 
   for (const appt of appts1h) {
     const t = tMap[appt.tenant_id]
-    if (!t?.business_email) continue
-    const tmpl = emailAppointmentReminder({ businessName: t.business_name, appointment: appt, hoursAhead: 1 })
-    await sendEmail({ to: t.business_email, ...tmpl })
-    await supabase.from('appointments').update({ reminder_sent_1h: true }).eq('id', appt.id)
-    sent++
+    if (!t?.reminders_enabled) continue
+    const tasks = []
+    if (t?.business_email) {
+      const tmpl = emailAppointmentReminder({ businessName: t.business_name, appointment: appt, hoursAhead: 1 })
+      tasks.push(sendEmail({ to: t.business_email, ...tmpl }))
+    }
+    if (appt.client_email) {
+      const manageUrl = appt.cancel_token ? `${siteUrl}/manage-booking/${appt.cancel_token}` : null
+      const tmpl = emailClientReminder({ clientName: appt.client_name, businessName: t?.business_name, businessPhone: t?.business_phone, appointment: appt, hoursAhead: 1, manageUrl })
+      tasks.push(sendEmail({ to: appt.client_email, ...tmpl }))
+    }
+    if (tasks.length) {
+      await Promise.allSettled(tasks)
+      await supabase.from('appointments').update({ reminder_sent_1h: true }).eq('id', appt.id)
+      sent++
+    }
   }
 
   return { sent, checked: { '24h': appts24.length, '1h': appts1h.length } }

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /try-q
+Allow: /signup
+Disallow: /portal
+Disallow: /onboarding
+Disallow: /owner/
+Disallow: /plans
+
+Sitemap: https://verante-portal.vercel.app/sitemap.xml

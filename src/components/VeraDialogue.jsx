@@ -3,8 +3,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 const PANEL_W = 340
 const PANEL_H = 420
 
-const VeraDialogue = ({ zoneText, zoneName, tabName, initialRect, onClose }) => {
-  const [messages, setMessages]   = useState([])
+const VeraDialogue = ({ zoneText, zoneName, tabName, initialRect, onClose, initialBotMessage }) => {
+  const [messages, setMessages]   = useState(
+    initialBotMessage ? [{ role: 'assistant', content: initialBotMessage }] : []
+  )
   const [draft, setDraft]         = useState('')
   const [loading, setLoading]     = useState(false)
   const [pos, setPos]             = useState(() => clampToViewport(

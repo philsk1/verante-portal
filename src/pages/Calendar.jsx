@@ -189,7 +189,7 @@ const CalendarToolbar = ({
     {/* New appointment */}
     {onNew && (
       <button onClick={onNew} style={{ padding: '0.3rem 0.9rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 7, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-        + New
+        + Add booking
       </button>
     )}
   </div>
@@ -205,34 +205,6 @@ function AppointmentCard({ event, title, catalogue }) {
   const catalogueItem = catalogue?.find(ci => ci.id === appt.service_id)
   const catC = catalogueItem ? getCategoryColour(catalogueItem.category) : null
   const c = catC || statusC
-
-  if (appt.processing_start_time && appt.processing_end_time) {
-    const totalMs = event.end - event.start
-    if (totalMs <= 0) return <div style={{ fontSize: '0.75rem', fontWeight: 500, padding: '2px 4px' }}>{title}</div>
-    const processStart = new Date(appt.processing_start_time)
-    const processEnd = new Date(appt.processing_end_time)
-    const activePre = Math.max(0, processStart - event.start)
-    const processing = Math.max(0, processEnd - processStart)
-    const activePost = Math.max(0, event.end - processEnd)
-    return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 4 }}>
-        {activePre > 0 && (
-          <div style={{ flex: activePre, background: c.bg, padding: '2px 4px 2px 8px', position: 'relative', minHeight: 10 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c.border }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: c.text }}>{title}</span>
-          </div>
-        )}
-        <div style={{ flex: processing, background: 'rgba(255,255,255,0.55)', borderTop: `1.5px dashed ${c.border}`, borderBottom: `1.5px dashed ${c.border}`, padding: '1px 6px', minHeight: 10, display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.65rem', color: c.text, opacity: 0.7 }}>⏱ Processing</span>
-        </div>
-        {activePost > 0 && (
-          <div style={{ flex: activePost, background: c.bg, padding: '2px 4px', minHeight: 10 }}>
-            <span style={{ fontSize: '0.65rem', color: c.text }}>Finish</span>
-          </div>
-        )}
-      </div>
-    )
-  }
 
   return (
     <div style={{ position: 'relative', height: '100%', padding: '2px 4px 2px 9px', overflow: 'hidden' }}>
@@ -774,6 +746,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [slotWarning, setSlotWarning] = useState(false)
+  const [contactWarnDismissed, setContactWarnDismissed] = useState(false)
 
   // Waitlist state
 
@@ -854,18 +827,37 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }, [user, isPreview])
 
   // ─── Load appointments + staff + catalogue ──────────────────────────────────
+  // Load a 15-month window (13 months back → 2 months ahead) to avoid row-limit truncation
+  // on tenants with thousands of appointments. Re-fetch when navigating outside window.
+  const apptWindowRef = useRef({ from: null, to: null })
+
+  const loadApptWindow = async (tid, windowFrom, windowTo) => {
+    const { data } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('tenant_id', tid)
+      .gte('start_time', windowFrom.toISOString())
+      .lte('start_time', windowTo.toISOString())
+      .order('start_time')
+    return data || []
+  }
+
   useEffect(() => {
     if (!tenantId) return
     const load = async () => {
       setLoading(true)
+      const now = new Date()
+      const windowFrom = new Date(now); windowFrom.setMonth(windowFrom.getMonth() - 13)
+      const windowTo   = new Date(now); windowTo.setMonth(windowTo.getMonth() + 2)
+      apptWindowRef.current = { from: windowFrom, to: windowTo }
       try {
-        const [apptRes, staffRes, catRes] = await Promise.all([
-          supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time'),
+        const [apptData, staffRes, catRes] = await Promise.all([
+          loadApptWindow(tenantId, windowFrom, windowTo),
           supabase.from('staff_profiles').select('id, name, role, colour, skills, include_in_intel, overhead_hours_per_week').eq('tenant_id', tenantId).or('active.eq.true,active.is.null').order('name'),
           supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         const staffData = staffRes.data || []
-        setEvents((apptRes.data || []).map(toEvent))
+        setEvents(apptData.map(toEvent))
         setStaff(staffData)
         setCatalogue(catRes.data || [])
         // Determine who is in today
@@ -888,6 +880,23 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }, [tenantId])
 
 
+  // ─── Extend appointment window when navigating outside loaded range ──────────
+  useEffect(() => {
+    if (!tenantId) return
+    const { from, to } = apptWindowRef.current
+    if (!from || !to) return
+    if (currentDate >= from && currentDate <= to) return // within window, no reload needed
+    // User navigated outside the loaded range — extend the window by 6 months in each direction
+    const newFrom = new Date(Math.min(currentDate.getTime(), from.getTime()))
+    newFrom.setMonth(newFrom.getMonth() - 3)
+    const newTo = new Date(Math.max(currentDate.getTime(), to.getTime()))
+    newTo.setMonth(newTo.getMonth() + 6)
+    apptWindowRef.current = { from: newFrom, to: newTo }
+    loadApptWindow(tenantId, newFrom, newTo).then(data => {
+      setEvents(data.map(toEvent))
+    }).catch(() => {})
+  }, [currentDate, tenantId])
+
   // ─── Auto-adapt view based on staff count (fires once after first load) ────────
   useEffect(() => {
     if (staff.length === 0 || hasAutoAdapted.current || !smartView) return
@@ -895,12 +904,15 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     if (effectiveCalendarTier === 'entry' || staff.length <= 1) {
       setView('week')
       setTeamMode(false)
-    } else if (staff.length === 2) {
-      setView('work_week')
-      setTeamMode(false)
     } else {
       setView('day')
       setTeamMode(true)
+      // Land on a weekday — if today is Sat/Sun, jump back to Friday
+      const d = new Date()
+      const dow = d.getDay()
+      if (dow === 0) d.setDate(d.getDate() - 2)
+      else if (dow === 6) d.setDate(d.getDate() - 1)
+      setCurrentDate(d)
     }
   }, [staff.length, smartView, effectiveCalendarTier])
 
@@ -926,6 +938,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     setForm(prev => ({
       ...prev,
       service_id: serviceId,
+      title: svc.name,
       appointment_type: svc.name,
       start: form.start || isoLocal(startDt),
       end: isoLocal(endDt),
@@ -972,7 +985,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const smartViewLabel = useMemo(() => {
     if (!smartView || staff.length === 0) return null
     if (staff.length <= 1) return `${staff.length === 0 ? 'No' : '1'} staff · week view`
-    if (staff.length === 2) return `2 staff · 5-day view`
     return `${staff.length} staff · column view`
   }, [smartView, staff.length])
 
@@ -1003,6 +1015,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     const durationMins = (end - start) / 60000
     setForm({ ...EMPTY_FORM, start: isoLocal(start), end: isoLocal(end), staff_profile_id: resourceId && resourceId !== 'unassigned' ? resourceId : '' })
     setSlotWarning(durationMins < 30)
+    setContactWarnDismissed(false)
     setPanelEvent(null)
     setPanelMode('create')
   }, [])
@@ -1058,9 +1071,11 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Save (with recurring series support) ────────────────────────────────────
   const handleSave = async () => {
-    if (previewReadOnly || !tenantId) return
-    if (!form.title.trim() || !form.start || !form.end) return
-    if (form.isSplit && (!form.processing_start || !form.processing_end)) return
+    if (previewReadOnly) { setSaveError('Switch to Edit mode in the preview banner to make changes.'); return }
+    if (!tenantId) { setSaveError('No business loaded — please refresh.'); return }
+    if (!form.title.trim()) { setSaveError('Add a booking title before saving.'); return }
+    if (!form.start || !form.end) { setSaveError('Set a start and end time before saving.'); return }
+    if (form.isSplit && (!form.processing_start || !form.processing_end)) { setSaveError('Set the processing window start and end times.'); return }
     setSaving(true)
     setSaveError(null)
     try {
@@ -1085,7 +1100,14 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       }
 
       if (panelMode === 'edit' && panelEvent) {
-        const { data } = await supabase.from('appointments').update(basePayload).eq('id', panelEvent.id).select().maybeSingle()
+        const { data, error: updateErr } = await supabase.from('appointments').update(basePayload).eq('id', panelEvent.id).select().maybeSingle()
+        if (updateErr) {
+          const msg = updateErr.message || ''
+          setSaveError(msg.includes('double_booking')
+            ? `Too much overlap with an existing booking — ${msg.replace(/.*double_booking: /, '') || 'adjust the times and try again.'}`
+            : 'Could not save — please try again.')
+          return
+        }
         if (data) setEvents(prev => prev.map(e => e.id === panelEvent.id ? toEvent(data) : e))
         fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: panelEvent.id, caldavAction: 'upsert' }) }).catch(() => {})
       } else {
@@ -1117,12 +1139,39 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           }
         })
 
-        const { data } = await supabase.from('appointments').insert(payloads).select()
+        const { data, error: insertErr } = await supabase.from('appointments').insert(payloads).select()
+        if (insertErr) {
+          const msg = insertErr.message || ''
+          setSaveError(msg.includes('double_booking')
+            ? `Too much overlap with an existing booking — ${msg.replace(/.*double_booking: /, '') || 'adjust the times or choose a different slot.'}`
+            : 'Could not save — please try again.')
+          return
+        }
         if (data) {
           setEvents(prev => [...prev, ...data.map(toEvent)])
           data.forEach(appt => {
             fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: appt.id, caldavAction: 'upsert' }) }).catch(() => {})
           })
+          // Send confirmation to client for non-recurring single bookings with contact details
+          if (!isRecurring && data[0] && (form.client_email || form.client_phone)) {
+            const appt = data[0]
+            const ref = appt.id?.slice(0, 8).toUpperCase()
+            fetch('/api/integrations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action:      'booking-confirm',
+                tenantId,
+                clientName:  form.client_name || null,
+                clientPhone: form.client_phone || null,
+                clientEmail: form.client_email || null,
+                serviceName: form.appointment_type || form.title,
+                startTime:   appt.start_time,
+                bookingRef:  ref,
+                cancelToken: appt.cancel_token || null,
+              }),
+            }).catch(() => {})
+          }
         }
       }
       closePanel()
@@ -1161,7 +1210,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   const canSave = form.title.trim() && form.start && form.end && !saving
-    && (!form.isSplit || (form.processing_start && form.processing_end))
+  const missingContact = !form.client_name.trim() && !form.client_phone.trim()
 
   const hasTeamMode = staff.length > 0 && effectiveCalendarTier !== 'entry'
 
@@ -1246,11 +1295,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem', color: '#1a1a1a', fontWeight: 500 }}>
               {fmtTime(appt.start_time || panelEvent.start)} – {fmtTime(appt.end_time || panelEvent.end)}
             </div>
-            {appt.processing_start_time && (
-              <div style={{ fontSize: '0.75rem', color: '#f0a500', fontFamily: "'DM Sans', sans-serif", marginTop: 3, fontWeight: 500 }}>
-                ⏱ Processing {fmtTime(appt.processing_start_time)} – {fmtTime(appt.processing_end_time)}
-              </div>
-            )}
           </div>
 
           {catItem && (
@@ -1395,9 +1439,10 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             <Label>Select service</Label>
             <FieldSelect value={form.service_id} onChange={e => handleServiceSelect(e.target.value)}>
               <option value="">— Choose from your catalogue —</option>
-              {catalogue.filter(c => c.item_type === 'service').map(c => (
-                <option key={c.id} value={c.id}>{c.name} · {c.duration_minutes} min{c.processing_minutes > 0 ? ` (+ ${c.processing_minutes} min processing)` : ''}</option>
-              ))}
+              {catalogue.filter(c => c.item_type === 'service').map(c => {
+                const total = (c.duration_minutes || 0) + (c.processing_minutes || 0) + (c.completion_minutes || 0)
+                return <option key={c.id} value={c.id}>{c.name} · {total || c.duration_minutes} min</option>
+              })}
             </FieldSelect>
             {form.service_id && (
               <div style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif" }}>
@@ -1444,24 +1489,6 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             <div>
               <Label>Service / appointment type</Label>
               <FieldInput value={form.appointment_type} onChange={f('appointment_type')} placeholder="e.g. Boiler service, Consultation" />
-            </div>
-            {/* Split toggle */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.isSplit}
-                onChange={e => setForm(prev => ({ ...prev, isSplit: e.target.checked, processing_start: '', processing_end: '' }))}
-                style={{ width: 15, height: 15, accentColor: '#f0a500', cursor: 'pointer' }} />
-              <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>Split appointment — has processing time</span>
-            </label>
-          </div>
-        )}
-
-        {/* Processing window — service or manual split */}
-        {form.isSplit && (
-          <div style={{ background: '#fef3d9', borderRadius: 8, padding: '0.85rem', border: '1px solid rgba(240,165,0,0.25)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7a5c00', marginBottom: '0.45rem', fontFamily: "'DM Sans', sans-serif" }}>Processing window — when you're free for another client</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <div><Label>Starts</Label><FieldInput type="datetime-local" value={form.processing_start} onChange={f('processing_start')} /></div>
-              <div><Label>Ends</Label><FieldInput type="datetime-local" value={form.processing_end} onChange={f('processing_end')} /></div>
             </div>
           </div>
         )}
@@ -1541,6 +1568,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         )}
       </div>
 
+      {missingContact && !contactWarnDismissed && (
+        <div style={{ margin: '0 1.25rem', padding: '0.5rem 0.75rem', background: '#fef3d9', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 8, fontSize: '0.78rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <span>No customer name or phone number — Q won't be able to follow up. Add them or dismiss to save anyway.</span>
+          <button onClick={() => setContactWarnDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7a5c00', fontSize: '1rem', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      )}
       {saveError && (
         <div style={{ margin: '0 1.25rem', padding: '0.5rem 0.75rem', background: '#fde8e8', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 8, fontSize: '0.78rem', color: '#7a1a1a', fontFamily: "'DM Sans', sans-serif" }}>
           {saveError}
@@ -1557,8 +1590,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.22)', borderRadius: 7, background: 'white', color: '#5e3b87', fontSize: '0.78rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginLeft: panelMode === 'edit' ? 0 : 'auto' }}>
           Cancel
         </button>
-        <button onClick={handleSave} disabled={!canSave || previewReadOnly}
-          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: (!canSave || previewReadOnly) ? '#f5d98a' : '#f0a500', color: (!canSave || previewReadOnly) ? '#7a5c1a' : '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: (!canSave || previewReadOnly) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+        <button onClick={handleSave} disabled={saving}
+          style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: 7, background: '#f0a500', color: '#1a0533', fontSize: '0.78rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           {saving ? 'Saving…' : form.repeat_type !== 'none' ? `Book ${form.repeat_count} sessions` : 'Save'}
         </button>
       </div>
@@ -1633,7 +1666,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const subTabs = [
     { id: 'appointments', label: 'Appointments' },
     { id: 'history', label: 'History' },
-    { id: 'schedules', label: 'Staff schedules' },
+    { id: 'schedules', label: 'Staff' },
     { id: 'settings', label: 'Settings' },
   ]
 
@@ -1672,8 +1705,8 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
               Add services
             </button>
-            <button onClick={() => setQuickPanel(p => p === 'staff' ? null : 'staff')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: quickPanel === 'staff' ? '#5e3b87' : 'white', color: quickPanel === 'staff' ? 'white' : '#5e3b87', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s, color 0.15s' }}>
+            <button onClick={() => { setActiveSubTab('schedules'); setQuickPanel(null) }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: activeSubTab === 'schedules' ? '#5e3b87' : 'white', color: activeSubTab === 'schedules' ? 'white' : '#5e3b87', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s, color 0.15s' }}>
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               Staff
             </button>

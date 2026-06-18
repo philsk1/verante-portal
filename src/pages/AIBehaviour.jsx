@@ -457,30 +457,18 @@ const CallTypeCard = ({ type, rule, businessEmail, onChange }) => {
   )
 }
 
-// ─── greeting preview helper ──────────────────────────────────────────────────
+// ─── canonical greeting preview (mirrors _build-prompt.js buildGreeting) ─────
 
-function previewGreeting(tone, name, owner, outcomeType, bLink, callbackNote) {
-  const n = name || 'your business'
-  const o = owner || 'the owner'
-  if (tone === 'formal') {
-    return `Good morning. You have reached ${n}. ${o} is currently unavailable — I am their virtual assistant. I will be taking a brief note of your enquiry to ensure it receives ${o}'s personal attention. How may I assist you?`
-  }
-  let resolution
-  if (outcomeType === 'booking' && bLink) {
-    resolution = "I'll be taking a brief note and sending you a booking link."
-  } else if (outcomeType === 'booking') {
-    resolution = "I'll be taking a brief note to get you booked in."
-  } else if (callbackNote) {
-    resolution = `I'll be taking a brief note, ${o} will call you back ${callbackNote}.`
-  } else {
-    resolution = `I'll be taking a brief note so ${o} can call you back to discuss what you need.`
-  }
-  return `Good morning, ${n}. ${o} is busy — I'm their virtual assistant. ${resolution} How can I help you?`
+function canonicalGreeting(tone, name, owner) {
+  const n = name?.trim() || 'your business'
+  const o = owner?.trim() || 'the owner'
+  const opener = tone === 'formal' ? `Good morning, ${n}.` : `${n}.`
+  return `${opener} I'm Q, ${o}'s AI assistant. Please tell me what you need, and I will make it happen. Information and bookings I can handle myself—and for anything I can't do, I'll take a note and get ${o} to call you straight back.`
 }
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-const AIBehaviour = ({ onNavigate }) => {
+const AIBehaviour = ({ onNavigate, qSessionHighlight = [], qDraft = null }) => {
   const { user } = useAuth()
   const preview = usePreview()
   const isPreview = !!preview?.isPreview
@@ -490,6 +478,9 @@ const AIBehaviour = ({ onNavigate }) => {
   const [vapiAssistantId, setVapiAssistantId] = useState(null)
   const [earTestState, setEarTestState] = useState('idle') // idle | connecting | active
   const earVapiRef = useRef(null)
+  const [demoPhone, setDemoPhone] = useState('')
+  const [demoState, setDemoState] = useState('idle') // idle | calling | success | error
+  const [syncStatus, setSyncStatus] = useState('idle') // idle | syncing | synced | error
   const [tier, setTier] = useState('light')
   useEffect(() => { if (preview?.tierOverride !== null) setTier(preview?.tierOverride) }, [preview?.tierOverride])
   const [loading, setLoading] = useState(true)
@@ -514,9 +505,24 @@ const AIBehaviour = ({ onNavigate }) => {
   const [salesHandling, setSalesHandling] = useState(true)
   const [autodialerDetection, setAutodialerDetection] = useState(true)
 
-  // SMS follow-up
+  // SMS follow-up (legacy single-toggle)
   const [smsFollowupEnabled, setSmsFollowupEnabled] = useState(false)
   const [smsFollowupMessage, setSmsFollowupMessage] = useState('')
+
+  // After-call messaging config
+  const MSG_TYPES = [
+    { key: 'call_summary',        label: 'Thank you / callback confirmation', desc: 'Sent after any genuine call. Thanks the caller and confirms someone will be in touch.' },
+    { key: 'booking_link',        label: 'Booking link', desc: 'Sent after a lead is captured. Includes your online booking link. Replaces the callback message if enabled together.' },
+    { key: 'detail_confirmation', label: 'Address & detail confirmation', desc: 'Sent after a call where an address or appointment details were taken. Asks the caller to confirm or correct.' },
+    { key: 'booking_confirmed',   label: 'Booking confirmed', desc: 'Sent when a provisional booking is confirmed. Triggered manually or when appointment status changes.' },
+    { key: 'reminder',            label: 'Appointment reminder', desc: 'Sent X hours before the appointment. Requires a scheduled job — contact support to activate.' },
+  ]
+  const CHANNELS = [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'sms', l: 'SMS' }, { v: 'email', l: 'Email' }]
+  const MSG_VARS = '{caller_name}  {business_name}  {lead_contact_name}  {booking_link}  {service_requested}  {appointment_address}  {appointment_datetime}'
+  const emptyMsgConfig = () => Object.fromEntries(MSG_TYPES.map(t => [t.key, { enabled: false, channel: 'whatsapp', template: '' }]))
+  const [messagingConfig, setMessagingConfig] = useState(emptyMsgConfig())
+  const [messagingSaving, setMessagingSaving] = useState(false)
+  const [messagingSaved, setMessagingSaved] = useState(false)
 
   // New settings
   const [toneRegister, setToneRegister] = useState('warm')
@@ -562,9 +568,10 @@ const AIBehaviour = ({ onNavigate }) => {
   const [keepAliveMaxMins, setKeepAliveMaxMins] = useState(5)
 
   // Voice & pace
-  const [speechPace,     setSpeechPace]     = useState('natural')
-  const [speechStyle,    setSpeechStyle]    = useState('balanced')
-  const [responseDelay,  setResponseDelay]  = useState(1.2)
+  const [speechPace,         setSpeechPace]         = useState('natural')
+  const [speechStyle,        setSpeechStyle]        = useState('balanced')
+  const [responseDelay,      setResponseDelay]      = useState(1.2)
+  const [qDisplayOnScreen,   setQDisplayOnScreen]   = useState(true)
 
   useEffect(() => {
     if (!user && !isPreview) return
@@ -584,7 +591,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
         const { data: tenant } = await supabase
           .from('tenants')
-          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id, q_mode, speech_pace, speech_style, response_delay_seconds')
+          .select('triage_mode, escalation_preference, greeting_message, spam_filter_enabled, sales_call_handling, autodialler_detection, emergency_keywords, keep_alive_topics, keep_alive_max_minutes, subscription_tier, calendar_tier, booking_calendar_source, business_email, tone_register, business_outcome_type, custom_outcome_text, callback_preference_note, additional_instructions, business_name, lead_contact_name, booking_link, urgent_callback_mins, urgent_escalation_method, urgent_outcomes, provisional_booking_enabled, provisional_booking_rule, booking_slots_to_offer, booking_buffer_mins, booking_confirmation_window_mins, overage_voice_preference, sms_followup_enabled, sms_followup_message, blocked_phone_numbers, vapi_assistant_id, q_mode, speech_pace, speech_style, response_delay_seconds, q_display_on_screen')
           .eq('id', tid).maybeSingle()
 
         if (tenant) {
@@ -636,8 +643,20 @@ const AIBehaviour = ({ onNavigate }) => {
           setSpeechPace(tenant.speech_pace || 'natural')
           setSpeechStyle(tenant.speech_style || 'balanced')
           setResponseDelay(tenant.response_delay_seconds ?? 1.2)
+          setQDisplayOnScreen(tenant.q_display_on_screen !== false)
           setCalendarTier(tenant.calendar_tier || 'none')
           setBookingCalendarSource(tenant.booking_calendar_source || 'qerxel')
+        }
+
+        // Load messaging config
+        const { data: msgInt } = await supabase
+          .from('tenant_integrations')
+          .select('settings')
+          .eq('tenant_id', tid)
+          .eq('integration_id', 'messaging')
+          .maybeSingle()
+        if (msgInt?.settings) {
+          setMessagingConfig(prev => ({ ...prev, ...msgInt.settings }))
         }
 
         const { data: rulesData } = await supabase
@@ -671,6 +690,22 @@ const AIBehaviour = ({ onNavigate }) => {
   }, [user, isPreview])
 
   // ── Ear test (Vapi Web SDK) ──────────────────────────────────────────────────
+
+  // Q Live Session — Realtime: update voice/pace buttons live when Q writes during a support call
+  useEffect(() => {
+    if (!tenantId) return
+    const sub = supabase
+      .channel(`q-voice-${tenantId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tenants', filter: `id=eq.${tenantId}` }, (payload) => {
+        const n = payload.new
+        if (n.speech_pace      !== undefined) setSpeechPace(n.speech_pace)
+        if (n.speech_style     !== undefined) setSpeechStyle(n.speech_style)
+        if (n.response_delay_seconds !== undefined) setResponseDelay(n.response_delay_seconds)
+        if (n.additional_instructions !== undefined) setAdditionalInstructions(n.additional_instructions || '')
+      })
+      .subscribe()
+    return () => supabase.removeChannel(sub)
+  }, [tenantId])
 
   useEffect(() => {
     const key = import.meta.env.VITE_VAPI_PUBLIC_KEY
@@ -735,7 +770,7 @@ const AIBehaviour = ({ onNavigate }) => {
     }).eq('id', tenantId)
     setSaving(false)
     showToast(error ? 'Could not save. Please try again.' : 'AI settings saved.', error ? 'error' : 'success')
-    if (!error) syncVapi(tenantId)
+    if (!error) { syncVapi(tenantId); window.dispatchEvent(new Event('qscore-refresh')) }
   }
 
   const saveRules = async () => {
@@ -759,17 +794,67 @@ const AIBehaviour = ({ onNavigate }) => {
     if (!error) syncVapi(tenantId)
   }
 
-  const syncVapi = (tid) => {
-    fetch('/api/vapi-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId: tid }),
-    }).catch(() => {})
+  const syncVapi = async (tid) => {
+    setSyncStatus('syncing')
+    try {
+      const r = await fetch('/api/vapi-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: tid }),
+      })
+      setSyncStatus(r.ok ? 'synced' : 'error')
+    } catch {
+      setSyncStatus('error')
+    }
+    setTimeout(() => setSyncStatus('idle'), 4000)
+  }
+
+  const handleDemoCall = async () => {
+    const raw = demoPhone.trim()
+    if (!raw) return
+    if (!vapiAssistantId) {
+      setDemoState('no_assistant')
+      setTimeout(() => setDemoState('idle'), 6000)
+      return
+    }
+    const phone = raw.startsWith('+') ? raw : raw.startsWith('07') ? '+44' + raw.slice(1) : raw
+    setDemoState('calling')
+    try {
+      const r = await fetch('/api/vapi-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'demo-call', phoneNumber: phone, assistantId: vapiAssistantId }),
+      })
+      if (r.ok) {
+        setDemoState('success')
+        setTimeout(() => setDemoState('idle'), 10000)
+      } else {
+        setDemoState('error')
+        setTimeout(() => setDemoState('idle'), 6000)
+      }
+    } catch {
+      setDemoState('error')
+      setTimeout(() => setDemoState('idle'), 6000)
+    }
+  }
+
+  const saveMessaging = async () => {
+    if (previewReadOnly || !tenantId) return
+    setMessagingSaving(true)
+    await supabase.from('tenant_integrations').upsert(
+      { tenant_id: tenantId, integration_id: 'messaging', enabled: true, settings: messagingConfig },
+      { onConflict: 'tenant_id,integration_id' }
+    )
+    setMessagingSaving(false)
+    setMessagingSaved(true)
+    setTimeout(() => setMessagingSaved(false), 3000)
+    window.dispatchEvent(new Event('qscore-refresh'))
   }
 
   const saveToggle = async (field, value) => {
     if (previewReadOnly || !tenantId) return
     await supabase.from('tenants').update({ [field]: value }).eq('id', tenantId)
+    window.dispatchEvent(new Event('qscore-refresh'))
   }
 
   const updateRule = (callTypeKey, updated) => {
@@ -830,6 +915,11 @@ const AIBehaviour = ({ onNavigate }) => {
     setResponseDelay(val)
     await supabase.from('tenants').update({ response_delay_seconds: val }).eq('id', tenantId)
   }
+  const saveQDisplayOnScreen = async (val) => {
+    if (previewReadOnly || !tenantId) return
+    setQDisplayOnScreen(val)
+    await supabase.from('tenants').update({ q_display_on_screen: val }).eq('id', tenantId)
+  }
 
   if (loading) {
     return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading settings…</div>
@@ -837,16 +927,15 @@ const AIBehaviour = ({ onNavigate }) => {
 
   const isProfessional = ['professional', 'enterprise', 'bespoke'].includes(tier)
 
-  // Q readiness score
+  // Q readiness score — greeting excluded (Qerxel owns the greeting; it is always set)
   const completionScore = (() => {
     let pts = 0
-    if (greetingMessage.trim()) pts += 25
-    if (additionalInstructions.trim()) pts += 20
-    if (businessName.trim()) pts += 15
-    if (callbackPrefNote.trim()) pts += 15
-    if (keywords.length > 0) pts += 10
-    if (Object.values(rules).some(r => r.instructions?.trim())) pts += 8
-    if (Object.values(rules).some(r => r.email_address?.trim())) pts += 7
+    if (additionalInstructions.trim()) pts += 25
+    if (businessName.trim()) pts += 20
+    if (callbackPrefNote.trim()) pts += 20
+    if (keywords.length > 0) pts += 15
+    if (Object.values(rules).some(r => r.instructions?.trim())) pts += 12
+    if (Object.values(rules).some(r => r.email_address?.trim())) pts += 8
     return Math.min(100, pts)
   })()
   const qMoodState = completionScore >= 86 ? 'smile' : completionScore >= 61 ? 'content' : completionScore >= 31 ? 'sad' : 'crying'
@@ -864,29 +953,26 @@ const AIBehaviour = ({ onNavigate }) => {
   const outcomeLabels = { booking: 'Books appointments', quote: 'Discusses & quotes', custom: 'Custom outcome' }
   const outcomeLabel  = outcomeLabels[businessOutcomeType] || 'Discusses & quotes'
 
-  const hasGreeting = greetingMessage.trim().length > 0
   const hasSmsOrBooking = smsFollowupEnabled || bookingLink.trim().length > 0
-  const configMood = hasGreeting && hasSmsOrBooking ? 'smile'
-    : hasGreeting ? 'content'
-    : hasSmsOrBooking ? 'sad'
-    : 'crying'
-  const configReason = configMood !== 'smile' ? (
-    !hasGreeting && !hasSmsOrBooking
-      ? "Your AI greeting isn't set and there's no booking link or SMS follow-up configured."
-      : !hasGreeting
-      ? "Your AI has a booking link or SMS follow-up, but no custom greeting — callers will hear a default opening."
-      : "Greeting is set, but callers aren't being offered a booking link or follow-up SMS."
-  ) : ''
-  const configTip = configMood === 'crying'
-    ? 'Write your greeting first — use the Generator below if you need a starting point.'
-    : configMood === 'sad'
-    ? 'Set your greeting — it\'s the first thing every caller hears.'
-    : configMood === 'content'
-    ? 'Add a booking link under Outcome Settings, or enable SMS follow-up.'
-    : ''
+  const configMood   = hasSmsOrBooking ? 'smile' : 'content'
+  const configReason = hasSmsOrBooking ? '' : 'Callers aren\'t being offered a booking link or follow-up SMS.'
+  const configTip    = hasSmsOrBooking ? '' : 'Add a booking link under Outcome Settings, or enable SMS follow-up.'
 
   return (
     <div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes qPulse { 0%,100%{box-shadow:0 0 0 0 rgba(94,59,135,0.4)} 50%{box-shadow:0 0 0 8px rgba(94,59,135,0)} }`}</style>
+
+      {/* Q Live Session — draft panel: appears when Q has drafted AI instructions during a support call */}
+      {qDraft && (
+        <div style={{ background: '#1e0a32', border: '2px solid #5e3b87', borderRadius: 12, padding: '16px 20px', marginBottom: 16, animation: 'qPulse 2s ease-in-out 3' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f0a500', flexShrink: 0 }} />
+            <span style={{ color: '#f0a500', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Q is reviewing this with you on the call</span>
+          </div>
+          <div style={{ color: '#e2e0f0', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: "'DM Sans', sans-serif" }}>{qDraft}</div>
+          <div style={{ color: '#4b5563', fontSize: 11, marginTop: 10 }}>Tell Q on the call to save this, adjust it, or start again.</div>
+        </div>
+      )}
 
       {/* ── AI Status Hero ───────────────────────────────────────────────────── */}
       <div style={{
@@ -1087,7 +1173,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* ── Response & urgency ───────────────────────────────────────────────── */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Configure how quickly you respond to urgent calls, how your AI closes conversations, and what qualifies as urgent in your Listen inbox.">Response & urgency</h3>
+        <h3 style={s.sectionTitle} data-help="Configure how quickly you respond to urgent calls, how your AI closes conversations, and what qualifies as urgent in your Listen inbox." data-help-score={callbackPrefNote.trim() ? 95 : 50}>Response & urgency</h3>
         <p style={s.sectionSubtitle}>Callback commitments, urgency thresholds, and what surfaces in your Urgent inbox.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
@@ -1203,7 +1289,7 @@ const AIBehaviour = ({ onNavigate }) => {
         ))}
 
         <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(94,59,135,0.07)' }}>
-          <label style={s.label} data-help="Anything not covered above. Describe specific situations and how you'd like your AI to handle them. For example: 'If a caller wants to cancel, tell them I will be in contact immediately.' Your AI follows these instructions for anything not covered by the rules above.">Anything else?</label>
+          <label style={s.label} data-help="Anything not covered above. Describe specific situations and how you'd like your AI to handle them. For example: 'If a caller wants to cancel, tell them I will be in contact immediately.' Your AI follows these instructions for anything not covered by the rules above." data-help-score={additionalInstructions.trim() ? 95 : 20}>Anything else?</label>
           <p style={{ fontSize: '0.775rem', color: '#aaa', margin: '0 0 0.5rem', lineHeight: 1.5 }}>
             It's impossible to anticipate every type of call. If there are specific situations you'd like your AI to handle in a particular way, describe them here.
           </p>
@@ -1225,7 +1311,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Emergency Keywords */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Emergency Keywords are words that trigger an immediate escalation to you, no matter what else is happening on the call. Add things like 'gas leak', 'not breathing', 'flooding', 'emergency'. As soon as your AI hears one of these, it escalates — no other rules apply.">Emergency Keywords</h3>
+        <h3 style={s.sectionTitle} data-help="Emergency Keywords are words that trigger an immediate escalation to you, no matter what else is happening on the call. Add things like 'gas leak', 'not breathing', 'flooding', 'emergency'. As soon as your AI hears one of these, it escalates — no other rules apply." data-help-score={keywords.length ? 95 : 65}>Emergency Keywords</h3>
         <p style={s.sectionSubtitle}>
           If a caller uses any of these words, your AI escalates immediately — regardless of call type rules or triage mode.
         </p>
@@ -1281,32 +1367,31 @@ const AIBehaviour = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Greeting Message */}
+      {/* Greeting */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Your greeting is the first thing every caller hears. The core greeting is set by Qerxel and always includes your business name, the fact the AI is a virtual assistant, and what will happen next. You can add something to the end — a language note, a recording notice, a tagline — but the critical structure stays in place.">Greeting Message</h3>
-        <p style={s.sectionSubtitle}>Qerxel sets the core greeting — it always includes the right structure for your business. You can add a line to the end if you'd like something more specific.</p>
+        <h3 style={s.sectionTitle}>Greeting</h3>
+        <p style={s.sectionSubtitle}>Qerxel has spent more time on the greeting than any other aspect of AI behaviour. Let us do the heavy lifting — if you want a specific phrase or piece of information in the greeting, write it here and we'll place it at the end.</p>
 
-        {/* System greeting preview — read only */}
+        {/* Canonical greeting preview — read only */}
         <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, padding: '0.85rem 1rem', marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Your system greeting</div>
+          <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>Your greeting</div>
           <div style={{ fontSize: '0.875rem', color: '#1a1a1a', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
-            "{previewGreeting(toneRegister, businessName, ownerName, businessOutcomeType, bookingLink, callbackPrefNote)}"
+            "{canonicalGreeting(toneRegister, businessName, ownerName)}{greetingMessage?.trim() ? ` ${greetingMessage.trim()}` : ''}"
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>Updates automatically with your Tone and Outcome settings above.</div>
         </div>
 
-        <label style={s.label}>Add something to the end? (optional)</label>
-        <p style={s.hint}>e.g. "Calls may be recorded for training." · "We also speak Spanish." · "A member of the team will call you back within the hour."</p>
+        <label style={s.label}>Something specific to add? (optional)</label>
+        <p style={s.hint}>e.g. "Calls may be recorded for training." · "We also speak Welsh." · "All emergency jobs handled within the hour."</p>
         <textarea
           style={s.textarea}
           value={greetingMessage}
           onChange={e => setGreetingMessage(e.target.value)}
-          placeholder="Leave blank — the system greeting works on its own."
+          placeholder="Leave blank — your greeting is already set."
           rows={2}
         />
         {greetingMessage && (
           <div style={{ marginTop: '0.5rem' }}>
-            <button style={s.ghost} onClick={() => setGreetingMessage('')}>Remove addition</button>
+            <button style={s.ghost} onClick={() => setGreetingMessage('')}>Remove</button>
           </div>
         )}
       </div>
@@ -1316,11 +1401,25 @@ const AIBehaviour = ({ onNavigate }) => {
         <button style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={saveMainSettings} disabled={saving}>
           {saving ? 'Saving…' : 'Save AI settings'}
         </button>
+        {syncStatus !== 'idle' && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+            fontSize: '0.78rem', fontWeight: 500, padding: '0.3rem 0.75rem',
+            borderRadius: '999px',
+            background: syncStatus === 'synced' ? '#e6f5ee' : syncStatus === 'error' ? '#fdf0f7' : '#f4effe',
+            color: syncStatus === 'synced' ? '#1e7a4a' : syncStatus === 'error' ? '#6b2049' : '#5e3b87',
+          }}>
+            {syncStatus === 'syncing' && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', border: '2px solid #5e3b87', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />}
+            {syncStatus === 'synced' && '✓'}
+            {syncStatus === 'error' && '✕'}
+            {syncStatus === 'syncing' ? 'Syncing AI…' : syncStatus === 'synced' ? 'AI updated' : 'Sync failed'}
+          </span>
+        )}
         <Toast msg={toast.msg} type={toast.type} />
       </div>
 
       {/* Voice & Pace */}
-      <div style={s.section} data-help="Voice & Pace controls how Q sounds and how quickly it responds. Think time is the pause before Q speaks — longer feels more considered. Talking pace is how fast the words come out. Communication style shapes how Q structures its answers. Q also reads each caller's energy and steers towards it automatically.">
+      <div style={{ ...s.section, ...(qSessionHighlight.includes('voice-pace') ? { border: '2px solid #5e3b87', boxShadow: '0 0 0 6px rgba(94,59,135,0.1)', borderRadius: 12, transition: 'all 0.3s' } : {}) }} data-help="Voice & Pace controls how Q sounds and how quickly it responds. Think time is the pause before Q speaks — longer feels more considered. Talking pace is how fast the words come out. Communication style shapes how Q structures its answers. Q also reads each caller's energy and steers towards it automatically.">
         <h3 style={s.sectionTitle}>Voice &amp; Pace</h3>
         <p style={s.sectionSubtitle}>Set Q's baseline voice behaviour. Changes take effect on the next call.</p>
 
@@ -1396,6 +1495,26 @@ const AIBehaviour = ({ onNavigate }) => {
         <div style={{ marginTop: '1rem', padding: '0.65rem 0.85rem', background: '#f7f6f9', borderRadius: 8, fontSize: '0.75rem', color: '#888', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
           Q also reads each caller's energy and steers towards it — a fast-talking caller gets shorter answers, an unhurried caller gets more warmth. Your settings above are the baseline Q adjusts from.
         </div>
+
+        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(94,59,135,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#2d2357', fontFamily: "'DM Sans', sans-serif" }}>Q session display</div>
+              <div style={{ fontSize: '0.72rem', color: '#999', marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>
+                {qDisplayOnScreen
+                  ? 'Q navigates your portal and highlights sections during a live call. Switch off if you prefer Q to work quietly in the background.'
+                  : 'Q is working in the background — you will not see navigation or highlights during a live call. Switch on to watch Q work.'}
+              </div>
+            </div>
+            <button
+              onClick={() => saveQDisplayOnScreen(!qDisplayOnScreen)}
+              disabled={previewReadOnly}
+              style={{ flexShrink: 0, background: qDisplayOnScreen ? '#5e3b87' : '#e5e7eb', border: 'none', borderRadius: 20, width: 44, height: 24, cursor: previewReadOnly ? 'default' : 'pointer', position: 'relative', transition: 'background 0.2s' }}
+            >
+              <div style={{ position: 'absolute', top: 3, left: qDisplayOnScreen ? 22 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Call Filtering */}
@@ -1411,7 +1530,7 @@ const AIBehaviour = ({ onNavigate }) => {
       </div>
 
       {/* Lead Follow-up SMS */}
-      <div style={s.section} data-help="SMS follow-up only fires when a genuine lead is captured — the caller gave their contact details and asked about your services. Spam, filtered calls, and out-of-scope enquiries never receive an SMS. Because the caller provided their number willingly during the call, consent is clear. Leave the message blank to use the auto-generated version.">
+      <div style={s.section} data-help="SMS follow-up only fires when a genuine lead is captured — the caller gave their contact details and asked about your services. Spam, filtered calls, and out-of-scope enquiries never receive an SMS. Because the caller provided their number willingly during the call, consent is clear. Leave the message blank to use the auto-generated version." data-help-score={smsFollowupEnabled ? 95 : 65}>
         <h3 style={s.sectionTitle}>Lead Follow-up</h3>
         <p style={s.sectionSubtitle}>When your AI captures a genuine lead — caller left their name and number — it can text them immediately to confirm receipt. Only fires on real enquiries, not spam or filtered calls.</p>
         <ToggleRow
@@ -1444,6 +1563,74 @@ const AIBehaviour = ({ onNavigate }) => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* After-call messaging */}
+      <div style={s.section}>
+        <h3 style={s.sectionTitle} data-help="After-call messaging lets Q send automatic messages to callers based on what happened on the call. Enable at least the thank-you message to give every caller a professional close." data-help-score={MSG_TYPES.some(mt => messagingConfig[mt.key]?.enabled) ? (messagingConfig['call_summary']?.enabled ? 95 : 65) : 20}>After-call messaging</h3>
+        <p style={s.sectionSubtitle}>Configure what Q sends to callers after a call ends. Each message fires automatically based on the call outcome. Use {'{'}variables{'}'} to personalise.</p>
+
+        {MSG_TYPES.map((mt, i) => {
+          const cfg = messagingConfig[mt.key] || { enabled: false, channel: 'whatsapp', template: '' }
+          const isLast = i === MSG_TYPES.length - 1
+          const update = (patch) => setMessagingConfig(prev => ({ ...prev, [mt.key]: { ...prev[mt.key], ...patch } }))
+          return (
+            <div key={mt.key} style={{ borderBottom: isLast ? 'none' : '1px solid rgba(94,59,135,0.07)', paddingBottom: cfg.enabled ? '1rem' : '0.75rem', marginBottom: cfg.enabled ? '0.25rem' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.825rem', fontWeight: 600, color: '#2d1b4e', fontFamily: "'DM Sans', sans-serif" }}>{mt.label}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{mt.desc}</div>
+                </div>
+                <button
+                  onClick={() => update({ enabled: !cfg.enabled })}
+                  style={{ flexShrink: 0, width: 40, height: 22, borderRadius: 11, border: 'none', cursor: previewReadOnly ? 'default' : 'pointer',
+                    background: cfg.enabled ? '#5e3b87' : '#d1d5db', transition: 'background 0.2s', position: 'relative' }}
+                >
+                  <span style={{ position: 'absolute', top: 3, left: cfg.enabled ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                </button>
+              </div>
+
+              {cfg.enabled && (
+                <div style={{ marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>Send via</span>
+                    {CHANNELS.map(ch => (
+                      <button key={ch.v} onClick={() => update({ channel: ch.v })}
+                        style={{ padding: '0.25rem 0.65rem', borderRadius: 6, border: `1.5px solid ${cfg.channel === ch.v ? '#5e3b87' : 'rgba(94,59,135,0.18)'}`,
+                          background: cfg.channel === ch.v ? '#f4effe' : 'transparent', color: cfg.channel === ch.v ? '#5e3b87' : '#888',
+                          fontSize: '0.75rem', fontWeight: cfg.channel === ch.v ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                        {ch.l}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={cfg.template}
+                    onChange={e => update({ template: e.target.value })}
+                    placeholder={`Leave blank to use the default message`}
+                    rows={3}
+                    style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 8,
+                      padding: '0.6rem 0.75rem', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', resize: 'vertical', outline: 'none' }}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.75rem', background: 'rgba(94,59,135,0.04)', borderRadius: 8, fontSize: '0.72rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
+          <strong style={{ color: '#5e3b87' }}>Available variables:</strong> {MSG_VARS}
+        </div>
+
+        <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button onClick={saveMessaging} disabled={messagingSaving || previewReadOnly}
+            style={{ padding: '0.5rem 1.25rem', borderRadius: 8, border: 'none', background: '#5e3b87', color: '#fff',
+              fontSize: '0.825rem', fontWeight: 600, cursor: messagingSaving || previewReadOnly ? 'not-allowed' : 'pointer', opacity: previewReadOnly ? 0.5 : 1, fontFamily: "'DM Sans', sans-serif" }}>
+            {messagingSaving ? 'Saving…' : 'Save messaging'}
+          </button>
+          {messagingSaved && (
+            <span style={{ fontSize: '0.78rem', color: '#1e7a4a', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>✓ Saved</span>
+          )}
+        </div>
       </div>
 
       {/* Number Blocking */}
@@ -1510,7 +1697,7 @@ const AIBehaviour = ({ onNavigate }) => {
 
       {/* Provisional Booking */}
       <div style={s.section}>
-        <h3 style={s.sectionTitle} data-help="Provisional Booking lets your AI offer real appointment slots on your behalf, based on rules you set. It checks your calendar for availability and holds a slot — the caller gets confirmation, you get a notification. Professional and Enterprise only.">Provisional Booking</h3>
+        <h3 style={s.sectionTitle} data-help="Provisional Booking lets your AI offer real appointment slots on your behalf, based on rules you set. It checks your calendar for availability and holds a slot — the caller gets confirmation, you get a notification. Professional and Enterprise only." data-help-score={provisionalBookingEnabled ? 95 : 65}>Provisional Booking</h3>
         <p style={s.sectionSubtitle}>Let your AI offer provisional appointment slots based on your calendar availability.</p>
 
         {!isProfessional ? (
@@ -1667,6 +1854,80 @@ const AIBehaviour = ({ onNavigate }) => {
             </div>
           </>
         )}
+      </div>
+
+      {/* Test your AI */}
+      <div style={{
+        background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)',
+        borderRadius: 16,
+        padding: '1.25rem 1.5rem',
+        marginBottom: '1rem',
+        boxShadow: '0 4px 20px rgba(94,59,135,0.25)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.41 12a19.79 19.79 0 0 1-3-8.59A2 2 0 0 1 3.41 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.22 6.22l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'white', marginBottom: '0.2rem' }}>
+              Test your AI now
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: '0 0 0.85rem', lineHeight: 1.5 }}>
+              Enter your mobile. Q will call you within seconds using your actual configured AI.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                value={demoPhone}
+                onChange={e => setDemoPhone(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && demoState === 'idle' && handleDemoCall()}
+                placeholder="+44 7700 900000"
+                style={{
+                  flex: '1 1 180px', padding: '0.55rem 0.85rem',
+                  borderRadius: 8, border: '1px solid rgba(255,255,255,0.25)',
+                  background: 'rgba(255,255,255,0.1)', color: 'white',
+                  fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif",
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleDemoCall}
+                disabled={demoState === 'calling' || !demoPhone.trim()}
+                style={{
+                  padding: '0.55rem 1.2rem', borderRadius: 8, border: 'none',
+                  background: demoState === 'calling' ? 'rgba(255,255,255,0.15)' : '#f0a500',
+                  color: demoState === 'calling' ? 'rgba(255,255,255,0.5)' : '#1a1a1a',
+                  fontWeight: 700, fontSize: '0.85rem', cursor: demoState === 'calling' ? 'not-allowed' : 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+                }}
+              >
+                {demoState === 'calling' ? 'Calling…' : 'Call me now'}
+              </button>
+            </div>
+            {demoState === 'success' && (
+              <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#a8edca', fontWeight: 500 }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                Call on its way — pick up in a few seconds
+              </div>
+            )}
+            {demoState === 'no_assistant' && (
+              <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: '#fca5a5', fontWeight: 500 }}>
+                Save your AI settings first — the test call uses your real configured AI, not a demo shortcut.
+              </div>
+            )}
+            {demoState === 'error' && (
+              <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: '#fca5a5', fontWeight: 500 }}>
+                Could not start the call. Check the number is correct and try again.
+              </div>
+            )}
+            {!vapiAssistantId && (
+              <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)' }}>
+                No AI assistant configured yet — call will use a generic demo.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Network card */}

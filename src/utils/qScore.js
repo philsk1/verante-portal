@@ -6,16 +6,16 @@ const POSITIVE_OUTCOMES = new Set([
 ])
 
 // Pillar 1: config completeness (0–100) from tenant record
+// greeting_message is excluded — Qerxel owns the greeting, it is always present
 export function configScore(tenant) {
   if (!tenant) return 0
   let pts = 0
-  if (tenant.greeting_message?.trim())       pts += 25
-  if (tenant.additional_instructions?.trim()) pts += 20
-  if (tenant.business_name?.trim())           pts += 15
-  if (tenant.callback_preference_note?.trim()) pts += 15
-  if (tenant.emergency_keywords?.length > 0)  pts += 10
-  if (tenant.lead_contact_name?.trim())        pts += 8
-  if (tenant.booking_link?.trim())             pts += 7
+  if (tenant.additional_instructions?.trim())  pts += 25
+  if (tenant.business_name?.trim())            pts += 20
+  if (tenant.callback_preference_note?.trim()) pts += 20
+  if (tenant.emergency_keywords?.length > 0)   pts += 15
+  if (tenant.lead_contact_name?.trim())         pts += 12
+  if (tenant.booking_link?.trim())              pts += 8
   return Math.min(100, pts)
 }
 
@@ -73,19 +73,25 @@ export function qScore({ tenant, outcomeCounts, weights = { config: 0.4, tool: 0
 
 // Single source of truth for all Answer issues — used by both health score and Q coaching panel.
 // Keeps health score expansion and Q's coaching panel in perfect sync.
-export function buildAnswerIssues(tenant, { catalogueCount = 0, ps = null } = {}) {
+export function buildAnswerIssues(tenant, { catalogueCount = 0, ps = null, messagingSettings = {} } = {}) {
   const issues = []
-  if (!tenant.greeting_message?.trim())         issues.push({ label: 'Write a custom AI greeting',         tab: 'ai',        severity: 'high' })
-  if (!tenant.additional_instructions?.trim())  issues.push({ label: 'Add AI instructions',                tab: 'ai',        severity: 'high' })
-  if (!tenant.opening_hours?.trim())            issues.push({ label: 'Add your opening hours',             tab: 'profile',   severity: 'high' })
-  if (ps !== null && ps < 40)                   issues.push({ label: 'Call capture rate is low',           tab: 'analytics', severity: 'high' })
-  if (!tenant.callback_preference_note?.trim()) issues.push({ label: 'Set callback preference wording',    tab: 'ai',        severity: 'medium' })
-  if (!tenant.booking_link?.trim())             issues.push({ label: 'Add your booking link',              tab: 'ai',        severity: 'medium' })
-  if (catalogueCount === 0)                     issues.push({ label: 'Add services to your catalogue',     tab: 'profile',   severity: 'medium' })
-  if (!tenant.lead_contact_name?.trim())        issues.push({ label: 'Set your name as lead contact',      tab: 'profile',   severity: 'medium' })
-  if (!tenant.sms_followup_enabled)             issues.push({ label: 'Enable SMS follow-up for leads',     tab: 'ai',        severity: 'low' })
-  if (!tenant.provisional_booking_enabled)      issues.push({ label: 'Enable provisional booking',         tab: 'ai',        severity: 'low' })
-  if (!tenant.emergency_keywords?.length)       issues.push({ label: 'Set emergency keywords',             tab: 'ai',        severity: 'low' })
+  if (!tenant.additional_instructions?.trim())  issues.push({ label: 'Add AI instructions',                tab: 'ai',        severity: 'high',   suggestion: 'Tell Q about your business, how you like calls handled, and what to do with different enquiry types. This single field has the most impact on call quality.' })
+  if (!tenant.opening_hours?.trim())            issues.push({ label: 'Add your opening hours',             tab: 'profile',   severity: 'high',   suggestion: "Callers regularly ask when you're open. Without this, Q has to say it doesn't know — which doesn't inspire confidence." })
+  if (ps !== null && ps < 40)                   issues.push({ label: 'Call capture rate is low',           tab: 'analytics', severity: 'high',   suggestion: 'Review recent calls in Analytics — look at which call types end without a positive outcome and adjust your AI behaviour accordingly.' })
+  if (!tenant.callback_preference_note?.trim()) issues.push({ label: 'Set callback preference wording',    tab: 'ai',        severity: 'medium', suggestion: '"Within 2 hours" converts better than "as soon as possible". A specific promise gives callers a reason to wait rather than ring a competitor.' })
+  if (!tenant.booking_link?.trim())             issues.push({ label: 'Add your booking link',              tab: 'profile',   severity: 'medium', suggestion: 'Q quotes your booking link on every relevant call. Without it, motivated callers have nowhere to go.' })
+  if (catalogueCount === 0)                     issues.push({ label: 'Add services to your catalogue',     tab: 'services',  severity: 'medium', suggestion: 'Services give Q the language to talk about your business with confidence. Callers who hear a price convert faster.' })
+  if (!tenant.lead_contact_name?.trim())        issues.push({ label: 'Set your name as lead contact',      tab: 'profile',   severity: 'medium', suggestion: 'Q uses your name when directing callers. "Ask for Sarah" feels personal. "Ask for the owner" does not.' })
+  const anyMsgEnabled = Object.values(messagingSettings).some(m => m?.enabled)
+  const thankyouEnabled = messagingSettings?.call_summary?.enabled
+  if (!anyMsgEnabled) {
+    issues.push({ label: 'Enable after-call messaging', tab: 'ai', severity: 'medium', suggestion: 'After-call messages close the loop with every caller. The thank-you message alone significantly improves caller perception — takes 30 seconds to set up.' })
+  } else {
+    if (!thankyouEnabled)                issues.push({ label: 'Enable the thank-you message',   tab: 'ai', severity: 'low', suggestion: 'The callback confirmation message is the most-sent after-call message. It reassures callers someone will be in touch and reduces repeat calls.' })
+    if (!tenant.sms_followup_enabled)   issues.push({ label: 'Enable SMS follow-up for leads', tab: 'ai', severity: 'low', suggestion: 'Fires only when a lead is captured — the caller gave contact details and asked about your services. A targeted nudge while you\'re busy.' })
+  }
+  if (!tenant.provisional_booking_enabled)      issues.push({ label: 'Enable provisional booking',         tab: 'ai',        severity: 'low',    suggestion: 'Lets Q hold a slot for callers without waiting for your confirmation. Reduces the number who drift away before you call back.' })
+  if (!tenant.emergency_keywords?.length)       issues.push({ label: 'Set emergency keywords',             tab: 'ai',        severity: 'low',    suggestion: "Words like 'urgent' or 'emergency' trigger immediate escalation to you. Essential for any trade where delayed response has consequences." })
   return issues
 }
 
@@ -99,16 +105,16 @@ export function answerChannelHealth(tenant, ps, catalogueCount = 0) {
 export function scheduleChannelHealth({ staffCount = 0, availabilityCount = 0, catalogueCount = 0 }) {
   const issues = []
   let pts = 100
-  if (staffCount === 0)        { issues.push({ label: 'Add at least one staff member',         tab: 'team',    severity: 'high' });   pts -= 40 }
-  if (availabilityCount === 0) { issues.push({ label: 'Set staff working hours',               tab: 'team',    severity: 'high' });   pts -= 30 }
-  if (catalogueCount === 0)    { issues.push({ label: 'Add services to your catalogue',        tab: 'profile', severity: 'medium' }); pts -= 30 }
+  if (staffCount === 0)        { issues.push({ label: 'Add at least one staff member',  tab: 'team',    severity: 'high',   suggestion: 'Add yourself as a staff member first — this unlocks availability management and makes you bookable.' });   pts -= 40 }
+  if (availabilityCount === 0) { issues.push({ label: 'Set staff working hours',        tab: 'team',    severity: 'high',   suggestion: 'Without working hours, customers can\'t see when to book. Set your availability and the calendar opens up.' });   pts -= 30 }
+  if (catalogueCount === 0)    { issues.push({ label: 'Add services to your catalogue', tab: 'services', severity: 'medium', suggestion: 'Services are what customers choose when booking. Add at least one to make the booking flow usable.' }); pts -= 30 }
   return { id: 'schedule', label: 'Schedule', score: Math.max(0, pts), issues }
 }
 
 export function sentryChannelHealth({ zonesCount = 0 }) {
   const issues = []
   let pts = 100
-  if (zonesCount === 0) { issues.push({ label: 'No stations defined — Sentry has nothing to watch', tab: 'sentry', severity: 'high' }); pts -= 80 }
+  if (zonesCount === 0) { issues.push({ label: 'No stations defined — Sentry has nothing to watch', tab: 'sentry', severity: 'high', suggestion: 'Go to Sentry and draw your first monitoring zone on the canvas. Q needs at least one zone to start watching.' }); pts -= 80 }
   return { id: 'sentry', label: 'Sentry', score: Math.max(0, pts), issues }
 }
 

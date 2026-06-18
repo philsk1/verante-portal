@@ -1,17 +1,26 @@
-// Consolidates owner-tenants, scrape-website, and demo-init.
-// POST { userEmail }              → return all tenants (owner only)
-// POST { url }                    → scrape website and extract business fields
-// POST { ownerEmail, action: 'demo-init' } → seed 4 demo tenant accounts (owner only)
+// Consolidates owner-tenants, scrape-website, demo-init, support data, and warden snapshots.
+// POST { userEmail }                              → return all tenants (owner only)
+// POST { url }                                    → scrape website and extract business fields
+// POST { ownerEmail, action: 'demo-init' }        → seed demo tenant accounts (owner only)
+// POST { ownerEmail, action: 'support-dashboard'} → support calls + incidents + policy (owner only)
+// POST { ownerEmail, action: 'support-policy-save', policyText, ... } → update support_policy (owner only)
+// POST { ownerEmail, action: 'incident-create', ... }   → log a new incident (owner only)
+// POST { ownerEmail, action: 'incident-resolve', id, ... } → mark incident resolved + calc compensation (owner only)
+// GET  ?type=warden                               → warden snapshot (cron, hourly)
+// GET  ?type=meaning-map                          → meaning tree + unmatched interactions (owner)
 
 import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
+import { emitSignal } from './_signals.js'
 
 const supabase = createClient(
   'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const OWNER_EMAIL  = 'finsolsoffice@gmail.com'
+const OWNER_EMAILS = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
+const OWNER_EMAIL  = OWNER_EMAILS[0]
+const isOwner = (email) => OWNER_EMAILS.includes(email)
 const DEMO_PASSWORD = 'QerxelDemo2026!'
 
 const EXTRACTION_PROMPT = `You are extracting business information from a UK business website.
@@ -244,16 +253,136 @@ function generateLeads(tenantId, biz) {
   return biz.leadNames.slice(0, 8).map((name, i) => ({ tenant_id: tenantId, created_at: daysAgo(rnd(0, 6)).toISOString(), status: statuses[i % statuses.length], lead_contact_name: name, ai_summary: biz.callSummaries[i % biz.callSummaries.length], notes: notes[i] }))
 }
 
+// ── Warden snapshot (called hourly by cron) ────────────────────────────────────
+
+async function handleWardenSnapshot(res) {
+  const PERIOD_HOURS = 1
+  const since = new Date(Date.now() - PERIOD_HOURS * 60 * 60 * 1000).toISOString()
+
+  const { data: signals } = await supabase
+    .from('system_signals')
+    .select('element, signal_type, payload, created_at')
+    .gte('created_at', since)
+    .neq('signal_type', 'warden_snapshot')
+
+  const byElement = {}
+  for (const sig of signals || []) {
+    if (!byElement[sig.element]) {
+      byElement[sig.element] = { total: 0, errors: 0, calls: 0, chat_turns: 0, cat_a: 0 }
+    }
+    const el = byElement[sig.element]
+    el.total++
+    if (sig.signal_type === 'error')            el.errors++
+    if (sig.signal_type === 'call_completed')   el.calls++
+    if (sig.signal_type === 'call_support_done') el.calls++
+    if (sig.signal_type === 'chat_turn')        el.chat_turns++
+    if (sig.payload?.complaint_category === 'A') el.cat_a++
+  }
+
+  const elementSummaries = {}
+  const stressFlags = []
+
+  for (const [element, data] of Object.entries(byElement)) {
+    const errorRate = data.total > 0 ? Math.round((data.errors / data.total) * 100) / 100 : 0
+    elementSummaries[element] = {
+      signal_count: data.total,
+      errors:       data.errors,
+      error_rate:   errorRate,
+      calls:        data.calls,
+      chat_turns:   data.chat_turns,
+    }
+    if (errorRate > 0.1)  stressFlags.push(`${element}:error_rate_elevated`)
+    if (data.cat_a >= 2)  stressFlags.push(`support:category_a_spike:${data.cat_a}`)
+  }
+
+  const snapshot = {
+    period_hours:  PERIOD_HOURS,
+    period_start:  since,
+    total_signals: (signals || []).length,
+    elements:      elementSummaries,
+    stress_flags:  stressFlags,
+  }
+
+  await emitSignal('warden', 'warden_snapshot', snapshot)
+
+  // Clean up expired ephemeral demo tenants
+  const { data: expired } = await supabase
+    .from('tenants')
+    .select('id, demo_user_id')
+    .eq('is_ephemeral', true)
+    .lt('expires_at', new Date().toISOString())
+
+  for (const t of (expired || [])) {
+    await Promise.all([
+      supabase.from('catalogue_items').delete().eq('tenant_id', t.id),
+      supabase.from('staff_profiles').delete().eq('tenant_id', t.id),
+      supabase.from('leads').delete().eq('tenant_id', t.id),
+      supabase.from('call_logs').delete().eq('tenant_id', t.id),
+      supabase.from('appointments').delete().eq('tenant_id', t.id),
+      supabase.from('tenant_memberships').delete().eq('tenant_id', t.id),
+    ])
+    await supabase.from('tenants').delete().eq('id', t.id)
+    if (t.demo_user_id) {
+      await supabase.auth.admin.deleteUser(t.demo_user_id).catch(() => {})
+    }
+    console.log(`Warden: deleted expired demo tenant ${t.id}`)
+  }
+
+  return res.status(200).json({ ok: true, snapshot, demoTenantsExpired: (expired || []).length })
+}
+
+// ── Meaning map (tree + unmatched interactions) ───────────────────────────────
+
+async function handleMeaningMap(res) {
+  const [nodesRes, unmatchedRes] = await Promise.all([
+    supabase
+      .from('meaning_map')
+      .select('id, parent_id, level, label, kb_chunk_file, occurrence_count, last_occurred_at, status, created_at')
+      .order('level')
+      .order('occurrence_count', { ascending: false }),
+    supabase
+      .from('q_chat_logs')
+      .select('id, handler, zone_name, user_message, created_at')
+      .is('meaning_id', null)
+      .not('user_message', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
+
+  const nodes     = nodesRes.data     || []
+  const unmatched = unmatchedRes.data || []
+
+  // Build tree: trunk → branches (with summed twig counts) → twigs
+  const trunk    = nodes.find(n => n.level === 'trunk')
+  const branches = nodes.filter(n => n.level === 'branch').map(b => {
+    const twigs         = nodes.filter(n => n.level === 'twig' && n.parent_id === b.id)
+    const totalCount    = twigs.reduce((s, t) => s + (t.occurrence_count || 0), 0)
+    const topTwigs      = [...twigs].sort((a, b2) => (b2.occurrence_count || 0) - (a.occurrence_count || 0)).slice(0, 8)
+    return { ...b, twig_count: twigs.length, total_occurrences: totalCount, top_twigs: topTwigs }
+  }).sort((a, b) => b.total_occurrences - a.total_occurrences)
+
+  const proposals = nodes.filter(n => n.status === 'proposed')
+
+  return res.status(200).json({ trunk, branches, proposals, unmatched })
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  // GET — cron endpoints (no auth, called by Vercel scheduler)
+  if (req.method === 'GET') {
+    if (req.query.type === 'warden')      return handleWardenSnapshot(res)
+    if (req.query.type === 'meaning-map') return handleMeaningMap(res)
+    return res.status(400).json({ error: 'Unknown type' })
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const { userEmail, url, ownerEmail, action } = req.body
 
   // ── demo-init ──────────────────────────────────────────────────────────────
   if (action === 'demo-init') {
-    if (ownerEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
+    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
     const log = []
     try {
       // Step 1: wipe existing demo tenant data only (auth users are never deleted/recreated)
@@ -341,12 +470,14 @@ export default async function handler(req, res) {
 
   // ── owner-tenants ──────────────────────────────────────────────────────────
   if (userEmail !== undefined) {
-    if (userEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
+    if (!isOwner(userEmail)) return res.status(403).json({ error: 'Forbidden' })
 
     const [tenantsRes, callsRes, apptsRes, catRes, staffRes] = await Promise.all([
       supabase.from('tenants').select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_camera_limit, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo, holiday_mode, greeting_message, additional_instructions, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, keep_alive_topics, blocked_phone_numbers').order('business_name'),
       supabase.from('call_logs').select('tenant_id, call_outcome, callback_flagged, created_at'),
-      supabase.from('appointments').select('tenant_id, status, start_time'),
+      supabase.from('appointments').select('tenant_id, status, start_time')
+        .gte('start_time', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+        .lte('start_time', new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()),
       supabase.from('catalogue_items').select('tenant_id, duration_minutes').eq('active', true),
       supabase.from('staff_profiles').select('tenant_id').or('active.eq.true,active.is.null'),
     ])
@@ -372,7 +503,8 @@ export default async function handler(req, res) {
     // Build per-tenant appointment stats
     const apptStats = {}
     for (const a of apptsRes.data || []) {
-      const s = apptStats[a.tenant_id] || (apptStats[a.tenant_id] = { upcoming: 0, pastTotal: 0, pastCancelled: 0 })
+      const s = apptStats[a.tenant_id] || (apptStats[a.tenant_id] = { upcoming: 0, pastTotal: 0, pastCancelled: 0, totalCount: 0 })
+      s.totalCount++
       const t = new Date(a.start_time)
       if (t > now && t < fwd14 && a.status === 'confirmed') s.upcoming++
       if (t < now) {
@@ -426,6 +558,7 @@ export default async function handler(req, res) {
           escalOpen: calls.escalOpen,
           callbacksQueued: calls.flagged,
           upcoming: appts.upcoming,
+          totalAppts: appts.totalCount || 0,
           cancelRate: Math.round(cancelRate * 100),
           catalogueItems: cat.count,
           staffCount: staffN,
@@ -436,6 +569,169 @@ export default async function handler(req, res) {
     })
 
     return res.status(200).json({ tenants })
+  }
+
+  // ── support-dashboard ─────────────────────────────────────────────────────
+  if (action === 'support-dashboard') {
+    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+
+    const [callsRes, incidentsRes, compRes, policyRes] = await Promise.all([
+      supabase
+        .from('support_calls')
+        .select('id, tenant_id, caller_phone, duration_seconds, complaint_category, frustration_level, complaint_summary, gift_given, resolution, requires_escalation, ai_summary, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('incidents')
+        .select('*')
+        .order('started_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('compensation_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('support_policy')
+        .select('*')
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    // Enrich support calls with tenant names
+    const tenantIds = [...new Set((callsRes.data || []).map(c => c.tenant_id).filter(Boolean))]
+    let tenantNames = {}
+    if (tenantIds.length) {
+      const { data: tenants } = await supabase
+        .from('tenants').select('id, business_name').in('id', tenantIds)
+      for (const t of tenants || []) tenantNames[t.id] = t.business_name
+    }
+
+    const calls = (callsRes.data || []).map(c => ({
+      ...c,
+      business_name: tenantNames[c.tenant_id] || null,
+    }))
+
+    return res.status(200).json({
+      calls,
+      incidents: incidentsRes.data || [],
+      compensation: compRes.data || [],
+      policy: policyRes.data || null,
+    })
+  }
+
+  // ── support-policy-save ────────────────────────────────────────────────────
+  if (action === 'support-policy-save') {
+    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+
+    const { policyText, freeMinutesPerCall, maxStrikes, escalationEmail, escalationWhatsapp } = req.body
+
+    // Upsert — there is only ever one support_policy row
+    const { data: existing } = await supabase.from('support_policy').select('id').limit(1).maybeSingle()
+
+    const payload = {
+      policy_text:           policyText,
+      free_minutes_per_call: freeMinutesPerCall ?? 10,
+      max_strikes:           maxStrikes ?? 2,
+      escalation_email:      escalationEmail || null,
+      escalation_whatsapp:   escalationWhatsapp || null,
+      updated_at:            new Date().toISOString(),
+    }
+
+    if (existing?.id) {
+      await supabase.from('support_policy').update(payload).eq('id', existing.id)
+    } else {
+      await supabase.from('support_policy').insert(payload)
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── incident-create ────────────────────────────────────────────────────────
+  if (action === 'incident-create') {
+    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+
+    const { title, description, startedAt, scope, affectedTenantIds } = req.body
+    if (!title || !startedAt) return res.status(400).json({ error: 'title and startedAt required' })
+
+    const { data: incident, error } = await supabase.from('incidents').insert({
+      title,
+      description: description || null,
+      started_at:  startedAt,
+      scope:       scope || 'all',
+      affected_tenant_ids: affectedTenantIds || null,
+      status: 'active',
+      compensation_rate: 10,
+    }).select().maybeSingle()
+
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ incident })
+  }
+
+  // ── incident-resolve ───────────────────────────────────────────────────────
+  if (action === 'incident-resolve') {
+    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+
+    const { id: incidentId, endedAt } = req.body
+    if (!incidentId || !endedAt) return res.status(400).json({ error: 'id and endedAt required' })
+
+    // Mark incident resolved
+    const { data: incident } = await supabase
+      .from('incidents')
+      .update({ ended_at: endedAt, status: 'compensated' })
+      .eq('id', incidentId)
+      .select()
+      .maybeSingle()
+
+    if (!incident) return res.status(404).json({ error: 'Incident not found' })
+
+    const startMs  = new Date(incident.started_at).getTime()
+    const endMs    = new Date(endedAt).getTime()
+    const downtimeMinutes = Math.round((endMs - startMs) / 60000)
+
+    // Determine affected tenants
+    let affectedTenants = []
+    if (incident.scope === 'all' || !incident.affected_tenant_ids?.length) {
+      const { data: all } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').not('subscription_tier', 'eq', 'free')
+      affectedTenants = all || []
+    } else {
+      const { data: specific } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').in('id', incident.affected_tenant_ids)
+      affectedTenants = specific || []
+    }
+
+    // Tier monthly value estimates (pro-rate to downtime) — approximate
+    const TIER_MONTHLY = { light: 29, standard: 49, professional: 69, enterprise: 249, bespoke: 299 }
+
+    const compensationRows = affectedTenants.map(t => {
+      const monthlyGbp   = TIER_MONTHLY[t.subscription_tier] || 49
+      const minutesInMonth = 30 * 24 * 60
+      const downtimeValue  = (monthlyGbp / minutesInMonth) * downtimeMinutes
+      const compensation   = Math.round(downtimeValue * 10 * 100) / 100 // 10x, 2dp
+      return {
+        incident_id:      incidentId,
+        tenant_id:        t.id,
+        downtime_minutes: downtimeMinutes,
+        tier:             t.subscription_tier,
+        compensation_gbp: compensation,
+        status:           'pending',
+      }
+    })
+
+    if (compensationRows.length) {
+      await supabase.from('compensation_log').insert(compensationRows)
+    }
+
+    const totalCompensation = compensationRows.reduce((s, r) => s + (r.compensation_gbp || 0), 0)
+    await supabase.from('incidents').update({ total_compensation_gbp: Math.round(totalCompensation * 100) / 100 }).eq('id', incidentId)
+
+    return res.status(200).json({
+      ok: true,
+      incident_id: incidentId,
+      affected_tenants: affectedTenants.length,
+      downtime_minutes: downtimeMinutes,
+      total_compensation_gbp: Math.round(totalCompensation * 100) / 100,
+      compensation_rows: compensationRows.length,
+    })
   }
 
   // ── scrape-website ─────────────────────────────────────────────────────────

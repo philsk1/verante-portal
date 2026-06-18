@@ -580,7 +580,7 @@ function IntegrationCard({ integration, tenantId, isPreview, previewReadOnly, ex
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
-                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=xero&tenantId=${tenantId}` }}
+                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent?provider=xero&tenantId=${tenantId}` }}
                   disabled={!tenantId || previewReadOnly}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >
@@ -636,7 +636,7 @@ function IntegrationCard({ integration, tenantId, isPreview, previewReadOnly, ex
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setExpandedId(null)} style={{ ...s.connectBtn, fontSize: '0.8rem' }}>Cancel</button>
                 <button
-                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent-oauth?provider=freeagent&tenantId=${tenantId}` }}
+                  onClick={() => { if (!tenantId || isPreview) return; window.location.href = `/api/freeagent?provider=freeagent&tenantId=${tenantId}` }}
                   disabled={!tenantId || previewReadOnly}
                   style={{ padding: '0.45rem 1rem', border: 'none', borderRadius: '6px', background: '#f0a500', color: '#1a0533', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                 >

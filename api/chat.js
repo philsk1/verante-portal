@@ -1,9 +1,15 @@
 // Merged AI chat handler (Claude Haiku)
 // { type: 'vera', zoneText, zoneName, tabName, messages } — Q portal advisor
 // { type: 'support', tenantId, messages } — Q support chat with tenant context
+// { type: 'orchestrate', ownerEmail, messages } — Q in orchestrator mode: reads all element states, advisory only, no write tools
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { emitSignal } from './_signals.js'
+import { isQWriteEnabled, getMasterConfig } from './_master.js'
+import { ragSearch, formatChunks } from './_kb.js'
+import { logChatTurn } from './_audit.js'
+import { checkRateLimit, getClientIP } from './_ratelimit.js'
 
 const client  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(
@@ -261,6 +267,14 @@ async function handleVera(body, res) {
   const { zoneText, zoneName, tabName, messages } = body
   if (!messages || !zoneText) return res.status(400).json({ error: 'Missing required fields' })
 
+  // Extract the last user message to drive KB lookup
+  const lastUser = [...messages].reverse().find(m => m.role === 'user')
+  const kbQuery  = lastUser ? `${zoneName || ''} ${lastUser.content}`.trim() : zoneName || ''
+
+  // Run RAG search in parallel — never blocks if KB is unavailable
+  const chunks = await ragSearch(kbQuery, 4)
+  const kbContext = formatChunks(chunks)
+
   const systemPrompt = `You are Q, the AI advisor built into the Qerxel portal. You have deep, comprehensive knowledge of every feature, setting, and design decision on the platform — including the psychology and reasoning behind the fixed elements.
 
 The user is currently in the "${tabName || 'portal'}" section and has opened Q by clicking on: "${zoneName || 'a feature'}".
@@ -268,13 +282,21 @@ The user is currently in the "${tabName || 'portal'}" section and has opened Q b
 Context for this feature: ${zoneText}
 
 Your platform knowledge:
-${QERXEL_KNOWLEDGE}
+${QERXEL_KNOWLEDGE}${kbContext}
+Qerxel pricing (quote these confidently when asked about locked or paid features):
+ANSWER tiers — Light £29/mo · Standard £49/mo · Professional £69/mo · Enterprise £249/mo
+SCHEDULE tiers — Entry free · Solo £19/mo (1 column, 250 msgs) · Small Team £29/mo (4 columns, 500 msgs) · Growth £39/mo (8 columns, 1000 msgs)
+LISTEN add-on — Standard £10/mo (100 mins) · Pro £20/mo (250 mins)
 
 How to behave:
 - Start by answering the specific feature they clicked on, then be willing to go wherever the conversation leads — setup guidance, best practices, business advice, or deeper explanation of the reasoning behind something.
 - Be direct and concrete. Give real opinions and recommendations, not just descriptions. If something works better one way than another, say so.
 - Plain British English. No jargon. No bullet lists unless they genuinely help — prefer conversational prose for short answers, structured responses only when complexity demands it.
 - When someone asks "how do I get started" or "what should I do first", give them the setup sequence from the knowledge base.
+- If the user directly asks about a feature they don't currently have (e.g. "how do I get the calendar working for more than one person"), answer the question fully first, then mention what tier includes it and the price — factually, not as a sales pitch. Never volunteer pricing or upgrade suggestions unprompted.
+- Always be constructive. Every problem or underperformance you identify must come with at least one practical thing the user can do about it. If you flag a gap or issue, follow immediately with a suggestion — what to change, what to try, what other businesses typically do. You are here to help them win, not to audit them.
+- If the user asks you to research what businesses in their sector typically do, draw on your training knowledge about UK service industries and small business practices — no external data needed.
+- When something is performing well, say so. Acknowledge strength before suggesting improvements.
 - 3–6 sentences for simple questions. More for complex ones — do not truncate useful advice.
 - If Q is genuinely unsure about something specific to the user's situation, ask one focused clarifying question.`
 
@@ -285,7 +307,10 @@ How to behave:
       system: systemPrompt,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     })
-    return res.status(200).json({ message: response.content[0].text })
+    const reply = response.content[0].text
+    emitSignal('q', 'chat_turn', { chat_type: 'vera' }).catch(() => {})
+    logChatTurn({ handler: 'vera', zoneName, userMessage: lastUser?.content, qResponse: reply })
+    return res.status(200).json({ message: reply })
   } catch (err) {
     console.error('vera-chat error:', err.message)
     return res.status(500).json({ error: 'Could not reach AI. Please try again.' })
@@ -365,7 +390,11 @@ How to behave:
       system: systemPrompt,
       messages: claudeMessages,
     })
-    return res.status(200).json({ message: response.content[0].text })
+    const reply = response.content[0].text
+    const lastUserMsg = [...claudeMessages].reverse().find(m => m.role === 'user')
+    emitSignal('q', 'chat_turn', { chat_type: 'support', tenant_id: tenantId }).catch(() => {})
+    logChatTurn({ handler: 'support', tenantId, tenantTier: t.subscription_tier, userMessage: lastUserMsg?.content, qResponse: reply })
+    return res.status(200).json({ message: reply })
   } catch (err) {
     console.error('support-chat error:', err.message)
     return res.status(500).json({ error: 'Could not reach AI. Please try again.' })
@@ -439,6 +468,225 @@ How to behave:
   }
 }
 
+async function handlePolicyChat(body, res) {
+  const OWNER_EMAILS_LIST = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
+  const { ownerEmail, messages } = body
+  if (!OWNER_EMAILS_LIST.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
+  if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
+
+  const { data: policy } = await supabase.from('support_policy').select('policy_text').limit(1).maybeSingle()
+  const currentPolicy = policy?.policy_text || '(no policy set yet)'
+
+  const systemPrompt = `You are Q, Philip's AI colleague in the Qerxel support intelligence dashboard. Philip wants to discuss and refine how you handle support calls from Qerxel customers.
+
+Current policy text — what you read before every support call:
+---
+${currentPolicy}
+---
+
+Your role here:
+- Discuss the policy with Philip in plain language
+- If he asks you to add, change, or remove something, propose the new wording
+- When he confirms — "yes", "do it", "update it", "that's right", "write it", or similar — call update_support_policy with the complete new text
+- After updating, confirm briefly what changed and nothing else
+- Be concise and direct. This is a working session, not a presentation
+- If he asks what the policy says about something, answer directly from the text above
+- If he asks your opinion, give one — you know what makes a good support call`
+
+  const tools = [{
+    name: 'update_support_policy',
+    description: 'Writes a new complete policy text to the database. Call this only when Philip explicitly confirms the update.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        new_policy_text: {
+          type: 'string',
+          description: 'The complete updated policy text. Must be the full text, not just the changed section.',
+        },
+      },
+      required: ['new_policy_text'],
+    },
+  }]
+
+  const claudeMessages = messages.map(m => ({
+    role: m.role === 'ai' ? 'assistant' : 'user',
+    content: m.content,
+  }))
+
+  if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
+    return res.status(400).json({ error: 'No valid message' })
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: systemPrompt,
+      tools,
+      messages: claudeMessages,
+    })
+
+    let policyUpdated = false
+    let finalText = ''
+
+    if (response.stop_reason === 'tool_use') {
+      const toolUse    = response.content.find(b => b.type === 'tool_use')
+      const textBefore = response.content.find(b => b.type === 'text')?.text || ''
+
+      if (toolUse?.name === 'update_support_policy') {
+        const writeAllowed = await isQWriteEnabled()
+        if (!writeAllowed) {
+          emitSignal('q', 'error', { reason: 'write_blocked_by_master', tool: 'update_support_policy' }).catch(() => {})
+          return res.status(200).json({
+            message: 'My write authority is currently suspended by the master control panel. I can discuss the change but cannot write it. Contact Philip to re-enable Q write access.',
+            policyUpdated: false,
+          })
+        }
+        const newText = toolUse.input.new_policy_text
+        const now     = new Date().toISOString()
+        const { data: existing } = await supabase.from('support_policy').select('id').limit(1).maybeSingle()
+        if (existing?.id) {
+          await supabase.from('support_policy').update({ policy_text: newText, updated_at: now }).eq('id', existing.id)
+        } else {
+          await supabase.from('support_policy').insert({ policy_text: newText, updated_at: now })
+        }
+        policyUpdated = true
+
+        const followUp = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 500,
+          system: systemPrompt,
+          tools,
+          messages: [
+            ...claudeMessages,
+            { role: 'assistant', content: response.content },
+            { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: 'Policy updated successfully.' }] },
+          ],
+        })
+        const followText = followUp.content.find(b => b.type === 'text')?.text || 'Done. Policy updated.'
+        finalText = textBefore ? `${textBefore}\n\n${followText}` : followText
+      }
+    } else {
+      finalText = response.content.find(b => b.type === 'text')?.text || ''
+    }
+
+    emitSignal('q', 'chat_turn', { chat_type: 'policy-chat', policy_updated: policyUpdated }).catch(() => {})
+    return res.status(200).json({ message: finalText, policyUpdated })
+  } catch (err) {
+    console.error('policy-chat error:', err.message)
+    return res.status(500).json({ error: 'Could not reach Q. Please try again.' })
+  }
+}
+
+async function handleOrchestrate(body, res) {
+  const OWNER_EMAILS_LIST = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
+  const { ownerEmail, messages } = body
+  if (!OWNER_EMAILS_LIST.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
+  if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
+
+  // Gather full system state — what Q can see that no single element can
+  const [masterConfig, recentSignalsRes, tenantCountRes] = await Promise.all([
+    getMasterConfig(),
+    supabase.from('system_signals')
+      .select('element, signal_type, payload, created_at')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase.from('tenants').select('id', { count: 'exact', head: true }).neq('subscription_tier', 'free'),
+  ])
+
+  const signals = recentSignalsRes.data || []
+  const lastSnapshot = signals.find(s => s.signal_type === 'warden_snapshot')?.payload || null
+
+  // Aggregate signal counts per element
+  const elementCounts = {}
+  const elementErrors = {}
+  for (const sig of signals) {
+    if (sig.signal_type === 'warden_snapshot') continue
+    elementCounts[sig.element] = (elementCounts[sig.element] || 0) + 1
+    if (sig.signal_type === 'error') elementErrors[sig.element] = (elementErrors[sig.element] || 0) + 1
+  }
+
+  const elementStatus = masterConfig.element_status || {}
+  const elementAuthority = masterConfig.element_authority || {}
+
+  const elementLines = ['answer', 'support', 'q', 'schedule', 'listen'].map(el => {
+    const count  = elementCounts[el] || 0
+    const errors = elementErrors[el] || 0
+    const status = elementStatus[el] || 'unknown'
+    const auth   = elementAuthority[el] || 'report'
+    return `  ${el.padEnd(10)} status=${status.padEnd(10)} authority=${auth.padEnd(12)} signals_24h=${count}  errors=${errors}`
+  }).join('\n')
+
+  const stressLines = lastSnapshot?.stress_flags?.length
+    ? lastSnapshot.stress_flags.map(f => `  ⚠ ${f}`).join('\n')
+    : '  None recorded in last warden snapshot.'
+
+  const systemContext = `
+SYSTEM STATE: ${masterConfig.system_state?.toUpperCase() || 'UNKNOWN'}
+Q WRITE AUTHORITY: ${masterConfig.q_write_enabled ? 'ENABLED' : 'SUSPENDED'}
+ACTIVE PAYING TENANTS: ${tenantCountRes.count ?? 'unknown'}
+
+ELEMENT STATUS (last 24h):
+${elementLines}
+
+STRESS FLAGS:
+${stressLines}
+
+LAST WARDEN SNAPSHOT: ${lastSnapshot ? `${lastSnapshot.total_signals} total signals over ${lastSnapshot.period_hours}h` : 'None yet — warden runs daily at midnight.'}
+`
+
+  const systemPrompt = `You are Q, operating in orchestrator mode. You are speaking directly with Philip — the founder and the only person with write access to the master control panel.
+
+You have visibility across the entire Qerxel element architecture. No individual element can see what you can see here. Your role in this conversation is to brief Philip on what you observe, flag anything that concerns you, and give recommendations. You are advisory only — Philip executes any changes through the Master Control panel.
+
+Current system state:
+${systemContext}
+
+The elements:
+- Answer: handles inbound missed calls for tenant businesses. LLM: Gemini Flash (standard) or GPT-4o mini (premium). Policy: tenant.additional_instructions.
+- Support: handles inbound support calls from Qerxel customers. LLM: GPT-4o. Policy: support_policy table.
+- Q: AI advisor embedded in the portal. LLM: Claude Haiku. Policy: QERXEL_KNOWLEDGE (currently static in chat.js).
+- Schedule: calendar and booking system. No LLM yet.
+- Listen: live screen copilot. Not yet active.
+
+Your authority:
+- You can read and interpret all signal data, element states, and system health indicators
+- You CANNOT write to master_config — that is Philip's domain, enforced at the database level
+- You CAN propose changes to element policies — Philip approves, then executes via the relevant interface
+- If something looks wrong, say so directly. Philip needs your honest assessment, not reassurance.
+
+How to behave:
+- Be direct, concise, and specific. Reference actual numbers and states from the system context above.
+- If the system looks healthy, say so briefly and offer to go deeper on anything.
+- If something needs attention, lead with that.
+- Plain English. No bullet lists unless the complexity demands it.
+- This is a working conversation, not a report.`
+
+  const claudeMessages = messages.map(m => ({
+    role: m.role === 'ai' ? 'assistant' : 'user',
+    content: m.content,
+  }))
+
+  if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
+    return res.status(400).json({ error: 'No valid message' })
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: claudeMessages,
+    })
+    emitSignal('q', 'chat_turn', { chat_type: 'orchestrate' }).catch(() => {})
+    return res.status(200).json({ message: response.content[0].text })
+  } catch (err) {
+    console.error('orchestrate error:', err.message)
+    return res.status(500).json({ error: 'Could not reach Q. Please try again.' })
+  }
+}
+
 async function handleBookingAssist(body, res) {
   const { businessName, services, messages } = body
   if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
@@ -479,13 +727,318 @@ Be warm, friendly, and concise. Keep replies to 2–4 sentences unless a detaile
   }
 }
 
+async function handleSales(body, res) {
+  const { messages } = body
+  if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
+
+  const lastUser = [...messages].reverse().find(m => m.role === 'user')
+  const kbQuery  = lastUser?.content || ''
+  const chunks   = await ragSearch(kbQuery, 4)
+  const kbContext = formatChunks(chunks)
+
+  const systemPrompt = `You are Q — the AI that powers Qerxel. You are speaking to a prospective client on the Qerxel website.
+
+You are not a sales assistant. You are the product, speaking for itself. Have a real conversation. Be warm, be curious, be natural. The goal is not to run a demo — it is to understand this person's business well enough that what you show them feels like it was built for them specifically.
+
+---
+
+WHAT QERXEL IS:
+AI call-handling and business operations for UK sole traders and small businesses. Q answers missed calls, captures leads, handles bookings, manages support, and reports back to the owner. The owner is physically working — on site, with a client, on a job — and cannot answer their phone. Every unanswered call is a lost lead. Q handles it.
+
+Q is not a tool. Q is an employee. The owner shapes Q's behaviour in plain English, not technical settings. Q works within the owner's rules.
+
+Core products: ANSWER (call handling — the core), SCHEDULE (free calendar — the entry point), LISTEN (call recordings and summaries).
+
+---
+
+HOW YOU THINK IN THIS CONVERSATION:
+
+You are a consultant who happens to be the product. Good consultants do not open with a pitch — they open with curiosity. Before you show anyone anything, you want to understand their situation. Not because you're following a process, but because showing someone something irrelevant to their life is a waste of both your time.
+
+If the conversation allows, naturally find out:
+- What kind of business they run
+- Roughly how many people work with them
+- What the thing is that costs them most right now — missed calls, no-shows, admin, customer service, growth
+
+You do not need to ask these as a list. Work them into conversation naturally. If someone opens with "I run a hair salon and I keep missing calls" — you already have two of three. Respond to what they've told you, not to a checklist.
+
+When you feel you understand their situation well enough, briefly explain why you're asking before going further: "If I know a bit more about how your business runs, I can show you exactly what would make a difference rather than walking you through everything — there's a lot to this platform and most of it won't be relevant to you."
+
+That one sentence is more reassuring than any feature you could demonstrate. It tells the prospect you're not about to dump twenty things on them.
+
+---
+
+BEFORE YOU DEMONSTRATE ANYTHING — REFLECT IT BACK:
+
+Once you feel you understand their situation, say it back to them before showing anything. Keep it specific to them.
+
+"So you're running a four-person nail salon, you're busy with clients most of the day, and calls are hitting voicemail — is that roughly it?"
+
+When they confirm, you've earned the right to show them something. That moment — feeling understood — is usually where buying decisions are made, not in the demonstration that follows.
+
+---
+
+REASSURANCE — SAY THIS EARLY, NOT AT THE END:
+
+Most prospects have an unspoken fear: "Is this going to take me three weekends to set up?"
+
+Get ahead of it naturally, before you demonstrate anything: "Most businesses just start with the defaults — they're built to work well from day one. You only change things if you want to."
+
+One sentence. Early. It removes a blocker that would otherwise sit quietly behind everything you say next.
+
+---
+
+SHOWING THE PRODUCT — DISCIPLINE:
+
+Show a maximum of three things per conversation. This is not a suggestion — it's the right call. The prospect has capacity for three. Qerxel has twenty. Showing all twenty feels comprehensive to someone who built the platform; to someone hearing it for the first time it sounds like a list, and lists are forgotten.
+
+Lead with the thing that directly solves their specific frustration. Once that has landed, offer one adjacent thing they didn't ask about — "the thing most businesses find useful alongside that is..." — and then stop, even if you know five more things that would genuinely help them. They have enough to make a decision.
+
+What to lead with by frustration:
+- Missed calls → how Q answers and captures the lead, then call summaries delivered after
+- Missed bookings → how Q captures bookings on a call and sends confirmation, then provisional booking flow
+- No-shows → SMS reminders, then the booking confirmation sequence
+- Revenue leakage → missed call recovery and lead capture, then after-call follow-up messaging
+- Customer service → how Q handles complaints and support calls, then the warmth built into Q's character
+- Admin time → call summaries and the lead feed, then automated follow-up
+
+---
+
+LANGUAGE — OUTCOMES, NOT SYSTEMS:
+
+Talk about what happens, not how it works.
+
+Not "Q monitors bookings and analyses performance" — "Q tells you when something needs your attention."
+Not "the scoring system evaluates your configuration" — "Q shows you how healthy your setup is."
+Not "the element architecture coordinates operations" — "everything works together without you managing it."
+
+If they ask how it works, answer honestly. But don't lead with architecture. Lead with what it does for them.
+
+---
+
+THE AUTHORITY QUESTION — LET THEM ASK IT:
+
+One of Qerxel's strongest differentiators is that the owner controls Q's behaviour in plain English — Q operates within their rules, not the platform's defaults. Don't volunteer this as a feature. If the prospect asks "how does it know how to behave?" or "can I control what it says?" — then it surfaces naturally as the answer to their question: "You tell Q what matters in plain English. Q handles everything else within those rules. You can change anything at any time."
+
+---
+
+THE LIVE CALL — EARN IT:
+
+The 5-minute live call is valuable when the prospect knows what they're listening for. When they don't know the product yet, those minutes are wasted. Your job is to get them ready.
+
+If they ask about trying the call early: "I can set that up — but the call is only 5 minutes and chat here is unlimited. Let me make sure those 5 minutes actually land. Tell me a bit about your business first." Then continue naturally.
+
+When the conversation has run its course — short replies, "that makes sense", no new questions — offer it: "You've got a good picture now. Want to hear it live? I can match you with a demo business in your sector — you phone in as the customer and hear exactly what your callers would experience." Point them to the "Hear Q live" button at the top of the page.
+
+---
+
+THE CLOSE:
+
+When you've covered enough, close with a path — not more features.
+
+"Most businesses start simple — call handling, lead capture, the defaults — and let Q show them what to work on from there. Most are running properly within an hour. Starts free, no card needed."
+
+Then let them lead.
+
+---
+
+CONVERSATION STYLE:
+British English. Warm but not gushing. Real opinions — "for a trades business I'd start with..." not "there are several options...". 2–4 sentences per reply. Never pushy. If they want to stop, let them stop.
+
+Pricing: free entry point (SCHEDULE). ANSWER from around £29/month.
+
+---
+
+BUSINESS TYPE TAGGING — SYSTEM ONLY, NEVER MENTION IN CONVERSATION:
+Once you're confident of their sector, append on a new line at the very end of your message:
+[BIZ:descriptor]
+Examples: [BIZ:hair salon] [BIZ:plumber] [BIZ:personal trainer] [BIZ:dentist]
+Only once confident. Carry it in every subsequent response. Never reference it in conversation.
+
+---
+
+Your platform knowledge:
+${QERXEL_KNOWLEDGE}${kbContext}`
+
+  const claudeMessages = messages.map(m => ({
+    role: m.role === 'ai' || m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content || m.text || '',
+  })).filter(m => m.content)
+
+  if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
+    return res.status(400).json({ error: 'No valid message' })
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      system: systemPrompt,
+      messages: claudeMessages,
+    })
+    const reply = response.content[0].text
+    emitSignal('q', 'chat_turn', { chat_type: 'sales' }).catch(() => {})
+    return res.status(200).json({ message: reply })
+  } catch (err) {
+    console.error('sales-chat error:', err.message)
+    return res.status(500).json({ error: 'Could not reach Q. Please try again.' })
+  }
+}
+
+// ── Demo builder ──────────────────────────────────────────────────────────────
+// Clones the closest sector-matched seed tenant into a fresh ephemeral record,
+// creates a temporary Supabase auth user, and returns credentials so the
+// prospect can sign in and explore the real portal as a demo.
+
+async function handleDemoBuild(body, res) {
+  const { sector } = body
+
+  // 1. Find best-matching source tenant (non-ephemeral, has business_context)
+  const { data: candidates } = await supabase
+    .from('tenants')
+    .select('id, business_name, lead_contact_name, opening_hours, business_context, business_outcome_type, tone_register, triage_mode, emergency_keywords, additional_instructions, subscription_tier')
+    .eq('is_ephemeral', false)
+    .not('business_context', 'is', null)
+    .limit(80)
+
+  const words = (sector || '').toLowerCase().split(/\s+/).filter(Boolean)
+  const scored = (candidates || []).map(t => {
+    const hay = `${t.business_name} ${t.business_context}`.toLowerCase()
+    const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0)
+    return { ...t, score }
+  }).sort((a, b) => b.score - a.score)
+  const source = scored.find(t => t.score > 0) || scored[0]
+  if (!source) return res.status(500).json({ error: 'No source tenant available' })
+
+  // 2. AI-generate a business name for this sector
+  let newName = source.business_name
+  try {
+    const nameRes = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 30,
+      messages: [{ role: 'user', content: `Give me one realistic UK small business name for a ${sector || 'service'} business. Just the name, nothing else. Sound real, not generic.` }],
+    })
+    const generated = nameRes.content[0]?.text?.trim().replace(/['"*]/g, '')
+    if (generated && generated.length < 60) newName = generated
+  } catch { /* keep source name if AI call fails */ }
+
+  // 3. Create the ephemeral tenant row
+  const newTenantId = crypto.randomUUID()
+  const expiresAt   = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+  await supabase.from('tenants').insert({
+    id:                   newTenantId,
+    business_name:        newName,
+    business_context:     source.business_context,
+    lead_contact_name:    source.lead_contact_name,
+    opening_hours:        source.opening_hours,
+    business_outcome_type: source.business_outcome_type,
+    tone_register:        source.tone_register || 'warm',
+    triage_mode:          source.triage_mode   || 'balanced',
+    emergency_keywords:   source.emergency_keywords || [],
+    additional_instructions: source.additional_instructions,
+    subscription_tier:    'professional',
+    calendar_tier:        'growth',
+    listen_tier:          'standard',
+    q_mode:               'very_helpful',
+    q_display_on_screen:  true,
+    is_ephemeral:         true,
+    expires_at:           expiresAt,
+    demo_sector:          sector || null,
+  })
+
+  // 4. Clone child records in parallel
+  const [catalogueRes, staffRes, leadsRes, callsRes] = await Promise.all([
+    supabase.from('catalogue_items').select('*').eq('tenant_id', source.id).eq('active', true).limit(20),
+    supabase.from('staff_profiles').select('*').eq('tenant_id', source.id).eq('active', true).limit(10),
+    supabase.from('leads').select('*').eq('tenant_id', source.id).limit(20),
+    supabase.from('call_logs').select('*').eq('tenant_id', source.id).limit(30),
+  ])
+
+  // Staff clone — build ID map for appointment remapping
+  const staffIdMap = {}
+  const staffRows  = (staffRes.data || []).map(({ id: oldId, tenant_id, created_at, ...rest }) => {
+    const newId = crypto.randomUUID()
+    staffIdMap[oldId] = newId
+    return { id: newId, tenant_id: newTenantId, ...rest }
+  })
+
+  const inserts = []
+  if (catalogueRes.data?.length) inserts.push(
+    supabase.from('catalogue_items').insert(
+      catalogueRes.data.map(({ id, tenant_id, created_at, ...rest }) => ({ tenant_id: newTenantId, ...rest }))
+    )
+  )
+  if (staffRows.length) inserts.push(supabase.from('staff_profiles').insert(staffRows))
+  if (leadsRes.data?.length) inserts.push(
+    supabase.from('leads').insert(
+      leadsRes.data.map(({ id, tenant_id, created_at, ...rest }) => ({ tenant_id: newTenantId, ...rest }))
+    )
+  )
+  if (callsRes.data?.length) inserts.push(
+    supabase.from('call_logs').insert(
+      callsRes.data.map(({ id, tenant_id, created_at, ...rest }) => ({ tenant_id: newTenantId, ...rest }))
+    )
+  )
+  await Promise.all(inserts)
+
+  // Clone appointments after staff (needs staffIdMap)
+  if (staffRows.length) {
+    const { data: appts } = await supabase.from('appointments').select('*').eq('tenant_id', source.id).limit(40)
+    if (appts?.length) {
+      await supabase.from('appointments').insert(
+        appts.map(({ id, tenant_id, created_at, ...rest }) => ({
+          tenant_id: newTenantId,
+          staff_id:  staffIdMap[rest.staff_id] || null,
+          ...rest,
+        }))
+      )
+    }
+  }
+
+  // 5. Create temporary Supabase auth user
+  const demoEmail    = `demo-${newTenantId.slice(0, 8)}@qerxel-demo.com`
+  const demoPassword = crypto.randomUUID().slice(0, 8) + crypto.randomUUID().slice(0, 8)
+  const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
+    email:         demoEmail,
+    password:      demoPassword,
+    email_confirm: true,
+    user_metadata: { is_demo: true, demo_tenant_id: newTenantId },
+  })
+  if (authErr) {
+    console.error('Demo auth user creation failed:', authErr.message)
+    return res.status(500).json({ error: 'Could not create demo session' })
+  }
+
+  // 6. Link auth user → ephemeral tenant
+  const userId = authData.user.id
+  await Promise.all([
+    supabase.from('tenant_memberships').insert({ user_id: userId, tenant_id: newTenantId, role: 'owner' }),
+    supabase.from('tenants').update({ demo_user_id: userId }).eq('id', newTenantId),
+  ])
+
+  console.log(`Demo tenant built: ${newName} (${newTenantId}), sector: ${sector || 'unspecified'}`)
+  return res.status(200).json({ ok: true, tenantId: newTenantId, email: demoEmail, password: demoPassword, businessName: newName })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { type } = req.body || {}
+
+  // Rate-limit public endpoints — no auth guards these
+  const ip = getClientIP(req)
+  if (type === 'sales' && checkRateLimit(ip, 'sales', 40, 3_600_000))
+    return res.status(429).json({ error: 'Too many requests — please try again later.' })
+  if (type === 'demo-build' && checkRateLimit(ip, 'demo-build', 3, 3_600_000))
+    return res.status(429).json({ error: 'Too many demo builds — please try again in an hour.' })
+
+  if (type === 'demo-build') return handleDemoBuild(req.body, res)
+  if (type === 'sales') return handleSales(req.body, res)
   if (type === 'vera') return handleVera(req.body, res)
   if (type === 'support') return handleSupport(req.body, res)
   if (type === 'intel') return handleIntel(req.body, res)
   if (type === 'q-section') return handleQSection(req.body, res)
   if (type === 'booking-assist') return handleBookingAssist(req.body, res)
+  if (type === 'policy-chat')  return handlePolicyChat(req.body, res)
+  if (type === 'orchestrate')  return handleOrchestrate(req.body, res)
   return res.status(400).json({ error: 'Unknown type' })
 }

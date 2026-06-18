@@ -30,7 +30,11 @@ dist-ssr
 .env.local
 .env.*.local
 
-# Seed scripts contain PAT — keep local only
+# Seed/migration scripts contain hardcoded PAT — keep local only
 seed-*.cjs
-scripts/seed-*.mjs
+seed-*.mjs
+seed_*.mjs
+add_*.mjs
 fix-*.cjs
+fix_*.mjs
+scripts/

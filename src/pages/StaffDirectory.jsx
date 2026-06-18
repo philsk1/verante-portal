@@ -132,6 +132,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    window.dispatchEvent(new Event('qscore-refresh'))
   }
 
   const toggleActive = async (member) => {
@@ -146,6 +147,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
     await supabase.from('staff_profiles').delete().eq('id', id)
     setStaff(prev => prev.filter(s => s.id !== id))
     if (selected === id) closeProfile()
+    window.dispatchEvent(new Event('qscore-refresh'))
   }
 
   const addMember = async () => {
@@ -165,6 +167,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
       setAddDraft(EMPTY_MEMBER)
       setAdding(false)
       openProfile(data)
+      window.dispatchEvent(new Event('qscore-refresh'))
     }
   }
 
@@ -208,7 +211,7 @@ export default function StaffDirectory({ onNavigate, openAdd, onOpenAddConsumed,
   )
 
   return (
-    <div data-help="Your team directory — full profiles, contact details, skills and private notes. Click any card to view or edit.">
+    <div data-help="Your team directory — full profiles, contact details, skills and private notes. Click any card to view or edit." data-help-score={staff.length === 0 ? 20 : 95}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>

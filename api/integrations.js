@@ -1,4 +1,4 @@
-// POST { action: 'connect'|'disconnect'|'caldav-sync'|'send-welcome'|'send-review'|'booking-confirm', tenantId, ... }
+// POST { action: 'connect'|'disconnect'|'caldav-sync'|'send-welcome'|'send-review'|'booking-confirm'|'get-booking'|'cancel-booking', tenantId?, cancelToken?, ... }
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailWelcome, emailBookingConfirmation } from './_emails.js'
@@ -77,7 +77,7 @@ async function handleSendWelcome(body, res) {
   if (!tenantId) return res.status(400).json({ error: 'tenantId required' })
   const { data: tenant } = await supabase.from('tenants').select('id, business_name, lead_contact_name, business_email, subscription_tier').eq('id', tenantId).maybeSingle()
   if (!tenant?.business_email) return res.status(200).json({ skipped: true })
-  const portalUrl = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/portal`
+  const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal`
   const { subject, html } = emailWelcome({ businessName: tenant.business_name || 'your business', ownerName: tenant.lead_contact_name || null, tier: tenant.subscription_tier || 'standard', portalUrl })
   await sendEmail({ to: tenant.business_email, subject, html })
   return res.status(200).json({ ok: true })
@@ -133,7 +133,7 @@ async function handleSentrySnapshot(body, res) {
 }
 
 async function handleBookingConfirm(body, res) {
-  const { tenantId, clientName, clientPhone, clientEmail, serviceName, startTime, bookingRef } = body
+  const { tenantId, clientName, clientPhone, clientEmail, serviceName, startTime, bookingRef, cancelToken } = body
   if (!tenantId || !startTime) return res.status(400).json({ error: 'Missing required fields' })
 
   const { data: tenant } = await supabase
@@ -146,8 +146,8 @@ async function handleBookingConfirm(body, res) {
   const start = new Date(startTime)
   const dateStr = start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const timeStr = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  const siteUrl = process.env.SITE_URL || 'https://verrante-portal.vercel.app'
-  const manageUrl = `${siteUrl}/book/${tenantId}`
+  const siteUrl = process.env.SITE_URL || 'https://verante-portal.vercel.app'
+  const manageUrl = cancelToken ? `${siteUrl}/manage-booking/${cancelToken}` : `${siteUrl}/book/${tenantId}`
 
   const tasks = []
 
@@ -197,10 +197,52 @@ async function handleBookingConfirm(body, res) {
   return res.status(200).json({ sent: true })
 }
 
+async function handleGetBooking(body, res) {
+  const { cancelToken } = body
+  if (!cancelToken) return res.status(400).json({ error: 'Missing cancelToken' })
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, start_time, end_time, status, appointment_type, client_name, client_phone, cancel_token, tenant_id, tenants(business_name, business_phone, cancel_cutoff_hrs)')
+    .eq('cancel_token', cancelToken)
+    .maybeSingle()
+
+  if (!appt) return res.status(404).json({ error: 'Booking not found' })
+  return res.status(200).json({ appointment: appt })
+}
+
+async function handleCancelBooking(body, res) {
+  const { cancelToken } = body
+  if (!cancelToken) return res.status(400).json({ error: 'Missing cancelToken' })
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, start_time, status, tenant_id, tenants(cancel_cutoff_hrs)')
+    .eq('cancel_token', cancelToken)
+    .maybeSingle()
+
+  if (!appt) return res.status(404).json({ error: 'Booking not found' })
+  if (appt.status === 'cancelled') return res.status(200).json({ cancelled: true, alreadyCancelled: true })
+
+  const cutoffHrs = appt.tenants?.cancel_cutoff_hrs ?? 24
+  const hoursUntil = (new Date(appt.start_time) - new Date()) / 3600000
+  if (cutoffHrs > 0 && hoursUntil < cutoffHrs) {
+    return res.status(200).json({ cancelled: false, pastCutoff: true, cutoffHrs })
+  }
+
+  await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', appt.id)
+  return res.status(200).json({ cancelled: true })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { action, tenantId, integrationId, credentials, settings } = req.body
+
+  // Token-based public actions — no tenantId required
+  if (action === 'get-booking')    return handleGetBooking(req.body, res)
+  if (action === 'cancel-booking') return handleCancelBooking(req.body, res)
+
   if (!tenantId) return res.status(400).json({ error: 'Missing tenantId' })
 
   if (action === 'caldav-sync') return handleCaldavSync(req.body, res)

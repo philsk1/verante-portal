@@ -46,7 +46,25 @@ function nextDays(n) {
 
 const SLOT_INTERVAL = 30
 
-function generateSlots({ date, schedules, appointments, durationMins, bufferMins }) {
+function darkenHex(hex) {
+  const h = hex.replace('#', '')
+  return '#' + [0, 2, 4].map(i => Math.max(0, parseInt(h.slice(i, i + 2), 16) - 50).toString(16).padStart(2, '0')).join('')
+}
+
+function hasOverlapConflict(newStart, newEnd, aptStart, aptEnd, bufferMins, overlapMins) {
+  const ns = newStart instanceof Date ? newStart.getTime() : newStart
+  const ne = newEnd instanceof Date ? newEnd.getTime() : newEnd
+  const as = aptStart instanceof Date ? aptStart.getTime() : aptStart
+  const ae = aptEnd instanceof Date ? aptEnd.getTime() : aptEnd
+  const overlapMs = Math.max(0, Math.min(ne, ae) - Math.max(ns, as))
+  const allowedMs = (overlapMins || 0) * 60000
+  if (overlapMs > allowedMs) return true
+  if (overlapMs > 0) return false
+  // No overlap — enforce buffer gap after existing appointment
+  return ns < ae + bufferMins * 60000 && ne > as
+}
+
+function generateSlots({ date, schedules, appointments, durationMins, bufferMins, overlapMins = 0 }) {
   const slots = []
   const dayOfWeek = date.getDay()
   const windows = schedules
@@ -64,10 +82,7 @@ function generateSlots({ date, schedules, appointments, durationMins, bufferMins
 
       const conflict = appointments.some(apt => {
         if (apt.staff_profile_id && apt.staff_profile_id !== staffId) return false
-        const aptStart = new Date(apt.start_time)
-        const aptEnd   = new Date(apt.end_time)
-        const bufEnd   = addMinutes(aptEnd, bufferMins)
-        return cursor < bufEnd && slotEnd > aptStart
+        return hasOverlapConflict(cursor, slotEnd, new Date(apt.start_time), new Date(apt.end_time), bufferMins, overlapMins)
       })
 
       if (!conflict) {
@@ -83,7 +98,7 @@ function generateSlots({ date, schedules, appointments, durationMins, bufferMins
   return slots.sort((a, b) => a.time - b.time)
 }
 
-async function fetchDayConflict(tenantId, slotStart, slotEnd, staffId, bufferMins, excludeAptId = null) {
+async function fetchDayConflict(tenantId, slotStart, slotEnd, staffId, bufferMins, excludeAptId = null, overlapMins = 0) {
   const from = new Date(slotStart); from.setHours(0, 0, 0, 0)
   const to   = new Date(slotStart); to.setHours(23, 59, 59, 999)
   let query = supabase.from('appointments')
@@ -97,20 +112,18 @@ async function fetchDayConflict(tenantId, slotStart, slotEnd, staffId, bufferMin
   const fresh = data || []
   const conflict = fresh.some(apt => {
     if (apt.staff_profile_id && staffId && apt.staff_profile_id !== staffId) return false
-    const aptStart = new Date(apt.start_time)
-    const aptEnd   = new Date(apt.end_time)
-    return slotStart < addMinutes(aptEnd, bufferMins) && slotEnd > aptStart
+    return hasOverlapConflict(slotStart, slotEnd, new Date(apt.start_time), new Date(apt.end_time), bufferMins, overlapMins)
   })
   return { fresh, conflict }
 }
 
 // ─── Small shared components ──────────────────────────────────────────────────
 
-const StepDot = ({ n, active, done }) => (
+const StepDot = ({ n, active, done, accent = '#5e3b87' }) => (
   <div style={{
     width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: done ? '#3db87a' : active ? '#5e3b87' : '#e9e3f3',
+    background: done ? '#3db87a' : active ? accent : '#e9e3f3',
     color: done || active ? 'white' : '#aaa',
     fontSize: '0.75rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
     transition: 'background 0.2s',
@@ -144,6 +157,7 @@ export default function BookingPage() {
   const [form, setForm]                       = useState({ name: '', phone: '', email: '', notes: '' })
   const [submitting, setSubmitting]           = useState(false)
   const [bookingRef, setBookingRef]           = useState(null)
+  const [serviceSearch, setServiceSearch]     = useState('')
 
   // Manage state
   const [managePhone, setManagePhone]         = useState('')
@@ -161,7 +175,7 @@ export default function BookingPage() {
       try {
         const [tenantRes, catRes, schedRes] = await Promise.all([
           supabase.from('tenants')
-            .select('business_name, business_phone, business_email, business_address, cancel_cutoff_hrs, booking_buffer_mins, client_can_reschedule, charge_late_cancel, no_show_fee, no_show_fee_type, no_show_fee_pct')
+            .select('business_name, business_phone, business_email, business_address, cancel_cutoff_hrs, booking_buffer_mins, client_can_reschedule, charge_late_cancel, no_show_fee, no_show_fee_type, no_show_fee_pct, subscription_tier, calendar_tier, brand_colour, logo_url, booking_promo_text, booking_promo_expires_at, hide_qerxel_ad, booking_overlap_mins')
             .eq('id', tenantId)
             .maybeSingle(),
           supabase.from('catalogue_items')
@@ -208,9 +222,10 @@ export default function BookingPage() {
   // ── Generate slots ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedService || !selectedDate || !schedules.length) { setSlots([]); return }
-    const durationMins = selectedService.duration_minutes || 60
-    const bufferMins   = tenant?.booking_buffer_mins ?? 15
-    setSlots(generateSlots({ date: selectedDate, schedules, appointments, durationMins, bufferMins }))
+    const durationMins  = selectedService.duration_minutes || 60
+    const bufferMins    = tenant?.booking_buffer_mins ?? 15
+    const overlapMins   = tenant?.booking_overlap_mins ?? 0
+    setSlots(generateSlots({ date: selectedDate, schedules, appointments, durationMins, bufferMins, overlapMins }))
     setSelectedSlot(null)
   }, [selectedService, selectedDate, appointments, schedules, tenant])
 
@@ -223,7 +238,8 @@ export default function BookingPage() {
       const end        = addMinutes(start, selectedService.duration_minutes || 60)
       const bufferMins = tenant?.booking_buffer_mins ?? 15
 
-      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins)
+      const overlapMins = tenant?.booking_overlap_mins ?? 0
+      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, null, overlapMins)
       if (conflict) {
         setAppointments(fresh)
         setSelectedSlot(null)
@@ -271,6 +287,7 @@ export default function BookingPage() {
           serviceName: selectedService.name,
           startTime:   start.toISOString(),
           bookingRef:  ref,
+          cancelToken: data?.cancel_token || null,
         }),
       }).catch(() => {})
     } catch {
@@ -342,7 +359,8 @@ export default function BookingPage() {
       const end        = addMinutes(start, selectedService.duration_minutes || 60)
       const bufferMins = tenant?.booking_buffer_mins ?? 15
 
-      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, rescheduleApt.id)
+      const overlapMins = tenant?.booking_overlap_mins ?? 0
+      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, rescheduleApt.id, overlapMins)
       if (conflict) {
         setAppointments(fresh)
         setSelectedSlot(null)
@@ -439,28 +457,66 @@ export default function BookingPage() {
 
   const isRescheduling = !!rescheduleApt
 
+  const filteredCatalogue = useMemo(() => {
+    if (!serviceSearch.trim()) return catalogue
+    const terms = serviceSearch.toLowerCase().split(/\s+/).filter(t => t.length > 1)
+    return catalogue.filter(svc => {
+      const hay = `${svc.name} ${svc.description || ''}`.toLowerCase()
+      return terms.some(t => hay.includes(t))
+    })
+  }, [catalogue, serviceSearch])
+
+  // ── Branding + promo derivations ─────────────────────────────────────────
+  const subTier = tenant?.subscription_tier
+  const hasBrandingBP = (!!subTier && subTier !== 'schedule_only') || tenant?.calendar_tier === 'multi'
+  const accent      = (hasBrandingBP && tenant?.brand_colour) ? tenant.brand_colour : '#5e3b87'
+  const accentDark  = darkenHex(accent)
+  const headerLogo  = hasBrandingBP ? (tenant?.logo_url || null) : null
+  const showPromo   = !!tenant?.booking_promo_text && (!tenant?.booking_promo_expires_at || new Date(tenant.booking_promo_expires_at) > new Date())
+  const isProfPlus  = ['professional', 'enterprise', 'bespoke'].includes(subTier)
+  const showDiscoveryCard = !(isProfPlus && tenant?.hide_qerxel_ad)
+
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', padding: '1.5rem 1.5rem 2.5rem' }}>
+      <div style={{ background: `linear-gradient(135deg, ${accentDark} 0%, ${accent} 100%)`, padding: '1.5rem 1.5rem 2.5rem' }}>
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1rem' }}>Qerxel</span>
             <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f0a500', display: 'inline-block' }} />
             <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>Booking</span>
           </div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.25rem' }}>
-            {tenant?.business_name}
-          </div>
+          {headerLogo ? (
+            <img src={headerLogo} alt={tenant?.business_name} style={{ height: 52, maxWidth: 220, objectFit: 'contain', marginBottom: '0.35rem', display: 'block' }} />
+          ) : (
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.25rem' }}>
+              {tenant?.business_name}
+            </div>
+          )}
+          {headerLogo && (
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '1rem', color: 'rgba(255,255,255,0.85)', marginBottom: '0.2rem' }}>{tenant?.business_name}</div>
+          )}
           {tenant?.business_address && (
             <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)' }}>{tenant.business_address}</div>
           )}
         </div>
       </div>
 
+      {/* ── Promo banner ──────────────────────────────────────────────────── */}
+      {showPromo && (
+        <div style={{ maxWidth: step === 5 ? 680 : 520, margin: '0 auto', padding: '0 1rem' }}>
+          <div style={{ background: '#fffbf0', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 10, padding: '0.7rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem', marginTop: '0.75rem' }}>
+            <span style={{ fontSize: '1rem', lineHeight: 1, flexShrink: 0, marginTop: 1 }}>🎉</span>
+            <div style={{ fontSize: '0.83rem', color: '#78460a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+              {tenant.booking_promo_text}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Content card ──────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 520, margin: '-1.25rem auto 2rem', padding: '0 1rem' }}>
+      <div style={{ maxWidth: step === 5 ? 680 : 520, margin: '-1.25rem auto 2rem', padding: '0 1rem' }}>
         <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 4px 32px rgba(94,59,135,0.12), 0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
 
           {/* Mode toggle */}
@@ -564,7 +620,7 @@ export default function BookingPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                     {steps.map((s, i) => (
                       <div key={s.n} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0, gap: '0.5rem' }}>
-                        <StepDot n={s.n} active={step === s.n} done={step > s.n} />
+                        <StepDot n={s.n} active={step === s.n} done={step > s.n} accent={accent} />
                         {i < steps.length - 1 && (
                           <div style={{ flex: 1, height: 2, borderRadius: 2, background: step > s.n ? '#3db87a' : '#ede8f5' }} />
                         )}
@@ -583,17 +639,34 @@ export default function BookingPage() {
                 {step === 1 && (
                   <div>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Choose a service</div>
-                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.1rem', lineHeight: 1.5 }}>Select what you'd like to book.</div>
+                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '0.85rem', lineHeight: 1.5 }}>Select what you'd like to book.</div>
+
+                    {catalogue.length > 4 && (
+                      <div style={{ position: 'relative', marginBottom: '0.85rem' }}>
+                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: '#bbb', pointerEvents: 'none' }}>🔍</span>
+                        <input
+                          type="search"
+                          value={serviceSearch}
+                          onChange={e => setServiceSearch(e.target.value)}
+                          placeholder="Search services…"
+                          style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.875rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', background: 'white' }}
+                        />
+                      </div>
+                    )}
 
                     {catalogue.length === 0 ? (
                       <div style={{ padding: '2rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem', background: '#faf9fc', borderRadius: 10 }}>
                         No services available for online booking right now.
                       </div>
+                    ) : filteredCatalogue.length === 0 ? (
+                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem', background: '#faf9fc', borderRadius: 10 }}>
+                        No services match "{serviceSearch}" — try different words.
+                      </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                        {catalogue.map(svc => (
+                        {filteredCatalogue.map(svc => (
                           <button key={svc.id} onClick={() => { setSelectedService(svc); setStep(2) }}
-                            style={{ textAlign: 'left', padding: '0.9rem 1.1rem', border: `1.5px solid ${selectedService?.id === svc.id ? '#5e3b87' : 'rgba(94,59,135,0.12)'}`, borderRadius: 12, background: selectedService?.id === svc.id ? '#f5f3ff' : 'white', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}>
+                            style={{ textAlign: 'left', padding: '0.9rem 1.1rem', border: `1.5px solid ${selectedService?.id === svc.id ? accent : 'rgba(94,59,135,0.12)'}`, borderRadius: 12, background: selectedService?.id === svc.id ? accent + '12' : 'white', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: svc.description ? '0.2rem' : 0 }}>{svc.name}</div>
@@ -648,7 +721,7 @@ export default function BookingPage() {
                             return (
                               <button key={day.toISOString()} disabled={!hasSchedule}
                                 onClick={() => { setSelectedDate(day); setStep(3) }}
-                                style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? '2px solid #5e3b87' : '1px solid transparent', background: isSelected ? '#5e3b87' : hasSchedule ? '#f5f3ff' : '#f9f9f9', color: isSelected ? 'white' : hasSchedule ? '#5e3b87' : '#ccc', fontWeight: isSelected ? 700 : 500, fontSize: '0.8rem', cursor: hasSchedule ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, padding: '0.2rem', transition: 'background 0.12s' }}>
+                                style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? `2px solid ${accent}` : '1px solid transparent', background: isSelected ? accent : hasSchedule ? accent + '14' : '#f9f9f9', color: isSelected ? 'white' : hasSchedule ? accent : '#ccc', fontWeight: isSelected ? 700 : 500, fontSize: '0.8rem', cursor: hasSchedule ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, padding: '0.2rem', transition: 'background 0.12s' }}>
                                 <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{day.getDate()}</span>
                                 <span style={{ fontSize: '0.55rem', opacity: 0.65 }}>{day.toLocaleDateString('en-GB', { month: 'short' })}</span>
                               </button>
@@ -686,7 +759,7 @@ export default function BookingPage() {
                             const isSelected = selectedSlot?.key === slot.key
                             return (
                               <button key={slot.key} onClick={() => setSelectedSlot(slot)}
-                                style={{ padding: '0.7rem 0.5rem', borderRadius: 10, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', textAlign: 'center', border: isSelected ? '2px solid #5e3b87' : '1.5px solid rgba(94,59,135,0.15)', background: isSelected ? '#5e3b87' : '#f5f3ff', color: isSelected ? 'white' : '#5e3b87', cursor: 'pointer', transition: 'all 0.12s' }}>
+                                style={{ padding: '0.7rem 0.5rem', borderRadius: 10, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', textAlign: 'center', border: isSelected ? `2px solid ${accent}` : '1.5px solid rgba(94,59,135,0.15)', background: isSelected ? accent : accent + '14', color: isSelected ? 'white' : accent, cursor: 'pointer', transition: 'all 0.12s' }}>
                                 {slot.label}
                               </button>
                             )
@@ -708,8 +781,8 @@ export default function BookingPage() {
                     <button onClick={() => setStep(3)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Your details</div>
 
-                    <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#5e3b87', marginBottom: '0.2rem' }}>{selectedService?.name}</div>
+                    <div style={{ background: accent + '10', border: `1px solid ${accent}26`, borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: accent, marginBottom: '0.2rem' }}>{selectedService?.name}</div>
                       <div style={{ fontSize: '0.78rem', color: '#888', lineHeight: 1.5 }}>
                         {selectedDate?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}
                         {selectedService?.duration_minutes && ` · ${selectedService.duration_minutes} min`}
@@ -759,16 +832,16 @@ export default function BookingPage() {
                       {tenant?.business_name} will be in touch to confirm your appointment.
                     </div>
 
-                    <div style={{ background: '#f5f3ff', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 12, padding: '1rem 1.25rem', textAlign: 'left', marginBottom: '1.5rem' }}>
+                    <div style={{ background: accent + '10', border: `1px solid ${accent}26`, borderRadius: 12, padding: '1rem 1.25rem', textAlign: 'left', marginBottom: '1.5rem' }}>
                       <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your booking</div>
-                      <div style={{ fontWeight: 700, color: '#5e3b87', fontSize: '0.9rem', marginBottom: '0.25rem' }}>{selectedService?.name}</div>
+                      <div style={{ fontWeight: 700, color: accent, fontSize: '0.9rem', marginBottom: '0.25rem' }}>{selectedService?.name}</div>
                       <div style={{ fontSize: '0.82rem', color: '#555', lineHeight: 1.6 }}>
                         {selectedDate?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}<br />
                         {form.name}{form.phone && ` · ${form.phone}`}
                       </div>
                       {bookingRef && (
                         <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', color: '#aaa' }}>
-                          Reference: <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em', color: '#5e3b87' }}>{bookingRef}</span>
+                          Reference: <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em', color: accent }}>{bookingRef}</span>
                         </div>
                       )}
                     </div>
@@ -790,9 +863,78 @@ export default function BookingPage() {
           )}
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.7rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif" }}>
-          Booking powered by{' '}
-          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#bbb' }}>Qerxel</span>
+        {step === 5 && showDiscoveryCard ? (
+          <div style={{ marginTop: '1.25rem', background: 'white', borderRadius: 18, boxShadow: '0 4px 24px rgba(94,59,135,0.10)', overflow: 'hidden', border: '0.5px solid rgba(94,59,135,0.08)' }}>
+            <div style={{ height: 3, background: 'linear-gradient(90deg, #5e3b87 0%, #f0a500 100%)' }} />
+            <div style={{ padding: '1.5rem' }}>
+
+              <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.65rem', fontFamily: "'DM Sans', sans-serif" }}>
+                Booking service provided free by Qerxel
+              </div>
+
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.45rem', lineHeight: 1.3 }}>
+                Run a business like {tenant?.business_name}?
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.65, marginBottom: '1.25rem', fontFamily: "'DM Sans', sans-serif" }}>
+                Qerxel gives every small business the kind of tools that used to cost enterprise money. Every product has a 30-day free trial — no credit card, no commitment. And our scheduling calendar is <strong style={{ color: '#3db87a' }}>free for life</strong> for one person.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                {[
+                  {
+                    icon: '📅',
+                    name: 'Online scheduling',
+                    desc: 'Online bookings, calendar management, availability rules. One person, forever free.',
+                    badge: 'Free for life',
+                    badgeClr: '#3db87a',
+                  },
+                  {
+                    icon: '📞',
+                    name: 'AI call handling',
+                    desc: 'Q answers missed calls, captures every lead and books appointments automatically.',
+                    badge: '30-day free trial',
+                    badgeClr: '#5e3b87',
+                  },
+                  {
+                    icon: '👂',
+                    name: 'Live call copilot',
+                    desc: 'Real-time AI guidance on screen the moment you pick up the phone.',
+                    badge: '30-day free trial',
+                    badgeClr: '#5e3b87',
+                  },
+                ].map(p => (
+                  <div key={p.name} style={{ display: 'flex', gap: '0.8rem', alignItems: 'flex-start', padding: '0.75rem 0.85rem', background: '#faf9fc', borderRadius: 10 }}>
+                    <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>{p.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{p.name}</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, background: p.badgeClr + '22', color: p.badgeClr, padding: '0.15rem 0.5rem', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
+                          {p.badge}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.77rem', color: '#888', lineHeight: 1.45, fontFamily: "'DM Sans', sans-serif" }}>{p.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <a
+                href="/signup"
+                style={{ display: 'block', width: '100%', padding: '0.8rem', boxSizing: 'border-box', background: '#f0a500', color: '#1a0533', borderRadius: 10, fontWeight: 700, fontSize: '0.9375rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", textDecoration: 'none' }}
+              >
+                Start free — no card needed →
+              </a>
+              <div style={{ fontSize: '0.68rem', color: '#bbb', textAlign: 'center', marginTop: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>
+                30 days free on all products · Scheduling free for one person, forever
+              </div>
+
+            </div>
+          </div>
+        ) : null}
+        <div style={{ textAlign: 'center', marginTop: step === 5 && showDiscoveryCard ? '0.75rem' : '1.5rem', fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.7, paddingBottom: '0.5rem' }}>
+          Booking service provided free by{' '}
+          <a href="/signup" style={{ color: '#5e3b87', fontFamily: "'Syne', sans-serif", fontWeight: 700, textDecoration: 'none' }}>Qerxel business software</a>
         </div>
       </div>
 
