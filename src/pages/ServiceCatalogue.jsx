@@ -30,7 +30,8 @@ const ServiceCatalogue = () => {
   const [items, setItems] = useState([])
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
-  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '' })
+  const [colourSaving, setColourSaving] = useState(null)
+  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '#a78bfa' })
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notesDrafts, setNotesDrafts] = useState({})
@@ -86,7 +87,7 @@ const ServiceCatalogue = () => {
     setSaving(false)
     if (!error && data) {
       setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '' })
+      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '#a78bfa' })
       setAddOpen(false)
       showToast('Service added.')
       window.dispatchEvent(new Event('qscore-refresh'))
@@ -100,6 +101,15 @@ const ServiceCatalogue = () => {
     await supabase.from('catalogue_items').update({ active: false }).eq('id', id)
     setItems(prev => prev.filter(i => i.id !== id))
     window.dispatchEvent(new Event('qscore-refresh'))
+  }
+
+  const saveColour = async (item, colour) => {
+    if (previewReadOnly) return
+    setColourSaving(item.id)
+    const val = colour || null
+    await supabase.from('catalogue_items').update({ colour: val }).eq('id', item.id)
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, colour: val } : i))
+    setColourSaving(null)
   }
 
   const saveNote = async (item) => {
@@ -230,6 +240,20 @@ const ServiceCatalogue = () => {
               </div>
               {expanded && (
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.06)' }}>
+                  <div style={{ marginBottom: '0.65rem' }}>
+                    <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>Calendar colour</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                      {PALETTE.map(pc => (
+                        <button key={pc} onClick={() => saveColour(item, item.colour === pc ? '' : pc)} disabled={colourSaving === item.id || previewReadOnly}
+                          style={{ width: 22, height: 22, borderRadius: '50%', background: pc, border: item.colour === pc ? '2.5px solid #1a0533' : '2px solid rgba(0,0,0,0.08)', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} title={pc} />
+                      ))}
+                      {item.colour && (
+                        <button onClick={() => saveColour(item, '')} disabled={colourSaving === item.id} style={{ fontSize: '0.68rem', color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', fontFamily: "'DM Sans', sans-serif" }}>
+                          {colourSaving === item.id ? 'Saving…' : 'clear'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <textarea
                     value={noteDraft}
                     onChange={e => setNotesDrafts(p => ({ ...p, [item.id]: e.target.value }))}

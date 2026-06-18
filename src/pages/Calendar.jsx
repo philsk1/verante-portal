@@ -200,11 +200,36 @@ function AppointmentCard({ event, title, catalogue }) {
   const appt = event.resource || {}
   const status = appt.status || 'confirmed'
   const statusC = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
-
-  // Use service category colour when available, fall back to status colour
   const catalogueItem = catalogue?.find(ci => ci.id === appt.service_id)
-  const catC = catalogueItem ? getCategoryColour(catalogueItem.category) : null
+  const svcColour = catalogueItem?.colour
+  const catC = svcColour
+    ? { bg: svcColour + 'cc', border: svcColour, text: '#1a1a1a' }
+    : catalogueItem ? getCategoryColour(catalogueItem.category) : null
   const c = catC || statusC
+
+  const isSplit = !!(appt.processing_start_time && appt.processing_end_time)
+
+  if (isSplit) {
+    const totalMs = event.end - event.start
+    const p1Ms = new Date(appt.processing_start_time) - event.start
+    const p2Ms = new Date(appt.processing_end_time) - new Date(appt.processing_start_time)
+    const p1 = Math.max(5, Math.round((p1Ms / totalMs) * 100))
+    const p2 = Math.max(5, Math.round((p2Ms / totalMs) * 100))
+    const p3 = Math.max(5, 100 - p1 - p2)
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 5, overflow: 'hidden' }}>
+        <div style={{ height: `${p1}%`, minHeight: 14, background: c.bg, borderLeft: `3px solid ${c.border}`, padding: '2px 4px', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.7rem', color: c.text, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{title}</div>
+        </div>
+        <div style={{ height: `${p2}%`, minHeight: 8, background: 'rgba(255,255,255,0.85)', borderLeft: `2px dashed ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+          <span style={{ fontSize: '0.58rem', color: c.border, fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.04em' }}>processing</span>
+        </div>
+        <div style={{ height: `${p3}%`, minHeight: 8, background: c.bg, borderLeft: `3px solid ${c.border}`, padding: '2px 4px', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', color: c.text, opacity: 0.85, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>finish</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'relative', height: '100%', padding: '2px 4px 2px 9px', overflow: 'hidden' }}>
@@ -1003,7 +1028,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     return {
       style: {
         background: isSplit ? 'transparent' : c.bg,
-        border: `1px solid ${c.border}`,
+        border: isSplit ? 'none' : `1px solid ${c.border}`,
         borderLeft: 'none',
         color: c.text,
         borderRadius: 5,
