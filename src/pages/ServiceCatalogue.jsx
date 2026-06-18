@@ -12,23 +12,9 @@ const fmtPrice = (from, to) => {
   return `£${from || to}`
 }
 
-// Maximally distinct — each consecutive pair is a large hue jump
 const PALETTE = [
-  '#2563eb', // 0  blue
-  '#dc2626', // 1  red
-  '#16a34a', // 2  green
-  '#c026d3', // 3  fuchsia
-  '#d97706', // 4  amber
-  '#7c3aed', // 5  purple
-  '#0d9488', // 6  teal
-  '#ea580c', // 7  orange
-  '#db2777', // 8  pink
-  '#059669', // 9  emerald
-  '#4338ca', // 10 indigo
-  '#65a30d', // 11 lime
-  '#0891b2', // 12 cyan
-  '#9333ea', // 13 violet
-  '#b45309', // 14 caramel
+  '#02F4F7','#F71B02','#F79902','#F3F702','#02F712',
+  '#0233F7','#F702F3','#F702A1','#43686E','#354D33','#221140',
 ]
 
 const ServiceCatalogue = () => {

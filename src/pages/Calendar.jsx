@@ -206,6 +206,14 @@ const CalendarToolbar = ({
   </div>
 )
 
+function hexBrightness(hex) {
+  if (!hex || hex.length < 7) return 200
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000
+}
+
 // ─── Appointment event card ───────────────────────────────────────────────────
 function AppointmentCard({ event, title, catalogue }) {
   const appt = event.resource || {}
@@ -214,7 +222,7 @@ function AppointmentCard({ event, title, catalogue }) {
   const catalogueItem = catalogue?.find(ci => ci.id === appt.service_id)
   const svcColour = catalogueItem?.colour
   const catC = svcColour
-    ? { bg: svcColour + 'cc', border: svcColour, text: '#1a1a1a' }
+    ? { bg: svcColour + 'cc', border: svcColour, text: hexBrightness(svcColour) > 128 ? '#1a1a1a' : '#ffffff' }
     : catalogueItem ? getCategoryColour(catalogueItem.category) : null
   const c = catC || statusC
 
@@ -503,21 +511,8 @@ function Row({ label, desc, children }) {
 
 // ─── Calendar settings tab ────────────────────────────────────────────────────
 const SVC_PALETTE = [
-  '#2563eb', // blue
-  '#dc2626', // red
-  '#16a34a', // green
-  '#c026d3', // fuchsia
-  '#d97706', // amber
-  '#7c3aed', // purple
-  '#0d9488', // teal
-  '#ea580c', // orange
-  '#db2777', // pink
-  '#059669', // emerald
-  '#4338ca', // indigo
-  '#65a30d', // lime
-  '#0891b2', // cyan
-  '#9333ea', // violet
-  '#b45309', // caramel
+  '#02F4F7','#F71B02','#F79902','#F3F702','#02F712',
+  '#0233F7','#F702F3','#F702A1','#43686E','#354D33','#221140',
 ]
 
 const OVERLAP_CHANNELS = [
@@ -1127,7 +1122,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     const catItem = catalogue.find(ci => ci.id === appt.service_id)
     const svcColour = catItem?.colour
     const catC = svcColour
-      ? { bg: svcColour + 'cc', border: svcColour, text: '#1a1a1a' }
+      ? { bg: svcColour + 'cc', border: svcColour, text: hexBrightness(svcColour) > 128 ? '#1a1a1a' : '#ffffff' }
       : catItem ? getCategoryColour(catItem.category) : null
     const c = catC || statusC
     const isSplit = ((catItem?.processing_minutes || 0) > 0) || !!(appt.processing_start_time && appt.processing_end_time)
