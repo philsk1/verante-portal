@@ -503,9 +503,21 @@ function Row({ label, desc, children }) {
 
 // ─── Calendar settings tab ────────────────────────────────────────────────────
 const SVC_PALETTE = [
-  '#ec4899','#3b82f6','#ef4444','#22c55e','#f97316',
-  '#06b6d4','#eab308','#8b5cf6','#f43f5e','#14b8a6',
-  '#f59e0b','#6366f1','#84cc16','#a855f7','#10b981',
+  '#2563eb', // blue
+  '#dc2626', // red
+  '#16a34a', // green
+  '#c026d3', // fuchsia
+  '#d97706', // amber
+  '#7c3aed', // purple
+  '#0d9488', // teal
+  '#ea580c', // orange
+  '#db2777', // pink
+  '#059669', // emerald
+  '#4338ca', // indigo
+  '#65a30d', // lime
+  '#0891b2', // cyan
+  '#9333ea', // violet
+  '#b45309', // caramel
 ]
 
 const OVERLAP_CHANNELS = [
@@ -865,6 +877,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const [saveError, setSaveError] = useState(null)
   const [slotWarning, setSlotWarning] = useState(false)
   const [contactWarnDismissed, setContactWarnDismissed] = useState(false)
+  const [pendingDrop, setPendingDrop] = useState(null) // { eventId, start, end, updates, title, prevStart, prevEnd, prevResource }
 
   // Waitlist state
 
@@ -1182,13 +1195,41 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }
 
   // ─── Drag/resize ─────────────────────────────────────────────────────────────
-  const handleEventDrop = useCallback(async ({ event, start, end, resourceId }) => {
+  const handleEventDrop = useCallback(({ event, start, end, resourceId }) => {
     if (previewReadOnly) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     if (resourceId !== undefined) updates.staff_profile_id = resourceId === 'unassigned' ? null : resourceId
+    // Optimistic visual update — holds until confirmed or cancelled
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resourceId: resourceId ?? e.resourceId, resource: { ...e.resource, ...updates } } : e))
-    await supabase.from('appointments').update(updates).eq('id', event.id)
+    setPendingDrop({
+      eventId: event.id,
+      start, end,
+      updates,
+      title: event.title || '',
+      prevStart: event.start,
+      prevEnd: event.end,
+      prevResourceId: event.resourceId,
+      prevResource: event.resource,
+    })
   }, [previewReadOnly])
+
+  const confirmDrop = useCallback(async () => {
+    if (!pendingDrop) return
+    await supabase.from('appointments').update(pendingDrop.updates).eq('id', pendingDrop.eventId)
+    setPendingDrop(null)
+  }, [pendingDrop])
+
+  const cancelDrop = useCallback(() => {
+    if (!pendingDrop) return
+    setEvents(prev => prev.map(e => e.id === pendingDrop.eventId ? {
+      ...e,
+      start: pendingDrop.prevStart,
+      end: pendingDrop.prevEnd,
+      resourceId: pendingDrop.prevResourceId,
+      resource: pendingDrop.prevResource,
+    } : e))
+    setPendingDrop(null)
+  }, [pendingDrop])
 
   const handleEventResize = useCallback(async ({ event, start, end }) => {
     if (previewReadOnly) return
@@ -2416,6 +2457,30 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           onClose={() => { setIntelPage(null); setWorkHarderOpen(false) }}
           onBack={() => { setIntelPage(null); setWorkHarderOpen(true) }}
         />
+      )}
+
+      {/* ── Drag confirmation banner ─────────────────────────────────────────── */}
+      {pendingDrop && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          background: '#1a0533', color: 'white', borderRadius: 12,
+          padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
+          boxShadow: '0 8px 40px rgba(26,5,51,0.45)', zIndex: 9999,
+          fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+        }}>
+          <div style={{ fontSize: '0.85rem', fontWeight: 400 }}>
+            Move <strong style={{ fontWeight: 700 }}>{(pendingDrop.title || '').split(' — ')[0]}</strong> to{' '}
+            <strong style={{ fontWeight: 700 }}>{format(pendingDrop.start, 'EEE d MMM, h:mma').replace(':00', '')}</strong>?
+          </div>
+          <button onClick={confirmDrop}
+            style={{ padding: '0.38rem 0.95rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif" }}>
+            Confirm
+          </button>
+          <button onClick={cancelDrop}
+            style={{ padding: '0.38rem 0.85rem', background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 7, cursor: 'pointer', fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif" }}>
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   )

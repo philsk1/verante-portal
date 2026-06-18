@@ -12,23 +12,23 @@ const fmtPrice = (from, to) => {
   return `£${from || to}`
 }
 
-// Vivid, maximally-distinct palette — adjacent indices are very different colours
+// Maximally distinct — each consecutive pair is a large hue jump
 const PALETTE = [
-  '#ec4899', // 0  pink
-  '#3b82f6', // 1  blue
-  '#ef4444', // 2  red
-  '#22c55e', // 3  green
-  '#f97316', // 4  orange
-  '#06b6d4', // 5  cyan
-  '#eab308', // 6  yellow
-  '#8b5cf6', // 7  purple
-  '#f43f5e', // 8  rose
-  '#14b8a6', // 9  teal
-  '#f59e0b', // 10 amber
-  '#6366f1', // 11 indigo
-  '#84cc16', // 12 lime
-  '#a855f7', // 13 violet
-  '#10b981', // 14 emerald
+  '#2563eb', // 0  blue
+  '#dc2626', // 1  red
+  '#16a34a', // 2  green
+  '#c026d3', // 3  fuchsia
+  '#d97706', // 4  amber
+  '#7c3aed', // 5  purple
+  '#0d9488', // 6  teal
+  '#ea580c', // 7  orange
+  '#db2777', // 8  pink
+  '#059669', // 9  emerald
+  '#4338ca', // 10 indigo
+  '#65a30d', // 11 lime
+  '#0891b2', // 12 cyan
+  '#9333ea', // 13 violet
+  '#b45309', // 14 caramel
 ]
 
 const ServiceCatalogue = () => {
