@@ -854,7 +854,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
         const [apptData, staffRes, catRes] = await Promise.all([
           loadApptWindow(tenantId, windowFrom, windowTo),
           supabase.from('staff_profiles').select('id, name, role, colour, skills, include_in_intel, overhead_hours_per_week').eq('tenant_id', tenantId).or('active.eq.true,active.is.null').order('name'),
-          supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type').eq('tenant_id', tenantId).eq('active', true).order('name'),
+          supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type, colour').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         const staffData = staffRes.data || []
         setEvents(apptData.map(toEvent))
@@ -994,7 +994,10 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     const status = appt.status || 'confirmed'
     const statusC = STATUS_COLOURS[status] || STATUS_COLOURS.confirmed
     const catItem = catalogue.find(ci => ci.id === appt.service_id)
-    const catC = catItem ? getCategoryColour(catItem.category) : null
+    const svcColour = catItem?.colour
+    const catC = svcColour
+      ? { bg: svcColour + 'cc', border: svcColour, text: '#1a1a1a' }
+      : catItem ? getCategoryColour(catItem.category) : null
     const c = catC || statusC
     const isSplit = !!(appt.processing_start_time)
     return {

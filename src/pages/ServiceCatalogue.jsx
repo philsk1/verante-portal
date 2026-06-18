@@ -12,6 +12,12 @@ const fmtPrice = (from, to) => {
   return `£${from || to}`
 }
 
+const PALETTE = [
+  '#c084fc','#f9a8d4','#fca5a5','#a78bfa','#86efac',
+  '#d4a373','#67e8f9','#93c5fd','#fde68a','#6ee7b7',
+  '#cbd5e1','#fb923c','#4ade80','#f472b6','#38bdf8',
+]
+
 const ServiceCatalogue = () => {
   const { user } = useAuth()
   const preview = usePreview()
@@ -24,7 +30,7 @@ const ServiceCatalogue = () => {
   const [items, setItems] = useState([])
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
-  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '' })
+  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '' })
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notesDrafts, setNotesDrafts] = useState({})
@@ -74,12 +80,13 @@ const ServiceCatalogue = () => {
       price_from: draft.price_from ? parseFloat(draft.price_from) : null,
       price_to: draft.price_to ? parseFloat(draft.price_to) : null,
       duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes) : null,
+      colour: draft.colour || null,
       active: true,
     }).select().maybeSingle()
     setSaving(false)
     if (!error && data) {
       setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '' })
+      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: '' })
       setAddOpen(false)
       showToast('Service added.')
       window.dispatchEvent(new Event('qscore-refresh'))
@@ -164,6 +171,17 @@ const ServiceCatalogue = () => {
             <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.3rem' }}>Description (AI reads this)</label>
             <input value={draft.description} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} placeholder="Brief description for the AI to quote on calls…" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '7px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', color: '#1a1a1a' }} />
           </div>
+          <div style={{ marginBottom: '0.65rem' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>Calendar colour</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+              {PALETTE.map(c => (
+                <button key={c} onClick={() => setDraft(p => ({ ...p, colour: p.colour === c ? '' : c }))} style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: draft.colour === c ? '3px solid #1a0533' : '2px solid transparent', cursor: 'pointer', flexShrink: 0, outline: 'none', transition: 'border 0.1s' }} title={c} />
+              ))}
+              {draft.colour && (
+                <button onClick={() => setDraft(p => ({ ...p, colour: '' }))} style={{ fontSize: '0.7rem', color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', fontFamily: "'DM Sans', sans-serif" }}>clear</button>
+              )}
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={addItem} disabled={!draft.name.trim() || saving} style={{ padding: '0.5rem 1.1rem', background: draft.name.trim() ? '#f0a500' : '#f5d98a', color: '#1a0533', border: 'none', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 600, cursor: draft.name.trim() ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
               {saving ? 'Saving…' : 'Save service'}
@@ -194,6 +212,7 @@ const ServiceCatalogue = () => {
           return (
             <div key={item.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: '10px', padding: '0.85rem 1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {item.colour && <div style={{ width: 12, height: 12, borderRadius: '50%', background: item.colour, flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
                   {item.description && <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.15rem', lineHeight: 1.4 }}>{item.description}</div>}
