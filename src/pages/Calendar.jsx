@@ -210,22 +210,24 @@ function AppointmentCard({ event, title, catalogue }) {
   const isSplit = !!(appt.processing_start_time && appt.processing_end_time)
 
   if (isSplit) {
-    const totalMs = event.end - event.start
-    const p1Ms = new Date(appt.processing_start_time) - event.start
-    const p2Ms = new Date(appt.processing_end_time) - new Date(appt.processing_start_time)
-    const p1 = Math.max(5, Math.round((p1Ms / totalMs) * 100))
-    const p2 = Math.max(5, Math.round((p2Ms / totalMs) * 100))
-    const p3 = Math.max(5, 100 - p1 - p2)
+    const p1Ms = Math.max(1, new Date(appt.processing_start_time) - event.start)
+    const p2Ms = Math.max(1, new Date(appt.processing_end_time) - new Date(appt.processing_start_time))
+    const p3Ms = Math.max(1, event.end - new Date(appt.processing_end_time))
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 5, overflow: 'hidden' }}>
-        <div style={{ height: `${p1}%`, minHeight: 14, background: c.bg, borderLeft: `3px solid ${c.border}`, padding: '2px 4px', overflow: 'hidden', flexShrink: 0 }}>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.7rem', color: c.text, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{title}</div>
-        </div>
-        <div style={{ height: `${p2}%`, minHeight: 8, background: 'rgba(255,255,255,0.85)', borderLeft: `2px dashed ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-          <span style={{ fontSize: '0.58rem', color: c.border, fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.04em' }}>processing</span>
-        </div>
-        <div style={{ height: `${p3}%`, minHeight: 8, background: c.bg, borderLeft: `3px solid ${c.border}`, padding: '2px 4px', overflow: 'hidden', flexShrink: 0 }}>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.65rem', color: c.text, opacity: 0.85, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>finish</div>
+      <div style={{ position: 'relative', height: '100%', overflow: 'hidden', borderRadius: 5 }}>
+        {/* Single continuous left accent — signals one block */}
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c.border, zIndex: 2 }} />
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingLeft: 3 }}>
+          {/* Phase 1: Application */}
+          <div style={{ flex: p1Ms, background: c.bg, padding: '2px 4px', overflow: 'hidden', minHeight: 12 }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.7rem', color: c.text, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{title}</div>
+          </div>
+          {/* Phase 2: Processing — no colour, open for another booking */}
+          <div style={{ flex: p2Ms, background: 'rgba(255,255,255,0.6)', minHeight: 8 }} />
+          {/* Phase 3: Finish */}
+          <div style={{ flex: p3Ms, background: c.bg, padding: '2px 4px', overflow: 'hidden', minHeight: 8 }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.62rem', color: c.text, opacity: 0.75, lineHeight: 1.2 }}>finish</div>
+          </div>
         </div>
       </div>
     )
@@ -1084,8 +1086,13 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   // ─── Drag/resize ─────────────────────────────────────────────────────────────
   const handleEventDrop = useCallback(async ({ event, start, end, resourceId }) => {
     if (previewReadOnly) return
+    const offset = start - event.start
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
     if (resourceId !== undefined) updates.staff_profile_id = resourceId === 'unassigned' ? null : resourceId
+    if (event.resource?.processing_start_time) {
+      updates.processing_start_time = new Date(new Date(event.resource.processing_start_time).getTime() + offset).toISOString()
+      updates.processing_end_time = new Date(new Date(event.resource.processing_end_time).getTime() + offset).toISOString()
+    }
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resourceId: resourceId ?? e.resourceId, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
   }, [previewReadOnly])
@@ -1093,6 +1100,12 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   const handleEventResize = useCallback(async ({ event, start, end }) => {
     if (previewReadOnly) return
     const updates = { start_time: start.toISOString(), end_time: end.toISOString() }
+    // Resizing the top shifts the whole split window; resizing the bottom only extends finish
+    if (event.resource?.processing_start_time && start.getTime() !== event.start.getTime()) {
+      const startOffset = start - event.start
+      updates.processing_start_time = new Date(new Date(event.resource.processing_start_time).getTime() + startOffset).toISOString()
+      updates.processing_end_time = new Date(new Date(event.resource.processing_end_time).getTime() + startOffset).toISOString()
+    }
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, start, end, resource: { ...e.resource, ...updates } } : e))
     await supabase.from('appointments').update(updates).eq('id', event.id)
   }, [previewReadOnly])
