@@ -387,6 +387,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  try {
   const event = req.body
   const eventType = event.message?.type || event.type || 'unknown'
   console.log('Vapi event received:', eventType, JSON.stringify(event).slice(0, 300))
@@ -631,4 +632,8 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ received: true })
+  } catch (err) {
+    console.error('[vapi-webhook] unhandled error:', err)
+    return res.status(200).json({ received: true, error: err.message })
+  }
 }

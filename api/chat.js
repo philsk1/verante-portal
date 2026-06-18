@@ -1022,6 +1022,7 @@ async function handleDemoBuild(body, res) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  try {
   const { type } = req.body || {}
 
   // Rate-limit public endpoints — no auth guards these
@@ -1041,4 +1042,8 @@ export default async function handler(req, res) {
   if (type === 'policy-chat')  return handlePolicyChat(req.body, res)
   if (type === 'orchestrate')  return handleOrchestrate(req.body, res)
   return res.status(400).json({ error: 'Unknown type' })
+  } catch (err) {
+    console.error('[chat] unhandled error:', err)
+    return res.status(500).json({ error: 'Internal server error', message: err.message })
+  }
 }

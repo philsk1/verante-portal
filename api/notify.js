@@ -155,6 +155,7 @@ async function runCampaign(req, res) {
 }
 
 export default async function handler(req, res) {
+  try {
   const type = req.query?.type || 'daily'
 
   // Campaign sends come from the frontend — separate auth path
@@ -180,4 +181,8 @@ export default async function handler(req, res) {
     runRenewal(null).catch(err => console.error('Renewal run error:', err.message))
   }
   return runDaily(res)
+  } catch (err) {
+    console.error('[notify] unhandled error:', err)
+    return res.status(500).json({ error: 'Internal server error', message: err.message })
+  }
 }

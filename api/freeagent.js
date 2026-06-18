@@ -209,9 +209,14 @@ export default async function handler(req, res) {
 
   // POST → invoice / stripe
   if (req.method !== 'POST') return res.status(405).end()
-  const { type = 'freeagent' } = req.body || {}
-  if (type === 'xero') return handleXeroInvoice(req.body, res)
-  if (type === 'stripe-link') return handleStripeLink(req.body, res)
-  if (type === 'stripe-checkout') return handleStripeCheckout(req.body, res)
-  return handleFreeagentInvoice(req.body, res)
+  try {
+    const { type = 'freeagent' } = req.body || {}
+    if (type === 'xero') return handleXeroInvoice(req.body, res)
+    if (type === 'stripe-link') return handleStripeLink(req.body, res)
+    if (type === 'stripe-checkout') return handleStripeCheckout(req.body, res)
+    return handleFreeagentInvoice(req.body, res)
+  } catch (err) {
+    console.error('[freeagent] unhandled error:', err)
+    return res.status(500).json({ error: 'Internal server error', message: err.message })
+  }
 }

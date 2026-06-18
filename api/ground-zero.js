@@ -294,6 +294,7 @@ export default async function handler(req, res) {
   if (ownerEmail !== OWNER_EMAIL) return res.status(403).json({ error: 'Forbidden' })
   if (!tenantId) return res.status(400).json({ error: 'tenantId required' })
 
+  try {
   // Get tenant
   const { data: tenant } = await supabase.from('tenants').select('business_name').eq('id', tenantId).maybeSingle()
   if (!tenant) return res.status(404).json({ error: 'Tenant not found' })
@@ -387,4 +388,8 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ ok: true, services: services.length, products: productCount, appointments: appts.length })
+  } catch (err) {
+    console.error('[ground-zero] unhandled error:', err)
+    return res.status(500).json({ error: 'Internal server error', message: err.message })
+  }
 }

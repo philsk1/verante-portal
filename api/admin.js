@@ -378,6 +378,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
+  try {
   const { userEmail, url, ownerEmail, action } = req.body
 
   // ── demo-init ──────────────────────────────────────────────────────────────
@@ -784,5 +785,9 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('admin/scrape error:', err.message)
     return res.status(500).json({ error: 'Something went wrong. Please fill in your details manually.' })
+  }
+  } catch (err) {
+    console.error('[admin] unhandled error:', err)
+    return res.status(500).json({ error: 'Internal server error', message: err.message })
   }
 }
