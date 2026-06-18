@@ -207,14 +207,22 @@ function AppointmentCard({ event, title, catalogue }) {
     : catalogueItem ? getCategoryColour(catalogueItem.category) : null
   const c = catC || statusC
 
-  // isSplit driven by the service definition, not stored timestamps — immune to drag drift
-  const isSplit = !!((catalogueItem?.processing_minutes || 0) > 0)
+  const hasCatSplit = (catalogueItem?.processing_minutes || 0) > 0
+  const hasStoredSplit = !!(appt.processing_start_time && appt.processing_end_time)
+  const isSplit = hasCatSplit || hasStoredSplit
 
   if (isSplit) {
-    // Proportions come from the service definition — stable regardless of when/how the appointment was dragged
-    const p1 = catalogueItem.duration_minutes || 1
-    const p2 = catalogueItem.processing_minutes || 1
-    const p3 = catalogueItem.completion_minutes || 1
+    // Prefer service-defined proportions (stable across drags); fall back to stored timestamps
+    let p1, p2, p3
+    if (hasCatSplit) {
+      p1 = catalogueItem.duration_minutes || 1
+      p2 = catalogueItem.processing_minutes
+      p3 = catalogueItem.completion_minutes || 1
+    } else {
+      p1 = Math.max(1, new Date(appt.processing_start_time) - event.start)
+      p2 = Math.max(1, new Date(appt.processing_end_time) - new Date(appt.processing_start_time))
+      p3 = Math.max(1, event.end - new Date(appt.processing_end_time))
+    }
     return (
       <div style={{ position: 'relative', height: '100%', overflow: 'hidden', borderRadius: 5 }}>
         {/* Continuous left accent bar — the whole thing reads as one block */}
@@ -1025,7 +1033,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
       ? { bg: svcColour + 'cc', border: svcColour, text: '#1a1a1a' }
       : catItem ? getCategoryColour(catItem.category) : null
     const c = catC || statusC
-    const isSplit = !!((catItem?.processing_minutes || 0) > 0)
+    const isSplit = ((catItem?.processing_minutes || 0) > 0) || !!(appt.processing_start_time && appt.processing_end_time)
     return {
       style: {
         background: isSplit ? 'transparent' : c.bg,
