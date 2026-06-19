@@ -1,56 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-function addMinutes(date, mins) {
-  return new Date(date.getTime() + mins * 60000)
-}
-
-function toTimeStr(date) {
-  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-}
-
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-}
-
-function parseTime(str) {
-  const [h, m] = (str || '09:00').split(':').map(Number)
-  return { h, m }
-}
-
-function dayAt(date, timeStr) {
-  const { h, m } = parseTime(timeStr)
-  const d = new Date(date)
-  d.setHours(h, m, 0, 0)
-  return d
-}
-
-function nextDays(n) {
-  const days = []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  for (let i = 1; i <= n; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    days.push(d)
-  }
-  return days
-}
-
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const SLOT_INTERVAL = 30
+const DAYS_AHEAD = 21
 
+function addMinutes(date, mins) { return new Date(date.getTime() + mins * 60000) }
+function toTimeStr(date) { return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) }
+function parseTime(str) { const [h, m] = (str || '09:00').split(':').map(Number); return { h, m } }
+function dayAt(date, timeStr) { const { h, m } = parseTime(timeStr); const d = new Date(date); d.setHours(h, m, 0, 0); return d }
 function darkenHex(hex) {
   const h = hex.replace('#', '')
   return '#' + [0, 2, 4].map(i => Math.max(0, parseInt(h.slice(i, i + 2), 16) - 50).toString(16).padStart(2, '0')).join('')
 }
-
+function nextDays(n) {
+  const days = [], today = new Date(); today.setHours(0,0,0,0)
+  for (let i = 1; i <= n; i++) { const d = new Date(today); d.setDate(today.getDate() + i); days.push(d) }
+  return days
+}
 function hasOverlapConflict(newStart, newEnd, aptStart, aptEnd, bufferMins, overlapMins) {
   const ns = newStart instanceof Date ? newStart.getTime() : newStart
   const ne = newEnd instanceof Date ? newEnd.getTime() : newEnd
@@ -60,385 +29,256 @@ function hasOverlapConflict(newStart, newEnd, aptStart, aptEnd, bufferMins, over
   const allowedMs = (overlapMins || 0) * 60000
   if (overlapMs > allowedMs) return true
   if (overlapMs > 0) return false
-  // No overlap — enforce buffer gap after existing appointment
   return ns < ae + bufferMins * 60000 && ne > as
 }
-
-function generateSlots({ date, schedules, appointments, durationMins, bufferMins, overlapMins = 0 }) {
+function generateSlots({ date, schedules, appointments, durationMins, bufferMins, overlapMins = 0, filterStaffId = null }) {
   const slots = []
   const dayOfWeek = date.getDay()
   const windows = schedules
-    .filter(s => s.day_of_week === dayOfWeek && s.active)
+    .filter(s => s.day_of_week === dayOfWeek && s.active && (!filterStaffId || s.staff_profile_id === filterStaffId))
     .map(s => ({ staffId: s.staff_profile_id, start: dayAt(date, s.start_time), end: dayAt(date, s.end_time) }))
-
   if (!windows.length) return []
-
   windows.forEach(({ staffId, start, end }) => {
     let cursor = new Date(start)
     while (cursor < end) {
       const slotEnd = addMinutes(cursor, durationMins)
-      const processingEnd = addMinutes(slotEnd, bufferMins)
-      if (processingEnd > end) break
-
+      if (addMinutes(slotEnd, bufferMins) > end) break
       const conflict = appointments.some(apt => {
-        if (apt.staff_profile_id && apt.staff_profile_id !== staffId) return false
+        if (apt.staff_profile_id && staffId && apt.staff_profile_id !== staffId) return false
         return hasOverlapConflict(cursor, slotEnd, new Date(apt.start_time), new Date(apt.end_time), bufferMins, overlapMins)
       })
-
       if (!conflict) {
-        const key = cursor.toISOString()
-        if (!slots.find(s => s.key === key)) {
-          slots.push({ key, time: new Date(cursor), label: toTimeStr(cursor), staffId })
-        }
+        const key = `${cursor.toISOString()}::${staffId}`
+        if (!slots.find(s => s.key === key)) slots.push({ key, time: new Date(cursor), label: toTimeStr(cursor), staffId })
       }
       cursor = addMinutes(cursor, SLOT_INTERVAL)
     }
   })
-
   return slots.sort((a, b) => a.time - b.time)
 }
 
-async function fetchDayConflict(tenantId, slotStart, slotEnd, staffId, bufferMins, excludeAptId = null, overlapMins = 0) {
-  const from = new Date(slotStart); from.setHours(0, 0, 0, 0)
-  const to   = new Date(slotStart); to.setHours(23, 59, 59, 999)
-  let query = supabase.from('appointments')
-    .select('id, staff_profile_id, start_time, end_time')
-    .eq('tenant_id', tenantId)
-    .gte('start_time', from.toISOString())
-    .lte('start_time', to.toISOString())
-    .neq('status', 'cancelled')
-  if (excludeAptId) query = query.neq('id', excludeAptId)
-  const { data } = await query
-  const fresh = data || []
-  const conflict = fresh.some(apt => {
-    if (apt.staff_profile_id && staffId && apt.staff_profile_id !== staffId) return false
-    return hasOverlapConflict(slotStart, slotEnd, new Date(apt.start_time), new Date(apt.end_time), bufferMins, overlapMins)
-  })
-  return { fresh, conflict }
-}
-
-// ─── Small shared components ──────────────────────────────────────────────────
-
 const StepDot = ({ n, active, done, accent = '#5e3b87' }) => (
-  <div style={{
-    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: done ? '#3db87a' : active ? accent : '#e9e3f3',
-    color: done || active ? 'white' : '#aaa',
-    fontSize: '0.75rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
-    transition: 'background 0.2s',
-  }}>
+  <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: done ? '#3db87a' : active ? accent : '#e9e3f3', color: done || active ? 'white' : '#aaa', fontSize: '0.72rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif", transition: 'background 0.2s' }}>
     {done ? '✓' : n}
   </div>
 )
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export default function BookingPage() {
   const { tenantId } = useParams()
 
-  // Data
   const [tenant, setTenant]             = useState(null)
   const [catalogue, setCatalogue]       = useState([])
+  const [staffProfiles, setStaffProfiles] = useState([])
   const [schedules, setSchedules]       = useState([])
-  const [appointments, setAppointments] = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
 
-  // Page mode
-  const [mode, setMode]                 = useState('book') // 'book' | 'manage'
+  const [clientUser, setClientUser]     = useState(null)
+  const [authTab, setAuthTab]           = useState('signup')
+  const [authEmail, setAuthEmail]       = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authName, setAuthName]         = useState('')
+  const [authPhone, setAuthPhone]       = useState('')
+  const [authLoading, setAuthLoading]   = useState(false)
+  const [authError, setAuthError]       = useState(null)
 
-  // Booking state
-  const [step, setStep]                       = useState(1) // 1–5
+  const [step, setStep]                 = useState(1)
+  const [selectedStaff, setSelectedStaff] = useState(undefined) // undefined=not chosen, null=no preference
   const [selectedService, setSelectedService] = useState(null)
-  const [selectedDate, setSelectedDate]       = useState(null)
-  const [selectedSlot, setSelectedSlot]       = useState(null)
-  const [slots, setSlots]                     = useState([])
-  const [form, setForm]                       = useState({ name: '', phone: '', email: '', notes: '' })
-  const [submitting, setSubmitting]           = useState(false)
-  const [bookingRef, setBookingRef]           = useState(null)
-  const [serviceSearch, setServiceSearch]     = useState('')
+  const [selectedSlot, setSelectedSlot] = useState(null)
+  const [serviceSearch, setServiceSearch] = useState('')
+  const [serviceCategory, setServiceCategory] = useState('all')
+  const [slotsByDay, setSlotsByDay]     = useState([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [notes, setNotes]               = useState('')
+  const [submitting, setSubmitting]     = useState(false)
+  const [bookingRef, setBookingRef]     = useState(null)
 
-  // Manage state
-  const [managePhone, setManagePhone]         = useState('')
-  const [manageResults, setManageResults]     = useState(null) // null = not searched, [] = none found
-  const [manageLoading, setManageLoading]     = useState(false)
-  const [rescheduleApt, setRescheduleApt]     = useState(null) // appointment being rescheduled
-  const [rescheduling, setRescheduling]       = useState(false)
+  const [mode, setMode]                 = useState('book')
+  const [myBookings, setMyBookings]     = useState(null)
+  const [myBookingsLoading, setMyBookingsLoading] = useState(false)
 
-  const days = nextDays(21)
+  const [aiOpen, setAiOpen]             = useState(false)
+  const [aiMessages, setAiMessages]     = useState([])
+  const [aiInput, setAiInput]           = useState('')
+  const [aiLoading, setAiLoading]       = useState(false)
+  const [aiGreeted, setAiGreeted]       = useState(false)
 
-  // ── Load tenant + catalogue + schedules ──────────────────────────────────────
+  // ── Load tenant + catalogue + staff ────────────────────────────────────────
   useEffect(() => {
     if (!tenantId) return
     const load = async () => {
       try {
+        const staffRes = await supabase.from('staff_profiles').select('id, name, role, colour, bio').eq('tenant_id', tenantId).order('name')
+        const staffIds = (staffRes.data || []).map(s => s.id)
         const [tenantRes, catRes, schedRes] = await Promise.all([
-          supabase.from('tenants')
-            .select('business_name, business_phone, business_email, business_address, cancel_cutoff_hrs, booking_buffer_mins, client_can_reschedule, charge_late_cancel, no_show_fee, no_show_fee_type, no_show_fee_pct, subscription_tier, calendar_tier, brand_colour, logo_url, booking_promo_text, booking_promo_expires_at, hide_qerxel_ad, booking_overlap_mins')
-            .eq('id', tenantId)
-            .maybeSingle(),
-          supabase.from('catalogue_items')
-            .select('id, name, description, price_from, price_to, duration_minutes, processing_minutes, category')
-            .eq('tenant_id', tenantId)
-            .eq('active', true)
-            .eq('item_type', 'service')
-            .order('name'),
-          supabase.from('staff_availability')
-            .select('staff_profile_id, day_of_week, start_time, end_time, active')
-            .in('staff_profile_id',
-              (await supabase.from('staff_profiles').select('id').eq('tenant_id', tenantId)).data?.map(s => s.id) || []
-            ),
+          supabase.from('tenants').select('business_name, business_phone, business_email, business_address, cancel_cutoff_hrs, booking_buffer_mins, client_can_reschedule, charge_late_cancel, no_show_fee, no_show_fee_type, no_show_fee_pct, subscription_tier, calendar_tier, brand_colour, logo_url, booking_promo_text, booking_promo_expires_at, hide_qerxel_ad, booking_overlap_mins').eq('id', tenantId).maybeSingle(),
+          supabase.from('catalogue_items').select('id, name, description, price_from, price_to, duration_minutes, processing_minutes, category').eq('tenant_id', tenantId).eq('active', true).eq('item_type', 'service').order('category').order('name'),
+          staffIds.length
+            ? supabase.from('staff_availability').select('staff_profile_id, day_of_week, start_time, end_time, active').in('staff_profile_id', staffIds)
+            : Promise.resolve({ data: [] }),
         ])
         if (!tenantRes.data) { setError('Booking page not found.'); setLoading(false); return }
         setTenant(tenantRes.data)
         setCatalogue(catRes.data || [])
+        setStaffProfiles(staffRes.data || [])
         setSchedules(schedRes.data || [])
-      } catch {
-        setError('Something went wrong. Please try again.')
-      } finally {
-        setLoading(false)
-      }
+      } catch { setError('Something went wrong. Please try again.') }
+      finally { setLoading(false) }
     }
     load()
   }, [tenantId])
 
-  // ── Load appointments for selected date (booking flow) ───────────────────────
+  // ── Client session ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!tenantId || !selectedDate) return
-    const from = new Date(selectedDate)
-    from.setHours(0, 0, 0, 0)
-    const to = new Date(selectedDate)
-    to.setHours(23, 59, 59, 999)
-    supabase.from('appointments')
-      .select('staff_profile_id, start_time, end_time')
-      .eq('tenant_id', tenantId)
-      .gte('start_time', from.toISOString())
-      .lte('start_time', to.toISOString())
-      .neq('status', 'cancelled')
-      .then(({ data }) => setAppointments(data || []))
-  }, [tenantId, selectedDate])
+    supabase.auth.getSession().then(({ data: { session } }) => { if (session?.user) setClientUser(session.user) })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setClientUser(session?.user || null))
+    return () => subscription.unsubscribe()
+  }, [])
 
-  // ── Generate slots ────────────────────────────────────────────────────────────
+  // ── Generate slots when entering step 3 ────────────────────────────────────
   useEffect(() => {
-    if (!selectedService || !selectedDate || !schedules.length) { setSlots([]); return }
-    const durationMins  = selectedService.duration_minutes || 60
-    const bufferMins    = tenant?.booking_buffer_mins ?? 15
-    const overlapMins   = tenant?.booking_overlap_mins ?? 0
-    setSlots(generateSlots({ date: selectedDate, schedules, appointments, durationMins, bufferMins, overlapMins }))
-    setSelectedSlot(null)
-  }, [selectedService, selectedDate, appointments, schedules, tenant])
+    if (step !== 3 || !selectedService) return
+    const loadSlots = async () => {
+      setSlotsLoading(true)
+      setSelectedSlot(null)
+      const days = nextDays(DAYS_AHEAD)
+      const from = new Date(days[0]); from.setHours(0,0,0,0)
+      const to = new Date(days[days.length - 1]); to.setHours(23,59,59,999)
+      const { data: apts } = await supabase.from('appointments').select('staff_profile_id, start_time, end_time').eq('tenant_id', tenantId).gte('start_time', from.toISOString()).lte('start_time', to.toISOString()).neq('status', 'cancelled')
+      const appointments = apts || []
+      const durationMins = selectedService.duration_minutes || 60
+      const bufferMins = tenant?.booking_buffer_mins ?? 15
+      const overlapMins = tenant?.booking_overlap_mins ?? 0
+      const filterStaffId = selectedStaff?.id || null
+      setSlotsByDay(days.map(day => ({ day, slots: generateSlots({ date: day, schedules, appointments, durationMins, bufferMins, overlapMins, filterStaffId }) })))
+      setSlotsLoading(false)
+    }
+    loadSlots()
+  }, [step, selectedService, selectedStaff, schedules, tenant, tenantId])
 
-  // ── Submit new booking ────────────────────────────────────────────────────────
+  // ── My bookings ─────────────────────────────────────────────────────────────
+  const loadMyBookings = useCallback(async () => {
+    if (!clientUser) return
+    setMyBookingsLoading(true)
+    const { data } = await supabase.from('appointments').select('id, title, appointment_type, start_time, end_time, status, cancel_token').eq('tenant_id', tenantId).eq('client_user_id', clientUser.id).neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time')
+    setMyBookings(data || [])
+    setMyBookingsLoading(false)
+  }, [clientUser, tenantId])
+
+  useEffect(() => { if (mode === 'mybookings' && clientUser) loadMyBookings() }, [mode, clientUser, loadMyBookings])
+
+  // ── Auth handlers ───────────────────────────────────────────────────────────
+  const handleSignUp = async () => {
+    if (!authEmail.trim() || !authPassword || !authName.trim() || !authPhone.trim()) { setAuthError('Please fill in all fields.'); return }
+    if (authPassword.length < 8) { setAuthError('Password must be at least 8 characters.'); return }
+    setAuthLoading(true); setAuthError(null)
+    const { data, error: err } = await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword, options: { data: { full_name: authName.trim(), phone: authPhone.trim() } } })
+    if (err) { setAuthError(err.message); setAuthLoading(false); return }
+    if (data.user) { setClientUser(data.user); setStep(5) }
+    setAuthLoading(false)
+  }
+
+  const handleSignIn = async () => {
+    if (!authEmail.trim() || !authPassword) { setAuthError('Please enter your email and password.'); return }
+    setAuthLoading(true); setAuthError(null)
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword })
+    if (err) { setAuthError('Incorrect email or password.'); setAuthLoading(false); return }
+    if (data.user) { setClientUser(data.user); setStep(5) }
+    setAuthLoading(false)
+  }
+
+  // ── Submit booking ──────────────────────────────────────────────────────────
   const submitBooking = async () => {
-    if (!selectedSlot || !selectedService || !form.name.trim() || !form.phone.trim()) return
+    if (!selectedSlot || !selectedService || !clientUser) return
     setSubmitting(true)
     try {
-      const start      = selectedSlot.time
-      const end        = addMinutes(start, selectedService.duration_minutes || 60)
+      const start = selectedSlot.time
+      const end = addMinutes(start, selectedService.duration_minutes || 60)
       const bufferMins = tenant?.booking_buffer_mins ?? 15
-
       const overlapMins = tenant?.booking_overlap_mins ?? 0
-      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, null, overlapMins)
-      if (conflict) {
-        setAppointments(fresh)
-        setSelectedSlot(null)
-        setStep(3)
-        alert('Sorry, that time was just booked by someone else. Please choose another slot.')
-        return
-      }
+      const meta = clientUser.user_metadata || {}
+      const clientName = meta.full_name || clientUser.email
+      const clientPhone = meta.phone || ''
+      const clientEmail = clientUser.email
 
-      const processingEnd = selectedService.processing_minutes
-        ? addMinutes(end, selectedService.processing_minutes) : null
+      const from = new Date(start); from.setHours(0,0,0,0)
+      const to = new Date(start); to.setHours(23,59,59,999)
+      const { data: fresh } = await supabase.from('appointments').select('id, staff_profile_id, start_time, end_time').eq('tenant_id', tenantId).gte('start_time', from.toISOString()).lte('start_time', to.toISOString()).neq('status', 'cancelled')
+      const conflict = (fresh || []).some(apt => {
+        if (apt.staff_profile_id && selectedSlot.staffId && apt.staff_profile_id !== selectedSlot.staffId) return false
+        return hasOverlapConflict(start, end, new Date(apt.start_time), new Date(apt.end_time), bufferMins, overlapMins)
+      })
+      if (conflict) { setSelectedSlot(null); setStep(3); alert('Sorry, that slot was just taken. Please choose another time.'); return }
 
+      const processingEnd = selectedService.processing_minutes ? addMinutes(end, selectedService.processing_minutes) : null
       const { data, error: err } = await supabase.from('appointments').insert({
-        tenant_id:           tenantId,
-        staff_profile_id:    selectedSlot.staffId || null,
-        title:               `${selectedService.name} — ${form.name.trim()}`,
-        description:         form.notes.trim() || null,
-        start_time:          start.toISOString(),
-        end_time:            end.toISOString(),
+        tenant_id: tenantId, staff_profile_id: selectedSlot.staffId || null,
+        title: `${selectedService.name} — ${clientName}`,
+        start_time: start.toISOString(), end_time: end.toISOString(),
+        processing_start_time: selectedService.processing_minutes ? end.toISOString() : null,
         processing_end_time: processingEnd?.toISOString() || null,
-        service_id:          selectedService.id,
-        status:              'provisional',
-        appointment_type:    selectedService.name,
-        client_notes:        form.notes.trim() || null,
-        client_name:         form.name.trim(),
-        client_phone:        form.phone.trim(),
-        client_email:        form.email.trim() || null,
-        created_from:        'customer_booking',
+        service_id: selectedService.id, status: 'provisional',
+        appointment_type: selectedService.name, client_notes: notes.trim() || null,
+        client_name: clientName, client_phone: clientPhone, client_email: clientEmail,
+        client_user_id: clientUser.id, created_from: 'customer_booking',
       }).select().maybeSingle()
-
       if (err) throw err
-      const ref = data?.id?.slice(0, 8).toUpperCase() || 'CONFIRMED'
-      setBookingRef(ref)
-      setStep(5)
-
-      // Fire confirmation notifications (non-blocking)
-      fetch('/api/integrations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action:      'booking-confirm',
-          tenantId,
-          clientName:  form.name.trim(),
-          clientPhone: form.phone.trim(),
-          clientEmail: form.email.trim() || null,
-          serviceName: selectedService.name,
-          startTime:   start.toISOString(),
-          bookingRef:  ref,
-          cancelToken: data?.cancel_token || null,
-        }),
-      }).catch(() => {})
-    } catch {
-      alert('Could not confirm your booking. Please try again or call us directly.')
-    } finally {
-      setSubmitting(false)
-    }
+      setBookingRef(data?.id?.slice(0, 8).toUpperCase() || 'CONFIRMED')
+      setStep(6)
+      fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'booking-confirm', tenantId, clientName, clientPhone, clientEmail, serviceName: selectedService.name, startTime: start.toISOString(), bookingRef: data?.id?.slice(0,8).toUpperCase(), cancelToken: data?.cancel_token || null }) }).catch(() => {})
+    } catch { alert('Could not confirm your booking. Please try again or call us directly.') }
+    finally { setSubmitting(false) }
   }
 
-  // ── Manage: look up by phone ──────────────────────────────────────────────────
-  const lookupByPhone = async () => {
-    const phone = managePhone.trim()
-    if (!phone) return
-    setManageLoading(true)
-    const now = new Date().toISOString()
-    const { data } = await supabase.from('appointments')
-      .select('id, title, start_time, end_time, status, appointment_type, client_name')
-      .eq('tenant_id', tenantId)
-      .eq('client_phone', phone)
-      .neq('status', 'cancelled')
-      .gte('start_time', now)
-      .order('start_time')
-    setManageResults(data || [])
-    setManageLoading(false)
-  }
-
-  // ── Manage: cancel ────────────────────────────────────────────────────────────
-  const cancelAppointment = async (apt) => {
-    const cutoff = tenant?.cancel_cutoff_hrs ?? 24
-    const hoursUntil = (new Date(apt.start_time) - new Date()) / 3600000
-    const isLate = hoursUntil < cutoff
-    const feeApplies = isLate && tenant?.charge_late_cancel
-
-    let msg = `Cancel your ${apt.appointment_type || 'appointment'} on ${new Date(apt.start_time).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${toTimeStr(new Date(apt.start_time))}?`
-    if (isLate && cutoff > 0) {
-      msg += `\n\nThis is within the ${cutoff}-hour cancellation window.`
-      if (feeApplies) {
-        const fee = tenant.no_show_fee_type === 'percentage'
-          ? `${tenant.no_show_fee_pct}% of your service cost`
-          : tenant.no_show_fee ? `£${tenant.no_show_fee}` : 'a cancellation fee'
-        msg += ` A ${fee} may apply.`
-      }
-    }
-
-    if (!window.confirm(msg)) return
-
-    await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', apt.id)
-    setManageResults(prev => prev.filter(a => a.id !== apt.id))
-  }
-
-  // ── Manage: start reschedule ──────────────────────────────────────────────────
-  const startReschedule = (apt) => {
-    setRescheduleApt(apt)
-    // Pre-select the service if we can match by appointment_type
-    const svc = catalogue.find(s => s.name === apt.appointment_type)
-    if (svc) setSelectedService(svc)
-    setSelectedDate(null)
-    setSelectedSlot(null)
-    setMode('book')
-    setStep(2)
-  }
-
-  // ── Reschedule submit (replaces submitBooking when rescheduling) ──────────────
-  const submitReschedule = async () => {
-    if (!selectedSlot || !selectedService || !rescheduleApt) return
-    setRescheduling(true)
-    try {
-      const start      = selectedSlot.time
-      const end        = addMinutes(start, selectedService.duration_minutes || 60)
-      const bufferMins = tenant?.booking_buffer_mins ?? 15
-
-      const overlapMins = tenant?.booking_overlap_mins ?? 0
-      const { fresh, conflict } = await fetchDayConflict(tenantId, start, end, selectedSlot.staffId, bufferMins, rescheduleApt.id, overlapMins)
-      if (conflict) {
-        setAppointments(fresh)
-        setSelectedSlot(null)
-        alert('Sorry, that time was just booked. Please choose another slot.')
-        return
-      }
-
-      await supabase.from('appointments').update({
-        start_time: start.toISOString(),
-        end_time:   end.toISOString(),
-        status:     'provisional',
-      }).eq('id', rescheduleApt.id)
-      setRescheduleApt(null)
-      setManageResults(null)
-      setManagePhone('')
-      setStep(1)
-      setSelectedService(null)
-      setMode('manage')
-      // small delay then re-lookup so the updated apt shows
-      setTimeout(() => setMode('manage'), 100)
-    } catch {
-      alert('Could not reschedule. Please call us directly.')
-    } finally {
-      setRescheduling(false)
-    }
-  }
-
-  // ── AI advisor widget state ────────────────────────────────────────────────
-  const [aiOpen, setAiOpen]           = useState(false)
-  const [aiMessages, setAiMessages]   = useState([])
-  const [aiInput, setAiInput]         = useState('')
-  const [aiLoading, setAiLoading]     = useState(false)
-  const [aiGreeted, setAiGreeted]     = useState(false)
-
+  // ── AI advisor ──────────────────────────────────────────────────────────────
   const openAi = () => {
     setAiOpen(true)
-    if (!aiGreeted) {
-      setAiMessages([{ role: 'assistant', content: `Hi! I can help you choose the right service or answer any questions about ${tenant?.business_name || 'us'}. What would you like to know?` }])
-      setAiGreeted(true)
-    }
+    if (!aiGreeted) { setAiMessages([{ role: 'assistant', content: `Hi! I can help you choose the right service or answer questions about ${tenant?.business_name || 'us'}. What would you like to know?` }]); setAiGreeted(true) }
   }
-
   const sendAiMessage = async () => {
-    const text = aiInput.trim()
-    if (!text || aiLoading) return
+    const text = aiInput.trim(); if (!text || aiLoading) return
     const next = [...aiMessages, { role: 'user', content: text }]
-    setAiMessages(next)
-    setAiInput('')
-    setAiLoading(true)
+    setAiMessages(next); setAiInput(''); setAiLoading(true)
     try {
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'booking-assist', businessName: tenant?.business_name, services: catalogue, messages: next }),
-      })
+      const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'booking-assist', businessName: tenant?.business_name, services: catalogue, messages: next }) })
       const d = await r.json()
-      setAiMessages(prev => [...prev, { role: 'assistant', content: d.message || 'Sorry, I couldn\'t respond. Please try again.' }])
-    } catch {
-      setAiMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
-    } finally {
-      setAiLoading(false)
-    }
+      setAiMessages(prev => [...prev, { role: 'assistant', content: d.message || 'Sorry, I couldn\'t respond.' }])
+    } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]) }
+    finally { setAiLoading(false) }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-  const steps = [
-    { n: 1, label: 'Service' },
-    { n: 2, label: 'Date' },
-    { n: 3, label: 'Time' },
-    { n: 4, label: 'Your details' },
-  ]
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const subTier = tenant?.subscription_tier
+  const hasBrandingBP = (!!subTier && subTier !== 'schedule_only') || tenant?.calendar_tier === 'multi'
+  const accent     = (hasBrandingBP && tenant?.brand_colour) ? tenant.brand_colour : '#5e3b87'
+  const accentDark = darkenHex(accent)
+  const headerLogo = hasBrandingBP ? (tenant?.logo_url || null) : null
+  const showPromo  = !!tenant?.booking_promo_text && (!tenant?.booking_promo_expires_at || new Date(tenant.booking_promo_expires_at) > new Date())
+  const isProfPlus = ['professional', 'enterprise', 'bespoke'].includes(subTier)
+  const showDiscoveryCard = !(isProfPlus && tenant?.hide_qerxel_ad)
 
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#f7f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", color: '#aaa', fontSize: '0.9rem' }}>Loading…</div>
-    </div>
-  )
+  const priceLabel = svc => {
+    if (!svc.price_from && !svc.price_to) return null
+    if (svc.price_from && svc.price_to) return `£${svc.price_from}–£${svc.price_to}`
+    return `From £${svc.price_from || svc.price_to}`
+  }
 
+  const categories = useMemo(() => [...new Set(catalogue.filter(s => s.category).map(s => s.category))].sort(), [catalogue])
+
+  const filteredCatalogue = useMemo(() => {
+    let list = serviceCategory !== 'all' ? catalogue.filter(s => s.category === serviceCategory) : catalogue
+    if (serviceSearch.trim()) {
+      const terms = serviceSearch.toLowerCase().split(/\s+/).filter(t => t.length > 1)
+      list = list.filter(s => terms.some(t => `${s.name} ${s.description || ''}`.toLowerCase().includes(t)))
+    }
+    return list
+  }, [catalogue, serviceCategory, serviceSearch])
+
+  const STEP_LABELS = ['Team', 'Service', 'Date & time', 'Account', 'Confirm']
+
+  // ── Render guards ───────────────────────────────────────────────────────────
+  if (loading) return <div style={{ minHeight: '100vh', background: '#f7f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif", color: '#aaa', fontSize: '0.9rem' }}>Loading…</div>
   if (error) return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
       <div style={{ textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}>
@@ -449,155 +289,83 @@ export default function BookingPage() {
     </div>
   )
 
-  const priceLabel = (svc) => {
-    if (!svc.price_from && !svc.price_to) return null
-    if (svc.price_from && svc.price_to) return `£${svc.price_from}–£${svc.price_to}`
-    return `From £${svc.price_from || svc.price_to}`
-  }
-
-  const isRescheduling = !!rescheduleApt
-
-  const filteredCatalogue = useMemo(() => {
-    if (!serviceSearch.trim()) return catalogue
-    const terms = serviceSearch.toLowerCase().split(/\s+/).filter(t => t.length > 1)
-    return catalogue.filter(svc => {
-      const hay = `${svc.name} ${svc.description || ''}`.toLowerCase()
-      return terms.some(t => hay.includes(t))
-    })
-  }, [catalogue, serviceSearch])
-
-  // ── Branding + promo derivations ─────────────────────────────────────────
-  const subTier = tenant?.subscription_tier
-  const hasBrandingBP = (!!subTier && subTier !== 'schedule_only') || tenant?.calendar_tier === 'multi'
-  const accent      = (hasBrandingBP && tenant?.brand_colour) ? tenant.brand_colour : '#5e3b87'
-  const accentDark  = darkenHex(accent)
-  const headerLogo  = hasBrandingBP ? (tenant?.logo_url || null) : null
-  const showPromo   = !!tenant?.booking_promo_text && (!tenant?.booking_promo_expires_at || new Date(tenant.booking_promo_expires_at) > new Date())
-  const isProfPlus  = ['professional', 'enterprise', 'bespoke'].includes(subTier)
-  const showDiscoveryCard = !(isProfPlus && tenant?.hide_qerxel_ad)
+  const inBtn = { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.9rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', background: 'white' }
+  const lbl   = { display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem', fontFamily: "'DM Sans', sans-serif" }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f6f9', fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${accentDark} 0%, ${accent} 100%)`, padding: '1.5rem 1.5rem 2.5rem' }}>
-        <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1rem' }}>Qerxel</span>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f0a500', display: 'inline-block' }} />
-            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', fontFamily: "'DM Sans', sans-serif" }}>Booking</span>
-          </div>
-          {headerLogo ? (
-            <img src={headerLogo} alt={tenant?.business_name} style={{ height: 52, maxWidth: 220, objectFit: 'contain', marginBottom: '0.35rem', display: 'block' }} />
-          ) : (
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.25rem' }}>
-              {tenant?.business_name}
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '1rem' }}>Qerxel</span>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f0a500', display: 'inline-block' }} />
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>Booking</span>
             </div>
-          )}
-          {headerLogo && (
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '1rem', color: 'rgba(255,255,255,0.85)', marginBottom: '0.2rem' }}>{tenant?.business_name}</div>
-          )}
-          {tenant?.business_address && (
-            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)' }}>{tenant.business_address}</div>
-          )}
+            {clientUser && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)' }}>{clientUser.user_metadata?.full_name || clientUser.email}</span>
+                <button onClick={() => supabase.auth.signOut().then(() => setClientUser(null))} style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 4, padding: '0.2rem 0.5rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Sign out</button>
+              </div>
+            )}
+          </div>
+          {headerLogo
+            ? <img src={headerLogo} alt={tenant?.business_name} style={{ height: 52, maxWidth: 220, objectFit: 'contain', marginBottom: '0.35rem', display: 'block' }} />
+            : <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'white', marginBottom: '0.25rem' }}>{tenant?.business_name}</div>}
+          {headerLogo && <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '1rem', color: 'rgba(255,255,255,0.85)', marginBottom: '0.2rem' }}>{tenant?.business_name}</div>}
+          {tenant?.business_address && <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)' }}>{tenant.business_address}</div>}
         </div>
       </div>
 
-      {/* ── Promo banner ──────────────────────────────────────────────────── */}
+      {/* Promo */}
       {showPromo && (
-        <div style={{ maxWidth: step === 5 ? 680 : 520, margin: '0 auto', padding: '0 1rem' }}>
-          <div style={{ background: '#fffbf0', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 10, padding: '0.7rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem', marginTop: '0.75rem' }}>
-            <span style={{ fontSize: '1rem', lineHeight: 1, flexShrink: 0, marginTop: 1 }}>🎉</span>
-            <div style={{ fontSize: '0.83rem', color: '#78460a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
-              {tenant.booking_promo_text}
-            </div>
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 1rem' }}>
+          <div style={{ background: '#fffbf0', border: '1px solid rgba(240,165,0,0.35)', borderRadius: 10, padding: '0.7rem 1rem', display: 'flex', gap: '0.6rem', marginTop: '0.75rem' }}>
+            <span style={{ fontSize: '1rem', flexShrink: 0 }}>🎉</span>
+            <div style={{ fontSize: '0.83rem', color: '#78460a', lineHeight: 1.5, fontWeight: 500 }}>{tenant.booking_promo_text}</div>
           </div>
         </div>
       )}
 
-      {/* ── Content card ──────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: step === 5 ? 680 : 520, margin: '-1.25rem auto 2rem', padding: '0 1rem' }}>
+      {/* Card */}
+      <div style={{ maxWidth: 560, margin: '-1.25rem auto 2rem', padding: '0 1rem' }}>
         <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 4px 32px rgba(94,59,135,0.12), 0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
 
-          {/* Mode toggle */}
-          {step < 5 && !isRescheduling && (
+          {/* Mode tabs */}
+          {step < 6 && (
             <div style={{ display: 'flex', borderBottom: '1px solid rgba(94,59,135,0.07)', padding: '0 1.5rem' }}>
-              {[['book','Book'], ['manage','Manage booking']].map(([m, label]) => (
-                <button key={m} onClick={() => { setMode(m); if (m === 'book') setStep(1) }}
-                  style={{ padding: '0.9rem 0', marginRight: '1.5rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: mode === m ? 700 : 400, fontSize: '0.875rem', color: mode === m ? '#5e3b87' : '#aaa', borderBottom: mode === m ? '2px solid #5e3b87' : '2px solid transparent', transition: 'all 0.15s' }}>
+              {[['book', 'Make a booking'], ...(clientUser ? [['mybookings', 'My bookings']] : [])].map(([m, label]) => (
+                <button key={m} onClick={() => setMode(m)} style={{ padding: '0.9rem 0', marginRight: '1.5rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: mode === m ? 700 : 400, fontSize: '0.875rem', color: mode === m ? accent : '#aaa', borderBottom: mode === m ? `2px solid ${accent}` : '2px solid transparent', transition: 'all 0.15s' }}>
                   {label}
                 </button>
               ))}
             </div>
           )}
 
-          {/* ── MANAGE MODE ───────────────────────────────────────────────── */}
-          {mode === 'manage' && !isRescheduling && (
+          {/* MY BOOKINGS */}
+          {mode === 'mybookings' && step < 6 && (
             <div style={{ padding: '1.5rem' }}>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Manage your booking</div>
-              <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.25rem', lineHeight: 1.5 }}>
-                Enter the phone number you booked with to view, cancel, or reschedule your appointment.
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                <input
-                  type="tel"
-                  value={managePhone}
-                  onChange={e => { setManagePhone(e.target.value); setManageResults(null) }}
-                  onKeyDown={e => e.key === 'Enter' && lookupByPhone()}
-                  placeholder="e.g. 07700 000000"
-                  style={{ flex: 1, padding: '0.65rem 0.85rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.9rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif" }}
-                />
-                <button
-                  onClick={lookupByPhone}
-                  disabled={manageLoading || !managePhone.trim()}
-                  style={{ padding: '0.65rem 1.1rem', background: !managePhone.trim() ? '#f5d98a' : '#f0a500', color: !managePhone.trim() ? '#7a5c1a' : '#1a0533', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.875rem', cursor: !managePhone.trim() ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                  {manageLoading ? 'Looking…' : 'Find'}
-                </button>
-              </div>
-
-              {manageResults !== null && manageResults.length === 0 && (
-                <div style={{ padding: '1.5rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12, fontSize: '0.85rem', color: '#aaa' }}>
-                  No upcoming appointments found for that number.<br />
-                  <span style={{ fontSize: '0.8rem' }}>Check the number or{' '}
-                    <a href={`tel:${tenant?.business_phone}`} style={{ color: '#5e3b87', textDecoration: 'none', fontWeight: 600 }}>call us</a>
-                  </span>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>My bookings</div>
+              <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.25rem' }}>Your upcoming appointments at {tenant?.business_name}.</div>
+              {myBookingsLoading && <div style={{ color: '#aaa', fontSize: '0.85rem' }}>Loading…</div>}
+              {myBookings !== null && !myBookingsLoading && myBookings.length === 0 && (
+                <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12, fontSize: '0.85rem', color: '#aaa' }}>
+                  No upcoming appointments.
+                  <br />
+                  <button onClick={() => setMode('book')} style={{ marginTop: '0.75rem', color: accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', fontFamily: "'DM Sans', sans-serif" }}>Make a booking →</button>
                 </div>
               )}
-
-              {manageResults && manageResults.length > 0 && (
+              {myBookings && myBookings.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {manageResults.map(apt => {
+                  {myBookings.map(apt => {
                     const start = new Date(apt.start_time)
-                    const cutoff = tenant?.cancel_cutoff_hrs ?? 24
-                    const hoursUntil = (start - new Date()) / 3600000
-                    const canReschedule = tenant?.client_can_reschedule !== false && catalogue.length > 0
                     return (
                       <div key={apt.id} style={{ border: '1px solid rgba(94,59,135,0.12)', borderRadius: 12, padding: '0.9rem 1.1rem' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.2rem' }}>
-                          {apt.appointment_type || apt.title}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '0.75rem' }}>
-                          {start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {toTimeStr(start)}
-                          {apt.client_name && ` · ${apt.client_name}`}
-                        </div>
-                        {hoursUntil < cutoff && cutoff > 0 && (
-                          <div style={{ fontSize: '0.73rem', color: '#f0a500', background: '#fffbf0', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 6, padding: '0.35rem 0.6rem', marginBottom: '0.65rem' }}>
-                            Within {cutoff}h cancellation window{tenant?.charge_late_cancel ? ' — fee may apply' : ''}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          {canReschedule && (
-                            <button onClick={() => startReschedule(apt)}
-                              style={{ flex: 1, padding: '0.5rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 8, background: 'white', color: '#5e3b87', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                              Reschedule
-                            </button>
-                          )}
-                          <button onClick={() => cancelAppointment(apt)}
-                            style={{ flex: 1, padding: '0.5rem', border: '1.5px solid rgba(239,68,68,0.2)', borderRadius: 8, background: 'white', color: '#ef4444', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                            Cancel
-                          </button>
-                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: '0.2rem' }}>{apt.appointment_type || apt.title}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {toTimeStr(start)}</div>
+                        {apt.cancel_token && <a href={`/manage-booking/${apt.cancel_token}`} style={{ display: 'inline-block', marginTop: '0.65rem', fontSize: '0.78rem', color: '#ef4444', textDecoration: 'none', fontWeight: 500 }}>Cancel or reschedule →</a>}
                       </div>
                     )
                   })}
@@ -606,75 +374,100 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* ── BOOK MODE ─────────────────────────────────────────────────── */}
-          {(mode === 'book' || isRescheduling) && (
+          {/* BOOK MODE */}
+          {mode === 'book' && (
             <>
-              {/* Progress bar */}
-              {step < 5 && (
+              {step < 6 && (
                 <div style={{ padding: '1.25rem 1.5rem 0' }}>
-                  {isRescheduling && (
-                    <div style={{ fontSize: '0.75rem', color: '#f0a500', fontWeight: 700, background: '#fffbf0', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 6, padding: '0.3rem 0.7rem', marginBottom: '0.85rem', display: 'inline-block', fontFamily: "'DM Sans', sans-serif" }}>
-                      Rescheduling: {rescheduleApt?.appointment_type}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    {steps.map((s, i) => (
-                      <div key={s.n} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0, gap: '0.5rem' }}>
-                        <StepDot n={s.n} active={step === s.n} done={step > s.n} accent={accent} />
-                        {i < steps.length - 1 && (
-                          <div style={{ flex: 1, height: 2, borderRadius: 2, background: step > s.n ? '#3db87a' : '#ede8f5' }} />
-                        )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem' }}>
+                    {[1,2,3,4,5].map((n, i) => (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', flex: i < 4 ? 1 : 0, gap: '0.4rem' }}>
+                        <StepDot n={n} active={step === n} done={step > n} accent={accent} />
+                        {i < 4 && <div style={{ flex: 1, height: 2, borderRadius: 2, background: step > n ? '#3db87a' : '#ede8f5' }} />}
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>
-                    Step {step} of {steps.length} — {steps[step - 1]?.label}
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
+                    Step {step} of 5 — {STEP_LABELS[step - 1]}
                   </div>
                 </div>
               )}
 
-              <div style={{ padding: step < 5 ? '0 1.5rem 1.5rem' : '2rem 1.5rem' }}>
+              <div style={{ padding: step < 6 ? '0 1.5rem 1.5rem' : '2rem 1.5rem' }}>
 
-                {/* ── Step 1: Service ──────────────────────────────────────── */}
+                {/* Step 1 — Team */}
                 {step === 1 && (
                   <div>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Choose a service</div>
-                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '0.85rem', lineHeight: 1.5 }}>Select what you'd like to book.</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Who would you like to see?</div>
+                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.1rem', lineHeight: 1.5 }}>Choose a team member, or let us pick the first available slot.</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: staffProfiles.length > 1 ? '1fr 1fr' : '1fr', gap: '0.65rem' }}>
+                      <button onClick={() => { setSelectedStaff(null); setStep(2) }}
+                        style={{ textAlign: 'left', padding: '0.9rem 1rem', border: `1.5px solid ${selectedStaff === null ? accent : 'rgba(94,59,135,0.12)'}`, borderRadius: 12, background: selectedStaff === null ? accent + '10' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#ede8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>✨</div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>No preference</div>
+                          <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>First available slot</div>
+                        </div>
+                      </button>
+                      {staffProfiles.map(sp => {
+                        const isSelected = selectedStaff?.id === sp.id
+                        const initials = (sp.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                        return (
+                          <button key={sp.id} onClick={() => { setSelectedStaff(sp); setStep(2) }}
+                            style={{ textAlign: 'left', padding: '0.9rem 1rem', border: `1.5px solid ${isSelected ? accent : 'rgba(94,59,135,0.12)'}`, borderRadius: 12, background: isSelected ? accent + '10' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: 38, height: 38, borderRadius: '50%', background: sp.colour || accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: 'white', flexShrink: 0 }}>{initials}</div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{sp.name}</div>
+                              {sp.role && <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>{sp.role}</div>}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                    {catalogue.length > 4 && (
-                      <div style={{ position: 'relative', marginBottom: '0.85rem' }}>
-                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: '#bbb', pointerEvents: 'none' }}>🔍</span>
-                        <input
-                          type="search"
-                          value={serviceSearch}
-                          onChange={e => setServiceSearch(e.target.value)}
-                          placeholder="Search services…"
-                          style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.875rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', background: 'white' }}
-                        />
+                {/* Step 2 — Service */}
+                {step === 2 && (
+                  <div>
+                    <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Choose a service</div>
+                    {selectedStaff && <div style={{ fontSize: '0.78rem', color: accent, fontWeight: 600, marginBottom: '0.75rem' }}>with {selectedStaff.name}</div>}
+                    {!selectedStaff && selectedStaff !== undefined && <div style={{ fontSize: '0.78rem', color: '#aaa', marginBottom: '0.75rem' }}>No preference selected</div>}
+
+                    {categories.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                        {['all', ...categories].map(cat => (
+                          <button key={cat} onClick={() => setServiceCategory(cat)} style={{ padding: '0.3rem 0.75rem', borderRadius: 999, border: `1px solid ${serviceCategory === cat ? accent : 'rgba(94,59,135,0.18)'}`, background: serviceCategory === cat ? accent : 'white', color: serviceCategory === cat ? 'white' : '#555', fontSize: '0.78rem', fontWeight: serviceCategory === cat ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.12s' }}>
+                            {cat === 'all' ? 'All services' : cat}
+                          </button>
+                        ))}
                       </div>
                     )}
 
-                    {catalogue.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem', background: '#faf9fc', borderRadius: 10 }}>
-                        No services available for online booking right now.
+                    {catalogue.length > 5 && (
+                      <div style={{ position: 'relative', marginBottom: '0.85rem' }}>
+                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: '#bbb', pointerEvents: 'none' }}>🔍</span>
+                        <input type="search" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} placeholder="Search services…" style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.875rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', background: 'white' }} />
                       </div>
-                    ) : filteredCatalogue.length === 0 ? (
-                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem', background: '#faf9fc', borderRadius: 10 }}>
-                        No services match "{serviceSearch}" — try different words.
+                    )}
+
+                    {filteredCatalogue.length === 0 ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem', background: '#faf9fc', borderRadius: 10 }}>
+                        {catalogue.length === 0 ? 'No services available right now.' : 'No services match your search.'}
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {filteredCatalogue.map(svc => (
-                          <button key={svc.id} onClick={() => { setSelectedService(svc); setStep(2) }}
-                            style={{ textAlign: 'left', padding: '0.9rem 1.1rem', border: `1.5px solid ${selectedService?.id === svc.id ? accent : 'rgba(94,59,135,0.12)'}`, borderRadius: 12, background: selectedService?.id === svc.id ? accent + '12' : 'white', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}>
+                          <button key={svc.id} onClick={() => { setSelectedService(svc); setStep(3) }} style={{ textAlign: 'left', padding: '0.85rem 1rem', border: `1.5px solid ${selectedService?.id === svc.id ? accent : 'rgba(94,59,135,0.12)'}`, borderRadius: 11, background: selectedService?.id === svc.id ? accent + '10' : 'white', cursor: 'pointer', transition: 'border-color 0.15s' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', marginBottom: svc.description ? '0.2rem' : 0 }}>{svc.name}</div>
-                                {svc.description && <div style={{ fontSize: '0.78rem', color: '#888', lineHeight: 1.4 }}>{svc.description}</div>}
+                                <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', marginBottom: svc.description ? '0.15rem' : 0 }}>{svc.name}</div>
+                                {svc.description && <div style={{ fontSize: '0.76rem', color: '#888', lineHeight: 1.4 }}>{svc.description}</div>}
                               </div>
                               <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                                {priceLabel(svc) && <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#5e3b87', fontFamily: "'Syne', sans-serif" }}>{priceLabel(svc)}</div>}
-                                {svc.duration_minutes && <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.1rem' }}>{svc.duration_minutes} min</div>}
+                                {priceLabel(svc) && <div style={{ fontSize: '0.8rem', fontWeight: 700, color: accent, fontFamily: "'Syne', sans-serif" }}>{priceLabel(svc)}</div>}
+                                {svc.duration_minutes && <div style={{ fontSize: '0.7rem', color: '#bbb', marginTop: '0.1rem' }}>{svc.duration_minutes} min</div>}
                               </div>
                             </div>
                           </button>
@@ -684,178 +477,159 @@ export default function BookingPage() {
                   </div>
                 )}
 
-                {/* ── Step 2: Date ─────────────────────────────────────────── */}
-                {step === 2 && (
-                  <div>
-                    <button onClick={() => { if (isRescheduling) { setRescheduleApt(null); setMode('manage') } else setStep(1) }}
-                      style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Choose a date</div>
-                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.1rem', lineHeight: 1.5 }}>
-                      {selectedService?.name} · {selectedService?.duration_minutes || 60} min
-                    </div>
-
-                    {schedules.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12 }}>
-                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📅</div>
-                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>Online booking not available</div>
-                        <div style={{ fontSize: '0.78rem', color: '#aaa', lineHeight: 1.5, marginBottom: '1rem' }}>
-                          {tenant?.business_name} hasn't set up their availability yet.
-                        </div>
-                        {tenant?.business_phone && (
-                          <a href={`tel:${tenant.business_phone}`}
-                            style={{ display: 'inline-block', padding: '0.55rem 1.25rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>
-                            Call to book: {tenant.business_phone}
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem', marginBottom: '1.25rem' }}>
-                          {DAYS_SHORT.map(d => (
-                            <div key={d} style={{ textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em', paddingBottom: '0.3rem' }}>{d}</div>
-                          ))}
-                          {days.map(day => {
-                            const dow = day.getDay()
-                            const hasSchedule = schedules.some(s => s.day_of_week === dow && s.active)
-                            const isSelected = selectedDate && sameDay(day, selectedDate)
-                            return (
-                              <button key={day.toISOString()} disabled={!hasSchedule}
-                                onClick={() => { setSelectedDate(day); setStep(3) }}
-                                style={{ aspectRatio: '1', borderRadius: 8, border: isSelected ? `2px solid ${accent}` : '1px solid transparent', background: isSelected ? accent : hasSchedule ? accent + '14' : '#f9f9f9', color: isSelected ? 'white' : hasSchedule ? accent : '#ccc', fontWeight: isSelected ? 700 : 500, fontSize: '0.8rem', cursor: hasSchedule ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, padding: '0.2rem', transition: 'background 0.12s' }}>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{day.getDate()}</span>
-                                <span style={{ fontSize: '0.55rem', opacity: 0.65 }}>{day.toLocaleDateString('en-GB', { month: 'short' })}</span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: '#bbb', textAlign: 'center' }}>Shaded dates have availability</div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Step 3: Time ─────────────────────────────────────────── */}
+                {/* Step 3 — Date & Time */}
                 {step === 3 && (
                   <div>
                     <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Choose a time</div>
-                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.1rem' }}>
-                      {selectedDate?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Choose a date & time</div>
+                    <div style={{ fontSize: '0.78rem', color: '#999', marginBottom: '1.1rem' }}>
+                      {selectedService?.name} · {selectedService?.duration_minutes || 60} min{selectedStaff ? ` · ${selectedStaff.name}` : ''}
                     </div>
 
-                    {slots.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 10 }}>
+                    {slotsLoading ? (
+                      <div style={{ padding: '2.5rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem' }}>Finding available times…</div>
+                    ) : schedules.length === 0 ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12 }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📅</div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>Online booking not yet available</div>
+                        {tenant?.business_phone && <a href={`tel:${tenant.business_phone}`} style={{ display: 'inline-block', marginTop: '0.75rem', padding: '0.55rem 1.25rem', background: '#f0a500', color: '#1a0533', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>Call to book: {tenant.business_phone}</a>}
+                      </div>
+                    ) : slotsByDay.every(d => d.slots.length === 0) ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', background: '#faf9fc', borderRadius: 12 }}>
                         <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>😔</div>
-                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>No availability this day</div>
-                        <div style={{ fontSize: '0.78rem', color: '#aaa' }}>Please choose another date.</div>
-                        <button onClick={() => setStep(2)} style={{ marginTop: '1rem', padding: '0.5rem 1.25rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 8, background: 'white', color: '#5e3b87', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                          Back to dates
-                        </button>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.25rem' }}>No availability in the next {DAYS_AHEAD} days</div>
+                        <div style={{ fontSize: '0.78rem', color: '#aaa' }}>Please call us or try a different service.</div>
                       </div>
                     ) : (
-                      <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                          {slots.map(slot => {
-                            const isSelected = selectedSlot?.key === slot.key
-                            return (
-                              <button key={slot.key} onClick={() => setSelectedSlot(slot)}
-                                style={{ padding: '0.7rem 0.5rem', borderRadius: 10, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', textAlign: 'center', border: isSelected ? `2px solid ${accent}` : '1.5px solid rgba(94,59,135,0.15)', background: isSelected ? accent : accent + '14', color: isSelected ? 'white' : accent, cursor: 'pointer', transition: 'all 0.12s' }}>
-                                {slot.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <button onClick={() => selectedSlot && (isRescheduling ? submitReschedule() : setStep(4))}
-                          disabled={!selectedSlot || rescheduling}
-                          style={{ width: '100%', padding: '0.75rem', borderRadius: 10, border: 'none', background: selectedSlot ? '#f0a500' : '#f5d98a', color: selectedSlot ? '#1a0533' : '#7a5c1a', fontWeight: 700, fontSize: '0.9rem', cursor: selectedSlot ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
-                          {rescheduling ? 'Saving…' : isRescheduling ? 'Confirm new time →' : 'Continue →'}
-                        </button>
-                      </>
+                      <div>
+                        {slotsByDay.map(({ day, slots }, idx) => {
+                          const hasSlots = slots.length > 0
+                          return (
+                            <div key={day.toISOString()} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.65rem 0', borderBottom: idx < slotsByDay.length - 1 ? '1px solid rgba(94,59,135,0.06)' : 'none' }}>
+                              <div style={{ width: 48, flexShrink: 0 }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: hasSlots ? '#999' : '#ddd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{DAYS[day.getDay()]}</div>
+                                <div style={{ fontSize: '1rem', fontWeight: 700, color: hasSlots ? '#1a1a1a' : '#e0e0e0', lineHeight: 1.1 }}>{day.getDate()}</div>
+                                <div style={{ fontSize: '0.62rem', color: '#ccc' }}>{MONTHS[day.getMonth()]}</div>
+                              </div>
+                              <div style={{ flex: 1, paddingTop: '0.15rem' }}>
+                                {!hasSlots ? (
+                                  <div style={{ fontSize: '0.75rem', color: '#e0e0e0' }}>No availability</div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                    {slots.map(slot => {
+                                      const isSel = selectedSlot?.key === slot.key
+                                      return (
+                                        <button key={slot.key} onClick={() => { setSelectedSlot(slot); setStep(clientUser ? 5 : 4) }}
+                                          style={{ padding: '0.35rem 0.75rem', borderRadius: 7, border: isSel ? `2px solid ${accent}` : `1.5px solid ${accent}35`, background: isSel ? accent : accent + '12', color: isSel ? 'white' : accent, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'Syne', sans-serif", transition: 'all 0.1s' }}>
+                                          {slot.label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* ── Step 4: Details ──────────────────────────────────────── */}
+                {/* Step 4 — Account */}
                 {step === 4 && (
                   <div>
                     <button onClick={() => setStep(3)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Your details</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>{authTab === 'signup' ? 'Create an account' : 'Sign in to continue'}</div>
+                    <div style={{ fontSize: '0.82rem', color: '#999', marginBottom: '1.25rem', lineHeight: 1.5 }}>{authTab === 'signup' ? 'A quick account so we can save your booking and let you manage it later.' : 'Welcome back — sign in to confirm your booking.'}</div>
 
+                    {/* Booking summary */}
                     <div style={{ background: accent + '10', border: `1px solid ${accent}26`, borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: accent, marginBottom: '0.2rem' }}>{selectedService?.name}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#888', lineHeight: 1.5 }}>
-                        {selectedDate?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}
-                        {selectedService?.duration_minutes && ` · ${selectedService.duration_minutes} min`}
-                        {priceLabel(selectedService) && ` · ${priceLabel(selectedService)}`}
-                      </div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: accent }}>{selectedService?.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#888', marginTop: '0.2rem' }}>{selectedSlot?.time.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}{selectedStaff ? ` · ${selectedStaff.name}` : ''}</div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    {/* Signin/signup toggle */}
+                    <div style={{ display: 'flex', marginBottom: '1.25rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 9, overflow: 'hidden' }}>
+                      {[['signup', 'New client'], ['signin', 'Returning client']].map(([tab, label]) => (
+                        <button key={tab} onClick={() => { setAuthTab(tab); setAuthError(null) }} style={{ flex: 1, padding: '0.6rem', background: authTab === tab ? accent : 'white', color: authTab === tab ? 'white' : '#888', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                      {authTab === 'signup' && <>
+                        <div><label style={lbl}>Full name *</label><input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Your name" style={inBtn} /></div>
+                        <div><label style={lbl}>Phone number *</label><input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+44 7700 000000" style={inBtn} /></div>
+                      </>}
+                      <div><label style={lbl}>Email *</label><input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="you@example.com" style={inBtn} /></div>
+                      <div><label style={lbl}>Password *</label><input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder={authTab === 'signup' ? 'At least 8 characters' : 'Your password'} onKeyDown={e => e.key === 'Enter' && (authTab === 'signup' ? handleSignUp() : handleSignIn())} style={inBtn} /></div>
+                    </div>
+
+                    {authError && <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.8rem', color: '#b91c1c' }}>{authError}</div>}
+
+                    <button onClick={authTab === 'signup' ? handleSignUp : handleSignIn} disabled={authLoading} style={{ width: '100%', padding: '0.8rem', borderRadius: 10, border: 'none', background: authLoading ? '#f5d98a' : '#f0a500', color: authLoading ? '#7a5c1a' : '#1a0533', fontWeight: 700, fontSize: '0.9375rem', cursor: authLoading ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", marginTop: '1.1rem' }}>
+                      {authLoading ? 'Please wait…' : authTab === 'signup' ? 'Create account & continue →' : 'Sign in & continue →'}
+                    </button>
+                    <div style={{ fontSize: '0.72rem', color: '#ccc', marginTop: '0.75rem', lineHeight: 1.55, textAlign: 'center' }}>Your details are used only for this booking and managing future appointments.</div>
+                  </div>
+                )}
+
+                {/* Step 5 — Confirm */}
+                {step === 5 && (
+                  <div>
+                    <button onClick={() => setStep(3)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer', padding: '0 0 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>Review & confirm</div>
+
+                    <div style={{ background: '#faf9fc', border: '1px solid rgba(94,59,135,0.1)', borderRadius: 12, padding: '1rem 1.1rem', marginBottom: '1.25rem' }}>
                       {[
-                        { key: 'name',  label: 'Full name',        type: 'text',  required: true,  placeholder: 'Your name' },
-                        { key: 'phone', label: 'Phone number',     type: 'tel',   required: true,  placeholder: '+44 7700 000000' },
-                        { key: 'email', label: 'Email (optional)', type: 'email', required: false, placeholder: 'you@example.com' },
-                      ].map(f => (
-                        <div key={f.key}>
-                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>
-                            {f.label}{f.required && <span style={{ color: '#ef4444' }}> *</span>}
-                          </label>
-                          <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder}
-                            style={{ width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.9rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', background: 'white' }} />
+                        ['Service', <span>{selectedService?.name}{priceLabel(selectedService) && <span style={{ fontFamily: "'Syne', sans-serif", color: accent, marginLeft: '0.4rem' }}>{priceLabel(selectedService)}</span>}</span>],
+                        ...(selectedStaff ? [['With', selectedStaff.name]] : []),
+                        ['Date & time', `${selectedSlot?.time.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at ${selectedSlot?.label}`],
+                        ['Name', clientUser?.user_metadata?.full_name || clientUser?.email],
+                        ['Contact', [clientUser?.user_metadata?.phone, clientUser?.email].filter(Boolean).join(' · ')],
+                      ].map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.55rem' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0, paddingTop: 2 }}>{k}</div>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem', color: '#1a1a1a', textAlign: 'right', maxWidth: '65%' }}>{v}</div>
                         </div>
                       ))}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem', fontFamily: "'DM Sans', sans-serif" }}>Notes (optional)</label>
-                        <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Anything useful for your appointment…" rows={2}
-                          style={{ width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.875rem', color: '#1a1a1a', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', resize: 'none', lineHeight: 1.5 }} />
-                      </div>
                     </div>
 
-                    <div style={{ fontSize: '0.72rem', color: '#bbb', marginBottom: '1rem', lineHeight: 1.55 }}>
-                      By confirming you agree that {tenant?.business_name} may contact you about this booking.
-                      {tenant?.cancel_cutoff_hrs > 0 && ` Cancellations must be made at least ${tenant.cancel_cutoff_hrs} hours before your appointment.`}
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={lbl}>Notes (optional)</label>
+                      <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anything useful for your appointment…" rows={2} style={{ ...inBtn, resize: 'none', lineHeight: 1.5 }} />
                     </div>
 
-                    <button onClick={submitBooking} disabled={submitting || !form.name.trim() || !form.phone.trim()}
-                      style={{ width: '100%', padding: '0.8rem', borderRadius: 10, border: 'none', background: submitting || !form.name.trim() || !form.phone.trim() ? '#f5d98a' : '#f0a500', color: submitting || !form.name.trim() || !form.phone.trim() ? '#7a5c1a' : '#1a0533', fontWeight: 700, fontSize: '0.9375rem', cursor: submitting || !form.name.trim() || !form.phone.trim() ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    {tenant?.cancel_cutoff_hrs > 0 && <div style={{ fontSize: '0.72rem', color: '#bbb', marginBottom: '1rem', lineHeight: 1.55 }}>Cancellations must be made at least {tenant.cancel_cutoff_hrs} hours in advance.</div>}
+
+                    <button onClick={submitBooking} disabled={submitting} style={{ width: '100%', padding: '0.8rem', borderRadius: 10, border: 'none', background: submitting ? '#f5d98a' : '#f0a500', color: submitting ? '#7a5c1a' : '#1a0533', fontWeight: 700, fontSize: '0.9375rem', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                       {submitting ? 'Confirming…' : 'Confirm booking'}
                     </button>
                   </div>
                 )}
 
-                {/* ── Step 5: Confirmed ────────────────────────────────────── */}
-                {step === 5 && (
+                {/* Step 6 — Done */}
+                {step === 6 && (
                   <div style={{ textAlign: 'center', padding: '1rem 0' }}>
                     <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', border: '2px solid rgba(61,184,122,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', fontSize: '1.75rem' }}>✓</div>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.25rem', color: '#1a1a1a', marginBottom: '0.4rem' }}>Booking confirmed</div>
-                    <div style={{ fontSize: '0.875rem', color: '#666', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-                      {tenant?.business_name} will be in touch to confirm your appointment.
-                    </div>
-
+                    <div style={{ fontSize: '0.875rem', color: '#666', lineHeight: 1.65, marginBottom: '1.5rem' }}>{tenant?.business_name} will be in touch to confirm your appointment.</div>
                     <div style={{ background: accent + '10', border: `1px solid ${accent}26`, borderRadius: 12, padding: '1rem 1.25rem', textAlign: 'left', marginBottom: '1.5rem' }}>
                       <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your booking</div>
                       <div style={{ fontWeight: 700, color: accent, fontSize: '0.9rem', marginBottom: '0.25rem' }}>{selectedService?.name}</div>
                       <div style={{ fontSize: '0.82rem', color: '#555', lineHeight: 1.6 }}>
-                        {selectedDate?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}<br />
-                        {form.name}{form.phone && ` · ${form.phone}`}
+                        {selectedSlot?.time.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {selectedSlot?.label}
+                        {selectedStaff && <><br />with {selectedStaff.name}</>}
+                        {bookingRef && <><br /><span style={{ fontSize: '0.72rem', color: '#aaa' }}>Ref: <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em', color: accent }}>{bookingRef}</span></span></>}
                       </div>
-                      {bookingRef && (
-                        <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', color: '#aaa' }}>
-                          Reference: <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em', color: accent }}>{bookingRef}</span>
-                        </div>
-                      )}
                     </div>
-
-                    <div style={{ fontSize: '0.78rem', color: '#aaa', lineHeight: 1.6, marginBottom: '0.5rem' }}>
-                      To cancel or reschedule, return to this page and use "Manage booking".
-                    </div>
-
-                    {tenant?.business_phone && (
-                      <div style={{ fontSize: '0.8rem', color: '#aaa', lineHeight: 1.6 }}>
-                        Questions? Call{' '}
-                        <a href={`tel:${tenant.business_phone}`} style={{ color: '#5e3b87', fontWeight: 600, textDecoration: 'none' }}>{tenant.business_phone}</a>
-                      </div>
-                    )}
+                    <button onClick={() => { setStep(1); setSelectedService(null); setSelectedSlot(null); setSelectedStaff(undefined); setNotes(''); setMode('mybookings') }}
+                      style={{ padding: '0.55rem 1.25rem', border: `1.5px solid ${accent}30`, borderRadius: 8, background: 'white', color: accent, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      View my bookings
+                    </button>
+                    {tenant?.business_phone && <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.75rem' }}>Questions? <a href={`tel:${tenant.business_phone}`} style={{ color: accent, fontWeight: 600, textDecoration: 'none' }}>{tenant.business_phone}</a></div>}
                   </div>
                 )}
               </div>
@@ -863,143 +637,42 @@ export default function BookingPage() {
           )}
         </div>
 
-        {step === 5 && showDiscoveryCard ? (
+        {/* Discovery card */}
+        {step === 6 && showDiscoveryCard && (
           <div style={{ marginTop: '1.25rem', background: 'white', borderRadius: 18, boxShadow: '0 4px 24px rgba(94,59,135,0.10)', overflow: 'hidden', border: '0.5px solid rgba(94,59,135,0.08)' }}>
             <div style={{ height: 3, background: 'linear-gradient(90deg, #5e3b87 0%, #f0a500 100%)' }} />
             <div style={{ padding: '1.5rem' }}>
-
-              <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.65rem', fontFamily: "'DM Sans', sans-serif" }}>
-                Booking service provided free by Qerxel
-              </div>
-
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.45rem', lineHeight: 1.3 }}>
-                Run a business like {tenant?.business_name}?
-              </div>
-
-              <div style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.65, marginBottom: '1.25rem', fontFamily: "'DM Sans', sans-serif" }}>
-                Qerxel gives every small business the kind of tools that used to cost enterprise money. Every product has a 30-day free trial — no credit card, no commitment. And our scheduling calendar is <strong style={{ color: '#3db87a' }}>free for life</strong> for one person.
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                {[
-                  {
-                    icon: '📅',
-                    name: 'Online scheduling',
-                    desc: 'Online bookings, calendar management, availability rules. One person, forever free.',
-                    badge: 'Free for life',
-                    badgeClr: '#3db87a',
-                  },
-                  {
-                    icon: '📞',
-                    name: 'AI call handling',
-                    desc: 'Q answers missed calls, captures every lead and books appointments automatically.',
-                    badge: '30-day free trial',
-                    badgeClr: '#5e3b87',
-                  },
-                  {
-                    icon: '👂',
-                    name: 'Live call copilot',
-                    desc: 'Real-time AI guidance on screen the moment you pick up the phone.',
-                    badge: '30-day free trial',
-                    badgeClr: '#5e3b87',
-                  },
-                ].map(p => (
-                  <div key={p.name} style={{ display: 'flex', gap: '0.8rem', alignItems: 'flex-start', padding: '0.75rem 0.85rem', background: '#faf9fc', borderRadius: 10 }}>
-                    <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>{p.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{p.name}</span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 700, background: p.badgeClr + '22', color: p.badgeClr, padding: '0.15rem 0.5rem', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
-                          {p.badge}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.77rem', color: '#888', lineHeight: 1.45, fontFamily: "'DM Sans', sans-serif" }}>{p.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <a
-                href="/signup"
-                style={{ display: 'block', width: '100%', padding: '0.8rem', boxSizing: 'border-box', background: '#f0a500', color: '#1a0533', borderRadius: 10, fontWeight: 700, fontSize: '0.9375rem', textAlign: 'center', fontFamily: "'DM Sans', sans-serif", textDecoration: 'none' }}
-              >
-                Start free — no card needed →
-              </a>
-              <div style={{ fontSize: '0.68rem', color: '#bbb', textAlign: 'center', marginTop: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>
-                30 days free on all products · Scheduling free for one person, forever
-              </div>
-
+              <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.65rem' }}>Booking service provided free by Qerxel</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.1rem', color: '#1a1a1a', marginBottom: '0.45rem', lineHeight: 1.3 }}>Run a business like {tenant?.business_name}?</div>
+              <div style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.65, marginBottom: '1.25rem' }}>Qerxel gives every small business the tools that used to cost enterprise money. 30-day free trial — no card, no commitment. Scheduling is <strong style={{ color: '#3db87a' }}>free for life</strong> for one person.</div>
+              <a href="/try-q" style={{ display: 'inline-block', padding: '0.6rem 1.25rem', background: '#5e3b87', color: 'white', borderRadius: 9, fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif" }}>Talk to Q →</a>
             </div>
           </div>
-        ) : null}
-        <div style={{ textAlign: 'center', marginTop: step === 5 && showDiscoveryCard ? '0.75rem' : '1.5rem', fontSize: '0.72rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.7, paddingBottom: '0.5rem' }}>
-          Booking service provided free by{' '}
-          <a href="/signup" style={{ color: '#5e3b87', fontFamily: "'Syne', sans-serif", fontWeight: 700, textDecoration: 'none' }}>Qerxel business software</a>
-        </div>
+        )}
       </div>
 
-      {/* ── AI Advisor Widget ─────────────────────────────────────────────── */}
-      {catalogue.length > 0 && (
-        <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 1200, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
-
-          {/* Chat panel */}
-          {aiOpen && (
-            <div style={{ width: 340, background: 'white', borderRadius: 18, boxShadow: '0 8px 40px rgba(94,59,135,0.18), 0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 420 }}>
-              {/* Panel header */}
-              <div style={{ background: 'linear-gradient(135deg, #3a2057 0%, #5e3b87 100%)', padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: 'white' }}>Ask our AI</div>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.1rem' }}>{tenant?.business_name}</div>
-                </div>
-                <button onClick={() => setAiOpen(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'white', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
-              </div>
-
-              {/* Messages */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {aiMessages.map((m, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '82%', padding: '0.55rem 0.8rem', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                      background: m.role === 'user' ? '#5e3b87' : '#f5f3ff',
-                      color: m.role === 'user' ? 'white' : '#1a1a1a',
-                      fontSize: '0.82rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif",
-                    }}>
-                      {m.content}
-                    </div>
-                  </div>
-                ))}
-                {aiLoading && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                    <div style={{ padding: '0.55rem 0.85rem', borderRadius: '14px 14px 14px 4px', background: '#f5f3ff', fontSize: '0.82rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
-                      Thinking…
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Input */}
-              <div style={{ padding: '0.75rem', borderTop: '1px solid rgba(94,59,135,0.08)', display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                <input
-                  value={aiInput}
-                  onChange={e => setAiInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendAiMessage()}
-                  placeholder="Ask about services…"
-                  style={{ flex: 1, padding: '0.55rem 0.75rem', border: '1.5px solid rgba(94,59,135,0.18)', borderRadius: 10, fontSize: '0.82rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }}
-                />
-                <button onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading}
-                  style={{ padding: '0.55rem 0.9rem', borderRadius: 10, border: 'none', background: aiInput.trim() && !aiLoading ? '#5e3b87' : '#e9e3f3', color: aiInput.trim() && !aiLoading ? 'white' : '#aaa', fontWeight: 700, fontSize: '0.8rem', cursor: aiInput.trim() && !aiLoading ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-                  →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Toggle button */}
-          <button onClick={() => aiOpen ? setAiOpen(false) : openAi()}
-            style={{ background: aiOpen ? '#3a2057' : 'linear-gradient(135deg, #5e3b87 0%, #7c4fa0 100%)', color: 'white', border: 'none', borderRadius: 50, padding: '0.65rem 1.1rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', boxShadow: '0 4px 18px rgba(94,59,135,0.35)', display: 'flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
-            <span style={{ fontSize: '1rem', lineHeight: 1 }}>💬</span>
-            {aiOpen ? 'Close' : 'Ask our AI'}
-          </button>
+      {/* AI advisor bubble */}
+      {!aiOpen && step < 6 && (
+        <button onClick={openAi} style={{ position: 'fixed', bottom: 24, right: 24, background: accent, color: 'white', border: 'none', borderRadius: '50%', width: 52, height: 52, fontSize: '1.3rem', cursor: 'pointer', boxShadow: '0 4px 20px rgba(94,59,135,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          💬
+        </button>
+      )}
+      {aiOpen && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, width: 300, background: 'white', borderRadius: 16, boxShadow: '0 8px 40px rgba(94,59,135,0.25)', zIndex: 100, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 400 }}>
+          <div style={{ background: accent, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: '0.875rem' }}>Ask Q</div>
+            <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {aiMessages.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? accent : '#f5f3fa', color: m.role === 'user' ? 'white' : '#1a1a1a', borderRadius: 10, padding: '0.5rem 0.75rem', fontSize: '0.82rem', lineHeight: 1.5, maxWidth: '85%', fontFamily: "'DM Sans', sans-serif" }}>{m.content}</div>
+            ))}
+            {aiLoading && <div style={{ alignSelf: 'flex-start', background: '#f5f3fa', borderRadius: 10, padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: '#aaa' }}>…</div>}
+          </div>
+          <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)', padding: '0.6rem', display: 'flex', gap: '0.4rem' }}>
+            <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendAiMessage()} placeholder="Ask a question…" style={{ flex: 1, padding: '0.45rem 0.65rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.82rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a' }} />
+            <button onClick={sendAiMessage} disabled={aiLoading || !aiInput.trim()} style={{ padding: '0.45rem 0.75rem', background: accent, color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>→</button>
+          </div>
         </div>
       )}
     </div>

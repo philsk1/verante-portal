@@ -13,7 +13,7 @@ export const ELEMENTS = {
     id:            'answer',
     name:          'Answer',
     description:   'Handles inbound missed calls for tenant businesses. The core revenue element.',
-    llm:           'gemini-flash',           // standard voice; 'gpt-4o-mini' for premium
+    llm:           'gpt-4o-mini',            // both standard and premium tiers; voice differs via Cartesia/Deepgram config
     policy_source: 'tenants.additional_instructions',
     api:           'vapi-assistant-request.js (main branch)',
     warden:        null,                      // slot reserved — watches call volume and error rate
@@ -64,12 +64,6 @@ export const ELEMENTS = {
 // Each entry names the provider, model, and the role it plays.
 // When a warden needs to route to a different LLM under load, it reads this map.
 export const LLMS = {
-  'gemini-flash': {
-    provider: 'google',
-    model:    'gemini-2.0-flash',
-    role:     'telephony-standard',
-    cost_per_min_pence: 14,
-  },
   'gpt-4o': {
     provider: 'openai',
     model:    'gpt-4o',

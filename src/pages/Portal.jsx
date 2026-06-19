@@ -360,13 +360,14 @@ const Portal = () => {
   }, [tenantId, preview.isPreview, preview.previewTenantId])
 
   const toggleQDisplay = useCallback(async () => {
-    const tid = preview.isPreview ? preview.previewTenantId : tenantId
+    if (preview.isPreview) return
+    const tid = tenantId
     if (!tid) return
     const next = !qDisplayRef.current
     setQDisplayOnScreen(next)
     qDisplayRef.current = next
     await supabase.from('tenants').update({ q_display_on_screen: next }).eq('id', tid)
-  }, [tenantId, preview.isPreview, preview.previewTenantId])
+  }, [tenantId, preview.isPreview])
 
   // Memoised so icon React elements aren't recreated on unrelated re-renders
   const PRODUCTS = useMemo(() => scheduleOnly ? [
@@ -520,13 +521,13 @@ const Portal = () => {
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} triggerPlanSelector={planSelectorTrigger} />
       case 'sentry':
         // PIN gate: only when a PIN is set, and never in owner preview (owner can always investigate)
-        if (sentryCameraLimit > 0 && !preview.isPreview && sentryPin && !sentryUnlocked) {
+        if (sentryCameraLimit > 0 && !preview.isPreview && !sentryUnlocked) {
           if (sentryPin === undefined) return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
               <span style={{ color: '#aaa', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>Loading…</span>
             </div>
           )
-          return (
+          if (sentryPin) return (
             <SentryPinGate
               pin={sentryPin}
               tenantId={tenantId}
@@ -592,7 +593,6 @@ const Portal = () => {
           isDemoMode={isDemoMode}
           onDemoEnd={() => setShowDemoEndModal(true)}
           baseTier={baseTier}
-          hasListen={hasListen}
         />
       )}
 

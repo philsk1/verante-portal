@@ -55,8 +55,13 @@ Ground Zero: all 44 calendar tenants fully reseeded — proper sector services, 
 ### 2026-06-14 (session 3)
 Live desk full redesign: 2-column collapsed call grid replacing old copilot layout. Each card expands to show action bar (Call via tel: link, Message with sms: pre-populated, Book → Calendar), message compose panel, AI summary, transcript bubbles. Service edit modal + services panel removed. Lead count discrepancy fixed (ActivityDashboard now uses all-time uncontacted count). Q layout on Listen corrected to match other pages (normal 136px Q in top header, Live desk full width).
 
+### 2026-06-19
+Onboarding.jsx: Partners step removed (was step 6, 9-step flow → 8-step flow). Step numbering corrected (Plan=step 6, Review=step 7). `refer_out` field removed from Boundaries step, businessContext builder, and review summary. `custom_business_type` added to data state. Step 0 heading changed to "Select your business category". "My business isn't listed — choose my own" option added with text input mode and back navigation. Progress bar text colour darkened (#aaa→#666). Build clean, deployed.
+Booking page (BookingPage.jsx): full Phorest-style rewrite — staff selection (Step 1 with cards + No preference), service categories (pill filter), merged date+time (per-day rows with slot pills), Supabase Auth client account gate (Step 4, skip if already logged in), My Bookings tab (shows upcoming bookings for logged-in client). `client_user_id` column added to appointments. DB policies added for anon read on staff/services/availability, authenticated insert/select for client bookings. Deployed.
+Decoupling audit (7 components + channel audit): API components (AI Voice, Chat/Vera, Elements & Signals), Sentry, Calendar, BookingPage, Portal Shell. All complete. Channel audit complete. research/decoupling-audit.md is the running log. Key fixes: fetchTenantData/getVoiceConfig canonical extraction → _tenant-data.js; speech pace now persists to Vapi assistants; support chat m.text bug fixed; Gemini phantom entry removed from element registry; SIGNAL_TYPES validation added; markReviewed preview guard added (Sentry); e.resource?.status fix in Calendar (attention bar was always empty); staff skills field name corrected; processing_start_time added to customer booking insert; Sentry PIN gate flash fixed; toggleQDisplay preview guard added. Channel audit: ClientDirectory.jsx SMS draft was using mode: 'vera-chat' (no type field) — always returned { error: 'Unknown type' } silently; fixed to type: 'vera' with correct shape. All other /api/integrations (9 actions) and /api/chat (9 types) channels confirmed intact. useTenantState preview awareness verified. PortalSidebar tenantId inconsistency confirmed harmless.
+
 ### 2026-06-18
-Voice ID fix (complete): vapi-assistant-request.js `aura-luna-en`→`luna`, `aura-stella-en`→`stella` (lines 27, 32, 608). vapi-sync.js sales demo outbound `aura-luna-en`→`luna`. All Deepgram endpoints now use correct short-form IDs. Needs deploy.
+Voice ID fix (complete): vapi-assistant-request.js `aura-luna-en`→`luna`, `aura-stella-en`→`stella` (lines 27, 32, 608). vapi-sync.js sales demo outbound `aura-luna-en`→`luna`. All Deepgram endpoints now use correct short-form IDs. Deployed.
 CLAUDE-PROCEDURES.md: written and perfected — 10 audit findings applied. Universal ethical overlay, conflict resolution priority, domain definition, caller as stakeholder, cross-references, authority boundary middle tier, CLAUDE-OBJECTIONS.md reference, review mechanism, visible output requirements.
 Marketplace audit written to research/marketplace-audit.md — seven-tier evaluation, procedure compliance findings, 6 recommended next actions.
 
@@ -122,8 +127,14 @@ Q Intelligence tab added to DataAnalytics.jsx: Revenue Evaporation, At-Risk Clie
 
 ## Next tasks
 
-0. ~~**Demo builder**~~ — DONE 2026-06-16. Ephemeral tenant clone (best-sector-match → AI-renamed), isDemoMode flag throughout portal (banner, end-demo modal, Account & Billing hidden, PortalSidebar End Demo button). End-demo modal: "Keep exploring" or "Build my real business" → signOut → /signup. SalesChat /try-q: "Explore the portal" button → POST demo-build → signInWithPassword → /portal. Warden cleans expired ephemeral tenants daily.
-   **Known gap**: `?sector=` param from end-demo modal is not consumed by Signup.jsx or Onboarding.jsx. Onboarding subcategory pre-fill requires string→UUID matching against business_type_subcategories table — non-trivial. Flag for future session when onboarding is being reviewed.
+0. ~~**Demo builder**~~ — DONE 2026-06-16.
+   ~~**Onboarding partners/refer_out removal**~~ — DONE 2026-06-19.
+   ~~**Booking flow rewrite**~~ — DONE 2026-06-19. Phorest-style, client auth gate, My Bookings tab.
+   ~~**Decoupling audit (7 components + channel audit)**~~ — DONE 2026-06-19. All findings fixed. Channel audit complete.
+   **Known gap (onboarding)**: `?sector=` param from end-demo modal is not consumed by Signup.jsx or Onboarding.jsx. Onboarding subcategory pre-fill requires string→UUID matching against business_type_subcategories table — non-trivial. Flag for future session.
+   **Pending (onboarding)**: Plan step redesign — bullet-point feature list per tier, reorder (commit → tiers → PAYG). Needs Philip to supply tier bullet points. PAYG message: "PAYG clients pay a higher per minute charge…"
+   **Pending (onboarding)**: Website scraping fix for https://www.expressionsofbeauty.co.uk/ ("scraping not configured").
+   **Pending (onboarding)**: CSV upload link on services step — scope unclear, likely CSV import.
 1. **VAPI_SUPPORT_PHONE_NUMBER_ID** — Philip must: (a) provision a dedicated Vapi phone number for the support line, (b) add `VAPI_SUPPORT_PHONE_NUMBER_ID` to Vercel env vars with the Vapi phone number ID. Without this, support line detection won't trigger.
 2. **Run supabase_support_tables.sql** — Philip must run this SQL file in Supabase SQL editor to create support_calls, support_policy, incidents, compensation_log tables. File: [supabase_support_tables.sql](Documents/verante-portal/supabase_support_tables.sql)
 2a. **system_signals + master_config** — DONE. Both tables live in Supabase. master_config seeded with system row. service_role REVOKE applied.

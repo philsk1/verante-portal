@@ -10,7 +10,6 @@ const STEPS_ANSWER = [
   'About your business',
   'Your services',
   'Your boundaries',
-  'Your partners',
   'Choose your plan',
   'Review & launch',
 ]
@@ -44,13 +43,13 @@ const label = {
   fontSize: '0.8rem',
   fontWeight: '500',
   marginBottom: '0.25rem',
-  color: '#555',
+  color: '#333',
   fontFamily: "'DM Sans', sans-serif",
 }
 
 const hint = {
   fontSize: '0.75rem',
-  color: '#aaa',
+  color: '#666',
   marginBottom: '0.375rem',
   marginTop: 0,
   lineHeight: 1.5,
@@ -65,7 +64,7 @@ const heading = {
 }
 
 const sub = {
-  color: '#888',
+  color: '#444',
   marginBottom: '1.5rem',
   fontSize: '0.875rem',
   lineHeight: 1.55,
@@ -87,47 +86,51 @@ const selBtn = (active) => ({
 
 // ─── step components ──────────────────────────────────────────────────────────
 
-const Step0BusinessType = ({ selectedCategoryId, subcategoryId, onSelect }) => {
+const Step0BusinessType = ({ selectedCategoryId, subcategoryId, customType, onSelect, onCustomType }) => {
   const [categories, setCategories] = useState([])
   const [subcategories, setSubcategories] = useState([])
   const [loadingCats, setLoadingCats] = useState(true)
   const [loadingSubs, setLoadingSubs] = useState(false)
+  const [showCustom, setShowCustom] = useState(!!customType)
 
   useEffect(() => {
-    supabase
-      .from('business_type_categories')
-      .select('*')
-      .order('sort_order')
-      .then(({ data }) => {
-        setCategories(data || [])
-        setLoadingCats(false)
-      })
+    supabase.from('business_type_categories').select('*').order('sort_order')
+      .then(({ data }) => { setCategories(data || []); setLoadingCats(false) })
   }, [])
 
   useEffect(() => {
     if (!selectedCategoryId) return
     setLoadingSubs(true)
-    supabase
-      .from('business_type_subcategories')
-      .select('*')
-      .eq('category_id', selectedCategoryId)
-      .order('sort_order')
-      .then(({ data }) => {
-        setSubcategories(data || [])
-        setLoadingSubs(false)
-      })
+    supabase.from('business_type_subcategories').select('*').eq('category_id', selectedCategoryId).order('sort_order')
+      .then(({ data }) => { setSubcategories(data || []); setLoadingSubs(false) })
   }, [selectedCategoryId])
 
   return (
     <div>
-      <h2 style={heading}>What kind of business are you?</h2>
-      <p style={sub}>This helps us set up the right defaults for you.</p>
+      <h2 style={heading}>Select your business category</h2>
+      <p style={sub}>This sets the right defaults for your AI — how it describes you and what it knows about your work.</p>
       {loadingCats ? (
-        <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Loading...</p>
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Loading...</p>
+      ) : showCustom ? (
+        <>
+          <label style={label}>Describe your business type</label>
+          <p style={hint}>e.g. "Tattoo studio", "Wedding planner", "Dog walker"</p>
+          <input
+            type="text"
+            value={customType || ''}
+            onChange={e => onCustomType(e.target.value)}
+            placeholder="Type your business type…"
+            style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', marginBottom: '1rem' }}
+            autoFocus
+          />
+          <button onClick={() => { setShowCustom(false); onCustomType('') }} style={{ background: 'none', border: 'none', color: '#5e3b87', fontSize: '0.8rem', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif" }}>
+            ← Back to category list
+          </button>
+        </>
       ) : (
         <>
           <label style={label}>Category</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
             {categories.map(cat => (
               <button key={cat.id} onClick={() => onSelect(cat.id, '')} style={selBtn(selectedCategoryId === cat.id)}>
                 {cat.category_name}
@@ -138,26 +141,29 @@ const Step0BusinessType = ({ selectedCategoryId, subcategoryId, onSelect }) => {
             <>
               <label style={label}>Business type</label>
               {loadingSubs ? (
-                <p style={{ color: '#aaa', fontSize: '0.875rem' }}>Loading...</p>
+                <p style={{ color: '#666', fontSize: '0.875rem' }}>Loading...</p>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  {subcategories.map(sub => (
-                    <button key={sub.id} onClick={() => onSelect(selectedCategoryId, sub.id)} style={selBtn(subcategoryId === sub.id)}>
-                      {sub.subcategory_name}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {subcategories.map(s => (
+                    <button key={s.id} onClick={() => onSelect(selectedCategoryId, s.id)} style={selBtn(subcategoryId === s.id)}>
+                      {s.subcategory_name}
                     </button>
                   ))}
                 </div>
               )}
               {subcategories.find(s => s.id === subcategoryId)?.is_sensitive && (
-                <div style={{ marginTop: '1rem', padding: '0.875rem 1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid #f0a500' }}>
+                <div style={{ marginTop: '0.75rem', padding: '0.875rem 1rem', background: '#fef3d9', borderRadius: '8px', border: '1px solid #f0a500' }}>
                   <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#7a5c1a', marginBottom: '0.25rem' }}>Confidentiality mode</div>
-                  <p style={{ fontSize: '0.8rem', color: '#7a5c1a', margin: 0, lineHeight: 1.5 }}>
-                    Your business type operates under professional confidentiality obligations. Your AI assistant will take caller name, number, and urgency only.
-                  </p>
+                  <p style={{ fontSize: '0.8rem', color: '#7a5c1a', margin: 0, lineHeight: 1.5 }}>Your business type operates under professional confidentiality obligations. Your AI assistant will take caller name, number, and urgency only.</p>
                 </div>
               )}
             </>
           )}
+          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(94,59,135,0.08)' }}>
+            <button onClick={() => { setShowCustom(true); onSelect('', '') }} style={{ background: 'none', border: '1px dashed rgba(94,59,135,0.25)', borderRadius: '8px', color: '#5e3b87', fontSize: '0.8rem', cursor: 'pointer', padding: '0.5rem 1rem', fontFamily: "'DM Sans', sans-serif", width: '100%' }}>
+              + My business isn't listed — choose my own
+            </button>
+          </div>
         </>
       )}
     </div>
@@ -311,7 +317,6 @@ const Step3Boundaries = ({ data, update }) => (
     <p style={sub}>This tells your AI assistant what to do when a caller asks for something outside your normal work.</p>
     {[
       { lbl: 'Area covered', field: 'area_covered', type: 'input', h: 'Where do you work? Leave blank if you\'re not mobile. e.g. "Within 15 miles of Bristol city centre".' },
-      { lbl: 'Work you refer to partners', field: 'refer_out', type: 'textarea', h: 'Jobs you don\'t do yourself but pass on. Your AI will take the caller\'s details and refer them.' },
       { lbl: 'Work you won\'t touch', field: 'wont_touch', type: 'textarea', h: 'Hard no. Your AI will politely tell the caller this isn\'t something you cover. e.g. "No gas work, no asbestos."' },
     ].map(({ lbl, field, type, h }) => (
       <div key={field} style={{ marginBottom: '1.25rem' }}>
@@ -416,6 +421,18 @@ const TRADE_TEMPLATES = {
   trainer:     { label: 'Personal Trainer', context: 'A personal training and fitness coaching business offering one-to-one sessions, group classes, and nutrition guidance.', services: ['1-to-1 personal training', 'Group session', 'Online coaching', 'Nutrition advice', 'Fitness assessment'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your fitness goals.' },
   accountant:  { label: 'Accountant',       context: 'An accounting and bookkeeping practice supporting small businesses and sole traders with tax returns, VAT, payroll, and financial advice.', services: ['Self-assessment tax return', 'VAT registration & returns', 'Payroll', 'Bookkeeping', 'Business accounts'], emergencyKeywords: ['HMRC deadline', 'penalty notice'], callbackNote: 'We aim to call back within 2 hours. Please mention if your matter is urgent.' },
   beauty:      { label: 'Beauty & Hair',    context: 'A hair and beauty studio offering cuts, colour, nails, facials, and beauty treatments by appointment.', services: ['Haircut', 'Colour & highlights', 'Nails', 'Facial', 'Massage'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to arrange your appointment.' },
+  dentist:     { label: 'Dentist',          context: 'A dental practice providing general and cosmetic dentistry for NHS and private patients.', services: ['New patient exam', 'Check-up & clean', 'Filling', 'Extraction', 'Whitening'], emergencyKeywords: ['toothache', 'broken tooth', 'lost crown', 'dental emergency', 'swelling'], callbackNote: 'We aim to call back within 1 hour for dental emergencies and within 2 hours for routine enquiries.' },
+  solicitor:   { label: 'Solicitor',        context: 'A law firm providing legal advice and representation across conveyancing, family law, employment, and wills.', services: ['Conveyancing', 'Will & probate', 'Family law', 'Employment advice', 'Contract review'], emergencyKeywords: ['court deadline', 'urgent injunction', 'served papers'], callbackNote: 'We aim to call back within 2 hours. Please indicate if your matter is time-sensitive.' },
+  florist:     { label: 'Florist',          context: 'A florist providing seasonal arrangements, wedding flowers, funeral tributes, and same-day delivery.', services: ['Bouquet', 'Wedding flowers', 'Funeral tribute', 'Same-day delivery', 'Corporate arrangement'], emergencyKeywords: ['same day', 'today'], callbackNote: 'We aim to call back within 1 hour for same-day orders and within 2 hours for all others.' },
+  photographer:{ label: 'Photographer',     context: 'A professional photographer covering weddings, portraits, events, and commercial shoots.', services: ['Wedding photography', 'Portrait session', 'Event coverage', 'Commercial shoot', 'Family session'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your requirements and check availability.' },
+  decorator:   { label: 'Decorator',        context: 'A painting and decorating business covering interior and exterior residential and commercial properties.', services: ['Interior painting', 'Exterior painting', 'Wallpaper hanging', 'Commercial decorating', 'Feature wall'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your project and arrange a quote.' },
+  roofer:      { label: 'Roofer',           context: 'A roofing contractor handling repairs, replacements, guttering, and flat roofs for residential and commercial customers.', services: ['Roof repair', 'Full roof replacement', 'Flat roof', 'Guttering', 'Emergency leak'], emergencyKeywords: ['roof leak', 'storm damage', 'water coming in', 'emergency'], callbackNote: 'We aim to call back within 1 hour for emergency leaks and within 2 hours for all other enquiries.' },
+  therapist:   { label: 'Therapist',        context: 'A counselling and psychotherapy practice offering one-to-one sessions for anxiety, depression, relationships, and personal development.', services: ['Initial consultation', 'Individual therapy', 'Couples therapy', 'CBT session', 'Online session'], emergencyKeywords: ['crisis', 'emergency', 'urgent'], callbackNote: 'We aim to call back within 2 hours. If you are in immediate distress please call 116 123 (Samaritans).' },
+  osteopath:   { label: 'Osteopath',        context: 'An osteopathic clinic treating musculoskeletal pain, back problems, sports injuries, and postural issues.', services: ['Initial assessment', 'Follow-up treatment', 'Sports injury', 'Back pain', 'Postural assessment'], emergencyKeywords: ['severe pain', 'cannot move', 'accident'], callbackNote: 'We aim to call back within 2 hours to discuss your needs and arrange an appointment.' },
+  tutor:       { label: 'Tutor',            context: 'A private tuition service covering GCSE, A Level, and primary subjects including maths, English, and sciences.', services: ['Maths tuition', 'English tuition', 'Science tuition', 'Exam preparation', '11+ coaching'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to discuss your requirements and arrange a trial session.' },
+  estate_agent:{ label: 'Estate Agent',     context: 'An estate agency handling property sales, lettings, and valuations across residential and commercial properties.', services: ['Property valuation', 'Residential sales', 'Lettings management', 'Buy-to-let advice', 'Commercial property'], emergencyKeywords: ['emergency repair', 'tenant issue'], callbackNote: 'We aim to call back within 1 hour during office hours.' },
+  pet_groomer: { label: 'Pet Groomer',      context: 'A pet grooming salon offering baths, cuts, nail clipping, and breed-standard styling for dogs and cats.', services: ['Full groom', 'Bath & dry', 'Nail clip', 'Puppy groom', 'De-shedding treatment'], emergencyKeywords: [], callbackNote: 'We aim to call back within 2 hours to arrange your pet\'s appointment.' },
+  mortgage:    { label: 'Mortgage Broker',  context: 'An independent mortgage broker advising on residential mortgages, buy-to-let, remortgaging, and protection insurance.', services: ['First-time buyer', 'Remortgage', 'Buy-to-let', 'Protection review', 'Commercial mortgage'], emergencyKeywords: ['mortgage deadline', 'completion date', 'urgent'], callbackNote: 'We aim to call back within 1 hour as mortgage timelines are often time-sensitive.' },
 }
 
 // ─── step 0 (answer) — website scraping ──────────────────────────────────────
@@ -897,7 +914,7 @@ const Onboarding = () => {
     callback_preference_note: '',
     business_outcome_type: 'quote',
     area_covered: '',
-    refer_out: '',
+    custom_business_type: '',
     wont_touch: '',
     services: [],
     partners: [],
@@ -920,7 +937,6 @@ const Onboarding = () => {
     const businessContext = [
       data.business_context,
       data.area_covered ? `Area covered: ${data.area_covered}` : '',
-      data.refer_out ? `Work referred to partners: ${data.refer_out}` : '',
       data.wont_touch ? `Work we won't take: ${data.wont_touch}` : '',
     ].filter(Boolean).join('\n\n')
 
@@ -1086,10 +1102,10 @@ const Onboarding = () => {
         {/* Progress */}
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#aaa' }}>
+            <span style={{ fontSize: '0.75rem', color: '#666' }}>
               Step <span style={{ color: '#f0a500', fontWeight: 600 }}>{step + 1}</span> of {activeSteps.length}
             </span>
-            <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{activeSteps[step]}</span>
+            <span style={{ fontSize: '0.75rem', color: '#666' }}>{activeSteps[step]}</span>
           </div>
           <div style={{ height: '3px', background: 'rgba(94,59,135,0.1)', borderRadius: '9999px' }}>
             <div style={{ height: '3px', background: '#5e3b87', borderRadius: '9999px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
@@ -1107,11 +1123,13 @@ const Onboarding = () => {
           <Step0BusinessType
             selectedCategoryId={data.selectedCategoryId}
             subcategoryId={data.subcategory_id}
+            customType={data.custom_business_type}
             onSelect={(categoryId, subcategoryId) => {
               update('selectedCategoryId', categoryId)
               update('subcategory_id', subcategoryId)
               update('services', [])
             }}
+            onCustomType={val => update('custom_business_type', val)}
           />
         )}
         {data.product === 'answer' && step === 3 && <Step1BusinessDetails data={data} update={update} />}
@@ -1123,13 +1141,7 @@ const Onboarding = () => {
           />
         )}
         {data.product === 'answer' && step === 5 && <Step3Boundaries data={data} update={update} />}
-        {data.product === 'answer' && step === 6 && (
-          <Step4Partners
-            partners={data.partners}
-            onChange={partners => update('partners', partners)}
-          />
-        )}
-        {data.product === 'answer' && step === 7 && <Step5PlanSelection data={data} update={update} />}
+        {data.product === 'answer' && step === 6 && <Step5PlanSelection data={data} update={update} />}
 
         {/* ── Calendar path ────────────────────────────────────────────────── */}
         {data.product === 'calendar' && step === 1 && <Step1BusinessDetails data={data} update={update} />}
@@ -1146,7 +1158,7 @@ const Onboarding = () => {
 
         {/* ── Shared: review & launch ─────────────────────────────────────── */}
         {(
-          (data.product === 'answer' && step === 8) ||
+          (data.product === 'answer' && step === 7) ||
           (data.product === 'calendar' && step === 4)
         ) && (
           <div>
@@ -1161,9 +1173,7 @@ const Onboarding = () => {
               { label: 'About',         value: data.business_context },
               ...(data.product !== 'calendar' ? [
                 { label: 'Area covered',  value: data.area_covered },
-                { label: 'Refers out',    value: data.refer_out },
                 { label: "Won't touch",   value: data.wont_touch },
-                { label: 'Partners',      value: data.partners.filter(p => p.name.trim()).map(p => p.name).join(', ') },
               ] : []),
               { label: data.product === 'calendar' ? 'Appointment types' : 'Services', value: data.services.filter(s => s.service_name.trim()).map(s => s.service_name).join(', ') },
               { label: 'Billing', value: data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },

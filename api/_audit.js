@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { ragSearch } from './_kb.js'
 
 const supabase = createClient(
-  'https://kkrsvkxkefijmtbwykzv.supabase.co',
+  process.env.SUPABASE_URL || 'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
@@ -43,6 +43,18 @@ async function _log({ handler, tenantId, tenantTier, zoneName, userMessage, qRes
     if (twig) {
       // Atomic increment — this is the data
       await supabase.rpc('increment_meaning_count', { p_twig_id: twig.id })
+    } else {
+      // KB matched but no twig mapped yet — store so Philip can extend the map
+      supabase.from('q_chat_logs').insert({
+        handler,
+        tenant_id:    tenantId   || null,
+        tenant_tier:  tenantTier || null,
+        zone_name:    zoneName   || null,
+        user_message: userMessage.slice(0, 5000),
+        q_response:   qResponse  ? qResponse.slice(0, 10000) : null,
+        brief_version: BRIEF_VERSION,
+        meaning_id:    null,
+      }).then(({ error }) => { if (error) console.error('[audit] unmapped-twig insert:', error.message) })
     }
 
     // Compliance sample: 1-in-20 stored in full for auditor review

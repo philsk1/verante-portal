@@ -13,9 +13,18 @@ import { checkRateLimit, getClientIP } from './_ratelimit.js'
 
 const client  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(
-  'https://kkrsvkxkefijmtbwykzv.supabase.co',
+  process.env.SUPABASE_URL || 'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+const OWNER_EMAILS = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
+
+export function toClaudeMessages(messages) {
+  return messages.map(m => ({
+    role: (m.role === 'ai' || m.role === 'assistant') ? 'assistant' : 'user',
+    content: m.content || m.text || '',
+  })).filter(m => m.content)
+}
 
 // ── Comprehensive Qerxel knowledge base for Q ─────────────────────────────────
 
@@ -301,15 +310,16 @@ How to behave:
 - If Q is genuinely unsure about something specific to the user's situation, ask one focused clarifying question.`
 
   try {
+    const claudeMessages = toClaudeMessages(messages)
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 900,
       system: systemPrompt,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      messages: claudeMessages,
     })
     const reply = response.content[0].text
     emitSignal('q', 'chat_turn', { chat_type: 'vera' }).catch(() => {})
-    logChatTurn({ handler: 'vera', zoneName, userMessage: lastUser?.content, qResponse: reply })
+    logChatTurn({ handler: 'vera', zoneName, userMessage: lastUser?.content || lastUser?.text, qResponse: reply })
     return res.status(200).json({ message: reply })
   } catch (err) {
     console.error('vera-chat error:', err.message)
@@ -375,9 +385,7 @@ How to behave:
 - Plain British English. Conversational prose for short answers, structured responses for complex ones. 3–6 sentences normally, more when the question warrants it.
 - For billing changes, account issues, or anything that requires human action: support@qerxel.com`
 
-  const claudeMessages = messages
-    .map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }))
-    .filter((m, i) => !(i === 0 && m.role === 'assistant'))
+  const claudeMessages = toClaudeMessages(messages).filter((m, i) => !(i === 0 && m.role === 'assistant'))
 
   if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
     return res.status(400).json({ error: 'No valid message to respond to' })
@@ -459,7 +467,7 @@ How to behave:
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: systemPrompt,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      messages: toClaudeMessages(messages),
     })
     return res.status(200).json({ message: response.content[0].text })
   } catch (err) {
@@ -469,9 +477,8 @@ How to behave:
 }
 
 async function handlePolicyChat(body, res) {
-  const OWNER_EMAILS_LIST = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
   const { ownerEmail, messages } = body
-  if (!OWNER_EMAILS_LIST.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
+  if (!OWNER_EMAILS.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
   if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
 
   const { data: policy } = await supabase.from('support_policy').select('policy_text').limit(1).maybeSingle()
@@ -579,9 +586,8 @@ Your role here:
 }
 
 async function handleOrchestrate(body, res) {
-  const OWNER_EMAILS_LIST = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
   const { ownerEmail, messages } = body
-  if (!OWNER_EMAILS_LIST.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
+  if (!OWNER_EMAILS.includes(ownerEmail)) return res.status(403).json({ error: 'Not authorised' })
   if (!messages?.length) return res.status(400).json({ error: 'Missing messages' })
 
   // Gather full system state — what Q can see that no single element can

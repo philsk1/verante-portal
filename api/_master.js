@@ -10,7 +10,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
-  'https://kkrsvkxkefijmtbwykzv.supabase.co',
+  process.env.SUPABASE_URL || 'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
@@ -36,8 +36,3 @@ export async function isQWriteEnabled() {
   return config.q_write_enabled === true && config.system_state !== 'emergency'
 }
 
-// Is this element currently active?
-export function isElementActive(config, element) {
-  const status = config.element_status?.[element]
-  return !status || status === 'active'
-}

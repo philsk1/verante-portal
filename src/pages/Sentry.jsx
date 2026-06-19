@@ -298,6 +298,7 @@ export default function SentryTab({ cameraLimit = 3 }) {
   }
 
   const markReviewed = async (id) => {
+    if (isPreview || !tenantId) return
     await supabase.from('sentry_variances').update({ reviewed: true }).eq('id', id)
     setVariances(prev => prev.filter(v => v.id !== id))
   }

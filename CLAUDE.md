@@ -83,5 +83,5 @@ AI call-handling and booking SaaS for UK sole traders and micro-businesses.
 
 ---
 
-*Last updated: 2026-06-18*
-*Updated by: session — CLAUDE-PROCEDURES.md written and elevated to always-read. CLAUDE.md session start updated to mandate procedures read. Voice IDs fixed across vapi-assistant-request.js and vapi-sync.js. Marketplace audit written to research/marketplace-audit.md.*
+*Last updated: 2026-06-19*
+*Updated by: session — Decoupling audit completed (7 components). Key fixes: _tenant-data.js canonical module (voice config, fetch); speech pace now persists to Vapi; support chat m.text bug; element registry corrected; signal validation; Sentry preview guard; Calendar e.resource?.status (attention bar was broken); skills field name; processing_start_time in customer booking; Sentry PIN gate flash; toggleQDisplay preview guard. All deployed. research/decoupling-audit.md is the full log. Channel audit is next phase.*

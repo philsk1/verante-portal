@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-function formatICS(appt) {
+export function formatICS(appt) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const start = new Date(appt.start_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const end   = new Date(appt.end_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'

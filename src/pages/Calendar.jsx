@@ -1115,7 +1115,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
   }, [teamMode, orderedStaff, staffFilter, todayMode, todayStaffIds, viewportMode, vpOpen, vpCompact])
   const visibleEvents = events
     .filter(e => !staffFilter || e.resourceId === staffFilter || e.resource?.staff_profile_id === staffFilter)
-    .filter(e => !statusFilter || e.status === statusFilter)
+    .filter(e => !statusFilter || e.resource?.status === statusFilter)
 
   // Smart view label shown in legend
   const smartViewLabel = useMemo(() => {
@@ -1836,7 +1836,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
 
   // ─── Attention bar data ───────────────────────────────────────────────────────
   const nowTime = new Date()
-  const upcomingProvisional = events.filter(e => e.status === 'provisional' && new Date(e.start) >= nowTime)
+  const upcomingProvisional = events.filter(e => e.resource?.status === 'provisional' && new Date(e.start) >= nowTime)
 
   // ─── Sub-tab nav ──────────────────────────────────────────────────────────────
   const subTabs = [
@@ -2384,9 +2384,9 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{member.name}</div>
                             {member.role && <div style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{member.role}</div>}
-                            {Array.isArray(member.specialist_services) && member.specialist_services.length > 0 && (
+                            {Array.isArray(member.skills) && member.skills.length > 0 && (
                               <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
-                                {member.specialist_services.slice(0, 3).map((s, i) => (
+                                {member.skills.slice(0, 3).map((s, i) => (
                                   <span key={i} style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: '#ede8f5', color: '#5e3b87', borderRadius: 4, fontFamily: "'DM Sans', sans-serif" }}>{s}</span>
                                 ))}
                               </div>

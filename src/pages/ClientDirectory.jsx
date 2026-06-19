@@ -320,9 +320,11 @@ const ClientDirectory = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: 'vera-chat',
-          message: `Write a short, friendly SMS campaign message (max 130 characters) for a UK small business to send to past callers. Intent context: ${intentSummary || 'general enquiries'}. Be warm and direct. No emojis. End with a call to action.`,
-          history: [],
+          type: 'vera',
+          zoneText: 'SMS campaign drafting for client re-engagement.',
+          zoneName: 'clients',
+          tabName: 'clients',
+          messages: [{ role: 'user', content: `Write a short, friendly SMS campaign message (max 130 characters) for a UK small business to send to past callers. Intent context: ${intentSummary || 'general enquiries'}. Be warm and direct. No emojis. End with a call to action.` }],
         }),
       })
       const d = await r.json()

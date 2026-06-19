@@ -6,7 +6,7 @@ import { fireZapier } from './_zapier-webhook.js'
 import { emitSignal } from './_signals.js'
 
 const supabase = createClient(
-  'https://kkrsvkxkefijmtbwykzv.supabase.co',
+  process.env.SUPABASE_URL || 'https://kkrsvkxkefijmtbwykzv.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
@@ -451,7 +451,7 @@ export default async function handler(req, res) {
   if (isUrgent) {
     const method = tenant.urgent_escalation_method // 'sms', 'email', or null = both
     const callbackMins = tenant.urgent_callback_mins ?? 60
-    const portalUrl = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/portal?tab=dashboard`
+    const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
 
     if (method !== 'email' && tenant.business_phone) {
       const smsBody = `URGENT via Qerxel — ${callerName || 'Unknown caller'}${callerNumber ? ` (${callerNumber})` : ''}: ${summary || 'No summary provided'}. Callback needed within ${callbackMins} min.`
@@ -520,7 +520,7 @@ export default async function handler(req, res) {
 
     // Immediate lead notification to owner — if enabled
     if (tenant.notify_new_lead !== false && tenant.business_email) {
-      const portalUrl = `${process.env.SITE_URL || 'https://verrante-portal.vercel.app'}/portal?tab=dashboard`
+      const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
       const { subject, html } = emailNewLead({
         businessName: tenant.business_name || 'Your business',
         callerName:   analysis.structuredData?.caller_name || null,
@@ -545,8 +545,7 @@ export default async function handler(req, res) {
     }
 
     // WhatsApp follow-up — fire if tenant has WhatsApp connected + enabled
-    const callerPhone = call?.customer?.number
-    if (callerPhone) {
+    if (callerNumber) {
       const { data: waIntegration } = await supabase
         .from('tenant_integrations')
         .select('enabled, settings')
@@ -555,11 +554,11 @@ export default async function handler(req, res) {
         .maybeSingle()
 
       if (waIntegration?.enabled) {
-        const callerName = analysis.structuredData?.caller_name || 'there'
+        const waCallerName = analysis.structuredData?.caller_name || 'there'
         const template = waIntegration.settings?.message_template
-          || `Hi ${callerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
+          || `Hi ${waCallerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
 
-        sendWhatsApp({ tenantId, to: callerPhone, message: template })
+        sendWhatsApp({ tenantId, to: callerNumber, message: template })
           .catch(err => console.error('WhatsApp follow-up failed:', err.message))
       }
     }
