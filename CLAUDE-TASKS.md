@@ -92,6 +92,15 @@ Files changed: `Onboarding.jsx:962–964`, `useTenantState.js:159–162`, `Porta
 - Review summary billing line updated: Calendar path shows "Schedule {tier} · first month free".
 - `handleFinish` already correct from prior session fix. Build clean. Deployed.
 
+### 2026-06-20 (session 15 — Birchwood crash fix + ErrorBoundary diagnostic upgrade)
+**Schedule-only tenant crash `IcoServices is not defined`. Fixed and deployed.**
+- Root cause: `buildSidebarProducts()` in `PortalSidebar.jsx` has a `scheduleOnly` branch that uses `<IcoServices />` and `<IcoProducts />` JSX. These components were never defined in PortalSidebar.jsx (which maintains its own inline icon components — it does NOT import from PortalIcons.jsx). Birchwood's `subscription_tier` = null and `calendar_tier` != 'none' makes `scheduleOnly = true`, activating this branch and causing a synchronous render crash caught by the outer ErrorBoundary.
+- Fix: Added `IcoServices` (stacked-layers SVG) and `IcoProducts` (shopping-bag SVG) as inline components in PortalSidebar.jsx, immediately after `IcoCommand`. Deployed. New bundle: `Portal-DP3Nbu0X.js`.
+- Any future icons added to the `scheduleOnly` branch in `buildSidebarProducts` must be defined in PortalSidebar.jsx — not imported from PortalIcons.jsx.
+- **Browser cache note**: After deploy, users on the old bundle (`Portal-B_tPnMYk.js`) still see the cached error. Fix: Ctrl+Shift+R (hard refresh). Code is correct — cache clearance is all that's needed.
+- `ErrorBoundary.jsx` updated: now shows actual error message + first 4 stack lines in a monospace code block, plus "Copy error" and "Reload" buttons. Previously showed only the generic "Q hit an unexpected error" text, making remote debugging impossible.
+- Continue.dev Gemini config corrected: model names were `gemini-3-pro-preview` / `gemini-3-flash-preview` (don't exist) → fixed to `gemini-2.5-pro` / `gemini-2.5-flash`. Config at `C:\Users\philo\.continue\config.yaml`. API key format (AQ.Ab8...) may need replacing with a fresh Google AI Studio key (standard keys start with AIza...).
+
 ### 2026-06-20 (Complexity Reduction SOP — PartnersReferrals.jsx — IN PROGRESS)
 **Decoupling SOP pass on `src/pages/PartnersReferrals.jsx` (Ring 2, ~660 lines). Score 35 → 18. Build clean. NOT YET DEPLOYED.**
 - 8 module-scope helpers added: `isAwaitingReciprocal`, `networkScore`, `reciprocHelpScore`, `urgentSummary`, `reciprocSummary`, `addBtnProps`, `onEnterKey`, `setupPulseModal`.

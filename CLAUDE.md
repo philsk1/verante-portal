@@ -84,4 +84,4 @@ AI call-handling and booking SaaS for UK sole traders and micro-businesses.
 ---
 
 *Last updated: 2026-06-20*
-*Updated by: session 14 — Calendar DnD hardening: handleEventDrop now preserves original duration on every drop; handleEventResize replaced with no-op; resize anchor CSS hardened with pointer-events: none. Root cause of "stretch" identified: BigCalendar event-width layout (overlapping events share column width, expanding when moved apart — normal calendar behaviour). Deployed.*
+*Updated by: session 15 — Birchwood crash fixed: IcoServices + IcoProducts were undefined in PortalSidebar.jsx scheduleOnly branch. Added inline SVG definitions. ErrorBoundary now shows actual error message + stack trace. Continue.dev Gemini model names corrected. Deployed.*
