@@ -1879,6 +1879,37 @@ const ActivityDashboard = ({ onNavigate }) => {
           {referralsToday.length === 0 ? (
             <div style={{ ...s.section, textAlign: 'center', padding: '2rem 1rem' }}>
               <Share2 size={26} strokeWidth={1.5} color="#bbb" style={{ marginBottom: "0.4rem" }} />
+              <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>No referrals sent today yet</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              {referralsToday.map((ref, i) => {
+                const partnerName = ref.referral_partners?.partner_name || ref.referral_partners?.business_name || 'Partner'
+                return (
+                  <motion.div key={ref.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0.55rem 0.75rem',
+                      background: '#fde68a', borderRadius: 10,
+                      borderLeft: '3px solid #f0a500',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{partnerName}</span>
+                    </div>
+                    <span style={{ fontSize: '0.73rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{formatTime(ref.created_at)}</span>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
 
       {/* â”€â”€ DIVIDER: Patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div style={{ margin: '1.75rem 0 1.25rem' }}>
