@@ -77,12 +77,12 @@ function getCategoryColour(category) {
 
 // Full-column layout — appointments never shunt sideways, they stack over each other
 function fullColumnLayout({ events, slotMetrics, accessors }) {
-  return events.map(event => {
-    const { top, height } = slotMetrics.getRange(
-      accessors.start(event),
-      accessors.end(event)
-    )
-    return { event, style: { top, height, width: 100, xOffset: 0 } }
+  return events.flatMap(event => {
+    const s = accessors.start(event)
+    const e = accessors.end(event)
+    if (!s || !e || isNaN(s.getTime()) || isNaN(e.getTime())) return []
+    const { top, height } = slotMetrics.getRange(s, e)
+    return [{ event, style: { top, height, width: 100, xOffset: 0 } }]
   })
 }
 
@@ -102,11 +102,14 @@ const EMPTY_FORM = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toEvent(appt) {
+  const start = new Date(appt.start_time)
+  const end = new Date(appt.end_time)
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null
   return {
     id: appt.id,
     title: appt.title,
-    start: new Date(appt.start_time),
-    end: new Date(appt.end_time),
+    start,
+    end,
     resourceId: appt.staff_profile_id || 'unassigned',
     resource: appt,
   }
@@ -890,7 +893,7 @@ async function buildAndInsertAppointments({ form, tenantId, basePayload, setEven
           return false
         }
         if (data) {
-          setEvents(prev => [...prev, ...data.map(toEvent)])
+          setEvents(prev => [...prev, ...data.map(toEvent).filter(Boolean)])
           data.forEach(appt => {
             fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: appt.id, caldavAction: 'upsert' }) }).catch(() => {})
           })
@@ -1426,7 +1429,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
           supabase.from('catalogue_items').select('id, name, category, description, duration_minutes, processing_minutes, completion_minutes, price_from, price_to, cost_price, apply_minutes, overlap_start_mins, overlap_end_mins, item_type, colour').eq('tenant_id', tenantId).eq('active', true).order('name'),
         ])
         const staffData = staffRes.data || []
-        setEvents(apptData.map(toEvent))
+        setEvents(apptData.map(toEvent).filter(Boolean))
         setStaff(staffData)
         setCatalogue(catRes.data || [])
         // Determine who is in today
@@ -1462,7 +1465,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
     newTo.setMonth(newTo.getMonth() + 6)
     apptWindowRef.current = { from: newFrom, to: newTo }
     loadApptWindow(tenantId, newFrom, newTo).then(data => {
-      setEvents(data.map(toEvent))
+      setEvents(data.map(toEvent).filter(Boolean))
     }).catch(() => {})
   }, [currentDate, tenantId])
 
@@ -1717,7 +1720,7 @@ export default function CalendarTab({ onNavigate: onPortalNavigate, prefill, onP
             : 'Could not save — please try again.')
           return
         }
-        if (data) setEvents(prev => prev.map(e => e.id === panelEvent.id ? toEvent(data) : e))
+        if (data) setEvents(prev => prev.map(e => e.id === panelEvent.id ? (toEvent(data) ?? e) : e))
         fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'caldav-sync', tenantId, appointmentId: panelEvent.id, caldavAction: 'upsert' }) }).catch(() => {})
       } else {
         const ok = await buildAndInsertAppointments({ form, tenantId, basePayload, setEvents, setSaveError })
