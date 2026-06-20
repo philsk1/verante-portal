@@ -76,6 +76,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
 import MoodQ from '../components/MoodQ'
+import { Phone, CheckCircle, Handshake, Users, ClipboardList, Mic, Calendar, Lightbulb, Share2 } from 'lucide-react'
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -486,7 +487,7 @@ const Skel = ({ h = 16, w = '100%', mb = 0, radius = 8 }) => (
 
 const EmptyState = ({ icon, title, body }) => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem', textAlign: 'center' }}>
-    <div style={{ fontSize: '2rem', marginBottom: 8, opacity: 0.25 }}>{icon}</div>
+    <div style={{ marginBottom: 8, opacity: 0.28, display: 'flex', justifyContent: 'center' }}>{icon}</div>
     <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#aaaaaa', marginBottom: 4 }}>{title}</div>
     {body && <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.78rem', color: '#cccccc', lineHeight: 1.5 }}>{body}</div>}
   </div>
@@ -801,23 +802,23 @@ function FeatureDiscoveryNotice({ previewReadOnly, loading, calls, featureNotice
     }
   } catch { /* ignore */ }
   const features = [
-    partnerCount === 0    && { id: 'partners',  icon: '🤝', label: 'Referral partner network', desc: 'Your AI can refer out-of-scope callers to trusted partners — and when they reciprocate, their AI sends callers back to you.', tab: 'referrals' },
-    staffCount === 0      && { id: 'team',       icon: '👥', label: 'Team & staff routing',     desc: "Add your team so the AI routes calls to the right person and displays each specialist's skills.", tab: 'team' },
-    catalogueCount === 0  && { id: 'catalogue',  icon: '📋', label: 'Services catalogue',       desc: 'List your services and prices so the AI quotes accurately, upsells intelligently, and qualifies enquiries faster.', tab: 'profile' },
-    listenTier === 'none' && { id: 'listen',     icon: '🎙️', label: 'Call transcripts',         desc: 'Review every conversation word-for-word — find missed opportunities, quality-check your AI, spot patterns.', tab: 'listen' },
-    calendarTier === 'entry' && { id: 'calendar', icon: '📅', label: 'Smart calendar booking', desc: 'Let the AI book appointments directly into your diary and send automated reminders to callers.', tab: 'calendar' },
+    partnerCount === 0    && { id: 'partners',  icon: <Handshake size={20} strokeWidth={1.5} />,    label: 'Referral partner network', desc: 'Your AI can refer out-of-scope callers to trusted partners — and when they reciprocate, their AI sends callers back to you.', tab: 'referrals' },
+    staffCount === 0      && { id: 'team',       icon: <Users size={20} strokeWidth={1.5} />,        label: 'Team & staff routing',     desc: "Add your team so the AI routes calls to the right person and displays each specialist's skills.", tab: 'team' },
+    catalogueCount === 0  && { id: 'catalogue',  icon: <ClipboardList size={20} strokeWidth={1.5} />, label: 'Services catalogue',      desc: 'List your services and prices so the AI quotes accurately, upsells intelligently, and qualifies enquiries faster.', tab: 'profile' },
+    listenTier === 'none' && { id: 'listen',     icon: <Mic size={20} strokeWidth={1.5} />,          label: 'Call transcripts',         desc: 'Review every conversation word-for-word — find missed opportunities, quality-check your AI, spot patterns.', tab: 'listen' },
+    calendarTier === 'entry' && { id: 'calendar', icon: <Calendar size={20} strokeWidth={1.5} />,    label: 'Smart calendar booking',   desc: 'Let the AI book appointments directly into your diary and send automated reminders to callers.', tab: 'calendar' },
   ].filter(Boolean)
   if (features.length < 2) return null
   return (
     <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.08)', boxShadow: '0 2px 12px rgba(94,59,135,0.06)', marginBottom: '1.5rem', overflow: 'hidden' }}>
       <div style={{ background: 'linear-gradient(135deg, #f0ebf8, #fef3d9)', padding: '1rem 1.25rem 0.85rem', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#3a2057', marginBottom: '0.15rem' }}>💡 Features you haven't explored yet</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: '#3a2057', marginBottom: '0.15rem' }}><Lightbulb size={15} strokeWidth={2} color="#5e3b87" /> Features you haven't explored yet</div>
         <div style={{ fontSize: '0.775rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Qerxel has {features.length} active feature{features.length !== 1 ? 's' : ''} you're not using — each one adds value from day one.</div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         {features.slice(0, 4).map((f, i) => (
           <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.25rem', borderBottom: i < Math.min(features.length, 4) - 1 ? '1px solid rgba(94,59,135,0.04)' : 'none' }}>
-            <span style={{ fontSize: '1.25rem', flexShrink: 0, width: 28, textAlign: 'center' }}>{f.icon}</span>
+            <span style={{ flexShrink: 0, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5e3b87' }}>{f.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: '0.8375rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.15rem' }}>{f.label}</div>
               <div style={{ fontSize: '0.775rem', color: '#888', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45 }}>{f.desc}</div>
@@ -1101,7 +1102,7 @@ function MobileView({ minutesPct, triageMode, calls, callsThisMonth, callsToday,
       <div>
         <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Recent calls</div>
         {recentCalls.length === 0
-          ? <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month." />
+          ? <EmptyState icon={<Phone size={28} strokeWidth={1.5} color="#aaa" />} title="No calls yet" body="Your AI number hasn't received any calls this month." />
           : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {recentCalls.map((call, i) => (
                 <motion.div key={call.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.04 }}>
@@ -1120,7 +1121,7 @@ function MobileView({ minutesPct, triageMode, calls, callsThisMonth, callsToday,
           {totalUncontactedCount > 0 && <span style={{ background: '#e6f5ee', color: '#1e7a4a', borderRadius: 10, padding: '0.05rem 0.5rem', fontSize: '0.65rem', fontWeight: 700 }}>{totalUncontactedCount}</span>}
         </div>
         {totalUncontactedCount === 0
-          ? <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up." />
+          ? <EmptyState icon={<CheckCircle size={28} strokeWidth={1.5} color="#aaa" />} title="All caught up" body="No leads waiting for follow-up." />
           : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {actionableLeads.slice(0, 6).map((lead, i) => (
                 <motion.div key={lead.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.04 }}>
@@ -1751,7 +1752,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           </div>
           {recentCalls.length === 0 ? (
             <div style={s.section}>
-              <EmptyState icon="📞" title="No calls yet" body="Your AI number hasn't received any calls this month." />
+              <EmptyState icon={<Phone size={28} strokeWidth={1.5} color="#aaa" />} title="No calls yet" body="Your AI number hasn't received any calls this month." />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -1836,7 +1837,7 @@ const ActivityDashboard = ({ onNavigate }) => {
             })()
           ) : totalUncontactedCount === 0 ? (
             <div style={s.section}>
-              <EmptyState icon="🙌" title="All caught up" body="No leads waiting for follow-up. New leads appear as soon as your AI captures them." />
+              <EmptyState icon={<CheckCircle size={28} strokeWidth={1.5} color="#aaa" />} title="All caught up" body="No leads waiting for follow-up. New leads appear as soon as your AI captures them." />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -1877,38 +1878,7 @@ const ActivityDashboard = ({ onNavigate }) => {
           </div>
           {referralsToday.length === 0 ? (
             <div style={{ ...s.section, textAlign: 'center', padding: '2rem 1rem' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🤝</div>
-              <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>No referrals sent today yet</div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              {referralsToday.map((ref, i) => {
-                const partnerName = ref.referral_partners?.partner_name || ref.referral_partners?.business_name || 'Partner'
-                return (
-                  <motion.div key={ref.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '0.55rem 0.75rem',
-                      background: '#fde68a', borderRadius: 10,
-                      borderLeft: '3px solid #f0a500',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', fontWeight: 500 }}>{partnerName}</span>
-                    </div>
-                    <span style={{ fontSize: '0.73rem', color: '#b07a00', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{formatTime(ref.created_at)}</span>
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-      </div>
+              <Share2 size={26} strokeWidth={1.5} color="#bbb" style={{ marginBottom: "0.4rem" }} />
 
       {/* â”€â”€ DIVIDER: Patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div style={{ margin: '1.75rem 0 1.25rem' }}>

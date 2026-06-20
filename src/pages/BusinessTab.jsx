@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
+import { ArrowUp } from 'lucide-react'
 
 const AVATAR_PALETTE = [
   { bg: '#f0ebf8', text: '#5e3b87' },
@@ -207,7 +208,7 @@ export default function BusinessTab({ onNavigate }) {
 
         {/* ── Team ── */}
         <section id="biz-team">
-          {sectionHead('Team', activeStaff.length)}
+          {sectionHead('Team', activeStaff.length, onNavigate && <button onClick={() => onNavigate('team')} style={{ fontSize: '0.75rem', color: '#5e3b87', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: 0 }}>Manage →</button>)}
           {activeStaff.length === 0 ? (
             <p style={{ color: '#aaa', fontSize: '0.875rem', margin: 0 }}>No team members yet — add staff in the Team tab.</p>
           ) : (
@@ -235,7 +236,7 @@ export default function BusinessTab({ onNavigate }) {
 
         {/* ── Services ── */}
         <section id="biz-services">
-          {sectionHead('Services', services.length)}
+          {sectionHead('Services', services.length, onNavigate && <button onClick={() => onNavigate('services')} style={{ fontSize: '0.75rem', color: '#5e3b87', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: 0 }}>Manage →</button>)}
           {services.length === 0 ? (
             <p style={{ color: '#aaa', fontSize: '0.875rem', margin: 0 }}>No services yet — add them in Business Profile.</p>
           ) : (
@@ -265,7 +266,7 @@ export default function BusinessTab({ onNavigate }) {
 
         {/* ── Products ── */}
         <section id="biz-products">
-          {sectionHead('Products', products.length)}
+          {sectionHead('Products', products.length, onNavigate && <button onClick={() => onNavigate('products')} style={{ fontSize: '0.75rem', color: '#5e3b87', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: 0 }}>Manage →</button>)}
           {products.length === 0 ? (
             <p style={{ color: '#aaa', fontSize: '0.875rem', margin: 0 }}>No products yet — add them in Business Profile.</p>
           ) : (
@@ -446,6 +447,17 @@ export default function BusinessTab({ onNavigate }) {
         </section>
 
       </div>
+
+      {/* ── Back to top ── */}
+      <button
+        onClick={() => document.getElementById('biz-team')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        title="Back to top"
+        style={{ position: 'fixed', bottom: 28, right: 24, width: 40, height: 40, borderRadius: '50%', background: '#5e3b87', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(94,59,135,0.35)', zIndex: 20, transition: 'background 0.15s' }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#4a2d6e' }}
+        onMouseLeave={e => { e.currentTarget.style.background = '#5e3b87' }}
+      >
+        <ArrowUp size={18} strokeWidth={2.5} />
+      </button>
     </div>
   )
 }
