@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Component } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
 import { supabase } from '../supabase'
@@ -113,6 +113,24 @@ const useIsMobile = () => {
     return () => window.removeEventListener('resize', handler)
   }, [])
   return isMobile
+}
+
+// ─── CalendarErrorBoundary ────────────────────────────────────────────────────
+class CalendarErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(err) { return { error: err } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center', gap: 12 }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '0.9375rem', color: '#1a1a1a' }}>Calendar failed to load</div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.8125rem', color: '#aaaaaa', maxWidth: 360 }}>{this.state.error?.message || 'Unknown error'}</div>
+          <button onClick={() => this.setState({ error: null })} style={{ padding: '0.5rem 1.25rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 8, fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Try again</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 // ─── SentryPinGate ────────────────────────────────────────────────────────────
@@ -517,7 +535,7 @@ const Portal = () => {
       case 'analytics':    return scheduleOnly ? <ScheduleAnalytics /> : <DataAnalytics onNavigate={handleNavigate} />
       case 'referrals':    return <PartnersReferrals onNavigate={handleNavigate} />
       case 'team':         return <StaffDirectory onNavigate={handleNavigate} openAdd={teamOpenAdd} onOpenAddConsumed={() => setTeamOpenAdd(false)} tier={baseTier} />
-      case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} calendarTier={calendarTier} />
+      case 'calendar':     return <CalendarErrorBoundary><CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} calendarTier={calendarTier} /></CalendarErrorBoundary>
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
       case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} onCalendarTierChange={setCalendarTier} onSentryChange={setSentryCameraLimit} triggerPlanSelector={planSelectorTrigger} />
       case 'sentry':

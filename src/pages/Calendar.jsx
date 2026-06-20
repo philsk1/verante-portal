@@ -78,11 +78,17 @@ function getCategoryColour(category) {
 // Full-column layout — appointments never shunt sideways, they stack over each other
 function fullColumnLayout({ events, slotMetrics, accessors }) {
   return events.flatMap(event => {
-    const s = accessors.start(event)
-    const e = accessors.end(event)
-    if (!s || !e || isNaN(s.getTime()) || isNaN(e.getTime())) return []
-    const { top, height } = slotMetrics.getRange(s, e)
-    return [{ event, style: { top, height, width: 100, xOffset: 0 } }]
+    try {
+      const s = accessors.start(event)
+      const e = accessors.end(event)
+      if (!s || !e || isNaN(s.getTime()) || isNaN(e.getTime())) return []
+      if (s >= e) return []
+      const { top, height } = slotMetrics.getRange(s, e)
+      if (!isFinite(top) || !isFinite(height) || height <= 0) return []
+      return [{ event, style: { top, height, width: 100, xOffset: 0 } }]
+    } catch {
+      return []
+    }
   })
 }
 
