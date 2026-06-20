@@ -541,7 +541,7 @@ const Portal = () => {
         }
         return <SentryTab cameraLimit={sentryCameraLimit} />
       case 'listen':       return <ListenTab prefill={listenPrefill} onPrefillConsumed={() => setListenPrefill(null)} urgentOutcomes={urgentOutcomes} onNavigate={setActiveTab} />
-      case 'business':     return <BusinessTab />
+      case 'business':     return <BusinessTab onNavigate={setActiveTab} />
       case 'support':      return <SupportIntelligence />
       case 'command':      return <MasterControl />
       default: return (
