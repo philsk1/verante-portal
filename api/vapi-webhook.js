@@ -380,51 +380,114 @@ async function handleToolCalls(res, event) {
   return res.status(200).json({ results })
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ── End-of-call helper functions ──────────────────────────────────────────────
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
+async function handleUrgentEscalation(tenant, callerName, callerNumber, summary) {
+  const method       = tenant.urgent_escalation_method
+  const callbackMins = tenant.urgent_callback_mins ?? 60
+  const portalUrl    = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
+  if (method !== 'email' && tenant.business_phone) {
+    const smsBody = `URGENT via Qerxel — ${callerName || 'Unknown caller'}${callerNumber ? ` (${callerNumber})` : ''}: ${summary || 'No summary provided'}. Callback needed within ${callbackMins} min.`
+    await sendSms({ to: tenant.business_phone, message: smsBody })
+  }
+  if (method !== 'sms' && tenant.business_email) {
+    const { subject, html } = emailUrgentEscalation({ businessName: tenant.business_name || 'Your business', callerName, callerPhone: callerNumber, summary, callbackMins, portalUrl })
+    await sendEmail({ to: tenant.business_email, subject, html })
+  }
+}
+
+async function handleLeadCapture({ tenant, tenantId, callerId, callerNumber, callerName, summary, outcome, callLog, analysis, isSensitive }) {
+  await supabase.from('leads').insert({
+    tenant_id:         tenantId,
+    caller_id:         callerId,
+    call_log_id:       callLog?.id || null,
+    lead_contact_name: analysis.structuredData?.caller_name || null,
+    ai_summary:        isSensitive ? null : summary,
+    status:            'new',
+  })
+
+  if (tenant.notify_new_lead !== false && tenant.business_email) {
+    const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
+    const { subject, html } = emailNewLead({ businessName: tenant.business_name || 'Your business', callerName: analysis.structuredData?.caller_name || null, callerPhone: callerNumber, summary, outcome, callbackUrl: portalUrl })
+    await sendEmail({ to: tenant.business_email, subject, html })
   }
 
-  try {
-  const event = req.body
-  const eventType = event.message?.type || event.type || 'unknown'
-  console.log('Vapi event received:', eventType, JSON.stringify(event).slice(0, 300))
-
-  // Engine layer — tool calls from GPT-4o during live support calls
-  if (eventType === 'tool-calls') {
-    return handleToolCalls(res, event)
+  if (callerNumber && tenant.sms_followup_enabled) {
+    const name     = callerName || 'there'
+    const biz      = tenant.business_name || 'us'
+    const owner    = tenant.lead_contact_name || 'We'
+    const timeframe = tenant.callback_preference_note || 'shortly'
+    const bookingP = tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''
+    const message  = tenant.sms_followup_message?.trim() || `Hi ${name}, thanks for calling ${biz}. ${owner} will be in touch ${timeframe}.${bookingP}`
+    await sendSms({ to: callerNumber, message })
   }
 
-  if (eventType !== 'end-of-call-report') {
-    return res.status(200).json({ received: true })
+  if (callerNumber) {
+    const { data: waIntegration } = await supabase.from('tenant_integrations').select('enabled, settings').eq('tenant_id', tenantId).eq('integration_id', 'whatsapp').maybeSingle()
+    if (waIntegration?.enabled) {
+      const waCallerName = analysis.structuredData?.caller_name || 'there'
+      const template = waIntegration.settings?.message_template || `Hi ${waCallerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
+      sendWhatsApp({ tenantId, to: callerNumber, message: template }).catch(err => console.error('WhatsApp follow-up failed:', err.message))
+    }
   }
 
+  fireZapier({ tenantId, event: 'lead_captured', payload: { caller_phone: callerNumber, caller_name: analysis.structuredData?.caller_name || null, call_outcome: outcome } }).catch(() => {})
+}
+
+async function handleReferral(tenantId, analysis) {
+  const partnerName = analysis.structuredData?.referred_to || null
+  if (!partnerName) return
+  const { data: partner } = await supabase.from('referral_partners').select('id').eq('tenant_id', tenantId).ilike('partner_name', `%${partnerName}%`).maybeSingle()
+  if (partner) await supabase.from('referral_log').insert({ tenant_id: tenantId, partner_id: partner.id })
+}
+
+async function checkPaygLimit(tenant, tenantId) {
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  const { data: mCalls } = await supabase.from('call_logs').select('duration_seconds').eq('tenant_id', tenantId).gte('created_at', monthStart.toISOString())
+  const monthMins = Math.round((mCalls || []).reduce((s, c) => s + (c.duration_seconds || 0), 0) / 60)
+  const monthCost = monthMins * 0.35
+  if (monthCost >= tenant.monthly_cost_limit) {
+    console.warn(`PAYG limit reached for tenant ${tenantId}: £${monthCost.toFixed(2)} >= £${tenant.monthly_cost_limit}`)
+  }
+}
+
+async function handleOptOut(callerId, transcript, tenantId) {
+  const lower = transcript.toLowerCase()
+  const removalPhrases = ['remove me from', 'take me off', 'stop contacting', "don't contact", 'unsubscribe', 'remove my details', 'delete my', 'opt out', 'remove from list']
+  if (removalPhrases.some(p => lower.includes(p))) {
+    await supabase.from('caller_tenant_relationships').upsert(
+      { tenant_id: tenantId, caller_id: callerId, marketing_opted_out: true, opted_out_at: new Date().toISOString(), deletion_requested: true, deletion_requested_at: new Date().toISOString() },
+      { onConflict: 'tenant_id,caller_id' }
+    )
+  }
+}
+
+async function handleCallEnd(event, res) {
   const payload  = event.message || event
   const call     = payload.call
   const analysis = payload.analysis || {}
   const artifact = payload.artifact || {}
 
-  // ── Support call detection ─────────────────────────────────────────────────
   const supportPhoneId = process.env.VAPI_SUPPORT_PHONE_NUMBER_ID
-  const callPhoneId    = call?.phoneNumberId
-  if (supportPhoneId && callPhoneId === supportPhoneId) {
+  if (supportPhoneId && call?.phoneNumberId === supportPhoneId) {
     await handleSupportCallEnd({ call, analysis, artifact })
     return res.status(200).json({ received: true })
   }
 
-  const assistantId  = call?.assistantId
-  const callerNumber = call?.customer?.number || null
-  const duration     = Math.round((call?.endedAt - call?.startedAt) / 1000) || 0
-  const transcript   = artifact.transcript || null
-  const summary      = analysis.summary || null
+  const assistantId    = call?.assistantId
+  const callerNumber   = call?.customer?.number || null
+  const duration       = Math.round((call?.endedAt - call?.startedAt) / 1000) || 0
+  const transcript     = artifact.transcript || null
+  const summary        = analysis.summary || null
   const outcome        = analysis.structuredData?.triage_outcome || analysis.structuredData?.call_outcome || null
   const structuredData = analysis.structuredData || {}
+  const callerName     = analysis.structuredData?.caller_name || null
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email, business_phone, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id, lead_contact_name, callback_preference_note, booking_link, sms_followup_enabled, sms_followup_message')
+    .select('id, business_name, business_email, business_phone, included_minutes, subscription_tier, overage_voice_preference, notify_80pct_sent_month, notify_exhausted_sent_month, urgent_callback_mins, urgent_escalation_method, notify_new_lead, subcategory_id, lead_contact_name, callback_preference_note, booking_link, sms_followup_enabled, sms_followup_message, billing_model, monthly_cost_limit')
     .eq('vapi_assistant_id', assistantId)
     .maybeSingle()
 
@@ -433,204 +496,59 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true })
   }
 
-  const tenantId  = tenant.id
-  const isUrgent  = outcome === 'escalated'
-  const callerName = analysis.structuredData?.caller_name || null
+  const tenantId = tenant.id
 
   let isSensitive = false
   if (tenant.subcategory_id) {
-    const { data: sub } = await supabase
-      .from('business_type_subcategories')
-      .select('is_sensitive')
-      .eq('id', tenant.subcategory_id)
-      .maybeSingle()
+    const { data: sub } = await supabase.from('business_type_subcategories').select('is_sensitive').eq('id', tenant.subcategory_id).maybeSingle()
     isSensitive = sub?.is_sensitive === true
   }
 
-  // Urgent escalation — notify owner immediately via SMS and/or email
-  if (isUrgent) {
-    const method = tenant.urgent_escalation_method // 'sms', 'email', or null = both
-    const callbackMins = tenant.urgent_callback_mins ?? 60
-    const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
+  if (outcome === 'escalated') await handleUrgentEscalation(tenant, callerName, callerNumber, summary)
 
-    if (method !== 'email' && tenant.business_phone) {
-      const smsBody = `URGENT via Qerxel — ${callerName || 'Unknown caller'}${callerNumber ? ` (${callerNumber})` : ''}: ${summary || 'No summary provided'}. Callback needed within ${callbackMins} min.`
-      await sendSms({ to: tenant.business_phone, message: smsBody })
-    }
-
-    if (method !== 'sms' && tenant.business_email) {
-      const { subject, html } = emailUrgentEscalation({
-        businessName: tenant.business_name || 'Your business',
-        callerName,
-        callerPhone: callerNumber,
-        summary,
-        callbackMins,
-        portalUrl,
-      })
-      await sendEmail({ to: tenant.business_email, subject, html })
-    }
-  }
-
-  // Find or create caller record
   let callerId = null
   if (callerNumber) {
-    const { data: existing } = await supabase
-      .from('callers').select('id').eq('phone_number', callerNumber).maybeSingle()
-    if (existing) {
-      callerId = existing.id
-    } else {
-      const { data: newCaller } = await supabase
-        .from('callers').insert({ phone_number: callerNumber }).select().maybeSingle()
-      callerId = newCaller?.id || null
-    }
+    const { data: existing } = await supabase.from('callers').select('id').eq('phone_number', callerNumber).maybeSingle()
+    callerId = existing?.id ?? (await supabase.from('callers').insert({ phone_number: callerNumber }).select().maybeSingle()).data?.id ?? null
   }
 
-  // Write call log
   const { data: callLog, error: logError } = await supabase
     .from('call_logs')
-    .insert({
-      tenant_id:        tenantId,
-      caller_id:        callerId,
-      caller_phone:     callerNumber,
-      duration_seconds: duration,
-      transcript:       isSensitive ? null : transcript,
-      ai_summary:       isSensitive ? null : summary,
-      call_outcome:     outcome,
-    })
-    .select()
-    .maybeSingle()
-
+    .insert({ tenant_id: tenantId, caller_id: callerId, caller_phone: callerNumber, duration_seconds: duration, transcript: isSensitive ? null : transcript, ai_summary: isSensitive ? null : summary, call_outcome: outcome })
+    .select().maybeSingle()
   if (logError) console.error('call_logs insert error:', logError.message)
 
-  // After-call messaging — dispatch based on outcome and tenant config
-  dispatchAfterCallMessages({ tenantId, callerNumber, outcome, structuredData, tenant }).catch(err =>
-    console.error('After-call messaging failed:', err.message)
-  )
+  dispatchAfterCallMessages({ tenantId, callerNumber, outcome, structuredData, tenant }).catch(err => console.error('After-call messaging failed:', err.message))
 
-  // Write lead if captured
   if (outcome === 'lead_captured' || outcome === 'booked') {
-    await supabase.from('leads').insert({
-      tenant_id:         tenantId,
-      caller_id:         callerId,
-      call_log_id:       callLog?.id || null,
-      lead_contact_name: analysis.structuredData?.caller_name || null,
-      ai_summary:        isSensitive ? null : summary,
-      status:            'new',
-    })
-
-    // Immediate lead notification to owner — if enabled
-    if (tenant.notify_new_lead !== false && tenant.business_email) {
-      const portalUrl = `${process.env.SITE_URL || 'https://verante-portal.vercel.app'}/portal?tab=dashboard`
-      const { subject, html } = emailNewLead({
-        businessName: tenant.business_name || 'Your business',
-        callerName:   analysis.structuredData?.caller_name || null,
-        callerPhone:  callerNumber,
-        summary:      summary,
-        outcome,
-        callbackUrl:  portalUrl,
-      })
-      await sendEmail({ to: tenant.business_email, subject, html })
-    }
-
-    // SMS follow-up — confirmation text to caller seconds after the call
-    if (callerNumber && tenant.sms_followup_enabled) {
-      const name      = callerName || 'there'
-      const biz       = tenant.business_name || 'us'
-      const owner     = tenant.lead_contact_name || 'We'
-      const timeframe = tenant.callback_preference_note || 'shortly'
-      const bookingP  = tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''
-      const message   = tenant.sms_followup_message?.trim()
-        || `Hi ${name}, thanks for calling ${biz}. ${owner} will be in touch ${timeframe}.${bookingP}`
-      await sendSms({ to: callerNumber, message })
-    }
-
-    // WhatsApp follow-up — fire if tenant has WhatsApp connected + enabled
-    if (callerNumber) {
-      const { data: waIntegration } = await supabase
-        .from('tenant_integrations')
-        .select('enabled, settings')
-        .eq('tenant_id', tenantId)
-        .eq('integration_id', 'whatsapp')
-        .maybeSingle()
-
-      if (waIntegration?.enabled) {
-        const waCallerName = analysis.structuredData?.caller_name || 'there'
-        const template = waIntegration.settings?.message_template
-          || `Hi ${waCallerName}, thanks for calling ${tenant.business_name}. ${tenant.lead_contact_name || 'We'} will be in touch shortly.${tenant.booking_link ? ` Book online: ${tenant.booking_link}` : ''}`
-
-        sendWhatsApp({ tenantId, to: callerNumber, message: template })
-          .catch(err => console.error('WhatsApp follow-up failed:', err.message))
-      }
-    }
-
-    // Zapier webhook — fire and forget
-    fireZapier({
-      tenantId,
-      event: 'lead_captured',
-      payload: {
-        caller_phone: call?.customer?.number || null,
-        caller_name: analysis.structuredData?.caller_name || null,
-        call_outcome: outcome,
-      },
-    }).catch(() => {})
+    await handleLeadCapture({ tenant, tenantId, callerId, callerNumber, callerName, summary, outcome, callLog, analysis, isSensitive })
   }
 
-  // Write referral log if referred out
-  if (outcome === 'referred_out') {
-    const partnerName = analysis.structuredData?.referred_to || null
-    if (partnerName) {
-      const { data: partner } = await supabase
-        .from('referral_partners').select('id')
-        .eq('tenant_id', tenantId).ilike('partner_name', `%${partnerName}%`).maybeSingle()
-      if (partner) {
-        await supabase.from('referral_log').insert({
-          tenant_id:  tenantId,
-          partner_id: partner.id,
-        })
-      }
-    }
-  }
+  if (outcome === 'referred_out') await handleReferral(tenantId, analysis)
 
-  // Check minute thresholds — fire 80% and exhausted notifications as needed
   await checkMinuteNotifications(tenant, tenantId)
 
-  // PAYG cost limit check
   if (tenant.billing_model === 'payg' && tenant.monthly_cost_limit && tenant.business_email) {
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
-    const { data: mCalls } = await supabase
-      .from('call_logs').select('duration_seconds').eq('tenant_id', tenantId)
-      .gte('created_at', monthStart.toISOString())
-    const monthMins = Math.round((mCalls || []).reduce((s, c) => s + (c.duration_seconds || 0), 0) / 60)
-    const monthCost = monthMins * 0.35
-    if (monthCost >= tenant.monthly_cost_limit) {
-      // Log warning — actual AI pause requires Vapi API call (Task 4 / future)
-      console.warn(`PAYG limit reached for tenant ${tenantId}: £${monthCost.toFixed(2)} >= £${tenant.monthly_cost_limit}`)
-    }
+    await checkPaygLimit(tenant, tenantId)
   }
 
-  // Element signal — Answer observed a completed call
-  emitSignal('answer', 'call_completed', {
-    tenant_id:        tenantId,
-    call_type:        analysis.structuredData?.call_type || 'unknown',
-    outcome,
-    duration_seconds: duration,
-  }).catch(() => {})
+  emitSignal('answer', 'call_completed', { tenant_id: tenantId, call_type: analysis.structuredData?.call_type || 'unknown', outcome, duration_seconds: duration }).catch(() => {})
 
-  // Opt-out detection — check transcript for removal requests
-  if (callerId && transcript) {
-    const lower = transcript.toLowerCase()
-    const removalPhrases = ['remove me from', 'take me off', 'stop contacting', "don't contact", 'unsubscribe', 'remove my details', 'delete my', 'opt out', 'remove from list']
-    if (removalPhrases.some(p => lower.includes(p))) {
-      await supabase.from('caller_tenant_relationships').upsert(
-        { tenant_id: tenantId, caller_id: callerId, marketing_opted_out: true, opted_out_at: new Date().toISOString(), deletion_requested: true, deletion_requested_at: new Date().toISOString() },
-        { onConflict: 'tenant_id,caller_id' }
-      )
-    }
-  }
+  if (callerId && transcript) await handleOptOut(callerId, transcript, tenantId)
 
   return res.status(200).json({ received: true })
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  try {
+    const eventType = req.body?.message?.type || req.body?.type || 'unknown'
+    console.log('Vapi event received:', eventType, JSON.stringify(req.body).slice(0, 300))
+    if (eventType === 'tool-calls')        return handleToolCalls(res, req.body)
+    if (eventType === 'end-of-call-report') return handleCallEnd(req.body, res)
+    return res.status(200).json({ received: true })
   } catch (err) {
     console.error('[vapi-webhook] unhandled error:', err)
     return res.status(200).json({ received: true, error: err.message })

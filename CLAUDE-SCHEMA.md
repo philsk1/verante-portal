@@ -79,7 +79,13 @@ role text
 colour varchar(7)    -- ← British English. NOT color.
 bio text
 phone text
-tags text[]
+email text
+address text
+birthday text
+specialist_services text[]   -- ← column name is specialist_services, NOT tags
+direct_line_did text
+private_notes text
+active bool
 ```
 
 ### `staff_availability`
@@ -106,6 +112,7 @@ price_from numeric, price_to numeric    -- NOT price
 duration_minutes integer
 processing_minutes integer (nullable)
 active bool DEFAULT true
+colour varchar(7)    -- ← British English. Used by ServiceCatalogue for calendar colour coding.
 internal_notes text  -- owner-visible only, AI does NOT read this
 supplier_id uuid FK → suppliers(id) ON DELETE SET NULL  -- nullable
 product_url text  -- checkout / info page URL. Used by Listen Pro hand-off. nullable.
@@ -134,9 +141,11 @@ RLS: `is_tenant_member(tenant_id)` — same pattern as catalogue_items.
 id uuid PK
 tenant_id uuid FK
 caller_id uuid FK → callers
+caller_phone text
 started_at, ended_at timestamptz
 duration_seconds integer
-outcome  -- 'lead'|'booking'|'referral'|'handled'|'escalated'|'abandoned'
+call_outcome text   -- ← column is call_outcome, NOT outcome. Values: 'lead_captured'|'booked'|'handled'|'escalated'|'filtered'|'spam'|'hard_close'
+ai_summary text
 transcript text
 ```
 

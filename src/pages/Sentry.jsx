@@ -1,3 +1,47 @@
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : src/pages/Sentry.jsx
+ * TOPOLOGY RING : Ring 2 — Contained (Frontend page, isolated connections)
+ * INTENT MAP    : Physical workspace monitoring page. Lets tenants define
+ *                 named stations (zones), assign staff, optionally link cameras,
+ *                 and review Sentry's booking accuracy variances. Five panels
+ *                 (Stations, Staff, Cameras, Activity, Variances) rendered in a
+ *                 tile-grid + side-panel layout. Camera frame fetching is proxied
+ *                 through /api/integrations to avoid browser CORS restrictions.
+ *                 All writes are guarded by previewReadOnly and tenantId checks.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : Props: { cameraLimit?: number } (default 3)
+ *                 Context: PreviewContext (isPreview, previewTenantId, previewReadOnly)
+ *                 Auth: supabase.auth.getUser() → tenant_memberships → tenantId
+ * EXTERNAL READS: sentry_zones (id, label, zone_type, camera_id, staff_profile_id,
+ *                               x, y, w, h, created_at)
+ *                 sentry_cameras (id, name, snapshot_url, created_at)
+ *                 staff_profiles (id, name, role)
+ *                 sentry_variances (joined: sentry_zones, sentry_sessions)
+ *                 /api/integrations action: sentry-snapshot (camera frame proxy)
+ * MUTATIONS/DB  : sentry_zones — INSERT (addStandaloneZone, saveCameraZone)
+ *                               UPDATE staff_profile_id (assignStaffToZone)
+ *                               DELETE (deleteZone)
+ *                 sentry_cameras — INSERT (addCamera)
+ *                 sentry_variances — UPDATE reviewed=true (markReviewed)
+ *                 All writes guarded: previewReadOnly checks on every action,
+ *                 markReviewed uses hard guard: if (isPreview || !tenantId) return
+ * OUTPUTS/EMITS : None — pure UI component, no events emitted upward.
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { usePreview } from '../context/PreviewContext'
@@ -71,12 +115,10 @@ export default function SentryTab({ cameraLimit = 3 }) {
   const [loading, setLoading] = useState(true)
   const [activePanel, setActivePanel] = useState(null)
 
-  // Add station (standalone zone)
   const [newZoneLabel, setNewZoneLabel] = useState('')
   const [newZoneType, setNewZoneType] = useState('chair')
   const [zoneSaving, setZoneSaving] = useState(false)
 
-  // Add camera
   const [newCamName, setNewCamName] = useState('')
   const [newCamUrl, setNewCamUrl] = useState('')
   const [testStatus, setTestStatus] = useState(null)
@@ -84,7 +126,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
   const [camSaving, setCamSaving] = useState(false)
   const [showAddCamForm, setShowAddCamForm] = useState(false)
 
-  // Camera zone editor
   const canvasRef = useRef(null)
   const imgRef = useRef(null)
   const [editorCamera, setEditorCamera] = useState(null)
@@ -97,8 +138,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
   const [zoneType, setZoneType] = useState('chair')
   const zoneLabelRef = useRef(null)
   const [camZoneSaving, setCamZoneSaving] = useState(false)
-
-  // ── Load ────────────────────────────────────────────────────────────────────
 
   const loadData = useCallback(async (tid) => {
     const [zonesRes, camRes, staffRes, varRes] = await Promise.all([
@@ -129,8 +168,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
     }
     load()
   }, [isPreview, previewTenantId, loadData])
-
-  // ── Canvas redraw ───────────────────────────────────────────────────────────
 
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -214,8 +251,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
     setPreviewRect(null); setDrawStart(null)
   }
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
-
   const addStandaloneZone = async () => {
     if (!newZoneLabel.trim() || !tenantId || previewReadOnly) return
     setZoneSaving(true)
@@ -293,24 +328,16 @@ export default function SentryTab({ cameraLimit = 3 }) {
     setPendingRect(null); setZoneLabel('')
   }
 
-  const deleteCameraZone = async (id) => {
-    await deleteZone(id)
-  }
-
   const markReviewed = async (id) => {
     if (isPreview || !tenantId) return
     await supabase.from('sentry_variances').update({ reviewed: true }).eq('id', id)
     setVariances(prev => prev.filter(v => v.id !== id))
   }
 
-  // ── Tile stats ──────────────────────────────────────────────────────────────
-
   const cameraZones = zones.filter(z => z.camera_id)
   const assignedStaff = new Set(zones.map(z => z.staff_profile_id).filter(Boolean)).size
 
   if (loading) return null
-
-  // ── Tile subtitles ──────────────────────────────────────────────────────────
 
   const tileSubs = {
     stations: zones.length === 0
@@ -326,324 +353,240 @@ export default function SentryTab({ cameraLimit = 3 }) {
     variances: variances.length === 0 ? 'No unreviewed findings' : `${variances.length} finding${variances.length !== 1 ? 's' : ''} to review`,
   }
 
-  const renderPanel = () => {
-    if (!activePanel) return null
-
-    // ── STATIONS PANEL ─────────────────────────────────────────────────────────
-    if (activePanel === 'stations') return (
-      <div>
-        <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
-          Define the physical areas in your workspace — chairs, wash basins, colour stations. Cameras are not required. Once stations exist, Sentry can reconcile activity against your Schedule bookings.
+  const renderStationsPanel = () => (
+    <div>
+      <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
+        Define the physical areas in your workspace — chairs, wash basins, colour stations. Cameras are not required. Once stations exist, Sentry can reconcile activity against your Schedule bookings.
+      </div>
+      {!previewReadOnly && (
+        <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '1rem', border: '1px solid rgba(94,59,135,0.12)', marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.6rem' }}>Add station</div>
+          <input value={newZoneLabel} onChange={e => setNewZoneLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addStandaloneZone()}
+            placeholder="e.g. Chair 1, Wash Basin, Colour Section"
+            style={{ width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.6rem' }} />
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            {ZONE_TYPES.map(zt => (
+              <button key={zt.id} onClick={() => setNewZoneType(zt.id)}
+                style={{ padding: '0.2rem 0.6rem', borderRadius: 20, border: `1.5px solid ${newZoneType === zt.id ? zt.color : 'rgba(0,0,0,0.1)'}`, background: newZoneType === zt.id ? zt.hex30 : 'white', color: newZoneType === zt.id ? zt.color : '#888', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                {zt.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={addStandaloneZone} disabled={!newZoneLabel.trim() || zoneSaving}
+            style={{ padding: '0.45rem 1rem', background: newZoneLabel.trim() ? '#f0a500' : '#f5d98a', color: newZoneLabel.trim() ? '#1a0533' : '#7a5c1a', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8125rem', cursor: newZoneLabel.trim() ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif" }}>
+            {zoneSaving ? 'Saving…' : '+ Add station'}
+          </button>
         </div>
+      )}
+      {zones.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No stations yet — add one above to get started.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+          {zones.map(z => (
+            <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: ztBg(z.zone_type), borderRadius: 9, border: `1px solid ${ztColor(z.zone_type)}33` }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: ztColor(z.zone_type), flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</div>
+                <div style={{ fontSize: '0.7rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{ztLabel(z.zone_type)}{z.camera_id ? ' · camera linked' : ''}</div>
+              </div>
+              {staff.length > 0 && (
+                <select value={z.staff_profile_id || ''} onChange={e => assignStaffToZone(z.id, e.target.value || null)}
+                  disabled={previewReadOnly}
+                  style={{ fontSize: '0.72rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, padding: '0.2rem 0.35rem', background: 'white', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", cursor: previewReadOnly ? 'default' : 'pointer', maxWidth: 110 }}>
+                  <option value="">Unassigned</option>
+                  {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              )}
+              {!previewReadOnly && (
+                <button onClick={() => deleteZone(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }} title="Remove station">×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
-        {/* Add zone form */}
-        {!previewReadOnly && (
-          <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '1rem', border: '1px solid rgba(94,59,135,0.12)', marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.6rem' }}>Add station</div>
-            <input value={newZoneLabel} onChange={e => setNewZoneLabel(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addStandaloneZone()}
-              placeholder="e.g. Chair 1, Wash Basin, Colour Section"
-              style={{ width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.6rem' }} />
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+  const renderStaffPanel = () => (
+    <div>
+      <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
+        Assign each team member to their primary station. When Sentry detects activity at a station, it knows whose session it likely belongs to — tightening the accuracy of booking reconciliation.
+      </div>
+      {staff.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No staff found. Add team members in the Team tab first.</div>
+      ) : zones.length === 0 ? (
+        <div style={{ background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 9, padding: '0.75rem 1rem', fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+          Define your stations first — then assign staff to them here.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {staff.map(s => {
+            const assignedZonesList = zones.filter(z => z.staff_profile_id === s.id)
+            return (
+              <div key={s.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 9, padding: '0.75rem 1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: assignedZonesList.length > 0 ? '0.5rem' : 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f0f0f8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#5e3b87', fontFamily: "'Syne', sans-serif" }}>{s.name.charAt(0)}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{s.name}</div>
+                    {s.role && <div style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{s.role}</div>}
+                  </div>
+                  {assignedZonesList.length === 0 && (
+                    <span style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>No station</span>
+                  )}
+                </div>
+                {assignedZonesList.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', paddingLeft: '2.25rem' }}>
+                    {assignedZonesList.map(z => (
+                      <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.18rem 0.55rem', background: ztBg(z.zone_type), borderRadius: 20, border: `1px solid ${ztColor(z.zone_type)}40` }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: ztColor(z.zone_type) }} />
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!previewReadOnly && (
+                  <div style={{ paddingLeft: '2.25rem', marginTop: '0.4rem' }}>
+                    <select onChange={e => { if (e.target.value) { assignStaffToZone(e.target.value, s.id); e.target.value = '' } }}
+                      style={{ fontSize: '0.72rem', border: '1px dashed rgba(94,59,135,0.25)', borderRadius: 5, padding: '0.2rem 0.4rem', background: 'white', color: '#888', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' }}>
+                      <option value="">+ Assign to station…</option>
+                      {zones.filter(z => z.staff_profile_id !== s.id).map(z => <option key={z.id} value={z.id}>{z.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  const renderCamerasPanel = () => {
+    if (editorCamera) return (
+      <div>
+        <button onClick={() => { setEditorCamera(null); setFrameData(null); imgRef.current = null; setPendingRect(null) }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", padding: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          ← Back to cameras
+        </button>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Zones — {editorCamera.name}</div>
+        <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.85rem', lineHeight: 1.5 }}>Hold and drag on the camera view to draw a zone. Give it a name and type when you release.</div>
+        {editorCamera.snapshot_url && testStatus === null && (
+          <button onClick={() => testCamera(editorCamera.snapshot_url, tenantId)}
+            style={{ width: '100%', padding: '0.5rem', border: '1px dashed rgba(94,59,135,0.3)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', cursor: 'pointer', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>
+            Load camera frame →
+          </button>
+        )}
+        {testStatus === 'testing' && <div style={{ textAlign: 'center', padding: '0.5rem', color: '#888', fontSize: '0.8125rem', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Connecting to camera…</div>}
+        {testStatus === 'unreachable' && (
+          <div style={{ background: '#fffbeb', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '0.65rem 0.9rem', marginBottom: '0.75rem', fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+            Camera isn't reachable from here. It may be on your local network. Draw zones using the grid — connect the camera URL later.
+          </div>
+        )}
+        <ZoneEditorCanvas canvasRef={canvasRef} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} />
+        {pendingRect && (
+          <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.15)', marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif" }}>Name this zone</div>
+            <input ref={zoneLabelRef} value={zoneLabel} onChange={e => setZoneLabel(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveCameraZone()}
+              placeholder="e.g. Chair 1, Wash Basin"
+              style={{ padding: '0.5rem 0.65rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
               {ZONE_TYPES.map(zt => (
-                <button key={zt.id} onClick={() => setNewZoneType(zt.id)}
-                  style={{ padding: '0.2rem 0.6rem', borderRadius: 20, border: `1.5px solid ${newZoneType === zt.id ? zt.color : 'rgba(0,0,0,0.1)'}`, background: newZoneType === zt.id ? zt.hex30 : 'white', color: newZoneType === zt.id ? zt.color : '#888', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                <button key={zt.id} onClick={() => setZoneType(zt.id)}
+                  style={{ padding: '0.2rem 0.55rem', borderRadius: 20, border: `1.5px solid ${zoneType === zt.id ? zt.color : 'rgba(0,0,0,0.1)'}`, background: zoneType === zt.id ? zt.hex30 : 'white', color: zoneType === zt.id ? zt.color : '#888', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                   {zt.label}
                 </button>
               ))}
             </div>
-            <button onClick={addStandaloneZone} disabled={!newZoneLabel.trim() || zoneSaving}
-              style={{ padding: '0.45rem 1rem', background: newZoneLabel.trim() ? '#f0a500' : '#f5d98a', color: newZoneLabel.trim() ? '#1a0533' : '#7a5c1a', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8125rem', cursor: newZoneLabel.trim() ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif" }}>
-              {zoneSaving ? 'Saving…' : '+ Add station'}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setPendingRect(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 7, background: 'white', color: '#888', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+              <button onClick={saveCameraZone} disabled={!zoneLabel.trim() || camZoneSaving}
+                style={{ flex: 1, padding: '0.4rem 0.85rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8rem', cursor: zoneLabel.trim() ? 'pointer' : 'default', opacity: zoneLabel.trim() ? 1 : 0.5, fontFamily: "'DM Sans', sans-serif" }}>
+                {camZoneSaving ? 'Saving…' : 'Save zone'}
+              </button>
+            </div>
           </div>
         )}
-
-        {zones.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No stations yet — add one above to get started.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-            {zones.map(z => {
-              return (
-                <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: ztBg(z.zone_type), borderRadius: 9, border: `1px solid ${ztColor(z.zone_type)}33` }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: ztColor(z.zone_type), flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{ztLabel(z.zone_type)}{z.camera_id ? ' · camera linked' : ''}</div>
-                  </div>
-                  {staff.length > 0 && (
-                    <select value={z.staff_profile_id || ''} onChange={e => assignStaffToZone(z.id, e.target.value || null)}
-                      disabled={previewReadOnly}
-                      style={{ fontSize: '0.72rem', border: '1px solid rgba(94,59,135,0.18)', borderRadius: 5, padding: '0.2rem 0.35rem', background: 'white', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", cursor: previewReadOnly ? 'default' : 'pointer', maxWidth: 110 }}>
-                      <option value="">Unassigned</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  )}
-                  {!previewReadOnly && (
-                    <button onClick={() => deleteZone(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }} title="Remove station">×</button>
-                  )}
+        {editorZones.length > 0 && (
+          <div style={{ marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {editorZones.map(z => (
+              <div key={z.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.65rem', background: ztBg(z.zone_type), borderRadius: 7, border: `1px solid ${ztColor(z.zone_type)}33` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ztColor(z.zone_type), flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</span>
+                  <span style={{ fontSize: '0.68rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{ztLabel(z.zone_type)}</span>
                 </div>
-              )
-            })}
+                <button onClick={() => deleteZone(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
+              </div>
+            ))}
           </div>
         )}
       </div>
     )
-
-    // ── STAFF PANEL ────────────────────────────────────────────────────────────
-    if (activePanel === 'staff') return (
+    return (
       <div>
         <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
-          Assign each team member to their primary station. When Sentry detects activity at a station, it knows whose session it likely belongs to — tightening the accuracy of booking reconciliation.
+          Cameras are optional. Add one to enable automatic station activity detection. Sentry fetches a snapshot once per minute and checks for movement in your defined zones.
         </div>
-        {staff.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No staff found. Add team members in the Team tab first.</div>
-        ) : zones.length === 0 ? (
-          <div style={{ background: '#fffbf0', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 9, padding: '0.75rem 1rem', fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-            Define your stations first — then assign staff to them here.
+        {cameras.length < cameraLimit && !previewReadOnly && (
+          <div style={{ marginBottom: '1rem' }}>
+            {!showAddCamForm ? (
+              <button onClick={() => setShowAddCamForm(true)}
+                style={{ width: '100%', padding: '0.6rem', border: '1px dashed rgba(94,59,135,0.3)', borderRadius: 9, background: 'transparent', color: '#5e3b87', fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                + Add camera
+              </button>
+            ) : (
+              <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '1rem', border: '1px solid rgba(94,59,135,0.12)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif" }}>New camera</div>
+                <input value={newCamName} onChange={e => setNewCamName(e.target.value)} placeholder="Camera name (e.g. Main floor)"
+                  style={{ padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                <div>
+                  <input value={newCamUrl} onChange={e => { setNewCamUrl(e.target.value); setTestStatus(null) }} placeholder="Snapshot URL (optional — add later)"
+                    style={{ width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.3rem' }} />
+                  <div style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>http://[camera-ip]/snapshot.jpg — found in your camera app → Settings</div>
+                  {newCamUrl.trim() && testStatus === null && (
+                    <button onClick={() => testCamera(newCamUrl, tenantId)} style={{ marginTop: '0.4rem', padding: '0.3rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Test URL</button>
+                  )}
+                  {testStatus === 'testing' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Testing…</div>}
+                  {testStatus === 'ok' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>✓ Camera reachable</div>}
+                  {testStatus === 'unreachable' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#f0a500', fontFamily: "'DM Sans', sans-serif" }}>Camera not reachable — local network? You can save and connect later.</div>}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => { setShowAddCamForm(false); setNewCamName(''); setNewCamUrl(''); setTestStatus(null) }}
+                    style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, background: 'white', color: '#888', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+                  <button onClick={addCamera} disabled={!newCamName.trim() || camSaving}
+                    style={{ flex: 1, padding: '0.45rem 0.85rem', background: newCamName.trim() ? '#f0a500' : '#f5d98a', color: newCamName.trim() ? '#1a0533' : '#7a5c1a', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8125rem', cursor: newCamName.trim() ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif" }}>
+                    {camSaving ? 'Saving…' : 'Save → draw zones →'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+        )}
+        {cameras.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No cameras configured. Add one above, or skip — Sentry works without cameras.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {staff.map(s => {
-              const assignedZonesList = zones.filter(z => z.staff_profile_id === s.id)
+            {cameras.map(cam => {
+              const camZoneCount = zones.filter(z => z.camera_id === cam.id).length
               return (
-                <div key={s.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 9, padding: '0.75rem 1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: assignedZonesList.length > 0 ? '0.5rem' : 0 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f0f0f8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#5e3b87', fontFamily: "'Syne', sans-serif" }}>{s.name.charAt(0)}</span>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{s.name}</div>
-                      {s.role && <div style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{s.role}</div>}
-                    </div>
-                    {assignedZonesList.length === 0 && (
-                      <span style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>No station</span>
-                    )}
-                  </div>
-                  {assignedZonesList.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', paddingLeft: '2.25rem' }}>
-                      {assignedZonesList.map(z => (
-                        <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.18rem 0.55rem', background: ztBg(z.zone_type), borderRadius: 20, border: `1px solid ${ztColor(z.zone_type)}40` }}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: ztColor(z.zone_type) }} />
-                          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {!previewReadOnly && (
-                    <div style={{ paddingLeft: '2.25rem', marginTop: '0.4rem' }}>
-                      <select onChange={e => { if (e.target.value) { assignStaffToZone(e.target.value, s.id); e.target.value = '' } }}
-                        style={{ fontSize: '0.72rem', border: '1px dashed rgba(94,59,135,0.25)', borderRadius: 5, padding: '0.2rem 0.4rem', background: 'white', color: '#888', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' }}>
-                        <option value="">+ Assign to station…</option>
-                        {zones.filter(z => z.staff_profile_id !== s.id).map(z => <option key={z.id} value={z.id}>{z.label}</option>)}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    )
-
-    // ── CAMERAS PANEL ──────────────────────────────────────────────────────────
-    if (activePanel === 'cameras') {
-      if (editorCamera) return (
-        <div>
-          <button onClick={() => { setEditorCamera(null); setFrameData(null); imgRef.current = null; setPendingRect(null) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '0.8125rem', fontFamily: "'DM Sans', sans-serif", padding: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            ← Back to cameras
-          </button>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.25rem' }}>Zones — {editorCamera.name}</div>
-          <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.85rem', lineHeight: 1.5 }}>Hold and drag on the camera view to draw a zone. Give it a name and type when you release.</div>
-          {editorCamera.snapshot_url && testStatus === null && (
-            <button onClick={() => testCamera(editorCamera.snapshot_url, tenantId)}
-              style={{ width: '100%', padding: '0.5rem', border: '1px dashed rgba(94,59,135,0.3)', borderRadius: 8, background: 'transparent', color: '#5e3b87', fontSize: '0.8125rem', cursor: 'pointer', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>
-              Load camera frame →
-            </button>
-          )}
-          {testStatus === 'testing' && <div style={{ textAlign: 'center', padding: '0.5rem', color: '#888', fontSize: '0.8125rem', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Connecting to camera…</div>}
-          {testStatus === 'unreachable' && (
-            <div style={{ background: '#fffbeb', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '0.65rem 0.9rem', marginBottom: '0.75rem', fontSize: '0.8125rem', color: '#7a5c00', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-              Camera isn't reachable from here. It may be on your local network. Draw zones using the grid — connect the camera URL later.
-            </div>
-          )}
-          <ZoneEditorCanvas canvasRef={canvasRef} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} />
-          {pendingRect && (
-            <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '0.85rem', border: '1px solid rgba(94,59,135,0.15)', marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif" }}>Name this zone</div>
-              <input ref={zoneLabelRef} value={zoneLabel} onChange={e => setZoneLabel(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveCameraZone()}
-                placeholder="e.g. Chair 1, Wash Basin"
-                style={{ padding: '0.5rem 0.65rem', border: '1.5px solid rgba(94,59,135,0.25)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                {ZONE_TYPES.map(zt => (
-                  <button key={zt.id} onClick={() => setZoneType(zt.id)}
-                    style={{ padding: '0.2rem 0.55rem', borderRadius: 20, border: `1.5px solid ${zoneType === zt.id ? zt.color : 'rgba(0,0,0,0.1)'}`, background: zoneType === zt.id ? zt.hex30 : 'white', color: zoneType === zt.id ? zt.color : '#888', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                    {zt.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => setPendingRect(null)} style={{ padding: '0.4rem 0.85rem', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 7, background: 'white', color: '#888', fontSize: '0.8rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-                <button onClick={saveCameraZone} disabled={!zoneLabel.trim() || camZoneSaving}
-                  style={{ flex: 1, padding: '0.4rem 0.85rem', background: '#f0a500', color: '#1a0533', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8rem', cursor: zoneLabel.trim() ? 'pointer' : 'default', opacity: zoneLabel.trim() ? 1 : 0.5, fontFamily: "'DM Sans', sans-serif" }}>
-                  {camZoneSaving ? 'Saving…' : 'Save zone'}
-                </button>
-              </div>
-            </div>
-          )}
-          {editorZones.length > 0 && (
-            <div style={{ marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              {editorZones.map(z => (
-                <div key={z.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.65rem', background: ztBg(z.zone_type), borderRadius: 7, border: `1px solid ${ztColor(z.zone_type)}33` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: ztColor(z.zone_type), flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{z.label}</span>
-                    <span style={{ fontSize: '0.68rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>{ztLabel(z.zone_type)}</span>
-                  </div>
-                  <button onClick={() => deleteCameraZone(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )
-
-      return (
-        <div>
-          <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
-            Cameras are optional. Add one to enable automatic station activity detection. Sentry fetches a snapshot once per minute and checks for movement in your defined zones.
-          </div>
-          {cameras.length < cameraLimit && !previewReadOnly && (
-            <div style={{ marginBottom: '1rem' }}>
-              {!showAddCamForm ? (
-                <button onClick={() => setShowAddCamForm(true)}
-                  style={{ width: '100%', padding: '0.6rem', border: '1px dashed rgba(94,59,135,0.3)', borderRadius: 9, background: 'transparent', color: '#5e3b87', fontSize: '0.875rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  + Add camera
-                </button>
-              ) : (
-                <div style={{ background: '#f9f7fc', borderRadius: 10, padding: '1rem', border: '1px solid rgba(94,59,135,0.12)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'DM Sans', sans-serif" }}>New camera</div>
-                  <input value={newCamName} onChange={e => setNewCamName(e.target.value)} placeholder="Camera name (e.g. Main floor)"
-                    style={{ padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+                <div key={cam.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 9, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div>
-                    <input value={newCamUrl} onChange={e => { setNewCamUrl(e.target.value); setTestStatus(null) }} placeholder="Snapshot URL (optional — add later)"
-                      style={{ width: '100%', padding: '0.55rem 0.7rem', border: '1.5px solid rgba(94,59,135,0.2)', borderRadius: 7, fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', marginBottom: '0.3rem' }} />
-                    <div style={{ fontSize: '0.7rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>http://[camera-ip]/snapshot.jpg — found in your camera app → Settings</div>
-                    {newCamUrl.trim() && testStatus === null && (
-                      <button onClick={() => testCamera(newCamUrl, tenantId)} style={{ marginTop: '0.4rem', padding: '0.3rem 0.75rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Test URL</button>
-                    )}
-                    {testStatus === 'testing' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>Testing…</div>}
-                    {testStatus === 'ok' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>✓ Camera reachable</div>}
-                    {testStatus === 'unreachable' && <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#f0a500', fontFamily: "'DM Sans', sans-serif" }}>Camera not reachable — local network? You can save and connect later.</div>}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => { setShowAddCamForm(false); setNewCamName(''); setNewCamUrl(''); setTestStatus(null) }}
-                      style={{ padding: '0.45rem 0.85rem', border: '1px solid rgba(94,59,135,0.15)', borderRadius: 7, background: 'white', color: '#888', fontSize: '0.8125rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-                    <button onClick={addCamera} disabled={!newCamName.trim() || camSaving}
-                      style={{ flex: 1, padding: '0.45rem 0.85rem', background: newCamName.trim() ? '#f0a500' : '#f5d98a', color: newCamName.trim() ? '#1a0533' : '#7a5c1a', border: 'none', borderRadius: 7, fontWeight: 700, fontSize: '0.8125rem', cursor: newCamName.trim() ? 'pointer' : 'default', fontFamily: "'DM Sans', sans-serif" }}>
-                      {camSaving ? 'Saving…' : 'Save → draw zones →'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {cameras.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#bbb', fontSize: '0.875rem', fontFamily: "'DM Sans', sans-serif" }}>No cameras configured. Add one above, or skip — Sentry works without cameras.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {cameras.map(cam => {
-                const camZoneCount = zones.filter(z => z.camera_id === cam.id).length
-                return (
-                  <div key={cam.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 9, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{cam.name}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
-                        {cam.snapshot_url ? (
-                          <span style={{ color: '#3db87a' }}>URL set</span>
-                        ) : (
-                          <span style={{ color: '#f0a500' }}>No URL</span>
-                        )} · {camZoneCount} zone{camZoneCount !== 1 ? 's' : ''}
-                      </div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif" }}>{cam.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
+                      {cam.snapshot_url ? (
+                        <span style={{ color: '#3db87a' }}>URL set</span>
+                      ) : (
+                        <span style={{ color: '#f0a500' }}>No URL</span>
+                      )} · {camZoneCount} zone{camZoneCount !== 1 ? 's' : ''}
                     </div>
-                    <button onClick={() => openCameraEditor(cam)}
-                      style={{ padding: '0.3rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      Edit zones
-                    </button>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    // ── ACTIVITY PANEL ─────────────────────────────────────────────────────────
-    if (activePanel === 'activity') return (
-      <div>
-        <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
-          When cameras are connected and polling is active, live zone occupancy appears here — showing which stations are currently in use and when they last had activity.
-        </div>
-        <div style={{ background: '#eff6ff', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, padding: '1.25rem 1rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📊</div>
-          <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#1e40af', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.35rem' }}>Live monitoring in setup</div>
-          <div style={{ fontSize: '0.8125rem', color: '#3b82f6', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
-            {cameras.length === 0
-              ? 'Add a camera with a snapshot URL to enable live zone monitoring.'
-              : cameras.every(c => !c.snapshot_url)
-              ? 'Add snapshot URLs to your cameras to enable live monitoring.'
-              : 'Live polling is not yet active. Once connected, zone activity will appear here.'}
-          </div>
-        </div>
-      </div>
-    )
-
-    // ── VARIANCES PANEL ────────────────────────────────────────────────────────
-    if (activePanel === 'variances') return (
-      <div>
-        <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
-          Sentry cross-checks physical station activity against your Schedule bookings. A variance means the data didn't match — not an accusation, just a prompt to review the booking record.
-        </div>
-        {variances.length === 0 ? (
-          <div style={{ background: '#f0fdf4', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '1.5rem 1rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✓</div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#065f46', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>No variances to review</div>
-            <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>When Sentry detects a gap between station activity and bookings, it will appear here.</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-            {variances.map(v => {
-              const ss = SEVERITY_STYLES[v.severity] || SEVERITY_STYLES.medium
-              const label = VARIANCE_LABELS[v.variance_type] || v.variance_type
-              const zoneName = v.sentry_zones?.label || 'Unknown zone'
-              const physMins = v.duration_physical_mins
-              const bookedMins = v.duration_booked_mins
-              const date = new Date(v.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-              return (
-                <div key={v.id} style={{ background: ss.bg, borderRadius: 9, padding: '0.75rem 0.85rem', border: `1px solid ${ss.border}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.65rem' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: ss.dot, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: ss.text, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
-                      <span style={{ fontSize: '0.68rem', color: ss.text, opacity: 0.7, fontFamily: "'DM Sans', sans-serif" }}>· {zoneName} · {date}</span>
-                    </div>
-                    {(physMins || bookedMins) && (
-                      <div style={{ fontSize: '0.78rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-                        {physMins && `Station active: ${physMins} min`}
-                        {physMins && bookedMins && ' · '}
-                        {bookedMins && `Booking: ${bookedMins} min`}
-                        {physMins && bookedMins && physMins > bookedMins && <span style={{ color: ss.dot, fontWeight: 700 }}> (+{physMins - bookedMins} min)</span>}
-                      </div>
-                    )}
-                    {v.notes && <div style={{ fontSize: '0.75rem', color: '#777', fontFamily: "'DM Sans', sans-serif", marginTop: '0.15rem' }}>{v.notes}</div>}
-                  </div>
-                  <button onClick={() => markReviewed(v.id)}
-                    style={{ flexShrink: 0, padding: '0.25rem 0.6rem', border: `1px solid ${ss.border}`, borderRadius: 6, background: 'white', color: ss.text, fontSize: '0.68rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    Reviewed ✓
+                  <button onClick={() => openCameraEditor(cam)}
+                    style={{ padding: '0.3rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: 6, background: 'white', color: '#5e3b87', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    Edit zones
                   </button>
                 </div>
               )
@@ -652,18 +595,92 @@ export default function SentryTab({ cameraLimit = 3 }) {
         )}
       </div>
     )
-
-    return null
   }
 
-  // ── Main render ─────────────────────────────────────────────────────────────
+  const renderActivityPanel = () => (
+    <div>
+      <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
+        When cameras are connected and polling is active, live zone occupancy appears here — showing which stations are currently in use and when they last had activity.
+      </div>
+      <div style={{ background: '#eff6ff', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, padding: '1.25rem 1rem', textAlign: 'center' }}>
+        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📊</div>
+        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#1e40af', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.35rem' }}>Live monitoring in setup</div>
+        <div style={{ fontSize: '0.8125rem', color: '#3b82f6', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
+          {cameras.length === 0
+            ? 'Add a camera with a snapshot URL to enable live zone monitoring.'
+            : cameras.every(c => !c.snapshot_url)
+            ? 'Add snapshot URLs to your cameras to enable live monitoring.'
+            : 'Live polling is not yet active. Once connected, zone activity will appear here.'}
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderVariancesPanel = () => (
+    <div>
+      <div style={{ fontSize: '0.8125rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6, marginBottom: '1.25rem' }}>
+        Sentry cross-checks physical station activity against your Schedule bookings. A variance means the data didn't match — not an accusation, just a prompt to review the booking record.
+      </div>
+      {variances.length === 0 ? (
+        <div style={{ background: '#f0fdf4', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '1.5rem 1rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✓</div>
+          <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#065f46', fontFamily: "'DM Sans', sans-serif", marginBottom: '0.3rem' }}>No variances to review</div>
+          <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontFamily: "'DM Sans', sans-serif" }}>When Sentry detects a gap between station activity and bookings, it will appear here.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+          {variances.map(v => {
+            const ss = SEVERITY_STYLES[v.severity] || SEVERITY_STYLES.medium
+            const label = VARIANCE_LABELS[v.variance_type] || v.variance_type
+            const zoneName = v.sentry_zones?.label || 'Unknown zone'
+            const physMins = v.duration_physical_mins
+            const bookedMins = v.duration_booked_mins
+            const date = new Date(v.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            return (
+              <div key={v.id} style={{ background: ss.bg, borderRadius: 9, padding: '0.75rem 0.85rem', border: `1px solid ${ss.border}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.65rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: ss.dot, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: ss.text, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+                    <span style={{ fontSize: '0.68rem', color: ss.text, opacity: 0.7, fontFamily: "'DM Sans', sans-serif" }}>· {zoneName} · {date}</span>
+                  </div>
+                  {(physMins || bookedMins) && (
+                    <div style={{ fontSize: '0.78rem', color: '#555', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+                      {physMins && `Station active: ${physMins} min`}
+                      {physMins && bookedMins && ' · '}
+                      {bookedMins && `Booking: ${bookedMins} min`}
+                      {physMins && bookedMins && physMins > bookedMins && <span style={{ color: ss.dot, fontWeight: 700 }}> (+{physMins - bookedMins} min)</span>}
+                    </div>
+                  )}
+                  {v.notes && <div style={{ fontSize: '0.75rem', color: '#777', fontFamily: "'DM Sans', sans-serif", marginTop: '0.15rem' }}>{v.notes}</div>}
+                </div>
+                <button onClick={() => markReviewed(v.id)}
+                  style={{ flexShrink: 0, padding: '0.25rem 0.6rem', border: `1px solid ${ss.border}`, borderRadius: 6, background: 'white', color: ss.text, fontSize: '0.68rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  Reviewed ✓
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  const renderPanel = () => {
+    if (!activePanel) return null
+    if (activePanel === 'stations') return renderStationsPanel()
+    if (activePanel === 'staff') return renderStaffPanel()
+    if (activePanel === 'cameras') return renderCamerasPanel()
+    if (activePanel === 'activity') return renderActivityPanel()
+    if (activePanel === 'variances') return renderVariancesPanel()
+    return null
+  }
 
   const panelOpen = !!activePanel
 
   return (
     <div data-help-score={zones.length === 0 ? 20 : assignedStaff === 0 ? 50 : 95} style={{ padding: '0 0 3rem' }}>
 
-      {/* Header */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.25rem', color: '#1a1a1a', marginBottom: '0.2rem' }}>Sentry</div>
         <div style={{ fontSize: '0.8125rem', color: '#888', fontFamily: "'DM Sans', sans-serif" }}>
@@ -671,10 +688,8 @@ export default function SentryTab({ cameraLimit = 3 }) {
         </div>
       </div>
 
-      {/* Two-column layout when panel open */}
       <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
 
-        {/* Tile grid */}
         <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: panelOpen ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.85rem' }}>
           {TILES.map(tile => {
             const isActive = activePanel === tile.id
@@ -702,7 +717,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
           })}
         </div>
 
-        {/* Side panel */}
         {panelOpen && (
           <div style={{ flex: '0 0 400px', background: 'white', borderRadius: 12, border: `1.5px solid ${TILES.find(t => t.id === activePanel)?.color || '#5e3b87'}40`, padding: '1.25rem', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -720,7 +734,6 @@ export default function SentryTab({ cameraLimit = 3 }) {
         )}
       </div>
 
-      {/* Info strip */}
       <div style={{ marginTop: '1.5rem', background: '#f9f7fc', borderRadius: 10, padding: '0.75rem 1rem', border: '1px solid rgba(94,59,135,0.1)', display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
         <QFace size={28} />
         <div style={{ fontSize: '0.8125rem', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>

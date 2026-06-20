@@ -1,6 +1,49 @@
-// Stripe webhook handler — signature-verified, raw body required
-// Events handled: checkout.session.completed, customer.subscription.updated,
-//                 customer.subscription.deleted
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : api/stripe-webhook.js
+ * TOPOLOGY RING : Ring 1 — Leaf (Standalone API Module)
+ * INTENT MAP    : Receives Stripe webhook events with cryptographic signature
+ *                 verification (HMAC SHA-256). Handles three subscription
+ *                 lifecycle events — checkout completion, plan change, and
+ *                 cancellation — each writing a narrow, targeted UPDATE to the
+ *                 tenants table. Raw body must be preserved before parsing;
+ *                 bodyParser is explicitly disabled for Stripe compliance.
+ *                 No outbound calls — constructEvent verifies locally.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : HTTP POST with raw (unparsed) body.
+ *                 Header: stripe-signature (required for HMAC verification)
+ *                 Env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+ *                           STRIPE_PRICE_LIGHT, STRIPE_PRICE_STANDARD,
+ *                           STRIPE_PRICE_PROFESSIONAL, STRIPE_PRICE_ENTERPRISE
+ * EXTERNAL READS: Stripe SDK — constructEvent() (local verification, no
+ *                 outbound call). SUPABASE_SERVICE_ROLE_KEY.
+ * MUTATIONS/DB  : tenants table — 3 targeted UPDATE paths:
+ *                   checkout.session.completed →
+ *                     subscription_tier, billing_model,
+ *                     stripe_customer_id, stripe_subscription_id
+ *                   customer.subscription.updated →
+ *                     subscription_tier (matched via stripe_subscription_id)
+ *                   customer.subscription.deleted →
+ *                     subscription_tier='free', billing_model='payg',
+ *                     stripe_subscription_id=null
+ * OUTPUTS/EMITS : HTTP 200 { received: true } for all handled events and all
+ *                 unhandled event types (Stripe requires 200 for all events).
+ *                 HTTP 400 on signature verification failure.
+ *                 HTTP 405 on non-POST. HTTP 500 on processing error.
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
 
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'

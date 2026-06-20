@@ -1,9 +1,62 @@
+﻿/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : src/pages/ListenTab.jsx
+ * TOPOLOGY RING : Ring 2 — Contained (1 caller: Portal.jsx tab slot)
+ * INTENT MAP    : The AI call inbox for a tenant's portal. Presents all calls
+ *                 handled by the AI across 7 tabs: Live (real-time copilot desk,
+ *                 5s poll), Urgent, Call Back (flagged), Booked, Lead Captured,
+ *                 Call Log, Search (multi-term progressive). Each non-Live tab
+ *                 shows a two-pane layout: filtered call list + transcript panel
+ *                 with full bubble or raw transcript view. Supports prefill
+ *                 navigation from the Dashboard "View transcript" button.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : { prefill: { callId: string } | null }
+ *                   From Dashboard — triggers tab switch to Log + auto-selection.
+ *                 { onPrefillConsumed: () => void }
+ *                   Fired once prefill is consumed to clear parent state.
+ *                 { urgentOutcomes: string[] } (default: ['escalated'])
+ *                   Which call_outcome values count as urgent for the Urgent tab.
+ *                 { onNavigate: (tab: string) => void }
+ *                   From Portal.jsx. Used by Live desk "Book" button → 'calendar'.
+ * EXTERNAL READS: supabase (anon key) — reads:
+ *                   tenant_memberships (user_id) → tenant_id (load only)
+ *                   call_logs (id, created_at, duration_seconds, call_outcome,
+ *                     ai_summary, caller_phone, caller_name, transcript,
+ *                     callback_flagged, callers.full_name) — 500 rows, desc
+ *                   call_logs (id, created_at, duration_seconds, call_outcome,
+ *                     ai_summary, caller_phone, caller_name, callers.full_name)
+ *                     — 1 row, most recent; polled every 5s on Live tab only
+ *                 AuthContext → user
+ *                 PreviewContext → isPreview, previewReadOnly, previewTenantId
+ * MUTATIONS/DB  : call_logs — UPDATE callback_flagged on toggleFlag
+ *                   guard: if (!previewReadOnly && tenantId)
+ * OUTPUTS/EMITS : onPrefillConsumed() — called after consuming prefill.
+ *                 onNavigate('calendar') — from Live desk Book button.
+ *                 No signals emitted, no external API calls.
+ *                 NON-OBVIOUS: localFlagsRef holds optimistic flag state to avoid
+ *                   state-batching divergence when callback_flagged is toggled
+ *                   mid-render. eslint-disable-next-line react-hooks/refs comments
+ *                   suppress a false-positive from a custom plugin rule — do not
+ *                   remove them or inline the ref access.
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-
-// ─── Tab definitions ──────────────────────────────────────────────────────────
 
 const TABS = [
   {
@@ -150,7 +203,284 @@ const FlagIcon = ({ active }) => (
   </svg>
 )
 
-// ─── Main component ───────────────────────────────────────────────────────────
+function LiveCallCard({ call, isExpanded, isMsg, messageLiveText, onToggleExpand, onToggleMessage, onMessageChange, onMessageDismiss, onNavigate }) {
+  const os      = outcomeStyle(call.call_outcome)
+  const name    = call.callers?.full_name || call.caller_name || call.caller_phone || 'Unknown'
+  const bubbles = isExpanded && call.transcript ? parseTranscript(call.transcript) : null
+  return (
+    <div style={{ background: 'white', borderRadius: 12, border: `0.5px solid ${isExpanded ? 'rgba(94,59,135,0.2)' : 'rgba(94,59,135,0.1)'}`, boxShadow: isExpanded ? '0 2px 8px rgba(94,59,135,0.08)' : '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden', transition: 'box-shadow 0.15s' }}>
+      <button
+        onClick={onToggleExpand}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.65rem 0.8rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{os.label}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+          {!isExpanded && call.ai_summary && (
+            <div style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{call.ai_summary}</div>
+          )}
+        </div>
+        <span style={{ fontSize: '0.65rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{timeSince(call.created_at)}</span>
+        <span style={{ fontSize: '0.7rem', color: '#ccc', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
+      </button>
+      {isExpanded && (
+        <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)' }}>
+          {call.caller_phone && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.8rem', background: '#f9f7fc', borderBottom: '1px solid rgba(94,59,135,0.07)', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", flex: 1 }}>{call.caller_phone}</span>
+              <a href={`tel:${call.caller_phone}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: 6, background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Call
+              </a>
+              <button
+                onClick={onToggleMessage}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: 6, border: 'none', background: isMsg ? '#ede8f5' : '#5e3b87', color: isMsg ? '#5e3b87' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Message
+              </button>
+              {onNavigate && (
+                <button
+                  onClick={() => onNavigate('calendar')}
+                  style={{ padding: '0.25rem 0.65rem', borderRadius: 6, border: '1px solid rgba(94,59,135,0.2)', background: 'white', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  Book
+                </button>
+              )}
+            </div>
+          )}
+          {isMsg && (
+            <div style={{ padding: '0.65rem 0.8rem', background: '#faf8ff', borderBottom: '1px solid rgba(94,59,135,0.07)' }}>
+              <textarea
+                value={messageLiveText}
+                onChange={e => onMessageChange(e.target.value)}
+                rows={3}
+                style={{ width: '100%', resize: 'vertical', padding: '0.45rem 0.55rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+              />
+              <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={onMessageDismiss}
+                  style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: '1px solid rgba(200,200,200,0.6)', background: 'white', fontSize: '0.72rem', color: '#888', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Dismiss
+                </button>
+                <a
+                  href={`sms:${call.caller_phone}?body=${encodeURIComponent(messageLiveText)}`}
+                  onClick={onMessageDismiss}
+                  style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: '#5e3b87', color: 'white', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textDecoration: 'none', display: 'inline-block' }}>
+                  Send
+                </a>
+              </div>
+            </div>
+          )}
+          {call.ai_summary && (
+            <div style={{ padding: '0.55rem 0.8rem', fontSize: '0.75rem', color: '#555', lineHeight: 1.55, fontFamily: "'DM Sans', sans-serif", borderBottom: call.transcript ? '1px solid rgba(94,59,135,0.06)' : 'none' }}>
+              {call.ai_summary}
+            </div>
+          )}
+          {call.transcript ? (
+            <div style={{ padding: '0.55rem 0.8rem', maxHeight: 320, overflowY: 'auto' }}>
+              {bubbles ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {bubbles.map((b, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: b.speaker === 'ai' ? 'flex-start' : 'flex-end' }}>
+                      <div style={{ maxWidth: '82%', padding: '0.4rem 0.7rem', borderRadius: b.speaker === 'ai' ? '4px 12px 12px 12px' : '12px 4px 12px 12px', background: b.speaker === 'ai' ? '#f3f1f7' : '#5e3b87', color: b.speaker === 'ai' ? '#1a1a1a' : 'white', fontSize: '0.75rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>
+                        {b.speaker === 'ai' && <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#9b7cc5', marginBottom: '0.15rem', textTransform: 'uppercase' }}>AI</div>}
+                        {b.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <pre style={{ fontSize: '0.75rem', color: '#444', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{call.transcript}</pre>
+              )}
+            </div>
+          ) : !call.ai_summary && (
+            <div style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif" }}>No transcript recorded.</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CallListItem({ call, isSelected, onSelect, onToggleFlag }) {
+  const os = outcomeStyle(call.call_outcome)
+  const isUrgent = call.call_outcome === 'escalated'
+  return (
+    <button onClick={onSelect}
+      style={{
+        textAlign: 'left',
+        background: isSelected ? '#f3f1f7' : 'white',
+        border: `1.5px solid ${isUrgent ? 'rgba(185,28,28,0.25)' : isSelected ? '#5e3b87' : 'rgba(94,59,135,0.1)'}`,
+        borderLeft: isUrgent ? '3px solid #b91c1c' : isSelected ? '3px solid #5e3b87' : '3px solid transparent',
+        borderRadius: 10, padding: '0.65rem 0.75rem', cursor: 'pointer',
+        transition: 'all 0.12s', fontFamily: "'DM Sans', sans-serif",
+        position: 'relative',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.25rem', gap: '0.4rem' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {call.caller_name || call.caller_phone || 'Unknown caller'}
+          </div>
+          {call.caller_name && call.caller_phone && (
+            <div style={{ fontSize: '0.68rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{call.caller_phone}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+          <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 600 }}>{os.label}</span>
+          <button
+            onClick={e => onToggleFlag(call.id, e)}
+            title={call.callback_flagged ? 'Remove from Call Back' : 'Add to Call Back list'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <FlagIcon active={call.callback_flagged} />
+          </button>
+        </div>
+      </div>
+      {call.ai_summary && (
+        <div style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.4, marginBottom: '0.25rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          {call.ai_summary}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '0.65rem' }}>
+        <span style={{ fontSize: '0.65rem', color: '#bbb' }}>{timeSince(call.created_at)}</span>
+        <span style={{ fontSize: '0.65rem', color: '#bbb' }}>{fmtDuration(call.duration_seconds)}</span>
+      </div>
+    </button>
+  )
+}
+
+function EmptyStatePanel({ activeTab, search, searchQuery, tabDef }) {
+  return (
+    <div style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
+      {activeTab === 'urgent' && (
+        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>&#x2713;</div>
+      )}
+      {activeTab === 'callback' && (
+        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>&#x1F6A9;</div>
+      )}
+      {activeTab === 'search' && !searchQuery.trim() ? (
+        <div>
+          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>&#x1F50D;</div>
+          <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.7 }}>
+            Search across all your calls.<br />
+            Each extra word narrows results.
+          </div>
+          <div style={{ marginTop: '0.65rem', fontSize: '0.71rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.65 }}>
+            &quot;Sarah&quot; &rarr; all Sarah calls<br />
+            &quot;Sarah blow dry&quot; &rarr; narrows to 3<br />
+            &quot;Monday&quot; &rarr; all Monday calls
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
+            {search || searchQuery ? 'No calls match your search.' : tabDef.empty}
+          </div>
+          {activeTab === 'callback' && !search && (
+            <div style={{ marginTop: '0.75rem', fontSize: '0.73rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.55 }}>
+              When you review a call and decide to personally follow up, tap the <FlagIcon active={false} /> flag icon to add it here.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DetailPanel({ selected, onClear, toggleFlag, transcriptRef }) {
+  return (
+    <div style={{ flex: 1, background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column' }}>
+      {!selected ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#f3f1f7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', color: '#5e3b87' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          </div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: '0.35rem' }}>Select a call</div>
+          <div style={{ fontSize: '0.8rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", maxWidth: 280, lineHeight: 1.55 }}>
+            Click any call to read the AI summary and full transcript.
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.07)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: '0.2rem' }}>
+                  {selected.caller_name || selected.caller_phone || 'Unknown caller'}
+                </div>
+                <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
+                  {selected.caller_name && selected.caller_phone && (
+                    <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{selected.caller_phone}</span>
+                  )}
+                  <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
+                    {new Date(selected.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} &middot; {fmtTime(selected.created_at)}
+                  </span>
+                  <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{fmtDuration(selected.duration_seconds)}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {(() => { const os = outcomeStyle(selected.call_outcome); return (
+                  <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: 5, background: os.bg, color: os.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{os.label}</span>
+                )})()}
+                {selected.caller_phone && (
+                  <a href={`tel:${selected.caller_phone}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    Call back
+                  </a>
+                )}
+                <button
+                  onClick={e => toggleFlag(selected.id, e)}
+                  title={selected.callback_flagged ? 'Remove from Call Back list' : 'Add to your Call Back list'}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: 6, border: `1px solid ${selected.callback_flagged ? 'rgba(94,59,135,0.3)' : 'rgba(200,200,200,0.5)'}`, background: selected.callback_flagged ? '#f3f1f7' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 500, color: selected.callback_flagged ? '#5e3b87' : '#bbb', transition: 'all 0.15s' }}>
+                  <FlagIcon active={selected.callback_flagged} />
+                  {selected.callback_flagged ? 'In Call Back' : 'Call Back'}
+                </button>
+                <button onClick={onClear} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>&times;</button>
+              </div>
+            </div>
+          </div>
+          <div ref={transcriptRef} style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {selected.ai_summary && (
+              <div style={{ background: '#f3f1f7', borderRadius: 10, padding: '0.85rem 1rem', borderLeft: '3px solid #5e3b87' }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div>
+                <div style={{ fontSize: '0.82rem', color: '#1a1a1a', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>{selected.ai_summary}</div>
+              </div>
+            )}
+            <div>
+              <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Transcript</div>
+              {(() => {
+                const bubbles = parseTranscript(selected.transcript)
+                if (!selected.transcript) return (
+                  <div style={{ fontSize: '0.8rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", background: '#fafafa', borderRadius: 8, padding: '1.25rem', textAlign: 'center' }}>
+                    Transcript not recorded for this call.
+                  </div>
+                )
+                if (!bubbles) return (
+                  <pre style={{ fontSize: '0.78rem', color: '#444', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'pre-wrap', lineHeight: 1.65, margin: 0, background: '#fafafa', borderRadius: 8, padding: '0.85rem 1rem' }}>
+                    {selected.transcript}
+                  </pre>
+                )
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {bubbles.map((b, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: b.speaker === 'ai' ? 'flex-start' : 'flex-end' }}>
+                        <div style={{ maxWidth: '80%', padding: '0.55rem 0.85rem', borderRadius: b.speaker === 'ai' ? '4px 12px 12px 12px' : '12px 4px 12px 12px', background: b.speaker === 'ai' ? '#f3f1f7' : '#5e3b87', color: b.speaker === 'ai' ? '#1a1a1a' : 'white', fontSize: '0.8rem', lineHeight: 1.55, fontFamily: "'DM Sans', sans-serif" }}>
+                          {b.speaker === 'ai' && (
+                            <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#9b7cc5', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI</div>
+                          )}
+                          {b.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes = ['escalated'], onNavigate }) {
   const { user }   = useAuth()
@@ -415,123 +745,24 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', alignItems: 'start' }}>
-              {calls.slice(0, 40).map(call => {
-                const isExpanded = expandedLiveCallId === call.id
-                const isMsg      = messageLiveCallId === call.id
-                const os         = outcomeStyle(call.call_outcome)
-                const name       = call.callers?.full_name || call.caller_name || call.caller_phone || 'Unknown'
-                const bubbles    = isExpanded && call.transcript ? parseTranscript(call.transcript) : null
-
-                return (
-                  <div key={call.id} style={{ background: 'white', borderRadius: 12, border: `0.5px solid ${isExpanded ? 'rgba(94,59,135,0.2)' : 'rgba(94,59,135,0.1)'}`, boxShadow: isExpanded ? '0 2px 8px rgba(94,59,135,0.08)' : '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden', transition: 'box-shadow 0.15s' }}>
-
-                    {/* Collapsed header */}
-                    <button
-                      onClick={() => setExpandedLiveCallId(isExpanded ? null : call.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.65rem 0.8rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                      <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{os.label}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                        {!isExpanded && call.ai_summary && (
-                          <div style={{ fontSize: '0.68rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{call.ai_summary}</div>
-                        )}
-                      </div>
-                      <span style={{ fontSize: '0.65rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{timeSince(call.created_at)}</span>
-                      <span style={{ fontSize: '0.7rem', color: '#ccc', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
-                    </button>
-
-                    {/* Expanded content */}
-                    {isExpanded && (
-                      <div style={{ borderTop: '1px solid rgba(94,59,135,0.07)' }}>
-
-                        {/* Action bar */}
-                        {call.caller_phone && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.8rem', background: '#f9f7fc', borderBottom: '1px solid rgba(94,59,135,0.07)', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", flex: 1 }}>{call.caller_phone}</span>
-                            <a href={`tel:${call.caller_phone}`}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: 6, background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                              Call
-                            </a>
-                            <button
-                              onClick={() => {
-                                if (isMsg) { setMessageLiveCallId(null); return }
-                                setMessageLiveCallId(call.id)
-                                setMessageLiveText(draftMessage(call))
-                              }}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.65rem', borderRadius: 6, border: 'none', background: isMsg ? '#ede8f5' : '#5e3b87', color: isMsg ? '#5e3b87' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                              Message
-                            </button>
-                            {onNavigate && (
-                              <button
-                                onClick={() => onNavigate('calendar')}
-                                style={{ padding: '0.25rem 0.65rem', borderRadius: 6, border: '1px solid rgba(94,59,135,0.2)', background: 'white', color: '#5e3b87', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                                Book
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Message compose */}
-                        {isMsg && (
-                          <div style={{ padding: '0.65rem 0.8rem', background: '#faf8ff', borderBottom: '1px solid rgba(94,59,135,0.07)' }}>
-                            <textarea
-                              value={messageLiveText}
-                              onChange={e => setMessageLiveText(e.target.value)}
-                              rows={3}
-                              style={{ width: '100%', resize: 'vertical', padding: '0.45rem 0.55rem', border: '1.5px solid rgba(94,59,135,0.15)', borderRadius: 8, fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", color: '#1a1a1a', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                            />
-                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={() => setMessageLiveCallId(null)}
-                                style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: '1px solid rgba(200,200,200,0.6)', background: 'white', fontSize: '0.72rem', color: '#888', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                                Dismiss
-                              </button>
-                              <a
-                                href={`sms:${call.caller_phone}?body=${encodeURIComponent(messageLiveText)}`}
-                                onClick={() => setMessageLiveCallId(null)}
-                                style={{ padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: '#5e3b87', color: 'white', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textDecoration: 'none', display: 'inline-block' }}>
-                                Send
-                              </a>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* AI summary */}
-                        {call.ai_summary && (
-                          <div style={{ padding: '0.55rem 0.8rem', fontSize: '0.75rem', color: '#555', lineHeight: 1.55, fontFamily: "'DM Sans', sans-serif", borderBottom: call.transcript ? '1px solid rgba(94,59,135,0.06)' : 'none' }}>
-                            {call.ai_summary}
-                          </div>
-                        )}
-
-                        {/* Transcript */}
-                        {call.transcript ? (
-                          <div style={{ padding: '0.55rem 0.8rem', maxHeight: 320, overflowY: 'auto' }}>
-                            {bubbles ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                {bubbles.map((b, i) => (
-                                  <div key={i} style={{ display: 'flex', justifyContent: b.speaker === 'ai' ? 'flex-start' : 'flex-end' }}>
-                                    <div style={{ maxWidth: '82%', padding: '0.4rem 0.7rem', borderRadius: b.speaker === 'ai' ? '4px 12px 12px 12px' : '12px 4px 12px 12px', background: b.speaker === 'ai' ? '#f3f1f7' : '#5e3b87', color: b.speaker === 'ai' ? '#1a1a1a' : 'white', fontSize: '0.75rem', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>
-                                      {b.speaker === 'ai' && <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#9b7cc5', marginBottom: '0.15rem', textTransform: 'uppercase' }}>AI</div>}
-                                      {b.text}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <pre style={{ fontSize: '0.75rem', color: '#444', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{call.transcript}</pre>
-                            )}
-                          </div>
-                        ) : !call.ai_summary && (
-                          <div style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif" }}>No transcript recorded.</div>
-                        )}
-
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {calls.slice(0, 40).map(call => (
+                <LiveCallCard
+                  key={call.id}
+                  call={call}
+                  isExpanded={expandedLiveCallId === call.id}
+                  isMsg={messageLiveCallId === call.id}
+                  messageLiveText={messageLiveText}
+                  onToggleExpand={() => setExpandedLiveCallId(expandedLiveCallId === call.id ? null : call.id)}
+                  onToggleMessage={() => {
+                    if (messageLiveCallId === call.id) { setMessageLiveCallId(null); return }
+                    setMessageLiveCallId(call.id)
+                    setMessageLiveText(draftMessage(call))
+                  }}
+                  onMessageChange={text => setMessageLiveText(text)}
+                  onMessageDismiss={() => setMessageLiveCallId(null)}
+                  onNavigate={onNavigate}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -574,189 +805,17 @@ export default function ListenTab({ prefill, onPrefillConsumed, urgentOutcomes =
                 <div key={i} style={{ height: 82, borderRadius: 10, background: 'rgba(94,59,135,0.06)', animation: 'shimmer 1.4s infinite' }} />
               ))
             ) : visible.length === 0 ? (
-              <div style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
-                {activeTab === 'urgent' && (
-                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✓</div>
-                )}
-                {activeTab === 'callback' && (
-                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🚩</div>
-                )}
-                {activeTab === 'search' && !searchQuery.trim() ? (
-                  <div>
-                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔍</div>
-                    <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.7 }}>
-                      Search across all your calls.<br />
-                      Each extra word narrows results.
-                    </div>
-                    <div style={{ marginTop: '0.65rem', fontSize: '0.71rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.65 }}>
-                      "Sarah" → all Sarah calls<br />
-                      "Sarah blow dry" → narrows to 3<br />
-                      "Monday" → all Monday calls
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ fontSize: '0.8rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
-                      {search || searchQuery ? 'No calls match your search.' : tabDef.empty}
-                    </div>
-                    {activeTab === 'callback' && !search && (
-                      <div style={{ marginTop: '0.75rem', fontSize: '0.73rem', color: '#ccc', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.55 }}>
-                        When you review a call and decide to personally follow up, tap the <FlagIcon active={false} /> flag icon to add it here.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <EmptyStatePanel activeTab={activeTab} search={search} searchQuery={searchQuery} tabDef={tabDef} />
             ) : (
-              visible.map(call => {
-                const os = outcomeStyle(call.call_outcome)
-                const isSelected = selected?.id === call.id
-                const isUrgent = call.call_outcome === 'escalated'
-                return (
-                  <button key={call.id} onClick={() => setSelected(call)}
-                    style={{
-                      textAlign: 'left',
-                      background: isSelected ? '#f3f1f7' : 'white',
-                      border: `1.5px solid ${isUrgent ? 'rgba(185,28,28,0.25)' : isSelected ? '#5e3b87' : 'rgba(94,59,135,0.1)'}`,
-                      borderLeft: isUrgent ? '3px solid #b91c1c' : isSelected ? '3px solid #5e3b87' : '3px solid transparent',
-                      borderRadius: 10, padding: '0.65rem 0.75rem', cursor: 'pointer',
-                      transition: 'all 0.12s', fontFamily: "'DM Sans', sans-serif",
-                      position: 'relative',
-                    }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.25rem', gap: '0.4rem' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {call.caller_name || call.caller_phone || 'Unknown caller'}
-                        </div>
-                        {call.caller_name && call.caller_phone && (
-                          <div style={{ fontSize: '0.68rem', color: '#bbb', fontFamily: "'DM Sans', sans-serif" }}>{call.caller_phone}</div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                        <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 4, background: os.bg, color: os.color, fontWeight: 600 }}>{os.label}</span>
-                        <button
-                          onClick={e => toggleFlag(call.id, e)}
-                          title={call.callback_flagged ? 'Remove from Call Back' : 'Add to Call Back list'}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                          <FlagIcon active={call.callback_flagged} />
-                        </button>
-                      </div>
-                    </div>
-                    {call.ai_summary && (
-                      <div style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.4, marginBottom: '0.25rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {call.ai_summary}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '0.65rem' }}>
-                      <span style={{ fontSize: '0.65rem', color: '#bbb' }}>{timeSince(call.created_at)}</span>
-                      <span style={{ fontSize: '0.65rem', color: '#bbb' }}>{fmtDuration(call.duration_seconds)}</span>
-                    </div>
-                  </button>
-                )
-              })
+              visible.map(call => (
+                <CallListItem key={call.id} call={call} isSelected={selected?.id === call.id} onSelect={() => setSelected(call)} onToggleFlag={toggleFlag} />
+              ))
             )}
           </div>
         </div>
 
         {/* ── Transcript panel ──────────────────────────────────────────────── */}
-        <div style={{ flex: 1, background: 'white', borderRadius: 14, border: '0.5px solid rgba(94,59,135,0.1)', display: 'flex', flexDirection: 'column' }}>
-          {!selected ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#f3f1f7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', color: '#5e3b87' }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-              </div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: '0.35rem' }}>Select a call</div>
-              <div style={{ fontSize: '0.8rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", maxWidth: 280, lineHeight: 1.55 }}>
-                Click any call to read the AI summary and full transcript.
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Detail header */}
-              <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.07)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <div>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1a1a1a', marginBottom: '0.2rem' }}>
-                      {selected.caller_name || selected.caller_phone || 'Unknown caller'}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
-                      {selected.caller_name && selected.caller_phone && (
-                        <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{selected.caller_phone}</span>
-                      )}
-                      <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>
-                        {new Date(selected.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {fmtTime(selected.created_at)}
-                      </span>
-                      <span style={{ fontSize: '0.73rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif" }}>{fmtDuration(selected.duration_seconds)}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {(() => { const os = outcomeStyle(selected.call_outcome); return (
-                      <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: 5, background: os.bg, color: os.color, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{os.label}</span>
-                    )})()}
-                    {selected.caller_phone && (
-                      <a href={`tel:${selected.caller_phone}`}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.28rem 0.7rem', borderRadius: 6, border: 'none', background: '#3db87a', color: 'white', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 600, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.8a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l.93-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        Call back
-                      </a>
-                    )}
-                    <button
-                      onClick={e => toggleFlag(selected.id, e)}
-                      title={selected.callback_flagged ? 'Remove from Call Back list' : 'Add to your Call Back list'}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: 6, border: `1px solid ${selected.callback_flagged ? 'rgba(94,59,135,0.3)' : 'rgba(200,200,200,0.5)'}`, background: selected.callback_flagged ? '#f3f1f7' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: '0.72rem', fontWeight: 500, color: selected.callback_flagged ? '#5e3b87' : '#bbb', transition: 'all 0.15s' }}>
-                      <FlagIcon active={selected.callback_flagged} />
-                      {selected.callback_flagged ? 'In Call Back' : 'Call Back'}
-                    </button>
-                    <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1.2rem', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>×</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Scrollable content */}
-              <div ref={transcriptRef} style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-                {selected.ai_summary && (
-                  <div style={{ background: '#f3f1f7', borderRadius: 10, padding: '0.85rem 1rem', borderLeft: '3px solid #5e3b87' }}>
-                    <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem', fontFamily: "'DM Sans', sans-serif" }}>AI Summary</div>
-                    <div style={{ fontSize: '0.82rem', color: '#1a1a1a', lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>{selected.ai_summary}</div>
-                  </div>
-                )}
-
-                <div>
-                  <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', fontFamily: "'DM Sans', sans-serif" }}>Transcript</div>
-                  {(() => {
-                    const bubbles = parseTranscript(selected.transcript)
-                    if (!selected.transcript) return (
-                      <div style={{ fontSize: '0.8rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", background: '#fafafa', borderRadius: 8, padding: '1.25rem', textAlign: 'center' }}>
-                        Transcript not recorded for this call.
-                      </div>
-                    )
-                    if (!bubbles) return (
-                      <pre style={{ fontSize: '0.78rem', color: '#444', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'pre-wrap', lineHeight: 1.65, margin: 0, background: '#fafafa', borderRadius: 8, padding: '0.85rem 1rem' }}>
-                        {selected.transcript}
-                      </pre>
-                    )
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {bubbles.map((b, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: b.speaker === 'ai' ? 'flex-start' : 'flex-end' }}>
-                            <div style={{ maxWidth: '80%', padding: '0.55rem 0.85rem', borderRadius: b.speaker === 'ai' ? '4px 12px 12px 12px' : '12px 4px 12px 12px', background: b.speaker === 'ai' ? '#f3f1f7' : '#5e3b87', color: b.speaker === 'ai' ? '#1a1a1a' : 'white', fontSize: '0.8rem', lineHeight: 1.55, fontFamily: "'DM Sans', sans-serif" }}>
-                              {b.speaker === 'ai' && (
-                                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#9b7cc5', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI</div>
-                              )}
-                              {b.text}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })()}
-                </div>
-
-              </div>
-            </>
-          )}
-        </div>
+        <DetailPanel selected={selected} onClear={() => setSelected(null)} toggleFlag={toggleFlag} transcriptRef={transcriptRef} />
 
       </div>
       )}

@@ -66,7 +66,7 @@ export function useTenantState() {
             ? tenant.urgent_outcomes : ['escalated']
         )
         setListenTier(tenant.listen_tier || 'none')
-        setCalendarTier(tenant.calendar_tier || 'entry')
+        setCalendarTier(tenant.calendar_tier || 'none')
         setSentryCameraLimit(tenant.sentry_camera_limit || 0)
         setIsDemoMode(tenant.is_ephemeral === true)
         setDemoSector(tenant.demo_sector || null)
@@ -124,7 +124,7 @@ export function useTenantState() {
       .then(({ data }) => {
         if (!data) return
         setListenTier(data.listen_tier || 'none')
-        setCalendarTier(data.calendar_tier || 'entry')
+        setCalendarTier(data.calendar_tier || 'none')
         setBaseTier(data.subscription_tier && data.subscription_tier !== 'schedule_only' ? data.subscription_tier : 'light')
         setHasAnswerProduct(!!data.subscription_tier && data.subscription_tier !== 'schedule_only')
         setSentryCameraLimit(data.sentry_camera_limit || 0)
@@ -157,9 +157,9 @@ export function useTenantState() {
     urgentOutcomes,
     uncontactedCount,
     listenTier,       setListenTier,
-    calendarTier,
+    calendarTier,     setCalendarTier,
     hasAnswerProduct,
-    sentryCameraLimit,
+    sentryCameraLimit, setSentryCameraLimit,
     gapData,
     isDemoMode,
     demoSector,

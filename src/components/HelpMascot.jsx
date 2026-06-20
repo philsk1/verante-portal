@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import VeraDialogue from './VeraDialogue'
 import { useQScore } from '../context/QScoreContext'
@@ -143,6 +143,268 @@ function colorFromSeverity(sev) {
   if (sev === 'low') return '#eab308'
   return '#3db87a'
 }
+
+function VeraStrip({ compact, handleQClick, needHelpMode, closeAll, mood, showBadge, coachingOpen, activeTab, pageColor, isSmile, helpMode, setNeedHelpMode, setHelpMode, veraAlert, alertDismissed, setAlertDismissed, currentGap, onNavigate, setDismissedGapIds, proactiveSpeech, qMode, proactiveVisible, pagePraise }) {
+  return compact ? (
+        /* Compact layout (Listen): Q 56px + tagline below, Ask Q beside */
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
+            <div
+              id="vera-trigger-btn"
+              className="vera-idle"
+              onClick={handleQClick}
+              style={{ lineHeight: 0, cursor: 'pointer', position: 'relative' }}
+              title={!isSmile ? 'See what Q needs' : 'Ask Q for help'}
+            >
+              <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+              {showBadge && !coachingOpen && (
+                <div style={{ position: 'absolute', bottom: 1, right: -2, background: '#ef4444', color: 'white', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>!</div>
+              )}
+            </div>
+            <span style={{ fontSize: '0.66rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', textAlign: 'center', lineHeight: 1.3, maxWidth: 64 }}>
+              {TAB_TAGLINES[activeTab] || 'Q knows everything'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.15rem' }}>
+            {!needHelpMode ? (
+              <button
+                id="vera-ask-btn"
+                onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
+                style={{ padding: '0.22rem 0.6rem', background: pageColor, border: `1px solid ${pageColor}`, borderRadius: '999px', fontSize: '0.7rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, alignSelf: 'flex-start', transition: 'background 0.15s' }}
+              >
+                Ask Q
+              </button>
+            ) : (
+              <button
+                onClick={closeAll}
+                style={{ padding: '0.25rem 0.65rem', background: '#5e3b87', border: 'none', borderRadius: '999px', fontSize: '0.72rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, alignSelf: 'flex-start' }}
+              >
+                Done
+              </button>
+            )}
+            {veraAlert && !alertDismissed && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
+                <span style={{ flex: 1 }}>{veraAlert}</span>
+                <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+              </div>
+            )}
+            {!(veraAlert && !alertDismissed) && currentGap && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
+                <span style={{ flex: 1 }}>{currentGap.message}</span>
+                {currentGap.actionTab && onNavigate && (
+                  <button onClick={() => onNavigate(currentGap.actionTab)} style={{ background: '#f0a500', border: 'none', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>{currentGap.actionLabel}</button>
+                )}
+                <button onClick={() => setDismissedGapIds(prev => new Set([...prev, currentGap.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+              </div>
+            )}
+            {!(veraAlert && !alertDismissed) && !currentGap && proactiveSpeech && qMode !== 'mind_own_business' && (
+              <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
+                {proactiveSpeech}
+              </div>
+            )}
+          </div>
+        </div>
+  ) : (
+        /* Normal layout: Q 136px + tagline + Ask Q in a row */
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+
+          {/* Q face — click opens coaching (sad/crying) or help mode (happy) */}
+          <div
+            id="vera-trigger-btn"
+            className="vera-idle"
+            onClick={handleQClick}
+            style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0, position: 'relative' }}
+            title={!isSmile ? 'See what Q needs' : helpMode ? 'Close Q' : 'Ask Q for help'}
+          >
+            <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 136, height: 136, objectFit: 'contain' }} />
+            {showBadge && !coachingOpen && (
+              <div style={{ position: 'absolute', bottom: 2, right: -4, background: '#ef4444', color: 'white', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>!</div>
+            )}
+          </div>
+
+          {/* Contextual Q tagline + action */}
+          {!needHelpMode ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
+                {TAB_TAGLINES[activeTab] || 'Q knows everything'}
+              </span>
+              <button
+                id="vera-ask-btn"
+                onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
+                style={{
+                  padding: '0.22rem 0.6rem',
+                  background: pageColor,
+                  border: `1px solid ${pageColor}`,
+                  borderRadius: '999px',
+                  fontSize: '0.7rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 600,
+                  flexShrink: 0,
+                  transition: 'background 0.15s',
+                }}
+              >
+                Ask Q
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={closeAll}
+              style={{ padding: '0.25rem 0.65rem', background: '#5e3b87', border: 'none', borderRadius: '999px', fontSize: '0.72rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flexShrink: 0 }}
+            >
+              Done
+            </button>
+          )}
+
+          {/* Alert slot — priority: vera alert > gap messages > proactive speech */}
+          {veraAlert && !alertDismissed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 340, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
+              <span style={{ flex: 1 }}>{veraAlert}</span>
+              <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+            </div>
+          )}
+          {!(veraAlert && !alertDismissed) && currentGap && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 400, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
+              <span style={{ flex: 1 }}>{currentGap.message}</span>
+              {currentGap.actionTab && onNavigate && (
+                <button
+                  onClick={() => onNavigate(currentGap.actionTab)}
+                  style={{ background: '#f0a500', border: 'none', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                >
+                  {currentGap.actionLabel}
+                </button>
+              )}
+              <button onClick={() => setDismissedGapIds(prev => new Set([...prev, currentGap.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
+            </div>
+          )}
+          {!(veraAlert && !alertDismissed) && !currentGap && proactiveSpeech && qMode !== 'mind_own_business' && (
+            <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
+              {proactiveSpeech}
+            </div>
+          )}
+          {!(veraAlert && !alertDismissed) && !currentGap && !proactiveSpeech && pagePraise && qMode !== 'mind_own_business' && (
+            <div style={{ background: '#f0faf5', border: '1px solid rgba(61,184,122,0.25)', borderLeft: '3px solid #3db87a', borderRadius: '10px', padding: '0.4rem 0.75rem', fontSize: '0.75rem', color: '#1a4d2e', lineHeight: 1.45, fontFamily: "'DM Sans', sans-serif", maxWidth: 340 }}>
+              {pagePraise}
+            </div>
+          )}
+        </div>
+  )
+}
+
+function QCoachingPanel({ mood, pageMoodTitle, pagePillarScore, pagePillarLabel, pageColor, pageCoachingPoints, activeTab, onNavigate, setCoachingOpen, setNeedHelpMode, handleImHappy }) {
+  return (
+        <div style={{ marginTop: '0.65rem', background: 'white', borderRadius: 14, border: '1px solid rgba(94,59,135,0.15)', boxShadow: '0 4px 20px rgba(94,59,135,0.1)', overflow: 'hidden', animation: 'veraFlyIn 0.2s ease-out forwards' }}>
+          {/* Header */}
+          <div style={{ padding: '0.85rem 1.1rem 0.75rem', borderBottom: '1px solid rgba(94,59,135,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 54, height: 54, objectFit: 'contain', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#1a1a1a' }}>
+                {pageMoodTitle}
+              </div>
+              {pagePillarScore != null && (
+                <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.1rem', fontFamily: "'DM Sans', sans-serif" }}>{pagePillarLabel}: {pagePillarScore}/100</div>
+              )}
+            </div>
+            <button onClick={() => setCoachingOpen(false)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+          </div>
+
+          {/* Page pillar bar */}
+          {pagePillarScore != null && (
+            <div style={{ padding: '0.5rem 1.1rem', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
+              <div style={{ height: 5, background: '#f0ebf8', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pagePillarScore}%`, background: pagePillarScore >= 70 ? '#3db87a' : pagePillarScore >= 40 ? '#f0a500' : '#ef4444', borderRadius: 3, transition: 'width 0.4s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* Page coaching points */}
+          <div style={{ padding: '0.75rem 1.1rem' }}>
+            <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>What Q sees on this page</div>
+            {pageCoachingPoints.length === 0 ? (
+              <div style={{ fontSize: '0.78rem', color: '#1a6640', background: '#f0faf5', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 8, padding: '0.55rem 0.7rem', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+                {activeTab === 'integrations'
+                  ? "Connect your integrations and Q will have even more context for every call."
+                  : "No issues here — this page is well set up."}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {pageCoachingPoints.map((pt, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      setCoachingOpen(false)
+                      document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+                        zoneText: `Coaching issue: "${pt.label}". ${pt.suggestion || ''} Give practical step-by-step advice on what to do, and offer to research what businesses in their sector typically do about this.`,
+                        zoneName: pt.label,
+                        tabName: TAB_LABELS[activeTab] || 'Portal',
+                        rect: { left: window.innerWidth / 2 - 170, top: 80, width: 0, height: 0 },
+                        initialBotMessage: pt.suggestion
+                          ? `${pt.suggestion} Want me to walk you through it, or look into what other businesses in your sector do here?`
+                          : `Let me help with "${pt.label}". Want me to walk you through it, or look into what businesses like yours typically do here?`,
+                      }}))
+                    }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.18rem', cursor: 'pointer', borderRadius: 6, padding: '0.3rem 0.4rem', transition: 'background 0.12s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f8f5ff' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: colorFromSeverity(pt.severity) }} />
+                      <span style={{ flex: 1, fontSize: '0.775rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.35 }}>{pt.label}</span>
+                      {onNavigate && pt.tab !== activeTab && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setCoachingOpen(false); onNavigate(pt.tab) }}
+                          style={{ fontSize: '0.68rem', fontWeight: 600, color: 'white', background: colorFromSeverity(pt.severity), border: 'none', borderRadius: 5, padding: '0.2rem 0.5rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          Fix →
+                        </button>
+                      )}
+                    </div>
+                    {pt.suggestion && (
+                      <div style={{ fontSize: '0.7rem', color: '#888', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", paddingLeft: '1.1rem' }}>{pt.suggestion}</div>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    setCoachingOpen(false)
+                    document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+                      zoneText: `Research request: what do businesses in this sector typically do to address these issues: ${pageCoachingPoints.map(p => p.label).join('; ')}. Use training knowledge about small service businesses to give practical, research-backed suggestions.`,
+                      zoneName: 'Industry best practices',
+                      tabName: TAB_LABELS[activeTab] || 'Portal',
+                      rect: { left: window.innerWidth / 2 - 170, top: 80, width: 0, height: 0 },
+                      initialBotMessage: `I can look into what businesses like yours typically do about these things and what tends to work. Shall I?`,
+                    }}))
+                  }}
+                  style={{ alignSelf: 'flex-start', marginTop: '0.2rem', fontSize: '0.7rem', color: '#5e3b87', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
+                >
+                  Ask Q to research best practices →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '0.55rem 1.1rem', borderTop: '1px solid rgba(94,59,135,0.06)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleImHappy}
+              style={{ padding: '0.32rem 0.75rem', background: '#3db87a', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+              I'm happy 😊
+            </button>
+            <button
+              onClick={() => { setCoachingOpen(false); setNeedHelpMode(true) }}
+              style={{ padding: '0.32rem 0.75rem', background: `${pageColor}18`, border: `1px solid ${pageColor}55`, borderRadius: 7, fontSize: '0.73rem', color: pageColor, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+              Explore with Q
+            </button>
+            <button
+              onClick={() => setCoachingOpen(false)}
+              style={{ padding: '0.32rem 0.75rem', background: '#5e3b87', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+              Close
+            </button>
+          </div>
+        </div>
+  )
+}
+
 
 const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = [], onNavigate, compact = false }) => {
   const { globalScore, configPillar, perfPillar, coachingPoints = [], channelHealth = [], qDismissals = {}, saveDismissal, qMode = 'jump_in', refresh } = useQScore()
@@ -441,263 +703,9 @@ const HelpMascot = ({ contextKey, tenantId, activeTab, veraAlert = null, gaps = 
     <>
       {/* ── Vera strip — compact, non-intrusive ──────────────────────── */}
       <div style={{ marginBottom: compact ? '0.5rem' : '1.5rem' }}>
-      {compact ? (
-        /* Compact layout (Listen): Q 56px + tagline below, Ask Q beside */
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
-            <div
-              id="vera-trigger-btn"
-              className="vera-idle"
-              onClick={handleQClick}
-              style={{ lineHeight: 0, cursor: 'pointer', position: 'relative' }}
-              title={!isSmile ? 'See what Q needs' : 'Ask Q for help'}
-            >
-              <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-              {showBadge && !coachingOpen && (
-                <div style={{ position: 'absolute', bottom: 1, right: -2, background: '#ef4444', color: 'white', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>!</div>
-              )}
-            </div>
-            <span style={{ fontSize: '0.66rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', textAlign: 'center', lineHeight: 1.3, maxWidth: 64 }}>
-              {TAB_TAGLINES[activeTab] || 'Q knows everything'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.15rem' }}>
-            {!needHelpMode ? (
-              <button
-                id="vera-ask-btn"
-                onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
-                style={{ padding: '0.22rem 0.6rem', background: pageColor, border: `1px solid ${pageColor}`, borderRadius: '999px', fontSize: '0.7rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, alignSelf: 'flex-start', transition: 'background 0.15s' }}
-              >
-                Ask Q
-              </button>
-            ) : (
-              <button
-                onClick={closeAll}
-                style={{ padding: '0.25rem 0.65rem', background: '#5e3b87', border: 'none', borderRadius: '999px', fontSize: '0.72rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, alignSelf: 'flex-start' }}
-              >
-                Done
-              </button>
-            )}
-            {veraAlert && !alertDismissed && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
-                <span style={{ flex: 1 }}>{veraAlert}</span>
-                <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-              </div>
-            )}
-            {!(veraAlert && !alertDismissed) && currentGap && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
-                <span style={{ flex: 1 }}>{currentGap.message}</span>
-                {currentGap.actionTab && onNavigate && (
-                  <button onClick={() => onNavigate(currentGap.actionTab)} style={{ background: '#f0a500', border: 'none', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>{currentGap.actionLabel}</button>
-                )}
-                <button onClick={() => setDismissedGapIds(prev => new Set([...prev, currentGap.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-              </div>
-            )}
-            {!(veraAlert && !alertDismissed) && !currentGap && proactiveSpeech && qMode !== 'mind_own_business' && (
-              <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 320 }}>
-                {proactiveSpeech}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* Normal layout: Q 136px + tagline + Ask Q in a row */
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+      <VeraStrip compact={compact} handleQClick={handleQClick} needHelpMode={needHelpMode} closeAll={closeAll} mood={mood} showBadge={showBadge} coachingOpen={coachingOpen} activeTab={activeTab} pageColor={pageColor} isSmile={isSmile} helpMode={helpMode} setNeedHelpMode={setNeedHelpMode} setHelpMode={setHelpMode} veraAlert={veraAlert} alertDismissed={alertDismissed} setAlertDismissed={setAlertDismissed} currentGap={currentGap} onNavigate={onNavigate} setDismissedGapIds={setDismissedGapIds} proactiveSpeech={proactiveSpeech} qMode={qMode} proactiveVisible={proactiveVisible} pagePraise={pagePraise} />
 
-          {/* Q face — click opens coaching (sad/crying) or help mode (happy) */}
-          <div
-            id="vera-trigger-btn"
-            className="vera-idle"
-            onClick={handleQClick}
-            style={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0, position: 'relative' }}
-            title={!isSmile ? 'See what Q needs' : helpMode ? 'Close Q' : 'Ask Q for help'}
-          >
-            <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 136, height: 136, objectFit: 'contain' }} />
-            {showBadge && !coachingOpen && (
-              <div style={{ position: 'absolute', bottom: 2, right: -4, background: '#ef4444', color: 'white', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>!</div>
-            )}
-          </div>
-
-          {/* Contextual Q tagline + action */}
-          {!needHelpMode ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic' }}>
-                {TAB_TAGLINES[activeTab] || 'Q knows everything'}
-              </span>
-              <button
-                id="vera-ask-btn"
-                onClick={() => { setNeedHelpMode(true); setHelpMode(false) }}
-                style={{
-                  padding: '0.22rem 0.6rem',
-                  background: pageColor,
-                  border: `1px solid ${pageColor}`,
-                  borderRadius: '999px',
-                  fontSize: '0.7rem',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontWeight: 600,
-                  flexShrink: 0,
-                  transition: 'background 0.15s',
-                }}
-              >
-                Ask Q
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={closeAll}
-              style={{ padding: '0.25rem 0.65rem', background: '#5e3b87', border: 'none', borderRadius: '999px', fontSize: '0.72rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, flexShrink: 0 }}
-            >
-              Done
-            </button>
-          )}
-
-          {/* Alert slot — priority: vera alert > gap messages > proactive speech */}
-          {veraAlert && !alertDismissed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 340, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
-              <span style={{ flex: 1 }}>{veraAlert}</span>
-              <button onClick={() => setAlertDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-            </div>
-          )}
-          {!(veraAlert && !alertDismissed) && currentGap && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: '1px solid rgba(94,59,135,0.18)', borderLeft: '3px solid #f0a500', borderRadius: '10px', padding: '0.4rem 0.75rem 0.4rem 0.7rem', boxShadow: '0 3px 12px rgba(94,59,135,0.08)', fontSize: '0.75rem', color: '#1a1a1a', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", maxWidth: 400, animation: 'veraFlyIn 0.25s ease-out forwards' }}>
-              <span style={{ flex: 1 }}>{currentGap.message}</span>
-              {currentGap.actionTab && onNavigate && (
-                <button
-                  onClick={() => onNavigate(currentGap.actionTab)}
-                  style={{ background: '#f0a500', border: 'none', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#1a0533', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                >
-                  {currentGap.actionLabel}
-                </button>
-              )}
-              <button onClick={() => setDismissedGapIds(prev => new Set([...prev, currentGap.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem', flexShrink: 0 }}>×</button>
-            </div>
-          )}
-          {!(veraAlert && !alertDismissed) && !currentGap && proactiveSpeech && qMode !== 'mind_own_business' && (
-            <div style={{ opacity: proactiveVisible ? 1 : 0, transition: 'opacity 0.4s', background: 'white', border: '1px solid rgba(94,59,135,0.15)', borderRadius: '10px', padding: '0.45rem 0.85rem', boxShadow: '0 4px 16px rgba(94,59,135,0.1)', fontSize: '0.78rem', color: '#1a1a1a', lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", maxWidth: 360 }}>
-              {proactiveSpeech}
-            </div>
-          )}
-          {!(veraAlert && !alertDismissed) && !currentGap && !proactiveSpeech && pagePraise && qMode !== 'mind_own_business' && (
-            <div style={{ background: '#f0faf5', border: '1px solid rgba(61,184,122,0.25)', borderLeft: '3px solid #3db87a', borderRadius: '10px', padding: '0.4rem 0.75rem', fontSize: '0.75rem', color: '#1a4d2e', lineHeight: 1.45, fontFamily: "'DM Sans', sans-serif", maxWidth: 340 }}>
-              {pagePraise}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Q Coaching panel (non-smile page mood) ───────────────────── */}
-      {coachingOpen && (
-        <div style={{ marginTop: '0.65rem', background: 'white', borderRadius: 14, border: '1px solid rgba(94,59,135,0.15)', boxShadow: '0 4px 20px rgba(94,59,135,0.1)', overflow: 'hidden', animation: 'veraFlyIn 0.2s ease-out forwards' }}>
-          {/* Header */}
-          <div style={{ padding: '0.85rem 1.1rem 0.75rem', borderBottom: '1px solid rgba(94,59,135,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <img src={`/qmood/${mood}.png`} alt="Q" style={{ width: 54, height: 54, objectFit: 'contain', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.875rem', color: '#1a1a1a' }}>
-                {pageMoodTitle}
-              </div>
-              {pagePillarScore != null && (
-                <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.1rem', fontFamily: "'DM Sans', sans-serif" }}>{pagePillarLabel}: {pagePillarScore}/100</div>
-              )}
-            </div>
-            <button onClick={() => setCoachingOpen(false)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
-          </div>
-
-          {/* Page pillar bar */}
-          {pagePillarScore != null && (
-            <div style={{ padding: '0.5rem 1.1rem', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
-              <div style={{ height: 5, background: '#f0ebf8', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pagePillarScore}%`, background: pagePillarScore >= 70 ? '#3db87a' : pagePillarScore >= 40 ? '#f0a500' : '#ef4444', borderRadius: 3, transition: 'width 0.4s' }} />
-              </div>
-            </div>
-          )}
-
-          {/* Page coaching points */}
-          <div style={{ padding: '0.75rem 1.1rem' }}>
-            <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#5e3b87', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.55rem', fontFamily: "'DM Sans', sans-serif" }}>What Q sees on this page</div>
-            {pageCoachingPoints.length === 0 ? (
-              <div style={{ fontSize: '0.78rem', color: '#1a6640', background: '#f0faf5', border: '1px solid rgba(61,184,122,0.2)', borderRadius: 8, padding: '0.55rem 0.7rem', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-                {activeTab === 'integrations'
-                  ? "Connect your integrations and Q will have even more context for every call."
-                  : "No issues here — this page is well set up."}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                {pageCoachingPoints.map((pt, i) => (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      setCoachingOpen(false)
-                      document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
-                        zoneText: `Coaching issue: "${pt.label}". ${pt.suggestion || ''} Give practical step-by-step advice on what to do, and offer to research what businesses in their sector typically do about this.`,
-                        zoneName: pt.label,
-                        tabName: TAB_LABELS[activeTab] || 'Portal',
-                        rect: { left: window.innerWidth / 2 - 170, top: 80, width: 0, height: 0 },
-                        initialBotMessage: pt.suggestion
-                          ? `${pt.suggestion} Want me to walk you through it, or look into what other businesses in your sector do here?`
-                          : `Let me help with "${pt.label}". Want me to walk you through it, or look into what businesses like yours typically do here?`,
-                      }}))
-                    }}
-                    style={{ display: 'flex', flexDirection: 'column', gap: '0.18rem', cursor: 'pointer', borderRadius: 6, padding: '0.3rem 0.4rem', transition: 'background 0.12s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#f8f5ff' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: colorFromSeverity(pt.severity) }} />
-                      <span style={{ flex: 1, fontSize: '0.775rem', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.35 }}>{pt.label}</span>
-                      {onNavigate && pt.tab !== activeTab && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setCoachingOpen(false); onNavigate(pt.tab) }}
-                          style={{ fontSize: '0.68rem', fontWeight: 600, color: 'white', background: colorFromSeverity(pt.severity), border: 'none', borderRadius: 5, padding: '0.2rem 0.5rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          Fix →
-                        </button>
-                      )}
-                    </div>
-                    {pt.suggestion && (
-                      <div style={{ fontSize: '0.7rem', color: '#888', lineHeight: 1.4, fontFamily: "'DM Sans', sans-serif", paddingLeft: '1.1rem' }}>{pt.suggestion}</div>
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={() => {
-                    setCoachingOpen(false)
-                    document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
-                      zoneText: `Research request: what do businesses in this sector typically do to address these issues: ${pageCoachingPoints.map(p => p.label).join('; ')}. Use training knowledge about small service businesses to give practical, research-backed suggestions.`,
-                      zoneName: 'Industry best practices',
-                      tabName: TAB_LABELS[activeTab] || 'Portal',
-                      rect: { left: window.innerWidth / 2 - 170, top: 80, width: 0, height: 0 },
-                      initialBotMessage: `I can look into what businesses like yours typically do about these things and what tends to work. Shall I?`,
-                    }}))
-                  }}
-                  style={{ alignSelf: 'flex-start', marginTop: '0.2rem', fontSize: '0.7rem', color: '#5e3b87', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline' }}
-                >
-                  Ask Q to research best practices →
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div style={{ padding: '0.55rem 1.1rem', borderTop: '1px solid rgba(94,59,135,0.06)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={handleImHappy}
-              style={{ padding: '0.32rem 0.75rem', background: '#3db87a', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
-              I'm happy 😊
-            </button>
-            <button
-              onClick={() => { setCoachingOpen(false); setNeedHelpMode(true) }}
-              style={{ padding: '0.32rem 0.75rem', background: `${pageColor}18`, border: `1px solid ${pageColor}55`, borderRadius: 7, fontSize: '0.73rem', color: pageColor, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
-              Explore with Q
-            </button>
-            <button
-              onClick={() => setCoachingOpen(false)}
-              style={{ padding: '0.32rem 0.75rem', background: '#5e3b87', border: 'none', borderRadius: 7, fontSize: '0.73rem', color: 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {coachingOpen && <QCoachingPanel mood={mood} pageMoodTitle={pageMoodTitle} pagePillarScore={pagePillarScore} pagePillarLabel={pagePillarLabel} pageColor={pageColor} pageCoachingPoints={pageCoachingPoints} activeTab={activeTab} onNavigate={onNavigate} setCoachingOpen={setCoachingOpen} setNeedHelpMode={setNeedHelpMode} handleImHappy={handleImHappy} />}
       </div>
 
       {/* ── Hover bubble (Vera mode) ─────────────────────────────────── */}

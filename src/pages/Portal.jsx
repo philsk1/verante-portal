@@ -231,7 +231,8 @@ const Portal = () => {
     notifyWeeklyReport, setNotifyWeeklyReport,
     baseTier, urgentOutcomes, uncontactedCount,
     listenTier,  setListenTier,
-    calendarTier, hasAnswerProduct, sentryCameraLimit,
+    calendarTier, setCalendarTier, hasAnswerProduct,
+    sentryCameraLimit, setSentryCameraLimit,
     gapData, saveNotification,
     isDemoMode, demoSector,
   } = useTenantState()
@@ -518,7 +519,7 @@ const Portal = () => {
       case 'team':         return <StaffDirectory onNavigate={handleNavigate} openAdd={teamOpenAdd} onOpenAddConsumed={() => setTeamOpenAdd(false)} tier={baseTier} />
       case 'calendar':     return <CalendarTab onNavigate={handleNavigate} prefill={calendarPrefill} onPrefillConsumed={() => setCalendarPrefill(null)} calendarTier={calendarTier} />
       case 'integrations': return <Integrations onNavigate={setActiveTab} />
-      case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} triggerPlanSelector={planSelectorTrigger} />
+      case 'settings':     return <AccountSettings onNavigate={setActiveTab} onListenTierChange={setListenTier} onCalendarTierChange={setCalendarTier} onSentryChange={setSentryCameraLimit} triggerPlanSelector={planSelectorTrigger} />
       case 'sentry':
         // PIN gate: only when a PIN is set, and never in owner preview (owner can always investigate)
         if (sentryCameraLimit > 0 && !preview.isPreview && !sentryUnlocked) {

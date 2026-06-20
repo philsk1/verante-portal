@@ -145,30 +145,30 @@ Sentry writes to its own DB tables (`sentry_zones`, `sentry_cameras`, `sentry_va
 
 ## COMPONENT 5 — Calendar
 **Files:** `src/pages/Calendar.jsx`
-**Status:** COMPLETE — all findings fixed, deployed 2026-06-19
+**Status:** COMPLETE — all findings fixed. Phase 1 fix 2026-06-19. Phase 2+3 corrections 2026-06-19.
 
 ### Findings & fixes
 
 **CRITICAL — `e.status` accessed on event shape that doesn't have it (two locations)**
 - `toEvent()` maps appointment rows to `{ id, title, start, end, resourceId, resource: appt }` — status lives at `e.resource.status`, never at `e.status`
 - `upcomingProvisional` filter (attention bar) used `e.status === 'provisional'` — always returned 0 results. Attention bar was permanently invisible even when provisional appointments existed.
-- `visibleEvents` status filter used `e.status === statusFilter` — filter toggle did nothing. Since the attention bar was broken, this code path was unreachable anyway, but both needed fixing.
-- **Fix:** Both changed to `e.resource?.status`
+- `visibleEvents` status filter used `e.status === statusFilter` — filter toggle did nothing.
+- **Fix (Phase 1):** Both changed to `e.resource?.status`
 
-**MEDIUM — `specialist_services` field read from staff members; DB query selects `skills`**
-- Staff DB query selects: `id, name, role, colour, skills, include_in_intel, overhead_hours_per_week`
-- Quick-access staff panel rendered `member.specialist_services` — a field that never exists on the object
-- Skill tag chips in the staff panel were permanently invisible
-- **Fix:** Changed to `member.skills`
+**CRITICAL — DB query selected `skills` column, code read `specialist_services` (Phase 1 partial fix, fully resolved in Phase 2+3)**
+- Phase 1: Staff DB query selected `skills` column. Code accessed `member.specialist_services`. Phase 1 "fixed" by changing code access to `member.skills` — aligned access to query, but `skills` column doesn't exist in DB.
+- Phase 2: Discovered via cross-audit with StaffDirectory.jsx that the real DB column is `specialist_services` (not `skills`, not `tags`). Changed SELECT to `specialist_services` and all access points back to `member.specialist_services`.
+- Phase 3 additional fix: `filteredStaff(serviceId)` was comparing a UUID serviceId against `specialist_services` array which contains service NAMES. All specialized staff were incorrectly excluded from the staff dropdown when a service was selected. Fixed by looking up service name from `catalogue` first: `const serviceName = catalogue.find(c => c.id === serviceId)?.name` — then filtering by name match.
 
 ### Output contract — N/A (leaf UI component)
 Calendar writes to `appointments`, `catalogue_items`, `staff_availability`, `tenants` (settings). It reads `staff_profiles`. No output contract to other components.
 
-### Self-consistency — PASS (after fixes)
+### Self-consistency — PASS (after all fixes)
 - All mutations guarded with `if (previewReadOnly ...) return` — complete audit of 10 mutation sites confirmed
 - Viewport state correctly isolated to `localStorage` keyed by `tenantId`
 - `handleEventDrop` uses pending-confirmation pattern; `handleEventResize` writes direct (design choice, not a bug)
 - Event windowing (15-month range, extend-on-navigate) reads only the loaded tenant
+- Staff specialist qualification filtering now correct: name-based match via catalogue lookup
 
 ### Residual notes (not fixed — by design)
 - Dead state: `svcEditing` getter discarded (`[, setSvcEditing]`), `svcEditDraft` has no setter — both are clutter from an earlier inline-edit approach that was replaced by the modal. Harmless; cleanup is future housekeeping, not a bug.
@@ -304,4 +304,13 @@ All 8 API endpoints called from frontend confirmed present:
 
 *Audit started: 2026-06-19*
 *Channel audit completed: 2026-06-19*
+*Phase 3 (re-audit after tenant journey simulation) completed: 2026-06-19*
+
+**Phase 3 summary:**
+- Calendar.jsx: additional fix — `filteredStaff` was doing UUID→name comparison, causing all specialised staff to be hidden when a service was selected. Fixed by resolving service name via catalogue before filter.
+- Portal.jsx + useTenantState.js: calendarTier fallback fix verified — gating (`hasSchedule = calendarTier !== 'none'`) flows correctly to all sidebar locks, tab intercepts, and lockedProduct logic.
+- Onboarding.jsx: new calendar_tier bug found and fixed (both branches of ternary wrote `'entry'`).
+- All API components (1–3) confirmed no drift from Phase 2 changes.
+- CLAUDE-SCHEMA.md corrected: staff_profiles `specialist_services` (was `tags`), call_logs `call_outcome` (was `outcome`), catalogue_items `colour` added.
+
 *Method: self-consistency + output contract per component, live fixes applied*

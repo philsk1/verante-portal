@@ -1,12 +1,42 @@
-// Signal emitter — the nervous system of the element architecture.
-//
-// Each element calls emitSignal() to record what it observed. Signals are
-// fire-and-forget: a failure here must never affect the calling element.
-// Wardens read from system_signals to assess the health of each element.
-//
-// Usage:
-//   import { emitSignal } from './_signals.js'
-//   await emitSignal('answer', 'call_completed', { tenant_id, duration_seconds: 95, call_type: 'new_customer' })
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : api/_signals.js
+ * TOPOLOGY RING : Ring 1 — Leaf (Internal Helper Module, no HTTP handler)
+ * INTENT MAP    : Provides the emitSignal() export used by all other API
+ *                 elements to record observations into system_signals. This is
+ *                 the nervous system write-sink of the element architecture.
+ *                 Fire-and-forget: errors are caught internally and never
+ *                 propagated to the caller. Wardens read system_signals to
+ *                 assess per-element health. Never reads signals back — pure
+ *                 write sink only.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : Named export — not an HTTP endpoint. Called by other API files:
+ *                   emitSignal(element: string, signalType: string, payload?: object)
+ *                   element    — must be a key in ELEMENTS registry (_elements.js)
+ *                   signalType — must be a value in SIGNAL_TYPES registry (_elements.js)
+ *                   payload    — arbitrary metadata object (default: {})
+ * EXTERNAL READS: _elements.js → ELEMENTS (key validation set),
+ *                                 SIGNAL_TYPES (value validation set)
+ *                 Env vars: SUPABASE_SERVICE_ROLE_KEY,
+ *                           SUPABASE_URL (falls back to hardcoded project URL)
+ * MUTATIONS/DB  : system_signals table — INSERT one row per call:
+ *                   { element, signal_type: signalType, payload }
+ *                   INSERT errors are swallowed — failure never throws to caller.
+ * OUTPUTS/EMITS : No return value. Errors logged to console only, never re-thrown.
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
 
 import { createClient } from '@supabase/supabase-js'
 import { ELEMENTS, SIGNAL_TYPES } from './_elements.js'

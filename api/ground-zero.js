@@ -1,6 +1,45 @@
-// Ground Zero — reset one demo tenant's calendar data to canonical state.
-// POST { tenantId, ownerEmail } → delete catalogue + appointments, reseed from config, return counts.
-// Owner-only endpoint.
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : api/ground-zero.js
+ * TOPOLOGY RING : Ring 2 — Contained (Owner-only HTTP endpoint)
+ * INTENT MAP    : Resets one demo tenant's calendar data to a canonical seeded
+ *                 state. Deletes all existing appointments and catalogue_items
+ *                 for the target tenant, then reseeds from hardcoded sector
+ *                 templates (SVC, PROD, CLIENTS, QUAL, TENANT_CFG). Used via
+ *                 the OwnerSelector "Ground Zero" button to maintain consistent
+ *                 demo data across owner walkthroughs. Never touches auth,
+ *                 billing, telephony, leads, or any table outside
+ *                 catalogue_items and appointments.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : HTTP POST body: { tenantId: string, ownerEmail: string }
+ *                 ownerEmail must equal OWNER_EMAIL constant — rejected 403 if not.
+ * EXTERNAL READS: tenants (business_name — to look up TENANT_CFG entry)
+ *                 staff_profiles (id, name — to assign appointments to real staff)
+ *                 Env var: SUPABASE_SERVICE_ROLE_KEY
+ * MUTATIONS/DB  : catalogue_items — DELETE all for tenant, INSERT services +
+ *                   products from sector template
+ *                 appointments — DELETE all for tenant, INSERT generated
+ *                   appointments in 300-row batches
+ *                 No other tables are read from or written to.
+ * OUTPUTS/EMITS : HTTP 200 { ok: true, services: n, products: n, appointments: n }
+ *                 HTTP 200 { ok: true, skipped: true, reason: string } if no config
+ *                   or no staff found for tenant
+ *                 HTTP 400 missing tenantId | 403 not owner | 404 tenant not found
+ *                 HTTP 405 non-POST | HTTP 500 unhandled error
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -295,14 +334,12 @@ export default async function handler(req, res) {
   if (!tenantId) return res.status(400).json({ error: 'tenantId required' })
 
   try {
-  // Get tenant
   const { data: tenant } = await supabase.from('tenants').select('business_name').eq('id', tenantId).maybeSingle()
   if (!tenant) return res.status(404).json({ error: 'Tenant not found' })
 
   const cfg = TENANT_CFG[tenant.business_name]
   if (!cfg) return res.status(200).json({ ok: true, skipped: true, reason: `No config for: ${tenant.business_name}` })
 
-  // Get staff
   const { data: staff } = await supabase.from('staff_profiles').select('id, name').eq('tenant_id', tenantId)
   if (!staff?.length) return res.status(200).json({ ok: true, skipped: true, reason: 'No staff' })
 
@@ -311,18 +348,15 @@ export default async function handler(req, res) {
   const prodTemplate = PROD[cfg.type] || null
   const clientPool = CLIENTS[cfg.type] || CLIENTS.wellness
 
-  // Delete existing data
   await supabase.from('appointments').delete().eq('tenant_id', tenantId)
   await supabase.from('catalogue_items').delete().eq('tenant_id', tenantId)
 
-  // Insert services
   const services = svcTemplate.map(([name, dur, pf, pt, cat]) => ({
     id: uid(), tenant_id: tenantId, item_type: 'service', name,
     duration_minutes: dur, price_from: pf, price_to: pt, category: cat, active: true,
   }))
   await supabase.from('catalogue_items').insert(services)
 
-  // Insert products
   let productCount = 0
   if (prodTemplate) {
     const products = prodTemplate.map(([name, sku, pf, cp, cat]) => ({
@@ -333,7 +367,6 @@ export default async function handler(req, res) {
     productCount = products.length
   }
 
-  // Generate appointments
   const TODAY = new Date()
   TODAY.setHours(0, 0, 0, 0)
   const histStart = new Date(TODAY)
@@ -381,7 +414,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Insert appointments in batches
   const BATCH = 300
   for (let i = 0; i < appts.length; i += BATCH) {
     await supabase.from('appointments').insert(appts.slice(i, i + BATCH))

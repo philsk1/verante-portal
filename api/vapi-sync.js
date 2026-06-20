@@ -1,3 +1,53 @@
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : api/vapi-sync.js
+ * TOPOLOGY RING : Ring 2 — Contained (HTTP endpoint, 2 callers: AIBehaviour + Onboarding)
+ * INTENT MAP    : Manages the lifecycle of Vapi voice assistants for tenants
+ *                 and handles outbound call initiation. Three action paths:
+ *                 (1) Default — sync/create a tenant's Vapi assistant from live
+ *                     tenant data via _tenant-data.js and _build-prompt.js.
+ *                 (2) demo-call — trigger a "test my AI" outbound call using
+ *                     the tenant's real saved Vapi assistant.
+ *                 (3) sales-demo — trigger an outbound Q sales call (rate-limited,
+ *                     3 per IP per hour) with an inline ephemeral assistant.
+ *                 Only the default sync path writes to the database.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : HTTP POST body — three shapes:
+ *                   Default (sync):  { tenantId: string }
+ *                   Demo call:       { action: 'demo-call', phoneNumber: string,
+ *                                      assistantId: string }
+ *                   Sales demo:      { action: 'sales-demo', phoneNumber: string,
+ *                                      businessType?: string }
+ * EXTERNAL READS: _tenant-data.js → fetchTenantData() (reads tenants + all AI config)
+ *                 _build-prompt.js → buildSystemPrompt(), buildAnalysisPlan(),
+ *                                     buildGreeting()
+ *                 _ratelimit.js → checkRateLimit(), getClientIP()
+ *                 Vapi API: POST /assistant (create), PATCH /assistant/:id (update),
+ *                           POST /call (outbound demo + sales)
+ *                 Env vars: VAPI_PRIVATE_KEY, VAPI_DEMO_PHONE_NUMBER_ID,
+ *                           VAPI_SALES_PHONE_NUMBER_ID, SUPABASE_SERVICE_ROLE_KEY,
+ *                           SUPABASE_URL, SITE_URL
+ * MUTATIONS/DB  : tenants — UPDATE vapi_assistant_id only when a new assistant is
+ *                   created (path: tenantId provided + no existing vapi_assistant_id)
+ *                 No other tables touched.
+ * OUTPUTS/EMITS : HTTP 200 { ok: true, created?: true, assistantId?: string }
+ *                 HTTP 400 missing params | 404 tenant not found | 429 rate limited
+ *                 HTTP 500 Vapi or internal error | 503 env var not configured
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { buildSystemPrompt, buildAnalysisPlan, buildGreeting } from './_build-prompt.js'
 import { fetchTenantData, getVoiceConfig } from './_tenant-data.js'
@@ -130,7 +180,7 @@ async function handleSalesDemoOutbound(req, res) {
 }
 
 async function handleDemoCall(req, res) {
-  const { phoneNumber, assistantId, businessName, tradeContext, services, emergencyKeywords } = req.body
+  const { phoneNumber, assistantId } = req.body
 
   if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' })
   if (!process.env.VAPI_PRIVATE_KEY) return res.status(500).json({ error: 'VAPI_PRIVATE_KEY not configured' })
@@ -163,7 +213,7 @@ async function handleDemoCall(req, res) {
     return res.status(500).json({ error: 'Could not start demo call', detail: err })
   }
 
-  console.log(`Demo call initiated to ${phoneNumber}${assistantId ? ` using assistant ${assistantId}` : ` for "${businessName}"`}`)
+  console.log(`Demo call initiated to ${phoneNumber} using assistant ${assistantId}`)
   return res.status(200).json({ ok: true })
 }
 
@@ -207,7 +257,6 @@ export default async function handler(req, res) {
     }
 
     if (!data.tenant.vapi_assistant_id) {
-      // New tenant — create assistant
       const vapiRes = await fetch(`${VAPI_API}/assistant`, {
         method: 'POST',
         headers: {
@@ -227,7 +276,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, created: true, assistantId: created.id })
     }
 
-    // Existing tenant — patch assistant
     const vapiRes = await fetch(`${VAPI_API}/assistant/${data.tenant.vapi_assistant_id}`, {
       method: 'PATCH',
       headers: {

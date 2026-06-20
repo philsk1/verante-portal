@@ -54,6 +54,13 @@ body {
   margin: 0;
 }
 
+/* Disable BigCalendar DnD resize handles globally — appointments move only, never stretch */
+.rbc-addons-dnd-resize-ns-anchor,
+.rbc-addons-dnd-resize-ew-anchor {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 #root {
   width: 100%;
   min-height: 100svh;

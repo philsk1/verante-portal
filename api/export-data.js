@@ -1,5 +1,46 @@
-// GDPR data export — triggered by tenant from Account settings
-// Queries all tenant data, formats as CSV attachments, emails to business_email
+/**
+ * ============================================================================
+ * QERXEL COMPONENT CONTRACT & BOUNDARY MAP
+ * ============================================================================
+ * AUTHOR/VISION : Philip Keating
+ * FILE PATH     : api/export-data.js
+ * TOPOLOGY RING : Ring 1 — Leaf (Standalone API Module)
+ * INTENT MAP    : Responds to a tenant-triggered GDPR data export request.
+ *                 Reads all tenant records across 6 tables in a single parallel
+ *                 batch, formats each dataset as RFC 4180-compliant CSV, embeds
+ *                 the combined output into an HTML email, and dispatches it to
+ *                 the tenant's registered business_email. Reads and sends only
+ *                 — no downstream mutations of any kind.
+ *
+ * ─── REGRESSION MAP (THE ZERO-WEB STANDARD) ──────────────────────────────────
+ * INPUTS/PARAMS : HTTP POST body: { tenantId: string }
+ * EXTERNAL READS: Supabase tables (SELECT only):
+ *                   tenants (id, business_name, business_email, data_retention_days)
+ *                   call_logs (id, created_at, caller_phone, duration_seconds,
+ *                              call_outcome, ai_summary)
+ *                   leads (id, created_at, lead_contact_name, status, notes)
+ *                   referral_log (id, created_at, referral_partners.partner_name)
+ *                   referral_partners (id, partner_name, contact_phone,
+ *                                      contact_email, categories)
+ *                   staff_profiles (id, name, role, phone, email, active)
+ *                 Env vars: SUPABASE_SERVICE_ROLE_KEY
+ *                 Helper: _emails.js → sendEmail()
+ * MUTATIONS/DB  : NONE. All 6 table queries are SELECT. No INSERT, UPDATE,
+ *                 or DELETE operations exist in this file.
+ * OUTPUTS/EMITS : One email sent via sendEmail() to tenant.business_email
+ *                 containing CSV data embedded in HTML.
+ *                 HTTP response on success: { ok: true }
+ *                 HTTP response on failure: { error: string } with 4xx/5xx status
+ *
+ * ─── IN-FILE PRIME DIRECTIVES (MANDATORY) ────────────────────────────────────
+ * 1. Never create new files to house extracted logic. Keep it in this file.
+ * 2. Run a regression map before every single future edit.
+ * 3. No CSS, no CSS variables, inline styles only if layout is touched.
+ * 4. Every database mutation must keep its save guard (if applicable).
+ * 5. Clean Slate Rule: If complex nesting or multi-path drift occurs,
+ *    the engineer must rebuild this module from a blank canvas. No patching.
+ * ============================================================================
+ */
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from './_emails.js'
@@ -30,7 +71,7 @@ export default async function handler(req, res) {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, business_name, business_email')
+    .select('id, business_name, business_email, data_retention_days')
     .eq('id', tenantId)
     .maybeSingle()
 

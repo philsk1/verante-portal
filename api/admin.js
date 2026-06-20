@@ -366,426 +366,286 @@ async function handleMeaningMap(res) {
   return res.status(200).json({ trunk, branches, proposals, unmatched })
 }
 
-// ── Handler ────────────────────────────────────────────────────────────────────
+// ── Action handlers ────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
-  // GET — cron endpoints (no auth, called by Vercel scheduler)
-  if (req.method === 'GET') {
-    if (req.query.type === 'warden')      return handleWardenSnapshot(res)
-    if (req.query.type === 'meaning-map') return handleMeaningMap(res)
-    return res.status(400).json({ error: 'Unknown type' })
-  }
-
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
+async function handleDemoInit(req, res) {
+  const { ownerEmail } = req.body
+  if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+  const log = []
   try {
-  const { userEmail, url, ownerEmail, action } = req.body
-
-  // ── demo-init ──────────────────────────────────────────────────────────────
-  if (action === 'demo-init') {
-    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
-    const log = []
-    try {
-      // Step 1: wipe existing demo tenant data only (auth users are never deleted/recreated)
-      const { data: existingDemo } = await supabase.from('tenants').select('id').eq('is_demo', true)
-      if (existingDemo?.length) {
-        const ids = existingDemo.map(t => t.id)
-        await Promise.all([
-          supabase.from('call_logs').delete().in('tenant_id', ids),
-          supabase.from('leads').delete().in('tenant_id', ids),
-          supabase.from('referral_log').delete().in('tenant_id', ids),
-          supabase.from('referral_partners').delete().in('tenant_id', ids),
-          supabase.from('staff_profiles').delete().in('tenant_id', ids),
-          supabase.from('catalogue_items').delete().in('tenant_id', ids),
-          supabase.from('tenant_memberships').delete().in('tenant_id', ids),
-          supabase.from('tenants').delete().in('id', ids),
-        ])
-        log.push(`Cleared ${ids.length} existing demo tenants`)
-      }
-
-      // Step 2: resolve auth user IDs — look up existing via RPC, create only if missing
-      const userIds = await Promise.all(DEMO_BUSINESSES.map(async biz => {
-        const { data: uid } = await supabase.rpc('lookup_demo_user_id', { p_email: biz.email })
-        if (uid) return uid
-        const { data: created, error } = await supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
-        if (error) { log.push(`WARN auth ${biz.email}: ${error.message}`); return null }
-        log.push(`Created auth user: ${biz.email}`)
-        return created.user.id
-      }))
-
-      // Step 3: create tenants + seed all 4 businesses in parallel
-      await Promise.all(DEMO_BUSINESSES.map(async (biz, i) => {
-        const userId = userIds[i]
-        if (!userId) return
-
-        const { data: tenant, error: te } = await supabase.from('tenants').insert({
-          business_name: biz.business_name, subscription_tier: biz.tier, included_minutes: biz.included_minutes,
-          business_phone: biz.business_phone, business_email: biz.business_email, business_address: biz.business_address,
-          opening_hours: biz.opening_hours, lead_contact_name: biz.lead_contact_name, business_context: biz.business_context,
-          triage_mode: biz.triage_mode, tone_register: biz.tone_register, business_outcome_type: biz.business_outcome_type,
-          greeting_message: biz.greeting_message, is_demo: true,
-        }).select('id').single()
-        if (te) { log.push(`WARN tenant ${biz.business_name}: ${te.message}`); return }
-
-        const tid = tenant.id
-        log.push(`${biz.business_name} (${tid.slice(0, 8)})`)
-
-        const seedOps = [
-          supabase.from('tenant_memberships').insert({ tenant_id: tid, user_id: userId, role: 'owner' }),
-          supabase.from('call_logs').insert(generateCalls(tid, biz)),
-          supabase.from('leads').insert(generateLeads(tid, biz)),
-        ]
-        if (biz.staff.length) seedOps.push(supabase.from('staff_profiles').insert(biz.staff.map(s => ({ ...s, tenant_id: tid }))))
-        if (biz.catalogue.length) seedOps.push(supabase.from('catalogue_items').insert(biz.catalogue.map(c => ({ ...c, tenant_id: tid, active: true }))))
-
-        if (biz.partners.length) {
-          const { data: insertedPartners } = await supabase.from('referral_partners')
-            .insert(biz.partners.map(p => ({ partner_name: p.business_name || p.partner_name, contact_phone: p.business_phone || p.contact_phone || null, tenant_id: tid }))).select('id')
-          if (insertedPartners?.length) {
-            seedOps.push(supabase.from('referral_log').insert(
-              Array.from({ length: 5 }, () => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString() }))
-            ))
-          }
-        }
-
-        await Promise.all(seedOps)
-      }))
-
-      return res.status(200).json({ ok: true, log })
-    } catch (err) {
-      console.error('demo-init error:', err)
-      return res.status(500).json({ error: err.message, log })
-    }
-  }
-
-  // ── demo-businesses — no auth required, service role bypasses RLS ──────────
-  if (action === 'demo-businesses') {
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('id, business_name, subscription_tier, included_minutes, triage_mode')
-      .eq('is_demo', true)
-      .order('subscription_tier', { ascending: true })
-    if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ businesses: data || [] })
-  }
-
-  // ── owner-tenants ──────────────────────────────────────────────────────────
-  if (userEmail !== undefined) {
-    if (!isOwner(userEmail)) return res.status(403).json({ error: 'Forbidden' })
-
-    const [tenantsRes, callsRes, apptsRes, catRes, staffRes] = await Promise.all([
-      supabase.from('tenants').select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_camera_limit, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo, holiday_mode, greeting_message, additional_instructions, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, keep_alive_topics, blocked_phone_numbers').order('business_name'),
-      supabase.from('call_logs').select('tenant_id, call_outcome, callback_flagged, created_at'),
-      supabase.from('appointments').select('tenant_id, status, start_time')
-        .gte('start_time', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('start_time', new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()),
-      supabase.from('catalogue_items').select('tenant_id, duration_minutes').eq('active', true),
-      supabase.from('staff_profiles').select('tenant_id').or('active.eq.true,active.is.null'),
-    ])
-
-    if (tenantsRes.error) return res.status(500).json({ error: tenantsRes.error.message })
-
-    const now = new Date()
-    const ago30 = new Date(now - 30 * 24 * 60 * 60 * 1000)
-    const fwd14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-
-    // Build per-tenant call stats
-    const callStats = {}
-    for (const c of callsRes.data || []) {
-      const s = callStats[c.tenant_id] || (callStats[c.tenant_id] = { total30: 0, leads30: 0, escalOpen: 0, flagged: 0, outcomes: {} })
-      const isRecent = new Date(c.created_at) >= ago30
-      if (isRecent) s.total30++
-      if (isRecent && c.call_outcome === 'lead_captured') s.leads30++
-      if (c.call_outcome === 'escalated' && c.callback_flagged) s.escalOpen++
-      if (c.callback_flagged) s.flagged++
-      if (c.call_outcome) s.outcomes[c.call_outcome] = (s.outcomes[c.call_outcome] || 0) + 1
+    const { data: existingDemo } = await supabase.from('tenants').select('id').eq('is_demo', true)
+    if (existingDemo?.length) {
+      const ids = existingDemo.map(t => t.id)
+      await Promise.all([
+        supabase.from('call_logs').delete().in('tenant_id', ids),
+        supabase.from('leads').delete().in('tenant_id', ids),
+        supabase.from('referral_log').delete().in('tenant_id', ids),
+        supabase.from('referral_partners').delete().in('tenant_id', ids),
+        supabase.from('staff_profiles').delete().in('tenant_id', ids),
+        supabase.from('catalogue_items').delete().in('tenant_id', ids),
+        supabase.from('tenant_memberships').delete().in('tenant_id', ids),
+        supabase.from('tenants').delete().in('id', ids),
+      ])
+      log.push(`Cleared ${ids.length} existing demo tenants`)
     }
 
-    // Build per-tenant appointment stats
-    const apptStats = {}
-    for (const a of apptsRes.data || []) {
-      const s = apptStats[a.tenant_id] || (apptStats[a.tenant_id] = { upcoming: 0, pastTotal: 0, pastCancelled: 0, totalCount: 0 })
-      s.totalCount++
-      const t = new Date(a.start_time)
-      if (t > now && t < fwd14 && a.status === 'confirmed') s.upcoming++
-      if (t < now) {
-        s.pastTotal++
-        if (a.status === 'cancelled' || a.status === 'no_show') s.pastCancelled++
-      }
-    }
-
-    // Build per-tenant catalogue stats
-    const catStats = {}
-    for (const c of catRes.data || []) {
-      const s = catStats[c.tenant_id] || (catStats[c.tenant_id] = { count: 0, incomplete: 0 })
-      s.count++
-      if (!c.duration_minutes) s.incomplete++
-    }
-
-    // Build per-tenant staff counts
-    const staffCount = {}
-    for (const s of staffRes.data || []) {
-      staffCount[s.tenant_id] = (staffCount[s.tenant_id] || 0) + 1
-    }
-
-    // Annotate tenants with landscape intel + issues
-    const tenants = (tenantsRes.data || []).map(t => {
-      const calls  = callStats[t.id]  || { total30: 0, leads30: 0, escalOpen: 0, flagged: 0 }
-      const appts  = apptStats[t.id]  || { upcoming: 0, pastTotal: 0, pastCancelled: 0 }
-      const cat    = catStats[t.id]   || { count: 0, incomplete: 0 }
-      const staffN = staffCount[t.id] || 0
-      const cancelRate = appts.pastTotal > 0 ? appts.pastCancelled / appts.pastTotal : 0
-      const leadRate   = calls.total30 > 0 ? calls.leads30 / calls.total30 : null
-
-      const issues = []
-      if (calls.escalOpen > 0)                                                   issues.push({ type: 'urgent_open',       label: `${calls.escalOpen} urgent open`,        severity: 'critical' })
-      if (calls.flagged > 12)                                                    issues.push({ type: 'callbacks_high',    label: `${calls.flagged} callbacks queued`,     severity: 'warning' })
-      if (calls.total30 >= 5 && leadRate !== null && leadRate < 0.18)           issues.push({ type: 'low_conversion',    label: `${Math.round(leadRate * 100)}% lead rate`, severity: 'warning' })
-      if (cancelRate > 0.22)                                                     issues.push({ type: 'high_cancel',       label: `${Math.round(cancelRate * 100)}% cancel rate`, severity: 'warning' })
-      if (cat.count === 0 && t.subscription_tier !== 'free')                    issues.push({ type: 'no_catalogue',      label: 'No catalogue',                          severity: 'warning' })
-      if (cat.incomplete > 0)                                                    issues.push({ type: 'incomplete_cat',    label: `${cat.incomplete} items missing duration`, severity: 'info' })
-      if (t.calendar_tier !== 'none' && staffN === 0)                           issues.push({ type: 'no_staff',          label: 'No staff entered',                      severity: 'warning' })
-      if (calls.total30 < 5)                                                     issues.push({ type: 'low_activity',      label: calls.total30 === 0 ? 'No calls recorded' : `Only ${calls.total30} calls`, severity: calls.total30 === 0 ? 'critical' : 'warning' })
-      if (t.calendar_tier !== 'none' && appts.upcoming === 0 && appts.pastTotal > 0) issues.push({ type: 'calendar_empty', label: 'No upcoming bookings',               severity: 'info' })
-      if (t.holiday_mode)                                                        issues.push({ type: 'holiday_mode',      label: 'AI paused — holiday mode',              severity: 'critical' })
-      if (t.subscription_tier === 'free')                                        issues.push({ type: 'free_tier',         label: 'Free tier',                             severity: 'info' })
-
-      return {
-        ...t,
-        landscape: {
-          calls30d: calls.total30,
-          leads30d: calls.leads30,
-          leadRate,
-          escalOpen: calls.escalOpen,
-          callbacksQueued: calls.flagged,
-          upcoming: appts.upcoming,
-          totalAppts: appts.totalCount || 0,
-          cancelRate: Math.round(cancelRate * 100),
-          catalogueItems: cat.count,
-          staffCount: staffN,
-          outcomeCounts: calls.outcomes || {},
-          issues,
-        },
-      }
-    })
-
-    return res.status(200).json({ tenants })
-  }
-
-  // ── support-dashboard ─────────────────────────────────────────────────────
-  if (action === 'support-dashboard') {
-    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
-
-    const [callsRes, incidentsRes, compRes, policyRes] = await Promise.all([
-      supabase
-        .from('support_calls')
-        .select('id, tenant_id, caller_phone, duration_seconds, complaint_category, frustration_level, complaint_summary, gift_given, resolution, requires_escalation, ai_summary, created_at')
-        .order('created_at', { ascending: false })
-        .limit(100),
-      supabase
-        .from('incidents')
-        .select('*')
-        .order('started_at', { ascending: false })
-        .limit(50),
-      supabase
-        .from('compensation_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('support_policy')
-        .select('*')
-        .limit(1)
-        .maybeSingle(),
-    ])
-
-    // Enrich support calls with tenant names
-    const tenantIds = [...new Set((callsRes.data || []).map(c => c.tenant_id).filter(Boolean))]
-    let tenantNames = {}
-    if (tenantIds.length) {
-      const { data: tenants } = await supabase
-        .from('tenants').select('id, business_name').in('id', tenantIds)
-      for (const t of tenants || []) tenantNames[t.id] = t.business_name
-    }
-
-    const calls = (callsRes.data || []).map(c => ({
-      ...c,
-      business_name: tenantNames[c.tenant_id] || null,
+    const userIds = await Promise.all(DEMO_BUSINESSES.map(async biz => {
+      const { data: uid } = await supabase.rpc('lookup_demo_user_id', { p_email: biz.email })
+      if (uid) return uid
+      const { data: created, error } = await supabase.auth.admin.createUser({ email: biz.email, password: DEMO_PASSWORD, email_confirm: true })
+      if (error) { log.push(`WARN auth ${biz.email}: ${error.message}`); return null }
+      log.push(`Created auth user: ${biz.email}`)
+      return created.user.id
     }))
 
-    return res.status(200).json({
-      calls,
-      incidents: incidentsRes.data || [],
-      compensation: compRes.data || [],
-      policy: policyRes.data || null,
-    })
-  }
-
-  // ── support-policy-save ────────────────────────────────────────────────────
-  if (action === 'support-policy-save') {
-    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
-
-    const { policyText, freeMinutesPerCall, maxStrikes, escalationEmail, escalationWhatsapp } = req.body
-
-    // Upsert — there is only ever one support_policy row
-    const { data: existing } = await supabase.from('support_policy').select('id').limit(1).maybeSingle()
-
-    const payload = {
-      policy_text:           policyText,
-      free_minutes_per_call: freeMinutesPerCall ?? 10,
-      max_strikes:           maxStrikes ?? 2,
-      escalation_email:      escalationEmail || null,
-      escalation_whatsapp:   escalationWhatsapp || null,
-      updated_at:            new Date().toISOString(),
-    }
-
-    if (existing?.id) {
-      await supabase.from('support_policy').update(payload).eq('id', existing.id)
-    } else {
-      await supabase.from('support_policy').insert(payload)
-    }
-
-    return res.status(200).json({ ok: true })
-  }
-
-  // ── incident-create ────────────────────────────────────────────────────────
-  if (action === 'incident-create') {
-    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
-
-    const { title, description, startedAt, scope, affectedTenantIds } = req.body
-    if (!title || !startedAt) return res.status(400).json({ error: 'title and startedAt required' })
-
-    const { data: incident, error } = await supabase.from('incidents').insert({
-      title,
-      description: description || null,
-      started_at:  startedAt,
-      scope:       scope || 'all',
-      affected_tenant_ids: affectedTenantIds || null,
-      status: 'active',
-      compensation_rate: 10,
-    }).select().maybeSingle()
-
-    if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ incident })
-  }
-
-  // ── incident-resolve ───────────────────────────────────────────────────────
-  if (action === 'incident-resolve') {
-    if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
-
-    const { id: incidentId, endedAt } = req.body
-    if (!incidentId || !endedAt) return res.status(400).json({ error: 'id and endedAt required' })
-
-    // Mark incident resolved
-    const { data: incident } = await supabase
-      .from('incidents')
-      .update({ ended_at: endedAt, status: 'compensated' })
-      .eq('id', incidentId)
-      .select()
-      .maybeSingle()
-
-    if (!incident) return res.status(404).json({ error: 'Incident not found' })
-
-    const startMs  = new Date(incident.started_at).getTime()
-    const endMs    = new Date(endedAt).getTime()
-    const downtimeMinutes = Math.round((endMs - startMs) / 60000)
-
-    // Determine affected tenants
-    let affectedTenants = []
-    if (incident.scope === 'all' || !incident.affected_tenant_ids?.length) {
-      const { data: all } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').not('subscription_tier', 'eq', 'free')
-      affectedTenants = all || []
-    } else {
-      const { data: specific } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').in('id', incident.affected_tenant_ids)
-      affectedTenants = specific || []
-    }
-
-    // Tier monthly value estimates (pro-rate to downtime) — approximate
-    const TIER_MONTHLY = { light: 29, standard: 49, professional: 69, enterprise: 249, bespoke: 299 }
-
-    const compensationRows = affectedTenants.map(t => {
-      const monthlyGbp   = TIER_MONTHLY[t.subscription_tier] || 49
-      const minutesInMonth = 30 * 24 * 60
-      const downtimeValue  = (monthlyGbp / minutesInMonth) * downtimeMinutes
-      const compensation   = Math.round(downtimeValue * 10 * 100) / 100 // 10x, 2dp
-      return {
-        incident_id:      incidentId,
-        tenant_id:        t.id,
-        downtime_minutes: downtimeMinutes,
-        tier:             t.subscription_tier,
-        compensation_gbp: compensation,
-        status:           'pending',
+    await Promise.all(DEMO_BUSINESSES.map(async (biz, i) => {
+      const userId = userIds[i]
+      if (!userId) return
+      const { data: tenant, error: te } = await supabase.from('tenants').insert({
+        business_name: biz.business_name, subscription_tier: biz.tier, included_minutes: biz.included_minutes,
+        business_phone: biz.business_phone, business_email: biz.business_email, business_address: biz.business_address,
+        opening_hours: biz.opening_hours, lead_contact_name: biz.lead_contact_name, business_context: biz.business_context,
+        triage_mode: biz.triage_mode, tone_register: biz.tone_register, business_outcome_type: biz.business_outcome_type,
+        greeting_message: biz.greeting_message, is_demo: true,
+      }).select('id').single()
+      if (te) { log.push(`WARN tenant ${biz.business_name}: ${te.message}`); return }
+      const tid = tenant.id
+      log.push(`${biz.business_name} (${tid.slice(0, 8)})`)
+      const seedOps = [
+        supabase.from('tenant_memberships').insert({ tenant_id: tid, user_id: userId, role: 'owner' }),
+        supabase.from('call_logs').insert(generateCalls(tid, biz)),
+        supabase.from('leads').insert(generateLeads(tid, biz)),
+      ]
+      if (biz.staff.length) seedOps.push(supabase.from('staff_profiles').insert(biz.staff.map(s => ({ ...s, tenant_id: tid }))))
+      if (biz.catalogue.length) seedOps.push(supabase.from('catalogue_items').insert(biz.catalogue.map(c => ({ ...c, tenant_id: tid, active: true }))))
+      if (biz.partners.length) {
+        const { data: insertedPartners } = await supabase.from('referral_partners')
+          .insert(biz.partners.map(p => ({ partner_name: p.business_name || p.partner_name, contact_phone: p.business_phone || p.contact_phone || null, tenant_id: tid }))).select('id')
+        if (insertedPartners?.length) {
+          seedOps.push(supabase.from('referral_log').insert(
+            Array.from({ length: 5 }, () => ({ tenant_id: tid, partner_id: insertedPartners[0].id, created_at: daysAgo(rnd(0, 14)).toISOString() }))
+          ))
+        }
       }
-    })
+      await Promise.all(seedOps)
+    }))
 
-    if (compensationRows.length) {
-      await supabase.from('compensation_log').insert(compensationRows)
-    }
+    return res.status(200).json({ ok: true, log })
+  } catch (err) {
+    console.error('demo-init error:', err)
+    return res.status(500).json({ error: err.message, log })
+  }
+}
 
-    const totalCompensation = compensationRows.reduce((s, r) => s + (r.compensation_gbp || 0), 0)
-    await supabase.from('incidents').update({ total_compensation_gbp: Math.round(totalCompensation * 100) / 100 }).eq('id', incidentId)
+async function handleOwnerTenants(res, userEmail) {
+  if (!isOwner(userEmail)) return res.status(403).json({ error: 'Forbidden' })
 
-    return res.status(200).json({
-      ok: true,
-      incident_id: incidentId,
-      affected_tenants: affectedTenants.length,
-      downtime_minutes: downtimeMinutes,
-      total_compensation_gbp: Math.round(totalCompensation * 100) / 100,
-      compensation_rows: compensationRows.length,
-    })
+  const [tenantsRes, callsRes, apptsRes, catRes, staffRes] = await Promise.all([
+    supabase.from('tenants').select('id, business_name, subscription_tier, listen_tier, calendar_tier, sentry_camera_limit, triage_mode, billing_model, business_outcome_type, spam_filter_enabled, sms_followup_enabled, provisional_booking_enabled, is_demo, holiday_mode, greeting_message, additional_instructions, lead_contact_name, callback_preference_note, emergency_keywords, booking_link, keep_alive_topics, blocked_phone_numbers').order('business_name'),
+    supabase.from('call_logs').select('tenant_id, call_outcome, callback_flagged, created_at'),
+    supabase.from('appointments').select('tenant_id, status, start_time')
+      .gte('start_time', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+      .lte('start_time', new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from('catalogue_items').select('tenant_id, duration_minutes').eq('active', true),
+    supabase.from('staff_profiles').select('tenant_id').or('active.eq.true,active.is.null'),
+  ])
+
+  if (tenantsRes.error) return res.status(500).json({ error: tenantsRes.error.message })
+
+  const now   = new Date()
+  const ago30 = new Date(now - 30 * 24 * 60 * 60 * 1000)
+  const fwd14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+
+  const callStats = {}
+  for (const c of callsRes.data || []) {
+    const s = callStats[c.tenant_id] || (callStats[c.tenant_id] = { total30: 0, leads30: 0, escalOpen: 0, flagged: 0, outcomes: {} })
+    const isRecent = new Date(c.created_at) >= ago30
+    if (isRecent) s.total30++
+    if (isRecent && c.call_outcome === 'lead_captured') s.leads30++
+    if (c.call_outcome === 'escalated' && c.callback_flagged) s.escalOpen++
+    if (c.callback_flagged) s.flagged++
+    if (c.call_outcome) s.outcomes[c.call_outcome] = (s.outcomes[c.call_outcome] || 0) + 1
   }
 
-  // ── scrape-website ─────────────────────────────────────────────────────────
-  if (!url) return res.status(400).json({ error: 'URL required' })
+  const apptStats = {}
+  for (const a of apptsRes.data || []) {
+    const s = apptStats[a.tenant_id] || (apptStats[a.tenant_id] = { upcoming: 0, pastTotal: 0, pastCancelled: 0, totalCount: 0 })
+    s.totalCount++
+    const t = new Date(a.start_time)
+    if (t > now && t < fwd14 && a.status === 'confirmed') s.upcoming++
+    if (t < now) { s.pastTotal++; if (a.status === 'cancelled' || a.status === 'no_show') s.pastCancelled++ }
+  }
 
+  const catStats = {}
+  for (const c of catRes.data || []) {
+    const s = catStats[c.tenant_id] || (catStats[c.tenant_id] = { count: 0, incomplete: 0 })
+    s.count++
+    if (!c.duration_minutes) s.incomplete++
+  }
+
+  const staffCount = {}
+  for (const s of staffRes.data || []) staffCount[s.tenant_id] = (staffCount[s.tenant_id] || 0) + 1
+
+  const tenants = (tenantsRes.data || []).map(t => {
+    const calls  = callStats[t.id]  || { total30: 0, leads30: 0, escalOpen: 0, flagged: 0 }
+    const appts  = apptStats[t.id]  || { upcoming: 0, pastTotal: 0, pastCancelled: 0 }
+    const cat    = catStats[t.id]   || { count: 0, incomplete: 0 }
+    const staffN = staffCount[t.id] || 0
+    const cancelRate = appts.pastTotal > 0 ? appts.pastCancelled / appts.pastTotal : 0
+    const leadRate   = calls.total30 > 0 ? calls.leads30 / calls.total30 : null
+    const issues = []
+    if (calls.escalOpen > 0)                                                    issues.push({ type: 'urgent_open',    label: `${calls.escalOpen} urgent open`,           severity: 'critical' })
+    if (calls.flagged > 12)                                                     issues.push({ type: 'callbacks_high', label: `${calls.flagged} callbacks queued`,        severity: 'warning' })
+    if (calls.total30 >= 5 && leadRate !== null && leadRate < 0.18)            issues.push({ type: 'low_conversion', label: `${Math.round(leadRate * 100)}% lead rate`,  severity: 'warning' })
+    if (cancelRate > 0.22)                                                      issues.push({ type: 'high_cancel',    label: `${Math.round(cancelRate * 100)}% cancel rate`, severity: 'warning' })
+    if (cat.count === 0 && t.subscription_tier !== 'free')                     issues.push({ type: 'no_catalogue',   label: 'No catalogue',                             severity: 'warning' })
+    if (cat.incomplete > 0)                                                     issues.push({ type: 'incomplete_cat', label: `${cat.incomplete} items missing duration`,  severity: 'info' })
+    if (t.calendar_tier !== 'none' && staffN === 0)                            issues.push({ type: 'no_staff',       label: 'No staff entered',                         severity: 'warning' })
+    if (calls.total30 < 5)                                                      issues.push({ type: 'low_activity',   label: calls.total30 === 0 ? 'No calls recorded' : `Only ${calls.total30} calls`, severity: calls.total30 === 0 ? 'critical' : 'warning' })
+    if (t.calendar_tier !== 'none' && appts.upcoming === 0 && appts.pastTotal > 0) issues.push({ type: 'calendar_empty', label: 'No upcoming bookings', severity: 'info' })
+    if (t.holiday_mode)                                                         issues.push({ type: 'holiday_mode',   label: 'AI paused — holiday mode',                 severity: 'critical' })
+    if (t.subscription_tier === 'free')                                         issues.push({ type: 'free_tier',      label: 'Free tier',                                severity: 'info' })
+    return { ...t, landscape: { calls30d: calls.total30, leads30d: calls.leads30, leadRate, escalOpen: calls.escalOpen, callbacksQueued: calls.flagged, upcoming: appts.upcoming, totalAppts: appts.totalCount || 0, cancelRate: Math.round(cancelRate * 100), catalogueItems: cat.count, staffCount: staffN, outcomeCounts: calls.outcomes || {}, issues } }
+  })
+
+  return res.status(200).json({ tenants })
+}
+
+async function handleSupportDashboard(req, res) {
+  const { ownerEmail } = req.body
+  if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+
+  const [callsRes, incidentsRes, compRes, policyRes] = await Promise.all([
+    supabase.from('support_calls').select('id, tenant_id, caller_phone, duration_seconds, complaint_category, frustration_level, complaint_summary, gift_given, resolution, requires_escalation, ai_summary, created_at').order('created_at', { ascending: false }).limit(100),
+    supabase.from('incidents').select('*').order('started_at', { ascending: false }).limit(50),
+    supabase.from('compensation_log').select('*').order('created_at', { ascending: false }).limit(200),
+    supabase.from('support_policy').select('*').limit(1).maybeSingle(),
+  ])
+
+  const tenantIds = [...new Set((callsRes.data || []).map(c => c.tenant_id).filter(Boolean))]
+  const tenantNames = {}
+  if (tenantIds.length) {
+    const { data: tenants } = await supabase.from('tenants').select('id, business_name').in('id', tenantIds)
+    for (const t of tenants || []) tenantNames[t.id] = t.business_name
+  }
+
+  return res.status(200).json({
+    calls: (callsRes.data || []).map(c => ({ ...c, business_name: tenantNames[c.tenant_id] || null })),
+    incidents: incidentsRes.data || [],
+    compensation: compRes.data || [],
+    policy: policyRes.data || null,
+  })
+}
+
+async function handleSupportPolicySave(req, res) {
+  const { ownerEmail, policyText, freeMinutesPerCall, maxStrikes, escalationEmail, escalationWhatsapp } = req.body
+  if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+  const { data: existing } = await supabase.from('support_policy').select('id').limit(1).maybeSingle()
+  const payload = { policy_text: policyText, free_minutes_per_call: freeMinutesPerCall ?? 10, max_strikes: maxStrikes ?? 2, escalation_email: escalationEmail || null, escalation_whatsapp: escalationWhatsapp || null, updated_at: new Date().toISOString() }
+  if (existing?.id) {
+    await supabase.from('support_policy').update(payload).eq('id', existing.id)
+  } else {
+    await supabase.from('support_policy').insert(payload)
+  }
+  return res.status(200).json({ ok: true })
+}
+
+async function handleIncidentCreate(req, res) {
+  const { ownerEmail, title, description, startedAt, scope, affectedTenantIds } = req.body
+  if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+  if (!title || !startedAt) return res.status(400).json({ error: 'title and startedAt required' })
+  const { data: incident, error } = await supabase.from('incidents').insert({ title, description: description || null, started_at: startedAt, scope: scope || 'all', affected_tenant_ids: affectedTenantIds || null, status: 'active', compensation_rate: 10 }).select().maybeSingle()
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json({ incident })
+}
+
+async function handleIncidentResolve(req, res) {
+  const { ownerEmail, id: incidentId, endedAt } = req.body
+  if (!isOwner(ownerEmail)) return res.status(403).json({ error: 'Forbidden' })
+  if (!incidentId || !endedAt) return res.status(400).json({ error: 'id and endedAt required' })
+
+  const { data: incident } = await supabase.from('incidents').update({ ended_at: endedAt, status: 'compensated' }).eq('id', incidentId).select().maybeSingle()
+  if (!incident) return res.status(404).json({ error: 'Incident not found' })
+
+  const downtimeMinutes = Math.round((new Date(endedAt).getTime() - new Date(incident.started_at).getTime()) / 60000)
+
+  let affectedTenants = []
+  if (incident.scope === 'all' || !incident.affected_tenant_ids?.length) {
+    const { data: all } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').not('subscription_tier', 'eq', 'free')
+    affectedTenants = all || []
+  } else {
+    const { data: specific } = await supabase.from('tenants').select('id, subscription_tier, included_minutes').in('id', incident.affected_tenant_ids)
+    affectedTenants = specific || []
+  }
+
+  const TIER_MONTHLY = { light: 29, standard: 49, professional: 69, enterprise: 249, bespoke: 299 }
+  const compensationRows = affectedTenants.map(t => {
+    const monthlyGbp   = TIER_MONTHLY[t.subscription_tier] || 49
+    const compensation = Math.round((monthlyGbp / (30 * 24 * 60)) * downtimeMinutes * 10 * 100) / 100
+    return { incident_id: incidentId, tenant_id: t.id, downtime_minutes: downtimeMinutes, tier: t.subscription_tier, compensation_gbp: compensation, status: 'pending' }
+  })
+
+  if (compensationRows.length) await supabase.from('compensation_log').insert(compensationRows)
+
+  const totalCompensation = Math.round(compensationRows.reduce((s, r) => s + (r.compensation_gbp || 0), 0) * 100) / 100
+  await supabase.from('incidents').update({ total_compensation_gbp: totalCompensation }).eq('id', incidentId)
+
+  return res.status(200).json({ ok: true, incident_id: incidentId, affected_tenants: affectedTenants.length, downtime_minutes: downtimeMinutes, total_compensation_gbp: totalCompensation, compensation_rows: compensationRows.length })
+}
+
+async function handleScrapeWebsite(req, res) {
+  const { url } = req.body
+  if (!url) return res.status(400).json({ error: 'URL required' })
   const firecrawlKey = process.env.FIRECRAWL_API_KEY
   if (!firecrawlKey) return res.status(503).json({ error: 'Scraping not configured' })
-
   const targetUrl = url.startsWith('http') ? url : `https://${url}`
-
   try {
-    const scrapeRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: targetUrl, formats: ['markdown'], onlyMainContent: true, waitFor: 2000 }),
-    })
-
+    const scrapeRes = await fetch('https://api.firecrawl.dev/v1/scrape', { method: 'POST', headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ url: targetUrl, formats: ['markdown'], onlyMainContent: true, waitFor: 2000 }) })
     if (!scrapeRes.ok) {
       console.error('Firecrawl error:', await scrapeRes.text())
       return res.status(422).json({ error: 'Could not reach that website. Please check the address and try again.' })
     }
-
-    const scrapeData = await scrapeRes.json()
-    const markdown = scrapeData?.data?.markdown || ''
-
-    if (!markdown || markdown.length < 100) {
-      return res.status(422).json({ error: 'Not enough content found on that page. Try your homepage URL.' })
-    }
-
-    const content = markdown.slice(0, 8000)
+    const markdown = (await scrapeRes.json())?.data?.markdown || ''
+    if (!markdown || markdown.length < 100) return res.status(422).json({ error: 'Not enough content found on that page. Try your homepage URL.' })
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
-      messages: [{ role: 'user', content: `${EXTRACTION_PROMPT}\n\nWebsite content:\n\n${content}` }],
-    })
-
+    const response = await client.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 1024, messages: [{ role: 'user', content: `${EXTRACTION_PROMPT}\n\nWebsite content:\n\n${markdown.slice(0, 8000)}` }] })
     const raw = response.content[0]?.text?.trim() || '{}'
     let fields
     try { fields = JSON.parse(raw) } catch {
       console.error('Claude returned non-JSON:', raw)
       return res.status(500).json({ error: 'Could not parse website data. Please fill in manually.' })
     }
-
-    const found = Object.entries(fields).filter(([k, v]) => {
-      if (['services', 'staff', 'catalogue_items'].includes(k)) return Array.isArray(v) && v.length > 0
-      return v !== null && v !== ''
-    }).length
-
+    const found = Object.entries(fields).filter(([k, v]) => ['services', 'staff', 'catalogue_items'].includes(k) ? Array.isArray(v) && v.length > 0 : v !== null && v !== '').length
     return res.status(200).json({ fields, found })
   } catch (err) {
     console.error('admin/scrape error:', err.message)
     return res.status(500).json({ error: 'Something went wrong. Please fill in your details manually.' })
   }
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    if (req.query.type === 'warden')      return handleWardenSnapshot(res)
+    if (req.query.type === 'meaning-map') return handleMeaningMap(res)
+    return res.status(400).json({ error: 'Unknown type' })
+  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  try {
+    const { userEmail, action } = req.body
+    if (action === 'demo-init')           return handleDemoInit(req, res)
+    if (action === 'demo-businesses') {
+      const { data, error } = await supabase.from('tenants').select('id, business_name, subscription_tier, included_minutes, triage_mode').eq('is_demo', true).order('subscription_tier', { ascending: true })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ businesses: data || [] })
+    }
+    if (userEmail !== undefined)          return handleOwnerTenants(res, userEmail)
+    if (action === 'support-dashboard')   return handleSupportDashboard(req, res)
+    if (action === 'support-policy-save') return handleSupportPolicySave(req, res)
+    if (action === 'incident-create')     return handleIncidentCreate(req, res)
+    if (action === 'incident-resolve')    return handleIncidentResolve(req, res)
+    return handleScrapeWebsite(req, res)
   } catch (err) {
     console.error('[admin] unhandled error:', err)
     return res.status(500).json({ error: 'Internal server error', message: err.message })

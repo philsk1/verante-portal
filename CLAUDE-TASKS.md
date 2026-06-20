@@ -55,10 +55,162 @@ Ground Zero: all 44 calendar tenants fully reseeded — proper sector services, 
 ### 2026-06-14 (session 3)
 Live desk full redesign: 2-column collapsed call grid replacing old copilot layout. Each card expands to show action bar (Call via tel: link, Message with sms: pre-populated, Book → Calendar), message compose panel, AI summary, transcript bubbles. Service edit modal + services panel removed. Lead count discrepancy fixed (ActivityDashboard now uses all-time uncontacted count). Q layout on Listen corrected to match other pages (normal 136px Q in top header, Live desk full width).
 
+### 2026-06-20 (session 14 — Calendar DnD hardening)
+**Calendar appointment resize hardened — three changes, deployed.**
+- `handleEventDrop` now always preserves original duration: `snappedEnd = new Date(start + originalDuration)` replaces `end` from BigCalendar. Prevents any library-side end-time drift on drop regardless of snapping rounding. (`Calendar.jsx:1648`)
+- `handleEventResize` replaced with a no-op `() => {}` — was previously writing start/end to DB and optimistically updating events, which allowed any accidental resize action to persist. Now fully inert. (`Calendar.jsx:1676`)
+- CSS: added `pointer-events: none !important` alongside existing `display: none !important` on `.rbc-addons-dnd-resize-ns-anchor` and `.rbc-addons-dnd-resize-ew-anchor`. Belt-and-braces — library already doesn't render these elements when `resizable={false}`. (`index.css:58`)
+- **Root cause clarification:** The "stretch" the user sees is BigCalendar's normal event-width layout. Overlapping appointments each get ~50% column width; when moved to non-overlapping positions they expand to 100% column width. This looks like "stretching" but is not a resize — it is correct calendar behaviour (Google Calendar, Outlook, etc. all do this). Resize itself is fully disabled.
+
 ### 2026-06-19
 Onboarding.jsx: Partners step removed (was step 6, 9-step flow → 8-step flow). Step numbering corrected (Plan=step 6, Review=step 7). `refer_out` field removed from Boundaries step, businessContext builder, and review summary. `custom_business_type` added to data state. Step 0 heading changed to "Select your business category". "My business isn't listed — choose my own" option added with text input mode and back navigation. Progress bar text colour darkened (#aaa→#666). Build clean, deployed.
 Booking page (BookingPage.jsx): full Phorest-style rewrite — staff selection (Step 1 with cards + No preference), service categories (pill filter), merged date+time (per-day rows with slot pills), Supabase Auth client account gate (Step 4, skip if already logged in), My Bookings tab (shows upcoming bookings for logged-in client). `client_user_id` column added to appointments. DB policies added for anon read on staff/services/availability, authenticated insert/select for client bookings. Deployed.
 Decoupling audit (7 components + channel audit): API components (AI Voice, Chat/Vera, Elements & Signals), Sentry, Calendar, BookingPage, Portal Shell. All complete. Channel audit complete. research/decoupling-audit.md is the running log. Key fixes: fetchTenantData/getVoiceConfig canonical extraction → _tenant-data.js; speech pace now persists to Vapi assistants; support chat m.text bug fixed; Gemini phantom entry removed from element registry; SIGNAL_TYPES validation added; markReviewed preview guard added (Sentry); e.resource?.status fix in Calendar (attention bar was always empty); staff skills field name corrected; processing_start_time added to customer booking insert; Sentry PIN gate flash fixed; toggleQDisplay preview guard added. Channel audit: ClientDirectory.jsx SMS draft was using mode: 'vera-chat' (no type field) — always returned { error: 'Unknown type' } silently; fixed to type: 'vera' with correct shape. All other /api/integrations (9 actions) and /api/chat (9 types) channels confirmed intact. useTenantState preview awareness verified. PortalSidebar tenantId inconsistency confirmed harmless.
+
+### 2026-06-20 (Logic trace — onboarding + upgrade path QA + 3 bug fixes)
+**Static logic trace: full portal data flow from onboarding through all upgrade paths. 8 findings. 3 bugs fixed. Deployed.**
+
+Trace covered: `Onboarding.jsx` handleFinish → `useTenantState.js` derivations → `Portal.jsx` gate booleans → `PlanSelector.jsx` → `AccountSettings.jsx` handlePlanSelect + handleSentryActivate.
+
+Findings summary:
+- **FINDING 1 (FIXED)**: Calendar onboarding path was writing `subscription_tier = 'standard'` (or 'free' for payg). `useTenantState` derives `hasAnswerProduct = true` for any non-null/non-schedule_only value, so Calendar-only tenants received full Answer portal access. **Fix:** `subscription_tier: isCalendar ? null : (payg ? 'free' : tier)`. Also corrected `calendar_tier` from deprecated `'entry'` → `'solo'`. (`Onboarding.jsx:962–964`)
+- **FINDING 2 (FIXED)**: Calendar tier upgrades via PlanSelector (AccountSettings) were not propagating to Portal. `useTenantState` only exported `setListenTier` — `setCalendarTier` was not exported. After upgrade: DB updated, AccountSettings local state updated, but Portal's `hasSchedule`/`hasScheduleMulti`/`scheduleOnly` remained stale until page refresh. **Fix:** Export `setCalendarTier` from `useTenantState`; pass as `onCalendarTierChange` prop to AccountSettings; call after DB write.
+- **FINDING 3 (FIXED)**: Same root cause for Sentry activation. `setSentryCameraLimit` not exported from `useTenantState`. Sentry tab remained locked after activation until page refresh. **Fix:** Export `setSentryCameraLimit`; pass as `onSentryChange` prop; call in `handleSentryActivate`.
+- **FINDING 4 (INFO)**: `'entry'` deprecated calendar tier ID now fixed at source (Onboarding writes 'solo'). Existing DB rows with 'entry' still work correctly — `hasSchedule = calendarTier !== 'none'` evaluates true; `hasScheduleMulti` evaluates false. No breakage.
+- **FINDING 5 (INFO)**: Answer tier upgrades go through Stripe (`handleUpgrade` → `/api/freeagent` → stripe-checkout). Stripe not active. Fails silently. Expected — no fix, logged as pending owner action.
+- **FINDING 6 (INFO)**: `listen_tier` not written at onboarding — correct. Defaults to null → 'none'. Listen is post-onboarding add-on only.
+- **FINDING 7 (FIXED — same as FINDING 2)**: `onCalendarTierChange` callback now exists.
+- **FINDING 8 (FIXED — same as FINDING 3)**: `onSentryChange` callback now exists.
+
+Files changed: `Onboarding.jsx:962–964`, `useTenantState.js:159–162`, `Portal.jsx:234,521`, `AccountSettings.jsx:948,1334,1344`. Build clean. Deployed.
+
+### 2026-06-20 (Onboarding — Calendar plan step fix)
+**Calendar onboarding path was showing Answer tier cards (£29/£49/£69/£249) instead of Calendar tier cards. Fixed and deployed.**
+- Added `CALENDAR_TIERS` constant (solo £19, small_team £29, growth £39, large_team £49).
+- Added `calendar_tier: 'solo'` to initial data state.
+- `Step5PlanSelection` now accepts `isCalendar` prop — Calendar path shows Calendar tier cards calling `update('calendar_tier', t.id)`.
+- Review summary billing line updated: Calendar path shows "Schedule {tier} · first month free".
+- `handleFinish` already correct from prior session fix. Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — PartnersReferrals.jsx — IN PROGRESS)
+**Decoupling SOP pass on `src/pages/PartnersReferrals.jsx` (Ring 2, ~660 lines). Score 35 → 18. Build clean. NOT YET DEPLOYED.**
+- 8 module-scope helpers added: `isAwaitingReciprocal`, `networkScore`, `reciprocHelpScore`, `urgentSummary`, `reciprocSummary`, `addBtnProps`, `onEnterKey`, `setupPulseModal`.
+- Component body: `urgentCount` filter now uses `isAwaitingReciprocal`; `btn` pre-computed via `addBtnProps(draft.name, adding, previewReadOnly)`; first useEffect guard `if (!user && !isPreview)` moved into `loadPartnerData` itself.
+- JSX: `networkScore` replaces nested ternary on `data-help-score` (L496); `onEnterKey(addPartner)` replaces 2 inline `onKeyDown` handlers; `btn.disabled/background/color/cursor` replaces 5 inline `||` chains + ternaries on Add button; `reciprocHelpScore` replaces nested ternary + inner filter at L545; `urgentSummary` replaces 3-branch ternary at L555-558; `reciprocSummary` replaces 3-branch ternary at L561-564; second useEffect body extracted to `setupPulseModal`.
+- **RESIDUAL: Score is 18, threshold is 15. Need 3 more points removed.**
+- All useEffect callbacks and `const` closures (addPartner, removePartner, logInbound, etc.) are scored SEPARATELY by SonarJS — they do NOT contribute to the component's 18. The 18 lives entirely in the direct body + JSX (if/ternary/&&/|| at top-level component scope).
+- **Exact remaining sources:** Direct body: `if(loading)` +1, `??isPreview` +1, ternary `referralUrl` +1 = 3. JSX: `&&strength` +1, `&&partners.length>0` ×2 +2, `partners.length===1?` +1, `!referralCode?` +1, `codeCopied?` ×4 +4, `linkCopied?` +1, `&&referralCode` +1, `adding?` +1 = 12. Subtotal 15 direct. The 3 extra must come from something not yet identified — investigate with `--rule '{"sonarjs/cognitive-complexity":["warn",0]}'` scan and look for something in the 15–18 gap.
+- **NEXT STEP: Read the scan output carefully, find the 3 missing points, make targeted edit, then build + scan + deploy.**
+
+### 2026-06-20 (Complexity Reduction SOP — PortalSidebar.jsx)
+**Decoupling SOP pass on `src/pages/PortalSidebar.jsx` (Ring 2, ~812 lines post-edit).**
+- Contract Header written: INTENT MAP (nav shell, Q health card, favourites, section expand/collapse, notif panel, bottom icon bar), REGRESSION MAP (localStorage only — no DB reads/writes), NON-OBVIOUS (scheduleOnly shows different PRODUCTS array; section state keyed per-tenantId; baseTier is a dead unused prop).
+- Three violations → zero: `PortalSidebar` 36, `renderTab` 22, `renderSectionHeader` 16.
+- **Pass 1 — `QHealthPanel`**: Extracted health score card (channelHealth double-nested map) to module-scope component. Calls `useQScore()` internally — 1 prop (`onIssueSelect`). `healthExpanded` state moved inside component. Removed from PortalSidebar: `useQScore()` call, `[healthExpanded, setHealthExpanded]` state, 62-line JSX block → 1 line call.
+- **Pass 2 — `buildSidebarProducts`**: Extracted 80-line `PRODUCTS` ternary (`scheduleOnly ? [...] : [...]`) to module-scope function. Converted `adminEmails` inline array to named const to avoid repetition. Call site: `const PRODUCTS = buildSidebarProducts({ scheduleOnly, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user })`.
+- **Pass 3 — `TabRow`**: Converted `const renderTab = (...) => (...)` closure to module-scope `function TabRow({ 11 props })`. `key` prop moved to call sites. Body copied directly from file (indent trimmed 2 spaces). Call sites: `<TabRow key={\`fav-${tab.id}\`} .../>` and `<TabRow key={tab.id} .../>`.
+- **Pass 4 — `sectionLabelColor` + `tabBg` + `tabColor`**: `renderSectionHeader` 4-way color chain → `sectionLabelColor(locked, isActive, subtle)` helper. `TabRow` 21 → ≤15 via two 3-way style helpers: `tabBg(isActive, isHovered)` and `tabColor(isActive, locked)`. All extracted closures now ≤15.
+- Final scan: **0 violations**. Build clean. Deployed.
+
+### 2026-06-20 (decoupling SOP pass — sessions 5 & 6)
+**Decoupling SOP (Zero-Web Standard) applied to Ring 1 + Ring 2 files.**
+`research/decoupling-sop.md` created: 5 Prime Directives, Three-Ring topology table, 3 SOPs (Complexity Reduction 8-step, Dead Code Deletion 4-step, API Leaf Cleanup 5-step).
+
+Files processed with Contract Header + dead code cleanup:
+- `api/greeting-generator.js` (Ring 1) — header only, already clean
+- `api/export-data.js` (Ring 1) — **bug fixed**: `data_retention_days` was missing from tenants SELECT; email footer always showed "90 days". Added to SELECT.
+- `api/stripe-webhook.js` (Ring 1) — header added; `PRICE_TO_TIER` as function (not const) noted — reads env vars at call time, intentional.
+- `api/_signals.js` (Ring 1) — header added; fire-and-forget write-sink, no changes.
+- `api/_sms.js` (Ring 1) — dead identity chain removed (third `.replace(/^\+44/, '+44')` was unreachable after digits-only normalisation).
+- `api/ground-zero.js` (Ring 2) — header added; 7 WHAT-explaining inline comments removed.
+- `api/vapi-sync.js` (Ring 2) — dead destructured params removed from `handleDemoCall` (`businessName`, `tradeContext`, `services`, `emergencyKeywords` — all unreachable after early `if (!assistantId)` return); dead ternary in log simplified.
+- `src/pages/Sentry.jsx` (Ring 2) — header added; `deleteCameraZone` dead passthrough wrapper deleted, call site updated to call `deleteZone` directly; 3 state-grouping comments, 6 section dividers, 5 JSX block comments removed.
+- `src/pages/PartnersReferrals.jsx` (Ring 2) — header added with CSS exception note (`@keyframes invitePulse` in PartnerInviteModal — unavoidable); 3 section dividers, 1 state-shape comment, 2 WHAT comments, 8 JSX block comments removed.
+
+SonarJS re-scan (threshold 15) — current highest scores:
+DataAnalytics.jsx (68, 22, 21), ListenTab.jsx (51 — newly discovered), ActivityDashboard.jsx (47, 18, 16), Calendar.jsx (37, 30, 24, 21, 17×2), PortalSidebar.jsx (36, 22, 16), PartnersReferrals.jsx load() (35), ground-zero.js generateSectorData() (56), AccountSettings.jsx (46, 18, 17), Onboarding.jsx (27, 22, 18), StaffDirectory.jsx (27, 26).
+Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — ListenTab.jsx)
+**Decoupling SOP pass on `src/pages/ListenTab.jsx` (Ring 2, 825 lines post-edit).**
+- `ListenTab` function (score 51) — extracted 3 named module-scope components: `CallListItem({ call, isSelected, onSelect, onToggleFlag })` — the per-call button card with 6 conditional branches; `EmptyStatePanel({ activeTab, search, searchQuery, tabDef })` — 4-branch empty/loading state handler; `DetailPanel({ selected, onClear, toggleFlag, transcriptRef })` — the entire right pane including "Select a call" placeholder + call detail header + 3-branch transcript rendering.
+- Score dropped 51 → 24. Remaining 24 is in filter derivation ternary chains (`effectiveFilter`, `tabCounts` forEach, `visible`) and the quick stats IIFE — stateful, no clean extraction path without fragmenting state.
+- `transcriptRef` passed as a prop to `DetailPanel` so the scroll-to-top useEffect in `ListenTab` continues to control the scrollable div.
+- The 4 `react-hooks/refs` errors are pre-existing documented false-positives (custom plugin rule, suppressed with eslint-disable-next-line comments already in the file).
+- Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — DataAnalytics.jsx)
+**Decoupling SOP pass on `src/pages/DataAnalytics.jsx` (Ring 2, 1580 lines post-edit).**
+- Contract Header written: INTENT MAP (3 tabs: performance / intelligence / outreach), REGRESSION MAP (reads only — no DB mutations), NON-OBVIOUS notes (demoPricing/demoCompetitors permanently empty, PerformanceTab shadowed IIFE, calendar_tier='none' hides intelligence/outreach tabs, activeTab force-set for schedule_only).
+- `QIntelligenceSection` (score 68) — the highest-complexity function in the entire codebase — extracted into 4 named module-scope card components: `EvaporationCard({ cancelledThisMonth, fragilityClients, hasAnswerProduct, unconvertedLeads })`, `FragilityCard({ fragilityClients })`, `SegmentsCard({ ritualCount, explorerCount, lapsedCount })`, `StaffIntelCard({ staffIntel })`. Each placed above `QIntelligenceSection` with flat explicit props, no new files.
+- `QIntelligenceSection` is now a 12-line orchestration wrapper: loading guard + insufficient-data guard + 4 component calls.
+- Post-extraction SonarJS scores: `EvaporationCard` 22 (still above threshold — 3 ternary event handlers + nested && chains in summary text), `PerformanceTab` 21 (unchanged), `DataAnalytics` 22 (unchanged). Score 68 eliminated. `QIntelligenceSection` now ≤15.
+- Also fixed: file encoding mojibake (â€", â€¦, â†') replaced with HTML entities (&mdash; &hellip; &rarr;) in new extracted functions.
+- Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — AccountSettings.jsx)
+**Decoupling SOP pass on `src/pages/AccountSettings.jsx` (Ring 2, 1471 lines post-edit).**
+- Contract Header written: INTENT MAP (self-service hub — 9 sections), REGRESSION MAP (reads tenants/memberships/staff/leads/partners; mutations to tenants/billing_events/call_logs), NON-OBVIOUS (useMemo false-positive, 42-day feedback gate, SENTRY_TIER_PRICES, billingModel payg/subscription).
+- `ProductsSection` (score 46) — 3 extractions, 3 passes:
+  - Pass 1: `SentryProductExtra({ 16 props })` extracted — PIN-edit form + tier-picker JSX (2-branch outer ternary with 4 nested ternaries in the tier-picker map). `ProductCard({ p })` extracted — product card rendering with 5 conditional style/content decisions.
+  - Pass 2: `buildProducts({ tier, calendarTier, listenTier, sentryCameraLimit, sentryTierOpen, tierInfo, sentryExtra, setShowPlanSelector, setSentryTierOpen })` extracted to module scope — the 4-object product config array with all chained ternaries for body/btn/action per product.
+- Final scores: `ProductsSection` ≤15 (eliminated from scan); `buildProducts` 26 (irreducible — 4 config objects × chained ternaries); `ProductCard` 17; `SentryProductExtra` ≤15. Original score 46 eliminated.
+- `FeedbackSection` at 18 (unchanged — 3-way ternary for done/unlocked/locked states).
+- Pre-existing false-positive: `react-hooks/purity` at line 1314 (suppressed with eslint-disable-next-line).
+- Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — Calendar.jsx)
+**Decoupling SOP pass on `src/pages/Calendar.jsx` (Ring 2, 2560 lines post-edit).**
+- Contract Header written: INTENT MAP (view/create/edit/delete bookings, staff schedules, settings, drag-and-drop, recurring series), REGRESSION MAP (reads appointments/staff/tenants/leads/clients; mutations to appointments + tenants), NON-OBVIOUS (withDragAndDrop ESM/CJS interop fallback, recurring batch insert, previewReadOnly gates all mutations).
+- **Pass 1 — `RecurringSeriesSection` extraction**: `renderFormPanel` (score 37) — extracted the 40-line `{panelMode === 'create' && ...}` recurring series block into `RecurringSeriesSection({ panelMode, repeatType, repeatCount, onRepeatTypeChange, onRepeatCountChange })`. Score 37 → 16.
+- **Pass 2 — `FormPanelFooter` extraction**: Extracted 16-line footer action bar (`Delete` / `Cancel` / `Save` buttons) into `FormPanelFooter({ panelMode, previewReadOnly, saving, repeatType, repeatCount, handleDelete, handleSave, setPanelMode, closePanel })`. Score 16 → ≤15 ✓. `renderFormPanel` eliminated from SonarJS scan.
+- **Pass 3 — `REPEAT_LABELS` lookup fix**: `RecurringSeriesSection` came out at score 22 due to 6-branch nested ternary chain in description text. Replaced with module-scope `const REPEAT_LABELS = { daily, weekly, fortnightly, 3weekly, monthly, 6weekly }` and `{REPEAT_LABELS[repeatType] ?? ''}`. Score 22 → ≤15 ✓.
+- Final scan: `renderFormPanel` ≤15 ✓, `RecurringSeriesSection` ≤15 ✓, `FormPanelFooter` ≤15 ✓. Remaining pre-existing violations: 119:17, 831:30, 897:21, 1237:17, 1657:24 — all present before this session.
+- Build clean. Deployed.
+
+### 2026-06-20 (Complexity Reduction SOP — ActivityDashboard.jsx)
+**Decoupling SOP pass on `src/pages/ActivityDashboard.jsx` (Ring 2, 2103 lines post-edit).**
+- `computePerfMood(callsThisMonth)` extracted to module scope (was inline 18-line const block): returns `{ mood, reason, tip }` from 3 chained ternary sets. Module-scope score 22 (3-deep nested ternaries are inherently complex; extraction is the ceiling).
+- `submitQuickCapture({ tenantId, previewReadOnly, qcName, qcPhone, qcNotes, qcOutcome, setQcSaving, setLeads, setCalls, setQcName, setQcPhone, setQcNotes, setQcOutcome, setQuickCaptureOpen })` extracted to module scope (was 50-line async function inside component): full caller upsert + call_log insert + conditional leads insert. Module-scope score ≤15 (not flagged).
+- Inside `ActivityDashboard`, replaced with: `const { mood: perfMood, reason: perfReason, tip: perfTip } = computePerfMood(callsThisMonth)` and `const handleSubmit = () => submitQuickCapture({ ... 14 flat params })`.
+- `ActivityDashboard` score: **47 → 25**. Remaining 25 lives in JSX render tree (mobile tile system, readiness checklist, alert computations) — no clean extraction path without fragmenting state.
+- Pre-existing lines 1020 (score 16) and 1226 (score 18) within file are separate named functions — separately reducible in a future pass.
+- Build clean. Deployed.
+
+### 2026-06-20 (third-party audit pass)
+**Tool 1 — Dependency Cruiser:** No circular dependencies. No API→frontend boundary violations. 3 page-to-page imports all intentional (AccountSettings→PlanSelector, AIBehaviour→AIFoundation, Calendar→CalendarIntelligence). 1 genuine dead code file: `src/components/QBotIcon.jsx` — confirmed unreachable (still present, not yet deleted). 4 orphaned API files (freeagent.js, greeting-generator.js, ground-zero.js, stripe-webhook.js) confirmed as HTTP endpoints, not dead code.
+**Tool 2 — SonarJS (eslint-plugin-sonarjs):** 52 cognitive complexity violations (threshold 15) across 14 files. User instructed precision strike on top 2 only:
+- `src/pages/DataAnalytics.jsx`: `QIntelligenceSection` score 68 — extracted two inline onClick handlers to named module-scope functions (`openEvaporationQ`, `openFragilityQ`). Fixed latent props bug: `hasAnswerProduct` and `unconvertedLeads` were used inside `QIntelligenceSection` without being in its props. Score remains 68 — handler extraction reduced inline size but card-by-card conditional rendering is the main driver; further extraction needed to push score below 15.
+- `src/pages/Sentry.jsx`: `renderPanel` score 55 — extracted 5 named inner functions within `SentryTab` body (`renderStationsPanel`, `renderStaffPanel`, `renderCamerasPanel`, `renderActivityPanel`, `renderVariancesPanel`). `renderPanel` becomes 7-line dispatch. Score dropped: `renderPanel` violation gone; `SentryTab` now reads 20 overall; one sub-function at line 440 reads 17. Significant improvement.
+- 187 duplicate string warnings: not actionable — consequence of no-CSS-variables rule.
+- Remaining high-risk files not yet touched: `DataAnalytics.jsx` (score 68), plus lines 678 (21) and 923 (22) in same file.
+**Tool 3 — PlantUML architectural map:** Written to `research/architecture.puml`. Covers: auth + tenancy pattern, frontend direct DB access (anon key + RLS), API proxy routes, inbound telephony flow (Vapi→vapi-webhook→DB+notifications), Q AI flow, CalDAV sync, Stripe billing cycle, admin/owner tools. Key finding: Stripe billing infrastructure (freeagent.js + stripe-webhook.js) is already wired — no new tables needed for Checkout. Accounts view can read from existing tables. Full map ready as Checkout/Accounts blueprint.
+Build clean. Deployed.
+
+### 2026-06-19 (session 4 — Phase 3 re-audit)
+Re-ran decoupling audit across all 7 components post Phase 2.
+- **Calendar.jsx additional fix**: `filteredStaff(serviceId)` was comparing a UUID against `specialist_services` array of service NAMES — so staff with specialist services assigned were always excluded from the dropdown when any service was selected. Fixed by resolving service name via `catalogue.find(c => c.id === serviceId)?.name` before filtering. Staff qualification filtering now works end-to-end.
+- **Portal.jsx gating re-verified**: `hasSchedule = calendarTier !== 'none'` flows correctly through all sidebar locks, lockedProduct intercepts, and scheduleOnly path after Phase 2 calendarTier default fix.
+- **API components 1–3**: no drift. All confirmed clean.
+- **decoupling-audit.md** updated with Phase 2 and Phase 3 findings for Component 5. Build passes. Deployed.
+
+### 2026-06-19 (session 3 — Phase 2 tenant journey simulation)
+Journey trace: Signup → Onboarding → Portal/useTenantState → BusinessProfile → StaffDirectory → ServiceCatalogue → Calendar → PartnersReferrals → AccountSettings → BookingPage → ActivityDashboard → DataAnalytics → BusinessTab → ClientDirectory. Findings and fixes:
+- **Onboarding.jsx bug fixed**: `calendar_tier: isCalendar ? 'entry' : 'entry'` — both branches were identical, granting calendar access to Answer-only tenants. Fixed to `'none'` for Answer-only.
+- **useTenantState.js bug fixed**: `calendarTier` fallback was `|| 'entry'` on both the initial load and preview reload branches. Fixed to `|| 'none'` (correct default when column is null).
+- **Calendar.jsx field name fix**: `staff_profiles` select was fetching `skills` column (doesn't exist) instead of `specialist_services`. Fixed on SELECT and all three access points (display chips + filteredStaff function). Staff qualification filtering was silently returning no skills for any staff member.
+- **CLAUDE-SCHEMA.md corrections**: (a) `staff_profiles`: `tags text[]` → corrected to `specialist_services text[]` + added missing columns (`email`, `address`, `birthday`, `direct_line_did`, `private_notes`, `active`). (b) `call_logs`: `outcome` → corrected to `call_outcome` (code was consistent, schema doc was wrong) + added `caller_phone`, `ai_summary`. (c) `catalogue_items`: added `colour varchar(7)` (British English, used by ServiceCatalogue). Build passes, deployed.
+
+### 2026-06-19 (session 2)
+Cyclomatic complexity pass — all functions in src/ and api/ now below 49 (ESLint threshold). Files fixed this session:
+- DataAnalytics.jsx: DAY_LABELS + OUTCOME_META moved to module scope; PerformanceTab, QIntelligenceSection, OutreachSection already at module scope from prior session.
+- HelpMascot.jsx: VeraStrip + QCoachingPanel extracted to module scope.
+- StaffDirectory.jsx: StaffDetailPanel (incl. field/lbl/inp helpers) extracted to module scope.
+- Calendar.jsx: EMPTY_SVC to module scope; buildAndInsertAppointments + QuickAccessDrawers extracted.
+- PartnersReferrals.jsx: OverlapWarning, PartnerRows, PartnerInviteModal, KpiTiles extracted to module scope.
+- AIBehaviour.jsx: applyTenantData() extracted to module scope (was 52-complexity load function; now ~12).
+- BusinessTab.jsx, ClientDirectory.jsx, ServiceCatalogue.jsx: all already below 49 on recheck.
+Build passes. Full ESLint scan: zero complexity warnings. Deployed.
 
 ### 2026-06-18
 Voice ID fix (complete): vapi-assistant-request.js `aura-luna-en`→`luna`, `aura-stella-en`→`stella` (lines 27, 32, 608). vapi-sync.js sales demo outbound `aura-luna-en`→`luna`. All Deepgram endpoints now use correct short-form IDs. Deployed.
@@ -131,6 +283,9 @@ Q Intelligence tab added to DataAnalytics.jsx: Revenue Evaporation, At-Risk Clie
    ~~**Onboarding partners/refer_out removal**~~ — DONE 2026-06-19.
    ~~**Booking flow rewrite**~~ — DONE 2026-06-19. Phorest-style, client auth gate, My Bookings tab.
    ~~**Decoupling audit (7 components + channel audit)**~~ — DONE 2026-06-19. All findings fixed. Channel audit complete.
+   ~~**Phase 2: Tenant journey simulation**~~ — DONE 2026-06-19. Full trace Signup→Onboarding→Portal→all tabs. 3 bugs fixed, 3 schema doc corrections.
+   ~~**Phase 3: Re-run decoupling audit**~~ — DONE 2026-06-19. Additional Calendar.jsx fix: filteredStaff UUID→name mismatch; gating re-verified; all API components clean.
+   ~~**Third-party audit pass (Dependency Cruiser, SonarJS, PlantUML)**~~ — DONE 2026-06-20. Full audit log below. research/architecture.puml written.
    **Known gap (onboarding)**: `?sector=` param from end-demo modal is not consumed by Signup.jsx or Onboarding.jsx. Onboarding subcategory pre-fill requires string→UUID matching against business_type_subcategories table — non-trivial. Flag for future session.
    **Pending (onboarding)**: Plan step redesign — bullet-point feature list per tier, reorder (commit → tiers → PAYG). Needs Philip to supply tier bullet points. PAYG message: "PAYG clients pay a higher per minute charge…"
    **Pending (onboarding)**: Website scraping fix for https://www.expressionsofbeauty.co.uk/ ("scraping not configured").

@@ -754,13 +754,20 @@ const Step0Website = ({ data, update }) => {
 // ─── step 5 — plan selection ──────────────────────────────────────────────────
 
 const PLAN_TIERS = [
-  { id: 'light',        name: 'Light',        price: '£29', minutes: '120 Premium minutes/month' },
-  { id: 'standard',     name: 'Standard',     price: '£49', minutes: '250 Premium minutes/month' },
-  { id: 'professional', name: 'Professional', price: '£69', minutes: '450 Premium minutes/month' },
+  { id: 'light',        name: 'Light',        price: '£29',  minutes: '120 Premium minutes/month' },
+  { id: 'standard',     name: 'Standard',     price: '£49',  minutes: '250 Premium minutes/month' },
+  { id: 'professional', name: 'Professional', price: '£69',  minutes: '450 Premium minutes/month' },
   { id: 'enterprise',   name: 'Enterprise',   price: '£249', minutes: '1,000 Premium minutes/month' },
 ]
 
-const Step5PlanSelection = ({ data, update }) => {
+const CALENDAR_TIERS = [
+  { id: 'solo',       name: 'Solo',       price: '£19', desc: '1 staff column · 250 messages/month' },
+  { id: 'small_team', name: 'Small Team', price: '£29', desc: '4 staff columns · 500 messages/month' },
+  { id: 'growth',     name: 'Growth',     price: '£39', desc: '8 staff columns · 1,000 messages/month' },
+  { id: 'large_team', name: 'Large Team', price: '£49', desc: '20 staff columns · 2,000 messages/month' },
+]
+
+const Step5PlanSelection = ({ data, update, isCalendar = false }) => {
   const billingModel    = data.billing_model || 'subscription'
   const selectedTier    = data.subscription_tier || 'standard'
   const costLimit       = data.monthly_cost_limit ?? 20
@@ -794,6 +801,28 @@ const Step5PlanSelection = ({ data, update }) => {
       </div>
     </button>
   )
+
+  if (isCalendar) {
+    const selectedCalTier = data.calendar_tier || 'solo'
+    return (
+      <div>
+        <h2 style={heading}>Choose your schedule plan</h2>
+        <p style={sub}>All plans include unlimited bookings. First month free — subscription starts in month 2.</p>
+        {CALENDAR_TIERS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => update('calendar_tier', t.id)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.75rem 1rem', marginBottom: '0.4rem', borderRadius: '8px', border: selectedCalTier === t.id ? '2px solid #5e3b87' : '1px solid rgba(94,59,135,0.12)', background: selectedCalTier === t.id ? '#f0ebf8' : 'white', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left' }}
+          >
+            <span style={{ fontWeight: '600', fontSize: '0.875rem', color: selectedCalTier === t.id ? '#5e3b87' : '#1a1a1a' }}>{t.name}</span>
+            <span style={{ fontSize: '0.8rem', color: '#888' }}>{t.desc}</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9rem', color: selectedCalTier === t.id ? '#5e3b87' : '#1a1a1a', flexShrink: 0 }}>{t.price}<span style={{ fontWeight: 400, fontSize: '0.75rem', color: '#aaa' }}>/mo</span></span>
+          </button>
+        ))}
+        <p style={{ ...hint, marginTop: '0.625rem' }}>Cancel any time.</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -922,6 +951,7 @@ const Onboarding = () => {
     scrapedCatalogue: [],
     billing_model: 'subscription',
     subscription_tier: 'standard',
+    calendar_tier: 'solo',
     monthly_cost_limit: 20,
     websiteUrl: '',
   })
@@ -959,9 +989,9 @@ const Onboarding = () => {
         business_outcome_type: isCalendar ? 'booked' : (data.business_outcome_type || 'quote'),
         referral_code: referralCode,
         billing_model: data.billing_model || 'subscription',
-        subscription_tier: data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard'),
+        subscription_tier: isCalendar ? 'schedule_only' : (data.billing_model === 'payg' ? 'free' : (data.subscription_tier || 'standard')),
         monthly_cost_limit: data.billing_model === 'payg' ? (data.monthly_cost_limit || 20) : null,
-        calendar_tier: isCalendar ? 'entry' : 'entry',
+        calendar_tier: isCalendar ? (data.calendar_tier || 'solo') : 'none',
         active: true,
       })
       .select()
@@ -1154,7 +1184,7 @@ const Onboarding = () => {
             subOverride="List your bookable services — e.g. Haircut, Consultation, 60-min massage."
           />
         )}
-        {data.product === 'calendar' && step === 3 && <Step5PlanSelection data={data} update={update} />}
+        {data.product === 'calendar' && step === 3 && <Step5PlanSelection data={data} update={update} isCalendar />}
 
         {/* ── Shared: review & launch ─────────────────────────────────────── */}
         {(
@@ -1176,7 +1206,7 @@ const Onboarding = () => {
                 { label: "Won't touch",   value: data.wont_touch },
               ] : []),
               { label: data.product === 'calendar' ? 'Appointment types' : 'Services', value: data.services.filter(s => s.service_name.trim()).map(s => s.service_name).join(', ') },
-              { label: 'Billing', value: data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },
+              { label: 'Billing', value: data.product === 'calendar' ? `Schedule ${(data.calendar_tier || 'solo').replace('_', ' ')} · first month free` : data.billing_model === 'payg' ? `Pay as you go · £${data.monthly_cost_limit}/month limit` : `${(data.subscription_tier || 'standard').charAt(0).toUpperCase() + (data.subscription_tier || 'standard').slice(1)} plan · first month free` },
             ].filter(item => item.value).map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(94,59,135,0.06)' }}>
                 <span style={{ fontSize: '0.8rem', color: '#aaa', flexShrink: 0, marginRight: '1rem' }}>{item.label}</span>

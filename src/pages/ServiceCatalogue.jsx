@@ -41,7 +41,7 @@ const ServiceCatalogue = () => {
   const [addOpen, setAddOpen] = useState(false)
   const [colourSaving, setColourSaving] = useState(null)
   const [colourPickerOpenId, setColourPickerOpenId] = useState(null)
-  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[0] })
+  const [draft, setDraft] = useState({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[0], staff_names: '' })
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [notesDrafts, setNotesDrafts] = useState({})
@@ -106,13 +106,14 @@ const ServiceCatalogue = () => {
       price_to: draft.price_to ? parseFloat(draft.price_to) : null,
       duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes) : null,
       colour: nextColour,
+      staff_names: draft.staff_names.trim() || null,
       active: true,
     }).select().maybeSingle()
     setSaving(false)
     if (!error && data) {
       const newItems = [...items, data].sort((a, b) => a.name.localeCompare(b.name))
       setItems(newItems)
-      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[newItems.length % PALETTE.length] })
+      setDraft({ name: '', description: '', price_from: '', price_to: '', duration_minutes: '', colour: PALETTE[newItems.length % PALETTE.length], staff_names: '' })
       setAddOpen(false)
       showToast('Service added.')
       window.dispatchEvent(new Event('qscore-refresh'))
@@ -227,6 +228,10 @@ const ServiceCatalogue = () => {
             <input value={draft.description} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} placeholder="Brief description for the AI to quote on calls…" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '7px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', color: '#1a1a1a' }} />
           </div>
           <div style={{ marginBottom: '0.65rem' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.3rem' }}>Staff who do this</label>
+            <input value={draft.staff_names} onChange={e => setDraft(p => ({ ...p, staff_names: e.target.value }))} placeholder="e.g. Sarah, James (leave blank if any staff)" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid rgba(94,59,135,0.2)', borderRadius: '7px', fontSize: '0.85rem', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', color: '#1a1a1a' }} />
+          </div>
+          <div style={{ marginBottom: '0.65rem' }}>
             <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.4rem' }}>Calendar colour</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
               {PALETTE.map(c => (
@@ -273,6 +278,7 @@ const ServiceCatalogue = () => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
                   {item.description && <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.15rem', lineHeight: 1.4 }}>{item.description}</div>}
+                  {item.staff_names && <div style={{ fontSize: '0.72rem', color: '#5e3b87', marginTop: '0.15rem' }}>Staff: {item.staff_names}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexShrink: 0 }}>
                   {item.duration_minutes && <span style={{ fontSize: '0.78rem', color: '#5e3b87', background: '#f0ebf8', borderRadius: '4px', padding: '0.15rem 0.5rem' }}>{item.duration_minutes} min</span>}

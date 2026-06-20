@@ -1,3 +1,74 @@
+﻿/*
+ * AUTHOR: AI agent under direction of Philip Keating (Qerxel founder)
+ * VISION: AI call-handling portal for UK sole traders. Every mutation is guarded.
+ *
+ * FILE: src/pages/DataAnalytics.jsx
+ * TOPOLOGY RING: 2 — Contained (1 caller: Portal.jsx)
+ *
+ * INTENT MAP:
+ *   Analytics hub — 3 sub-tabs gated by tenant tier and calendar presence.
+ *   Tab "performance": headline KPIs (total calls, lead capture %, avg duration),
+ *     outcome breakdown tiles, recommendation card, 4 enterprise feature cards
+ *     (Pricing Intelligence, Call Outcome, Caller Patterns, Competitor Intelligence).
+ *     Feature cards show live data at enterprise tier; locked preview otherwise.
+ *   Tab "intelligence": Q's automatic business analysis from appointment data —
+ *     Revenue Evaporation (cancellations + unconverted leads), At-Risk Clients
+ *     (fragility index: 2+ cancels in 90 days), Client Segments (Ritual/Explorer/Lapsed),
+ *     Staff Intelligence (90-day rebook rate per team member). Requires calendar data.
+ *   Tab "outreach": segmented contact lists for targeted re-engagement —
+ *     Callback Overdue, Called Never Booked, Lapsed 90+ days, No-shows, Loyal clients.
+ *     Requires Solo+ tier.
+ *   Drill panels: modal breakdowns for Calls, Leads, Duration. Lead drill includes
+ *     a neutral AI-written diagnosis with nav actions.
+ *
+ * REGRESSION MAP
+ *   INPUTS/PARAMS:
+ *     onNavigate(tab) — Portal tab-switch callback (used in reco buttons and drill actions)
+ *
+ *   EXTERNAL READS (Supabase):
+ *     tenant_memberships → tenant_id for current user (non-preview)
+ *     tenants            → subscription_tier, calendar_tier
+ *     call_logs          → id, created_at, duration_seconds, call_outcome (limit 5000)
+ *     leads              → id, status (all-time)
+ *     appointments       → intelligence tab: id, client_name, client_phone,
+ *                          appointment_type, start_time, status, staff_profile_id (365-day window)
+ *     staff_profiles     → intelligence tab: id, name, colour (active only)
+ *     call_logs          → outreach tab: caller_phone, caller_name, callback_flagged,
+ *                          created_at (limit 2000)
+ *     appointments       → outreach tab: client_phone, client_name, status, start_time (limit 3000)
+ *
+ *   MUTATIONS / DB: NONE — this page is entirely read-only.
+ *
+ *   OUTPUTS / EMITS:
+ *     onNavigate(tab)    — called from reco buttons and drill panel action buttons
+ *     document.dispatchEvent('q-open-dialogue') — dispatched by openEvaporationQ and
+ *       openFragilityQ to open the Q bot dialogue (HelpMascot listener). Non-obvious
+ *       coupling: no direct import, fires on document as a CustomEvent.
+ *
+ * NON-OBVIOUS:
+ *   demoPricing and demoCompetitors are permanently useState([]) with no setter exposed
+ *   to any load path — enterprise Pricing Intelligence and Competitor Intelligence cards
+ *   will always show "Data will populate from your call history." until this is wired.
+ *
+ *   PerformanceTab contains an IIFE at its top that redeclares rateColor, rateBg,
+ *   rateLabel, bookedCount, referredOutCount, filteredCount — these shadow identical
+ *   declarations at the PerformanceTab function scope. The outer declarations are dead.
+ *
+ *   activeTab is force-set to 'intelligence' when subscription_tier === 'schedule_only':
+ *   schedule-only tenants have no answer product, so the performance tab would be empty.
+ *
+ *   calendar_tier === 'none' hides the Q Intelligence and Outreach tabs entirely
+ *   (hasSchedule gate).
+ *
+ * IN-FILE PRIME DIRECTIVES:
+ *   1. Never create new files to house extracted logic. Keep it in this file.
+ *   2. Run a regression map before every single future edit.
+ *   3. No CSS, no CSS variables, inline styles only if layout is touched.
+ *   4. Every database mutation must keep its save guard (if applicable).
+ *   5. Clean Slate Rule: If complex nesting or multi-path drift occurs, the engineer
+ *      must rebuild this module from a blank canvas. No patching.
+ */
+
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -13,7 +84,7 @@ const useIsMobile = () => {
   return m
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const fmtDuration = (secs) => {
   if (!secs) return '0m'
@@ -25,7 +96,7 @@ const fmtDuration = (secs) => {
 const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0)
 
 const fmtAgo = (iso) => {
-  if (!iso) return '—'
+  if (!iso) return 'â€”'
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
   if (d === 0) return 'today'
   if (d === 1) return 'yesterday'
@@ -35,7 +106,7 @@ const fmtAgo = (iso) => {
   return `${Math.round(d / 365)}yr ago`
 }
 
-// ─── styles ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const s = {
   headlineGrid: {
@@ -245,7 +316,7 @@ const s = {
   },
 }
 
-// ─── locked card wrapper ──────────────────────────────────────────────────────
+// â”€â”€â”€ locked card wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const LockedCard = ({ title, desc, previewContent, helpText }) => (
   <div style={s.featureCard} data-help={helpText}>
@@ -266,11 +337,11 @@ const LockedCard = ({ title, desc, previewContent, helpText }) => (
   </div>
 )
 
-// ─── preview content for locked cards ────────────────────────────────────────
+// â”€â”€â”€ preview content for locked cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PricingPreview = () => (
   <div>
-    {[['Boiler service', '£120–£180', '62%'], ['Emergency callout', '£200–£350', '81%'], ['Annual service', '£90–£130', '44%']].map(([svc, range, win]) => (
+    {[['Boiler service', 'Â£120â€“Â£180', '62%'], ['Emergency callout', 'Â£200â€“Â£350', '81%'], ['Annual service', 'Â£90â€“Â£130', '44%']].map(([svc, range, win]) => (
       <div key={svc} style={s.previewRow}>
         <span>{svc}</span>
         <span style={{ color: '#5e3b87', fontWeight: 600 }}>{range}</span>
@@ -305,13 +376,13 @@ const PatternPreview = () => {
   const intensities = [0.2, 0.4, 0.7, 0.9, 0.8, 0.5, 0.1]
   return (
     <div>
-      <div style={{ fontSize: '0.725rem', color: '#bbb', marginBottom: 8 }}>Mon → Sun · peak highlighted</div>
+      <div style={{ fontSize: '0.725rem', color: '#bbb', marginBottom: 8 }}>Mon â†’ Sun Â· peak highlighted</div>
       <div style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
         {intensities.map((v, i) => (
           <div key={i} style={s.patternCell(v)} />
         ))}
       </div>
-      <div style={{ fontSize: '0.775rem', color: '#555' }}>Peak: Tue–Thu, 9am–12pm</div>
+      <div style={{ fontSize: '0.775rem', color: '#555' }}>Peak: Tueâ€“Thu, 9amâ€“12pm</div>
     </div>
   )
 }
@@ -327,7 +398,7 @@ const CompetitorPreview = () => (
   </div>
 )
 
-// ─── live card content (Enterprise) ──────────────────────────────────────────
+// â”€â”€â”€ live card content (Enterprise) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const LiveCard = ({ title, desc, children, helpText }) => (
   <div style={s.featureCard} data-help={helpText}>
@@ -339,7 +410,7 @@ const LiveCard = ({ title, desc, children, helpText }) => (
   </div>
 )
 
-// ─── outreach contact row ─────────────────────────────────────────────────────
+// â”€â”€â”€ outreach contact row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ContactRow = ({ contact, signal, isLast }) => {
   const [copied, setCopied] = useState(false)
@@ -369,7 +440,7 @@ const ContactRow = ({ contact, signal, isLast }) => {
   )
 }
 
-// ─── drill-down panel ────────────────────────────────────────────────────────
+// â”€â”€â”€ drill-down panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const drillLabel = {
   fontSize: '0.6875rem', fontWeight: 700, color: '#aaa',
@@ -385,7 +456,7 @@ const DrillPanel = ({ title, onClose, children }) => (
     <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '660px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.28)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.5rem', borderBottom: '1px solid rgba(94,59,135,0.08)', flexShrink: 0 }}>
         <h2 style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontSize: '1rem', fontWeight: 700, color: '#1a1a1a' }}>{title}</h2>
-        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: '#f3f1f6', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#5e3b87', fontWeight: 700, lineHeight: 1, flexShrink: 0 }}>×</button>
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: '#f3f1f6', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', color: '#5e3b87', fontWeight: 700, lineHeight: 1, flexShrink: 0 }}>Ã—</button>
       </div>
       <div style={{ overflowY: 'auto', padding: '1.5rem', flex: 1 }}>
         {children}
@@ -394,7 +465,546 @@ const DrillPanel = ({ title, onClose, children }) => (
   </div>
 )
 
-// ─── main component ───────────────────────────────────────────────────────────
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const OUTCOME_META = {
+  booked:        { label: 'Booked',       color: '#5e3b87' },
+  lead_captured: { label: 'Lead captured', color: '#3db87a' },
+  referred_out:  { label: 'Referred out', color: '#1d4ed8' },
+  filtered:      { label: 'Filtered',     color: '#d1d5db' },
+  escalated:     { label: 'Escalated',    color: '#ef4444' },
+  hard_close:    { label: 'Closed',       color: '#d1d5db' },
+  spam:          { label: 'Spam',         color: '#d1d5db' },
+  unknown:       { label: 'Other',        color: '#e5e7eb' },
+}
+
+
+
+
+function OutreachSection({ outreachLoading, isLightTier, OUTREACH_SEGS, outreachSegment, setOutreachSegment, onNavigate }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
+        Outreach
+      </div>
+      <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+        Your contacts sorted by who most needs to hear from you. Pick a segment and start working through it.
+      </div>
+  
+      {outreachLoading ? (
+        <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Loading contactsâ€¦</div>
+      ) : isLightTier ? (
+        <div style={{ background: '#faf9fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.1)' }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Solo+</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.4rem' }}>Outreach requires a paid plan</div>
+          <div style={{ fontSize: '0.8125rem', color: '#888' }}>Upgrade to Solo or above to see your segmented contact lists.</div>
+        </div>
+      ) : (
+        <>
+          {/* Segment pills */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            {OUTREACH_SEGS.map(seg => (
+              <button
+                key={seg.id}
+                onClick={() => setOutreachSegment(seg.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.8rem', borderRadius: 20, border: outreachSegment === seg.id ? `1.5px solid ${seg.color}` : '1.5px solid rgba(0,0,0,0.1)', background: outreachSegment === seg.id ? seg.bg : 'white', color: outreachSegment === seg.id ? seg.color : '#888', fontFamily: "'DM Sans', sans-serif", fontSize: '0.8rem', fontWeight: outreachSegment === seg.id ? 700 : 400, cursor: 'pointer' }}
+              >
+                {seg.label}
+                <span style={{ background: outreachSegment === seg.id ? seg.color : '#e5e7eb', color: outreachSegment === seg.id ? 'white' : '#666', borderRadius: 10, padding: '0.05rem 0.45rem', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.6 }}>
+                  {seg.contacts.length}
+                </span>
+              </button>
+            ))}
+          </div>
+  
+          {/* Contact list */}
+          {(() => {
+            const seg = OUTREACH_SEGS.find(s => s.id === outreachSegment)
+            if (!seg) return null
+  
+            if (seg.contacts.length === 0) {
+              return (
+                <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
+                  <div style={{ fontSize: '0.875rem', color: '#888' }}>No contacts in this segment right now.</div>
+                </div>
+              )
+            }
+  
+            return (
+              <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.06)', background: '#faf9fc' }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a' }}>{seg.label}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#aaa' }}>{seg.contacts.length} contact{seg.contacts.length !== 1 ? 's' : ''}</div>
+                </div>
+                <div style={{ maxHeight: 440, overflowY: 'auto' }}>
+                  {seg.contacts.map((c, i) => (
+                    <ContactRow
+                      key={`${seg.id}-${c.phone}-${i}`}
+                      contact={c}
+                      signal={seg.signal(c)}
+                      isLast={i === seg.contacts.length - 1}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+        </>
+      )}
+    </div>
+  )
+}
+
+function openEvaporationQ(cancelledThisMonth, fragilityClients, e) {
+  const n = cancelledThisMonth.length
+  const atRisk = fragilityClients.length
+  document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+    zoneText: `Revenue Evaporation: ${n} appointment${n !== 1 ? 's' : ''} cancelled this month. ${atRisk > 0 ? `${atRisk} client${atRisk !== 1 ? 's' : ''} have cancelled 2+ times in 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}.` : 'No repeat-cancellation clients flagged.'} Look at patterns, root causes, and what the portal offers to reduce this.`,
+    zoneName: `${n} cancelled this month`,
+    tabName: 'Analytics',
+    rect: e.currentTarget.getBoundingClientRect(),
+    initialBotMessage: `I can see ${n} appointment${n !== 1 ? 's were' : ' was'} cancelled this month${atRisk > 0 ? `, and ${atRisk} client${atRisk !== 1 ? 's are' : ' is'} showing repeat cancellations` : ''}. Shall I look at what might be driving this and what you can do about it?`,
+  }}))
+}
+
+function openFragilityQ(fragilityClients, e) {
+  const n = fragilityClients.length
+  document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
+    zoneText: `At-Risk Clients (Fragility Index): ${n} client${n !== 1 ? 's have' : ' has'} cancelled 2 or more times in the last 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}. Repeated cancellations are an early warning sign before a client stops booking entirely. Advise on specific retention options available in the portal.`,
+    zoneName: `${n} at-risk client${n !== 1 ? 's' : ''}`,
+    tabName: 'Analytics',
+    rect: e.currentTarget.getBoundingClientRect(),
+    initialBotMessage: `${n} client${n !== 1 ? 's are' : ' is'} showing repeat cancellations — this is often the first sign of a drifting relationship. Shall I look at what might help retain them?`,
+  }}))
+}
+
+function EvaporationCard({ cancelledThisMonth, fragilityClients, hasAnswerProduct, unconvertedLeads }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Revenue Evaporation</div>
+        <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Where bookings slipped away this month</div>
+      </div>
+      <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div
+          style={{ flex: 1, background: '#fff5f5', borderRadius: 10, padding: '0.75rem', textAlign: 'center', cursor: cancelledThisMonth.length > 0 ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
+          onClick={cancelledThisMonth.length > 0 ? e => openEvaporationQ(cancelledThisMonth, fragilityClients, e) : undefined}
+          onMouseEnter={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = '0 0 0 2px #ef444440' } : undefined}
+          onMouseLeave={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = 'none' } : undefined}
+        >
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#ef4444' }}>{cancelledThisMonth.length}</div>
+          <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>cancelled this month</div>
+          {cancelledThisMonth.length > 0 && <div style={{ fontSize: '0.6rem', color: '#ef4444', marginTop: 4, fontWeight: 600 }}>Ask Q &rarr;</div>}
+        </div>
+        {hasAnswerProduct && (
+          <div style={{ flex: 1, background: '#fff8f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#f0a500' }}>{unconvertedLeads}</div>
+            <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>leads not converted</div>
+          </div>
+        )}
+      </div>
+      {cancelledThisMonth.length === 0 && (!hasAnswerProduct || unconvertedLeads === 0) ? (
+        <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500 }}>No evaporation to report this month. Good work.</div>
+      ) : (
+        <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+          {cancelledThisMonth.length > 0 && (
+            <span>
+              {cancelledThisMonth.length} appointment{cancelledThisMonth.length !== 1 ? 's' : ''} cancelled this month.
+              {"That's time in your diary that didn't earn."}{' '}
+            </span>
+          )}
+          {hasAnswerProduct && unconvertedLeads > 0 && (
+            <span>
+              {unconvertedLeads} lead{unconvertedLeads !== 1 ? 's' : ''} came in and {"didn't"} convert to a booking.
+              Worth reviewing those caller notes.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FragilityCard({ fragilityClients }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div
+        style={{ cursor: fragilityClients.length > 0 ? 'pointer' : 'default' }}
+        onClick={fragilityClients.length > 0 ? e => openFragilityQ(fragilityClients, e) : undefined}
+      >
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          At-Risk Clients
+          {fragilityClients.length > 0 && <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#f0a500', cursor: 'pointer' }}>Ask Q &rarr;</span>}
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#aaa' }}>{"Clients who've cancelled 2+ times in 90 days"}</div>
+      </div>
+      {fragilityClients.length === 0 ? (
+        <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500, paddingTop: '0.25rem' }}>
+          No clients showing repeat cancellations right now.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {fragilityClients.map((c, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.6rem', background: '#fef9f0', borderRadius: 8 }}>
+                <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{c.name}</span>
+                <span style={{ fontSize: '0.72rem', color: '#f0a500', fontWeight: 700, background: '#fde68a', borderRadius: 8, padding: '0.1rem 0.45rem' }}>
+                  {c.cancels} cancel{c.cancels !== 1 ? 's' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+            Repeated rescheduling is the earliest sign of a drifting relationship &mdash; often before a client stops booking altogether.
+            A personal message to each of these clients costs nothing.
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function SegmentsCard({ ritualCount, explorerCount, lapsedCount }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Client Segments</div>
+        <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Your clients grouped by how they actually behave</div>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {[
+          { label: 'Ritual', count: ritualCount, bg: '#f0f4ff', col: '#1d4ed8' },
+          { label: 'Explorer', count: explorerCount, bg: '#f0fdf4', col: '#16a34a' },
+          { label: 'Lapsed', count: lapsedCount, bg: '#fff8f0', col: '#f0a500' },
+        ].map(seg => (
+          <div key={seg.label} style={{ flex: 1, background: seg.bg, borderRadius: 10, padding: '0.75rem 0.6rem', textAlign: 'center' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.4rem', color: seg.col }}>{seg.count}</div>
+            <div style={{ fontSize: '0.7rem', color: seg.col, fontWeight: 600, marginTop: 2 }}>{seg.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        {ritualCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#1d4ed8' }}>Ritual</span> &mdash; loyal and schedule-sensitive. Avoid changing their usual slot without warning.</div>}
+        {explorerCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#16a34a' }}>Explorer</span> &mdash; trying different services. Good candidates for new offerings.</div>}
+        {lapsedCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#f0a500' }}>Lapsed</span> &mdash; gone quiet but not gone. A message referencing their last visit often works.</div>}
+        {ritualCount === 0 && explorerCount === 0 && lapsedCount === 0 && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Not enough repeat bookings yet to identify patterns. Check back when clients have visited 3+ times.</div>}
+      </div>
+    </div>
+  )
+}
+
+function StaffIntelCard({ staffIntel }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Staff Intelligence</div>
+        <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Who keeps clients coming back within 90 days</div>
+      </div>
+      {staffIntel.length === 0 ? (
+        <div style={{ fontSize: '0.8125rem', color: '#aaa', lineHeight: 1.6 }}>
+          Q needs at least 5 completed appointments per team member to calculate re-booking rates.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {staffIntel.map((s, i) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.colour || '#5e3b87', flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{s.name}</div>
+                <div style={{ width: `${s.rate}%`, maxWidth: '40%', height: 6, background: i === 0 ? '#5e3b87' : 'rgba(94,59,135,0.25)', borderRadius: 4, minWidth: 4 }} />
+                <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: i === 0 ? '#5e3b87' : '#555', minWidth: 36, textAlign: 'right' }}>{s.rate}%</div>
+              </div>
+            ))}
+          </div>
+          {staffIntel.length >= 2 && (
+            <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
+              {staffIntel[0].name} brings clients back at a {staffIntel[0].rate}% rate &mdash; the highest in the team.
+              {staffIntel[staffIntel.length - 1].rate < staffIntel[0].rate - 20 && (
+                <span> {staffIntel[staffIntel.length - 1].name}&apos;s rate is {staffIntel[staffIntel.length - 1].rate}% &mdash; worth understanding {"what's"} different.</span>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function QIntelligenceSection({ qLoading, appointments, cancelledThisMonth, fragilityClients, ritualCount, explorerCount, lapsedCount, staffIntel, hasAnswerProduct, unconvertedLeads }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
+        {"Q's read on your business"}
+      </div>
+      <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+        The analysis tools big business uses &mdash; now working on yours. Q runs these checks automatically from your booking data.
+      </div>
+
+      {qLoading ? (
+        <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Q is reading your data&hellip;</div>
+      ) : appointments.length < 5 ? (
+        <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
+          <div style={{ fontSize: '0.875rem', color: '#888', lineHeight: 1.7 }}>
+            Q Intelligence needs a few weeks of appointment data to find patterns.<br />
+            <span style={{ color: '#5e3b87', fontWeight: 500 }}>Come back as your calendar fills up.</span>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 640 ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
+          <EvaporationCard cancelledThisMonth={cancelledThisMonth} fragilityClients={fragilityClients} hasAnswerProduct={hasAnswerProduct} unconvertedLeads={unconvertedLeads} />
+          <FragilityCard fragilityClients={fragilityClients} />
+          <SegmentsCard ritualCount={ritualCount} explorerCount={explorerCount} lapsedCount={lapsedCount} />
+          <StaffIntelCard staffIntel={staffIntel} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PerformanceTab({ isMobile, leadRate, totalCalls, outcomeBreakdown, avgDurationSecs, leadCapturedCount, setDrillOpen, reco, isEnterprise, demoPricing, demoCompetitors, callsByDay, maxDay }) {
+  const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
+  const rateBg    = leadRate >= 35 ? '#bbf7d0' : leadRate >= 15 ? '#fde68a' : '#fecaca'
+  const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
+  const bookedCount      = outcomeBreakdown.booked || 0
+  const referredOutCount = outcomeBreakdown.referred_out || 0
+  const filteredCount    = (outcomeBreakdown.filtered || 0) + (outcomeBreakdown.spam || 0) + (outcomeBreakdown.hard_close || 0)
+  return (
+    <>
+    {/* Headline numbers */}
+    {(() => {
+      const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
+      const rateBg    = leadRate >= 35 ? '#bbf7d0' : leadRate >= 15 ? '#fde68a' : '#fecaca'
+      const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
+    
+      const bookedCount       = outcomeBreakdown.booked || 0
+      const referredOutCount  = outcomeBreakdown.referred_out || 0
+      const filteredCount     = (outcomeBreakdown.filtered || 0) + (outcomeBreakdown.spam || 0) + (outcomeBreakdown.hard_close || 0)
+    
+      return (
+        <>
+          {/* Row 1 â€” volume Â· rate Â· duration */}
+          <div style={{ ...s.headlineGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
+            <div onClick={() => setDrillOpen('calls')} style={{ ...s.headlineCard, background: '#ddd6fe', borderLeft: '4px solid #5e3b87', cursor: 'pointer', userSelect: 'none' }}
+              data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated.">
+              <div style={s.headlineLabel}>Total calls handled</div>
+              <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={s.headlineSub}>all time</div>
+                <div style={{ fontSize: '0.7rem', color: '#7c5ab8', fontWeight: 600 }}>Explore â†’</div>
+              </div>
+            </div>
+            <div onClick={() => setDrillOpen('leads')} style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}`, cursor: 'pointer', userSelect: 'none' }}
+              data-help="Lead capture rate is the percentage of all calls that resulted in a lead. A healthy rate is 30â€“50% for most service businesses.">
+              <div style={s.headlineLabel}>Lead capture rate</div>
+              <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
+                <div style={{ fontSize: '0.7rem', color: rateColor, fontWeight: 600 }}>Explore â†’</div>
+              </div>
+            </div>
+            <div onClick={() => setDrillOpen('duration')} style={{ ...s.headlineCard, background: '#bfdbfe', borderLeft: '4px solid #1d4ed8', cursor: 'pointer', userSelect: 'none' }}
+              data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam.">
+              <div style={s.headlineLabel}>Avg call duration</div>
+              <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={s.headlineSub}>across handled calls</div>
+                <div style={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 600 }}>Explore â†’</div>
+              </div>
+            </div>
+          </div>
+    
+          {/* Row 2 â€” outcome breakdown tiles */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            {[
+              { count: bookedCount,      label: 'Booked',         color: '#5e3b87', bg: '#ddd6fe', border: '#5e3b87' },
+              { count: leadCapturedCount,label: 'Leads captured',  color: '#1e7a4a', bg: '#bbf7d0', border: '#3db87a' },
+              { count: referredOutCount, label: 'Referred out',    color: '#1d4ed8', bg: '#bfdbfe', border: '#1d4ed8' },
+              { count: filteredCount,    label: 'Filtered / spam', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' },
+            ].map(tile => (
+              <div key={tile.label}
+                onClick={() => setDrillOpen('calls')}
+                style={{ background: tile.bg, borderRadius: '12px', padding: '1rem', borderLeft: `3px solid ${tile.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'transform 0.1s', userSelect: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: tile.color, lineHeight: 1, marginBottom: '0.2rem' }}>{tile.count}</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: tile.color, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>{tile.label}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    })()}
+    
+    {/* Recommendation */}
+    <div style={s.recoCard}>
+      <div style={{ flex: 1 }}>
+        <div style={s.recoTitle}>{reco.title}</div>
+        <div style={s.recoBody}>{reco.body}</div>
+      </div>
+      {reco.actionLabel && (
+        <button style={s.recoBtn} onClick={reco.onAction}>{reco.actionLabel}</button>
+      )}
+    </div>
+    
+    {/* Feature cards 2Ã—2 */}
+    <div style={s.featureGrid}>
+    
+      {/* 1 â€” Pricing Intelligence */}
+      {isEnterprise ? (
+        <LiveCard
+          title="Pricing Intelligence"
+          desc="Market rates mentioned by callers, cross-referenced with your win rate."
+          helpText="Pricing Intelligence listens for price signals in your call transcripts â€” when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
+        >
+          {demoPricing.length === 0 ? (
+            <div style={s.comingSoon}>Data will populate from your call history.</div>
+          ) : demoPricing.map((item, i, arr) => (
+            <div key={item.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{item.service_name}</span>
+                {item.market_low && item.market_high && (
+                  <span style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600 }}>
+                    {typeof item.market_low === 'number' && item.market_low > 100
+                      ? `Â£${item.market_low.toLocaleString()}â€“Â£${item.market_high.toLocaleString()}`
+                      : `${item.market_low}%â€“${item.market_high}%`}
+                  </span>
+                )}
+              </div>
+              {item.insight && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{item.insight}</div>}
+            </div>
+          ))}
+        </LiveCard>
+      ) : (
+        <LockedCard
+          title="Pricing Intelligence"
+          desc="Market rates mentioned by callers, cross-referenced with your win rate."
+          previewContent={<PricingPreview />}
+          helpText="Pricing Intelligence listens for price signals in your call transcripts â€” when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
+        />
+      )}
+    
+      {/* 2 â€” Win Rate by Outcome */}
+      {isEnterprise ? (
+        <LiveCard
+          title="Call Outcome Breakdown"
+          desc="How your calls resolve â€” leads, bookings, referrals, and filtered calls."
+          helpText="Call Outcome Breakdown shows how your calls are resolving â€” what percentage became leads, got booked, were referred out, or were filtered as sales calls. Use this to understand where your AI is doing well and where enquiries are being lost."
+        >
+          {Object.keys(outcomeBreakdown).length === 0 ? (
+            <div style={s.comingSoon}>No call data yet.</div>
+          ) : (
+            Object.entries(outcomeBreakdown)
+              .sort((a, b) => b[1] - a[1])
+              .map(([outcome, count], i, arr) => {
+                const meta = OUTCOME_META[outcome] || { label: outcome, color: '#d1d5db' }
+                const barPct = pct(count, totalCalls)
+                const isLast = i === arr.length - 1
+                return (
+                  <div key={outcome} style={{ ...s.liveRow, borderBottom: isLast ? 'none' : s.liveRow.borderBottom }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, display: 'inline-block', flexShrink: 0 }} />
+                      {meta.label}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '0.775rem', color: '#bbb' }}>{count}</span>
+                      <span style={{ fontWeight: 600, color: '#5e3b87' }}>{barPct}%</span>
+                    </span>
+                  </div>
+                )
+              })
+          )}
+        </LiveCard>
+      ) : (
+        <LockedCard
+          title="Call Outcome Breakdown"
+          desc="How your calls resolve â€” leads, bookings, referrals, and filtered calls."
+          previewContent={<WinRatePreview />}
+          helpText="Call Outcome Breakdown shows how your calls are resolving â€” what percentage became leads, got booked, were referred out, or were filtered as sales calls. Enterprise only."
+        />
+      )}
+    
+      {/* 3 â€” Caller Patterns */}
+      {isEnterprise ? (
+        <LiveCard
+          title="Caller Patterns"
+          desc="Which days drive the most call volume â€” plan your availability around peaks."
+          helpText="Caller Patterns shows which days of the week your call volume peaks. If Monday and Tuesday dominate, you know when to be available for callbacks. If Friday is dead, don't schedule jobs that stop you taking calls on Thursdays. Enterprise only."
+        >
+          {totalCalls === 0 ? (
+            <div style={s.comingSoon}>No call data yet.</div>
+          ) : (
+            <div>
+              <div style={s.sectionLabel}>Calls by day of week</div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 64, marginBottom: 6 }}>
+                {callsByDay.map((count, i) => (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{
+                      width: '100%',
+                      height: maxDay > 0 ? `${Math.round((count / maxDay) * 52)}px` : 4,
+                      minHeight: 4,
+                      background: count === maxDay ? '#5e3b87' : 'rgba(94,59,135,0.18)',
+                      borderRadius: '3px 3px 0 0',
+                      transition: 'height 0.3s',
+                    }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {DAY_LABELS.map((d, i) => (
+                  <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.65rem', color: callsByDay[i] === maxDay ? '#5e3b87' : '#bbb', fontWeight: callsByDay[i] === maxDay ? 600 : 400 }}>
+                    {d}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </LiveCard>
+      ) : (
+        <LockedCard
+          title="Caller Patterns"
+          desc="Which days and times drive the most call volume â€” plan your availability around peaks."
+          previewContent={<PatternPreview />}
+          helpText="Caller Patterns shows which days of the week your call volume peaks so you can plan availability around them. Enterprise only."
+        />
+      )}
+    
+      {/* 4 â€” Competitor Intelligence */}
+      {isEnterprise ? (
+        <LiveCard
+          title="Competitor Intelligence"
+          desc="Businesses mentioned by callers when comparing prices or explaining why they called."
+          helpText="Competitor Intelligence captures when callers name other businesses â€” 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Useful for pricing and positioning decisions. Enterprise only."
+        >
+          {demoCompetitors.length === 0 ? (
+            <div style={s.comingSoon}>Data will populate from your call history.</div>
+          ) : demoCompetitors.map((comp, i, arr) => (
+            <div key={comp.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{comp.competitor_name}</span>
+                <span style={{ background: '#fde68a', color: '#78460a', borderRadius: 10, padding: '0.1rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+                  {comp.mention_count} mention{comp.mention_count !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {comp.context && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{comp.context}</div>}
+            </div>
+          ))}
+        </LiveCard>
+      ) : (
+        <LockedCard
+          title="Competitor Intelligence"
+          desc="Businesses mentioned by callers when comparing prices or explaining why they called."
+          previewContent={<CompetitorPreview />}
+          helpText="Competitor Intelligence captures when callers name other businesses â€” 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Enterprise only."
+        />
+      )}
+    
+    </div>
+    </>
+  )
+}
+
+// â”€â”€â”€ main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DataAnalytics = ({ onNavigate }) => {
   const { user } = useAuth()
@@ -568,7 +1178,7 @@ const DataAnalytics = ({ onNavigate }) => {
   const isEnterprise = ['enterprise', 'bespoke'].includes(tier)
   const hasAnswerProduct = tier && tier !== 'schedule_only'
 
-  // Q Intelligence derived values — computed on each render from appointments state
+  // Q Intelligence derived values â€” computed on each render from appointments state
   const qNow = Date.now()
   const qThirtyAgo = qNow - 30 * 24 * 60 * 60 * 1000
   const qNinetyAgo = qNow - 90 * 24 * 60 * 60 * 1000
@@ -625,7 +1235,7 @@ const DataAnalytics = ({ onNavigate }) => {
     .map(s => ({ ...s, rate: Math.round((s.rebooks / s.total) * 100) }))
     .sort((a, b) => b.rate - a.rate)
 
-  // ── Outreach segments ────────────────────────────────────────────────────
+  // â”€â”€ Outreach segments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const isLightTier = !tier || tier === 'light' || tier === 'free'
 
@@ -685,20 +1295,20 @@ const DataAnalytics = ({ onNavigate }) => {
   }).filter(Boolean).sort((a, b) => b.visitCount - a.visitCount).slice(0, 50)
 
   const OUTREACH_SEGS = [
-    { id: 'callback',     label: 'Callback overdue',     color: '#ef4444', bg: '#fef2f2', contacts: callbackOverdue,  signal: c => `Called ${fmtAgo(c.latest)} — flagged for callback` },
-    { id: 'never_booked', label: 'Called, never booked', color: '#f0a500', bg: '#fff8f0', contacts: neverBooked,      signal: c => `${c.count} call${c.count > 1 ? 's' : ''} · last ${fmtAgo(c.latest)}` },
-    { id: 'lapsed',       label: 'Lapsed 90+ days',      color: '#1d4ed8', bg: '#eff6ff', contacts: lapsedContacts,   signal: c => `Last visit ${fmtAgo(c.lastVisit)} · ${c.visitCount} visits` },
+    { id: 'callback',     label: 'Callback overdue',     color: '#ef4444', bg: '#fef2f2', contacts: callbackOverdue,  signal: c => `Called ${fmtAgo(c.latest)} â€” flagged for callback` },
+    { id: 'never_booked', label: 'Called, never booked', color: '#f0a500', bg: '#fff8f0', contacts: neverBooked,      signal: c => `${c.count} call${c.count > 1 ? 's' : ''} Â· last ${fmtAgo(c.latest)}` },
+    { id: 'lapsed',       label: 'Lapsed 90+ days',      color: '#1d4ed8', bg: '#eff6ff', contacts: lapsedContacts,   signal: c => `Last visit ${fmtAgo(c.lastVisit)} Â· ${c.visitCount} visits` },
     { id: 'no_show',      label: 'No-shows',              color: '#7c3aed', bg: '#f5f3ff', contacts: noShows,          signal: c => `No-showed ${fmtAgo(c.lastNoShow)}` },
-    { id: 'loyal',        label: 'Loyal clients',         color: '#16a34a', bg: '#f0fdf4', contacts: loyalContacts,    signal: c => `${c.visitCount} visits · last ${fmtAgo(c.lastVisit)}` },
+    { id: 'loyal',        label: 'Loyal clients',         color: '#16a34a', bg: '#f0fdf4', contacts: loyalContacts,    signal: c => `${c.visitCount} visits Â· last ${fmtAgo(c.lastVisit)}` },
   ]
 
-  // ── recommendation ────────────────────────────────────────────────────────
+  // â”€â”€ recommendation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   let reco
   if (!isEnterprise) {
     reco = {
       title: 'Unlock deep analytics with Enterprise',
-      body: 'See pricing intelligence, win rates by service, caller patterns, and competitor mentions — all generated automatically from your call data.',
+      body: 'See pricing intelligence, win rates by service, caller patterns, and competitor mentions â€” all generated automatically from your call data.',
       actionLabel: 'View plans',
       onAction: () => onNavigate && onNavigate('account'),
     }
@@ -724,26 +1334,12 @@ const DataAnalytics = ({ onNavigate }) => {
     }
   }
 
-  // ── enterprise: caller patterns ───────────────────────────────────────────
+  // â”€â”€ enterprise: caller patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const maxDay = Math.max(...callsByDay, 1)
-  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-  // ── enterprise: outcome breakdown ─────────────────────────────────────────
-
-  const OUTCOME_META = {
-    booked:        { label: 'Booked',       color: '#5e3b87' },
-    lead_captured: { label: 'Lead captured', color: '#3db87a' },
-    referred_out:  { label: 'Referred out', color: '#1d4ed8' },
-    filtered:      { label: 'Filtered',     color: '#d1d5db' },
-    escalated:     { label: 'Escalated',    color: '#ef4444' },
-    hard_close:    { label: 'Closed',       color: '#d1d5db' },
-    spam:          { label: 'Spam',         color: '#d1d5db' },
-    unknown:       { label: 'Other',        color: '#e5e7eb' },
-  }
 
   if (loading) {
-    return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading analytics…</div>
+    return <div style={{ padding: '2rem', color: '#aaa', fontSize: '0.875rem' }}>Loading analyticsâ€¦</div>
   }
 
   return (
@@ -773,499 +1369,13 @@ const DataAnalytics = ({ onNavigate }) => {
         </div>
       )}
 
-      {activeTab === 'performance' && <>
-      {/* Headline numbers */}
-      {(() => {
-        const rateColor = leadRate >= 35 ? '#3db87a' : leadRate >= 15 ? '#f0a500' : '#ef4444'
-        const rateBg    = leadRate >= 35 ? '#bbf7d0' : leadRate >= 15 ? '#fde68a' : '#fecaca'
-        const rateLabel = leadRate >= 35 ? 'Strong performance' : leadRate >= 15 ? 'Room to improve' : 'Needs attention'
+      {activeTab === 'performance' && <PerformanceTab isMobile={isMobile} leadRate={leadRate} totalCalls={totalCalls} outcomeBreakdown={outcomeBreakdown} avgDurationSecs={avgDurationSecs} leadCapturedCount={leadCapturedCount} setDrillOpen={setDrillOpen} reco={reco} isEnterprise={isEnterprise} demoPricing={demoPricing} demoCompetitors={demoCompetitors} callsByDay={callsByDay} maxDay={maxDay} />}
 
-        const bookedCount       = outcomeBreakdown.booked || 0
-        const referredOutCount  = outcomeBreakdown.referred_out || 0
-        const filteredCount     = (outcomeBreakdown.filtered || 0) + (outcomeBreakdown.spam || 0) + (outcomeBreakdown.hard_close || 0)
+      {activeTab === 'intelligence' && <QIntelligenceSection qLoading={qLoading} appointments={appointments} cancelledThisMonth={cancelledThisMonth} fragilityClients={fragilityClients} ritualCount={ritualCount} explorerCount={explorerCount} lapsedCount={lapsedCount} staffIntel={staffIntel} hasAnswerProduct={hasAnswerProduct} unconvertedLeads={unconvertedLeads} />}
 
-        return (
-          <>
-            {/* Row 1 — volume · rate · duration */}
-            <div style={{ ...s.headlineGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
-              <div onClick={() => setDrillOpen('calls')} style={{ ...s.headlineCard, background: '#ddd6fe', borderLeft: '4px solid #5e3b87', cursor: 'pointer', userSelect: 'none' }}
-                data-help="Total calls handled is the cumulative number of calls your AI has answered since your account was activated.">
-                <div style={s.headlineLabel}>Total calls handled</div>
-                <div style={{ ...s.headlineNumber, color: '#5e3b87' }}>{totalCalls.toLocaleString()}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={s.headlineSub}>all time</div>
-                  <div style={{ fontSize: '0.7rem', color: '#7c5ab8', fontWeight: 600 }}>Explore →</div>
-                </div>
-              </div>
-              <div onClick={() => setDrillOpen('leads')} style={{ ...s.headlineCard, background: rateBg, borderLeft: `4px solid ${rateColor}`, cursor: 'pointer', userSelect: 'none' }}
-                data-help="Lead capture rate is the percentage of all calls that resulted in a lead. A healthy rate is 30–50% for most service businesses.">
-                <div style={s.headlineLabel}>Lead capture rate</div>
-                <div style={{ ...s.headlineNumber, color: rateColor }}>{leadRate}%</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ ...s.headlineSub, color: rateColor, fontWeight: 500 }}>{totalCalls > 0 ? rateLabel : 'no calls yet'}</div>
-                  <div style={{ fontSize: '0.7rem', color: rateColor, fontWeight: 600 }}>Explore →</div>
-                </div>
-              </div>
-              <div onClick={() => setDrillOpen('duration')} style={{ ...s.headlineCard, background: '#bfdbfe', borderLeft: '4px solid #1d4ed8', cursor: 'pointer', userSelect: 'none' }}
-                data-help="Average call duration tells you how long your AI spends on a typical call. Very short calls often mean the caller hung up early or was filtered as spam.">
-                <div style={s.headlineLabel}>Avg call duration</div>
-                <div style={{ ...s.headlineNumber, color: '#1d4ed8' }}>{fmtDuration(avgDurationSecs)}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={s.headlineSub}>across handled calls</div>
-                  <div style={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 600 }}>Explore →</div>
-                </div>
-              </div>
-            </div>
+      {activeTab === 'outreach' && <OutreachSection outreachLoading={outreachLoading} isLightTier={isLightTier} OUTREACH_SEGS={OUTREACH_SEGS} outreachSegment={outreachSegment} setOutreachSegment={setOutreachSegment} onNavigate={onNavigate} />}
 
-            {/* Row 2 — outcome breakdown tiles */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              {[
-                { count: bookedCount,      label: 'Booked',         color: '#5e3b87', bg: '#ddd6fe', border: '#5e3b87' },
-                { count: leadCapturedCount,label: 'Leads captured',  color: '#1e7a4a', bg: '#bbf7d0', border: '#3db87a' },
-                { count: referredOutCount, label: 'Referred out',    color: '#1d4ed8', bg: '#bfdbfe', border: '#1d4ed8' },
-                { count: filteredCount,    label: 'Filtered / spam', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' },
-              ].map(tile => (
-                <div key={tile.label}
-                  onClick={() => setDrillOpen('calls')}
-                  style={{ background: tile.bg, borderRadius: '12px', padding: '1rem', borderLeft: `3px solid ${tile.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'transform 0.1s', userSelect: 'none' }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '1.75rem', fontWeight: 700, color: tile.color, lineHeight: 1, marginBottom: '0.2rem' }}>{tile.count}</div>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: tile.color, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Sans', sans-serif" }}>{tile.label}</div>
-                </div>
-              ))}
-            </div>
-          </>
-        )
-      })()}
-
-      {/* Recommendation */}
-      <div style={s.recoCard}>
-        <div style={{ flex: 1 }}>
-          <div style={s.recoTitle}>{reco.title}</div>
-          <div style={s.recoBody}>{reco.body}</div>
-        </div>
-        {reco.actionLabel && (
-          <button style={s.recoBtn} onClick={reco.onAction}>{reco.actionLabel}</button>
-        )}
-      </div>
-
-      {/* Feature cards 2×2 */}
-      <div style={s.featureGrid}>
-
-        {/* 1 — Pricing Intelligence */}
-        {isEnterprise ? (
-          <LiveCard
-            title="Pricing Intelligence"
-            desc="Market rates mentioned by callers, cross-referenced with your win rate."
-            helpText="Pricing Intelligence listens for price signals in your call transcripts — when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
-          >
-            {demoPricing.length === 0 ? (
-              <div style={s.comingSoon}>Data will populate from your call history.</div>
-            ) : demoPricing.map((item, i, arr) => (
-              <div key={item.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{item.service_name}</span>
-                  {item.market_low && item.market_high && (
-                    <span style={{ fontSize: '0.75rem', color: '#5e3b87', fontWeight: 600 }}>
-                      {typeof item.market_low === 'number' && item.market_low > 100
-                        ? `£${item.market_low.toLocaleString()}–£${item.market_high.toLocaleString()}`
-                        : `${item.market_low}%–${item.market_high}%`}
-                    </span>
-                  )}
-                </div>
-                {item.insight && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{item.insight}</div>}
-              </div>
-            ))}
-          </LiveCard>
-        ) : (
-          <LockedCard
-            title="Pricing Intelligence"
-            desc="Market rates mentioned by callers, cross-referenced with your win rate."
-            previewContent={<PricingPreview />}
-            helpText="Pricing Intelligence listens for price signals in your call transcripts — when callers mention a competitor's quote, a budget, or a price they've been given. Over time this builds a real picture of what the market charges and where you're winning or losing on price. Enterprise only."
-          />
-        )}
-
-        {/* 2 — Win Rate by Outcome */}
-        {isEnterprise ? (
-          <LiveCard
-            title="Call Outcome Breakdown"
-            desc="How your calls resolve — leads, bookings, referrals, and filtered calls."
-            helpText="Call Outcome Breakdown shows how your calls are resolving — what percentage became leads, got booked, were referred out, or were filtered as sales calls. Use this to understand where your AI is doing well and where enquiries are being lost."
-          >
-            {Object.keys(outcomeBreakdown).length === 0 ? (
-              <div style={s.comingSoon}>No call data yet.</div>
-            ) : (
-              Object.entries(outcomeBreakdown)
-                .sort((a, b) => b[1] - a[1])
-                .map(([outcome, count], i, arr) => {
-                  const meta = OUTCOME_META[outcome] || { label: outcome, color: '#d1d5db' }
-                  const barPct = pct(count, totalCalls)
-                  const isLast = i === arr.length - 1
-                  return (
-                    <div key={outcome} style={{ ...s.liveRow, borderBottom: isLast ? 'none' : s.liveRow.borderBottom }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, display: 'inline-block', flexShrink: 0 }} />
-                        {meta.label}
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: '0.775rem', color: '#bbb' }}>{count}</span>
-                        <span style={{ fontWeight: 600, color: '#5e3b87' }}>{barPct}%</span>
-                      </span>
-                    </div>
-                  )
-                })
-            )}
-          </LiveCard>
-        ) : (
-          <LockedCard
-            title="Call Outcome Breakdown"
-            desc="How your calls resolve — leads, bookings, referrals, and filtered calls."
-            previewContent={<WinRatePreview />}
-            helpText="Call Outcome Breakdown shows how your calls are resolving — what percentage became leads, got booked, were referred out, or were filtered as sales calls. Enterprise only."
-          />
-        )}
-
-        {/* 3 — Caller Patterns */}
-        {isEnterprise ? (
-          <LiveCard
-            title="Caller Patterns"
-            desc="Which days drive the most call volume — plan your availability around peaks."
-            helpText="Caller Patterns shows which days of the week your call volume peaks. If Monday and Tuesday dominate, you know when to be available for callbacks. If Friday is dead, don't schedule jobs that stop you taking calls on Thursdays. Enterprise only."
-          >
-            {totalCalls === 0 ? (
-              <div style={s.comingSoon}>No call data yet.</div>
-            ) : (
-              <div>
-                <div style={s.sectionLabel}>Calls by day of week</div>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 64, marginBottom: 6 }}>
-                  {callsByDay.map((count, i) => (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <div style={{
-                        width: '100%',
-                        height: maxDay > 0 ? `${Math.round((count / maxDay) * 52)}px` : 4,
-                        minHeight: 4,
-                        background: count === maxDay ? '#5e3b87' : 'rgba(94,59,135,0.18)',
-                        borderRadius: '3px 3px 0 0',
-                        transition: 'height 0.3s',
-                      }} />
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {DAY_LABELS.map((d, i) => (
-                    <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.65rem', color: callsByDay[i] === maxDay ? '#5e3b87' : '#bbb', fontWeight: callsByDay[i] === maxDay ? 600 : 400 }}>
-                      {d}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </LiveCard>
-        ) : (
-          <LockedCard
-            title="Caller Patterns"
-            desc="Which days and times drive the most call volume — plan your availability around peaks."
-            previewContent={<PatternPreview />}
-            helpText="Caller Patterns shows which days of the week your call volume peaks so you can plan availability around them. Enterprise only."
-          />
-        )}
-
-        {/* 4 — Competitor Intelligence */}
-        {isEnterprise ? (
-          <LiveCard
-            title="Competitor Intelligence"
-            desc="Businesses mentioned by callers when comparing prices or explaining why they called."
-            helpText="Competitor Intelligence captures when callers name other businesses — 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Useful for pricing and positioning decisions. Enterprise only."
-          >
-            {demoCompetitors.length === 0 ? (
-              <div style={s.comingSoon}>Data will populate from your call history.</div>
-            ) : demoCompetitors.map((comp, i, arr) => (
-              <div key={comp.id || i} style={{ ...s.liveRow, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderBottom: i < arr.length - 1 ? s.liveRow.borderBottom : 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span style={{ fontWeight: 500, color: '#1a1a1a', fontSize: '0.8125rem' }}>{comp.competitor_name}</span>
-                  <span style={{ background: '#fde68a', color: '#78460a', borderRadius: 10, padding: '0.1rem 0.5rem', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
-                    {comp.mention_count} mention{comp.mention_count !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {comp.context && <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.45 }}>{comp.context}</div>}
-              </div>
-            ))}
-          </LiveCard>
-        ) : (
-          <LockedCard
-            title="Competitor Intelligence"
-            desc="Businesses mentioned by callers when comparing prices or explaining why they called."
-            previewContent={<CompetitorPreview />}
-            helpText="Competitor Intelligence captures when callers name other businesses — 'I got a quote from X', 'I tried Y first'. Over time this builds a map of who you're competing against and how often. Enterprise only."
-          />
-        )}
-
-      </div>
-      </>}
-
-      {/* ── Q Intelligence tab ────────────────────────────────────────────────── */}
-      {activeTab === 'intelligence' && (
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
-            Q's read on your business
-          </div>
-          <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-            The analysis tools big business uses — now working on yours. Q runs these checks automatically from your booking data.
-          </div>
-
-          {qLoading ? (
-            <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Q is reading your data…</div>
-          ) : appointments.length < 5 ? (
-            <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
-              <div style={{ fontSize: '0.875rem', color: '#888', lineHeight: 1.7 }}>
-                Q Intelligence needs a few weeks of appointment data to find patterns.<br />
-                <span style={{ color: '#5e3b87', fontWeight: 500 }}>Come back as your calendar fills up.</span>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 640 ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
-
-              {/* ── Revenue Evaporation ── */}
-              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Revenue Evaporation</div>
-                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Where bookings slipped away this month</div>
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <div
-                    style={{ flex: 1, background: '#fff5f5', borderRadius: 10, padding: '0.75rem', textAlign: 'center', cursor: cancelledThisMonth.length > 0 ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
-                    onClick={cancelledThisMonth.length > 0 ? (e) => {
-                      const n = cancelledThisMonth.length
-                      const atRisk = fragilityClients.length
-                      document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
-                        zoneText: `Revenue Evaporation: ${n} appointment${n !== 1 ? 's' : ''} cancelled this month. ${atRisk > 0 ? `${atRisk} client${atRisk !== 1 ? 's' : ''} have cancelled 2+ times in 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}.` : 'No repeat-cancellation clients flagged.'} Look at patterns, root causes, and what the portal offers to reduce this.`,
-                        zoneName: `${n} cancelled this month`,
-                        tabName: 'Analytics',
-                        rect: e.currentTarget.getBoundingClientRect(),
-                        initialBotMessage: `I can see ${n} appointment${n !== 1 ? 's were' : ' was'} cancelled this month${atRisk > 0 ? `, and ${atRisk} client${atRisk !== 1 ? 's are' : ' is'} showing repeat cancellations` : ''}. Shall I look at what might be driving this and what you can do about it?`,
-                      }}))
-                    } : undefined}
-                    onMouseEnter={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = '0 0 0 2px #ef444440' } : undefined}
-                    onMouseLeave={cancelledThisMonth.length > 0 ? e => { e.currentTarget.style.boxShadow = 'none' } : undefined}
-                  >
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#ef4444' }}>{cancelledThisMonth.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>cancelled this month</div>
-                    {cancelledThisMonth.length > 0 && <div style={{ fontSize: '0.6rem', color: '#ef4444', marginTop: 4, fontWeight: 600 }}>Ask Q →</div>}
-                  </div>
-                  {hasAnswerProduct && (
-                    <div style={{ flex: 1, background: '#fff8f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
-                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#f0a500' }}>{unconvertedLeads}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>leads not converted</div>
-                    </div>
-                  )}
-                </div>
-                {cancelledThisMonth.length === 0 && (!hasAnswerProduct || unconvertedLeads === 0) ? (
-                  <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500 }}>No evaporation to report this month. Good work.</div>
-                ) : (
-                  <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
-                    {cancelledThisMonth.length > 0 && (
-                      <span>
-                        {cancelledThisMonth.length} appointment{cancelledThisMonth.length !== 1 ? 's' : ''} cancelled this month.
-                        That's time in your diary that didn't earn.{' '}
-                      </span>
-                    )}
-                    {hasAnswerProduct && unconvertedLeads > 0 && (
-                      <span>
-                        {unconvertedLeads} lead{unconvertedLeads !== 1 ? 's' : ''} came in and didn't convert to a booking.
-                        Worth reviewing those caller notes.
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* ── At-Risk Clients (Fragility) ── */}
-              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div
-                  style={{ cursor: fragilityClients.length > 0 ? 'pointer' : 'default' }}
-                  onClick={fragilityClients.length > 0 ? (e) => {
-                    const n = fragilityClients.length
-                    document.dispatchEvent(new CustomEvent('q-open-dialogue', { detail: {
-                      zoneText: `At-Risk Clients (Fragility Index): ${n} client${n !== 1 ? 's have' : ' has'} cancelled 2 or more times in the last 90 days: ${fragilityClients.map(c => `${c.name} (${c.cancels} cancellations)`).join(', ')}. Repeated cancellations are an early warning sign before a client stops booking entirely. Advise on specific retention options available in the portal.`,
-                      zoneName: `${n} at-risk client${n !== 1 ? 's' : ''}`,
-                      tabName: 'Analytics',
-                      rect: e.currentTarget.getBoundingClientRect(),
-                      initialBotMessage: `${n} client${n !== 1 ? 's are' : ' is'} showing repeat cancellations — this is often the first sign of a drifting relationship. Shall I look at what might help retain them?`,
-                    }}))
-                  } : undefined}
-                >
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    At-Risk Clients
-                    {fragilityClients.length > 0 && <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#f0a500', cursor: 'pointer' }}>Ask Q →</span>}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Clients who've cancelled 2+ times in 90 days</div>
-                </div>
-                {fragilityClients.length === 0 ? (
-                  <div style={{ fontSize: '0.8125rem', color: '#3db87a', fontWeight: 500, paddingTop: '0.25rem' }}>
-                    No clients showing repeat cancellations right now.
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {fragilityClients.map((c, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.6rem', background: '#fef9f0', borderRadius: 8 }}>
-                          <span style={{ fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{c.name}</span>
-                          <span style={{ fontSize: '0.72rem', color: '#f0a500', fontWeight: 700, background: '#fde68a', borderRadius: 8, padding: '0.1rem 0.45rem' }}>
-                            {c.cancels} cancel{c.cancels !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
-                      Repeated rescheduling is the earliest sign of a drifting relationship — often before a client stops booking altogether.
-                      A personal message to each of these clients costs nothing.
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* ── Behavioural Segments ── */}
-              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Client Segments</div>
-                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Your clients grouped by how they actually behave</div>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  {[
-                    { label: 'Ritual', count: ritualCount, bg: '#f0f4ff', col: '#1d4ed8', desc: 'Same day, same service, same routine. They\'re loyal — protect their schedule.' },
-                    { label: 'Explorer', count: explorerCount, bg: '#f0fdf4', col: '#16a34a', desc: 'Trying different services. High upsell potential — they\'re curious.' },
-                    { label: 'Lapsed', count: lapsedCount, bg: '#fff8f0', col: '#f0a500', desc: 'Went quiet in the last 3–6 months. Worth a re-engagement message.' },
-                  ].map(seg => (
-                    <div key={seg.label} style={{ flex: 1, background: seg.bg, borderRadius: 10, padding: '0.75rem 0.6rem', textAlign: 'center' }}>
-                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.4rem', color: seg.col }}>{seg.count}</div>
-                      <div style={{ fontSize: '0.7rem', color: seg.col, fontWeight: 600, marginTop: 2 }}>{seg.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                  {ritualCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#1d4ed8' }}>Ritual</span> — loyal and schedule-sensitive. Avoid changing their usual slot without warning.</div>}
-                  {explorerCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#16a34a' }}>Explorer</span> — trying different services. Good candidates for new offerings.</div>}
-                  {lapsedCount > 0 && <div style={{ fontSize: '0.8rem', color: '#555', lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: '#f0a500' }}>Lapsed</span> — gone quiet but not gone. A message referencing their last visit often works.</div>}
-                  {ritualCount === 0 && explorerCount === 0 && lapsedCount === 0 && <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Not enough repeat bookings yet to identify patterns. Check back when clients have visited 3+ times.</div>}
-                </div>
-              </div>
-
-              {/* ── Staff Intelligence ── */}
-              <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem 1.25rem 1rem', border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.15rem' }}>Staff Intelligence</div>
-                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>Who keeps clients coming back within 90 days</div>
-                </div>
-                {staffIntel.length === 0 ? (
-                  <div style={{ fontSize: '0.8125rem', color: '#aaa', lineHeight: 1.6 }}>
-                    Q needs at least 5 completed appointments per team member to calculate re-booking rates.
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {staffIntel.map((s, i) => (
-                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.colour || '#5e3b87', flexShrink: 0 }} />
-                          <div style={{ flex: 1, fontSize: '0.8125rem', color: '#1a1a1a', fontWeight: 500 }}>{s.name}</div>
-                          <div style={{ width: `${s.rate}%`, maxWidth: '40%', height: 6, background: i === 0 ? '#5e3b87' : 'rgba(94,59,135,0.25)', borderRadius: 4, minWidth: 4 }} />
-                          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: i === 0 ? '#5e3b87' : '#555', minWidth: 36, textAlign: 'right' }}>{s.rate}%</div>
-                        </div>
-                      ))}
-                    </div>
-                    {staffIntel.length >= 2 && (
-                      <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.6 }}>
-                        {staffIntel[0].name} brings clients back at a {staffIntel[0].rate}% rate — the highest in the team.
-                        {staffIntel[staffIntel.length - 1].rate < staffIntel[0].rate - 20 && (
-                          <span> {staffIntel[staffIntel.length - 1].name}'s rate is {staffIntel[staffIntel.length - 1].rate}% — worth understanding what's different.</span>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Outreach tab ─────────────────────────────────────────────────────── */}
-      {activeTab === 'outreach' && (
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: '0.3rem' }}>
-            Outreach
-          </div>
-          <div style={{ fontSize: '0.8125rem', color: '#888', lineHeight: 1.6, marginBottom: '1.25rem' }}>
-            Your contacts sorted by who most needs to hear from you. Pick a segment and start working through it.
-          </div>
-
-          {outreachLoading ? (
-            <div style={{ color: '#aaa', fontSize: '0.875rem', padding: '2rem 0' }}>Loading contacts…</div>
-          ) : isLightTier ? (
-            <div style={{ background: '#faf9fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.1)' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f0a500', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Solo+</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#1a1a1a', marginBottom: '0.4rem' }}>Outreach requires a paid plan</div>
-              <div style={{ fontSize: '0.8125rem', color: '#888' }}>Upgrade to Solo or above to see your segmented contact lists.</div>
-            </div>
-          ) : (
-            <>
-              {/* Segment pills */}
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                {OUTREACH_SEGS.map(seg => (
-                  <button
-                    key={seg.id}
-                    onClick={() => setOutreachSegment(seg.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.8rem', borderRadius: 20, border: outreachSegment === seg.id ? `1.5px solid ${seg.color}` : '1.5px solid rgba(0,0,0,0.1)', background: outreachSegment === seg.id ? seg.bg : 'white', color: outreachSegment === seg.id ? seg.color : '#888', fontFamily: "'DM Sans', sans-serif", fontSize: '0.8rem', fontWeight: outreachSegment === seg.id ? 700 : 400, cursor: 'pointer' }}
-                  >
-                    {seg.label}
-                    <span style={{ background: outreachSegment === seg.id ? seg.color : '#e5e7eb', color: outreachSegment === seg.id ? 'white' : '#666', borderRadius: 10, padding: '0.05rem 0.45rem', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.6 }}>
-                      {seg.contacts.length}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Contact list */}
-              {(() => {
-                const seg = OUTREACH_SEGS.find(s => s.id === outreachSegment)
-                if (!seg) return null
-
-                if (seg.contacts.length === 0) {
-                  return (
-                    <div style={{ background: '#f9f8fc', borderRadius: 16, padding: '2rem', textAlign: 'center', border: '1px solid rgba(94,59,135,0.08)' }}>
-                      <div style={{ fontSize: '0.875rem', color: '#888' }}>No contacts in this segment right now.</div>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(94,59,135,0.1)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.25rem', borderBottom: '1px solid rgba(94,59,135,0.06)', background: '#faf9fc' }}>
-                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1a1a1a' }}>{seg.label}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#aaa' }}>{seg.contacts.length} contact{seg.contacts.length !== 1 ? 's' : ''}</div>
-                    </div>
-                    <div style={{ maxHeight: 440, overflowY: 'auto' }}>
-                      {seg.contacts.map((c, i) => (
-                        <ContactRow
-                          key={`${seg.id}-${c.phone}-${i}`}
-                          contact={c}
-                          signal={seg.signal(c)}
-                          isLast={i === seg.contacts.length - 1}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ── Drill panels ─────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Drill panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
 
       {drillOpen === 'calls' && (
         <DrillPanel title="Call volume breakdown" onClose={() => setDrillOpen(null)}>
@@ -1283,7 +1393,7 @@ const DataAnalytics = ({ onNavigate }) => {
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, display: 'inline-block', flexShrink: 0 }} />
                       {meta.label}
                     </span>
-                    <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{count} · {barPct}%</span>
+                    <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{count} Â· {barPct}%</span>
                   </div>
                   <div style={{ height: 7, background: '#f3f1f6', borderRadius: 4, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${barPct}%`, background: meta.color, borderRadius: 4 }} />
@@ -1317,8 +1427,8 @@ const DataAnalytics = ({ onNavigate }) => {
       )}
 
       {drillOpen === 'leads' && (
-        <DrillPanel title="Lead capture — the full picture" onClose={() => setDrillOpen(null)}>
-          {/* Section A — AI capture */}
+        <DrillPanel title="Lead capture â€” the full picture" onClose={() => setDrillOpen(null)}>
+          {/* Section A â€” AI capture */}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={drillLabel}>What your AI handled</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -1332,20 +1442,20 @@ const DataAnalytics = ({ onNavigate }) => {
               </div>
             </div>
             <p style={{ fontSize: '0.8rem', color: '#888', margin: 0, lineHeight: 1.6 }}>
-              A lead is captured when your AI identifies enough intent to act on — a name, number, or clear request. Filtered calls, spam, referred enquiries, and hard closes don't count. The follow-up section below tracks the {totalLeads} leads in your CRM pipeline.
+              A lead is captured when your AI identifies enough intent to act on â€” a name, number, or clear request. Filtered calls, spam, referred enquiries, and hard closes don't count. The follow-up section below tracks the {totalLeads} leads in your CRM pipeline.
             </p>
           </div>
 
           <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', marginBottom: '1.5rem' }} />
 
-          {/* Section B — Human chain */}
+          {/* Section B â€” Human chain */}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={drillLabel}>What happened after capture</div>
             {totalLeads === 0 ? (
               <p style={{ fontSize: '0.85rem', color: '#aaa' }}>No leads captured yet.</p>
             ) : (
               [
-                { key: 'new',       label: 'Not yet contacted', color: '#f59e0b', note: 'Captured — no action taken' },
+                { key: 'new',       label: 'Not yet contacted', color: '#f59e0b', note: 'Captured â€” no action taken' },
                 { key: 'contacted', label: 'Contacted',         color: '#1d4ed8', note: 'You reached out' },
                 { key: 'converted', label: 'Converted',         color: '#3db87a', note: 'Marked as won' },
                 { key: 'lost',      label: 'Lost',              color: '#94a3b8', note: 'Didn\'t proceed' },
@@ -1374,22 +1484,22 @@ const DataAnalytics = ({ onNavigate }) => {
 
           <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', marginBottom: '1.5rem' }} />
 
-          {/* Section C — Neutral diagnosis */}
+          {/* Section C â€” Neutral diagnosis */}
           {(() => {
             const uncontacted = leadsByStatus.new || 0
             const uncontactedPct = pct(uncontacted, totalLeads)
             let diagnosis, actions = []
 
             if (totalCalls < 5) {
-              diagnosis = 'Not enough data yet — the picture will sharpen after a few more calls.'
+              diagnosis = 'Not enough data yet â€” the picture will sharpen after a few more calls.'
             } else if (leadRate < 15) {
               diagnosis = `Your AI is converting ${leadRate}% of calls into lead records. This could reflect the mix of calls you're receiving, your current conversation style, or enquiries that are genuinely out of scope. It's worth reviewing what types of calls are coming in before adjusting anything.`
               actions = [{ label: 'Review conversation style', nav: 'ai' }]
             } else if (totalLeads > 3 && uncontactedPct > 40) {
-              diagnosis = `Your AI is capturing leads. The gap is in follow-up — ${uncontacted} of ${totalLeads} captured leads (${uncontactedPct}%) haven't been contacted yet. The faster a lead is followed up, the higher the conversion rate.`
+              diagnosis = `Your AI is capturing leads. The gap is in follow-up â€” ${uncontacted} of ${totalLeads} captured leads (${uncontactedPct}%) haven't been contacted yet. The faster a lead is followed up, the higher the conversion rate.`
               actions = [{ label: 'View uncontacted leads', nav: 'dashboard' }, { label: 'Enable SMS follow-up', nav: 'ai' }]
             } else if (totalLeads > 0 && pct(leadsByStatus.converted || 0, totalLeads) < 15) {
-              diagnosis = `Capture and follow-up look reasonable. The next lever is conversion — how the conversation develops once you make contact. This is a sales and fit question, not a technology one.`
+              diagnosis = `Capture and follow-up look reasonable. The next lever is conversion â€” how the conversation develops once you make contact. This is a sales and fit question, not a technology one.`
             } else {
               diagnosis = `Capture, follow-up, and conversion all look healthy here. Expanding your referral network is typically the next move when the basics are working.`
               actions = [{ label: 'Manage referral partners', nav: 'referrals' }]
@@ -1418,7 +1528,7 @@ const DataAnalytics = ({ onNavigate }) => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
               {[
                 { key: 'short',  label: 'Under 30s', color: '#94a3b8', bg: '#f1f5f9', note: 'Filtered, spam, or hang-ups' },
-                { key: 'medium', label: '30s – 2min', color: '#f0a500', bg: '#fef3c7', note: 'Standard enquiry' },
+                { key: 'medium', label: '30s â€“ 2min', color: '#f0a500', bg: '#fef3c7', note: 'Standard enquiry' },
                 { key: 'long',   label: 'Over 2min',  color: '#5e3b87', bg: '#f4effe', note: 'Complex or high-intent call' },
               ].map(({ key, label, color, bg, note }) => (
                 <div key={key} style={{ background: bg, borderRadius: 12, padding: '0.85rem', textAlign: 'center' }}>
@@ -1441,7 +1551,7 @@ const DataAnalytics = ({ onNavigate }) => {
               })}
             </div>
             <div style={{ display: 'flex' }}>
-              {['Under 30s', '30s–2min', 'Over 2min'].map(l => (
+              {['Under 30s', '30sâ€“2min', 'Over 2min'].map(l => (
                 <div key={l} style={{ flex: 1, textAlign: 'center', fontSize: '0.65rem', color: '#aaa' }}>{l}</div>
               ))}
             </div>
@@ -1449,14 +1559,14 @@ const DataAnalytics = ({ onNavigate }) => {
           <div style={{ borderTop: '1px solid rgba(94,59,135,0.08)', paddingTop: '1.25rem' }}>
             <div style={drillLabel}>What duration tells you</div>
             <div style={{ fontSize: '0.8125rem', color: '#555', lineHeight: 1.7 }}>
-              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>High short calls</strong> — callers are hanging up quickly, or your AI is filtering a lot. Check whether your spam and sales filters are set too broadly.</p>
-              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>Most calls medium</strong> — this is a healthy pattern. Your AI is handling standard enquiries efficiently.</p>
-              <p style={{ margin: 0 }}><strong style={{ color: '#1a1a1a' }}>High long calls</strong> — complex or high-intent callers. These are your most valuable interactions and worth reviewing in Listen.</p>
+              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>High short calls</strong> â€” callers are hanging up quickly, or your AI is filtering a lot. Check whether your spam and sales filters are set too broadly.</p>
+              <p style={{ margin: '0 0 0.6rem' }}><strong style={{ color: '#1a1a1a' }}>Most calls medium</strong> â€” this is a healthy pattern. Your AI is handling standard enquiries efficiently.</p>
+              <p style={{ margin: 0 }}><strong style={{ color: '#1a1a1a' }}>High long calls</strong> â€” complex or high-intent callers. These are your most valuable interactions and worth reviewing in Listen.</p>
             </div>
             {durationBuckets.long > 0 && (
               <button onClick={() => { setDrillOpen(null); onNavigate && onNavigate('listen') }}
                 style={{ marginTop: '1rem', padding: '0.45rem 0.9rem', background: '#5e3b87', color: 'white', border: 'none', borderRadius: 7, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
-                Review long calls in Listen →
+                Review long calls in Listen â†’
               </button>
             )}
           </div>

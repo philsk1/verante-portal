@@ -83,5 +83,5 @@ AI call-handling and booking SaaS for UK sole traders and micro-businesses.
 
 ---
 
-*Last updated: 2026-06-19*
-*Updated by: session — Decoupling audit completed (7 components). Key fixes: _tenant-data.js canonical module (voice config, fetch); speech pace now persists to Vapi; support chat m.text bug; element registry corrected; signal validation; Sentry preview guard; Calendar e.resource?.status (attention bar was broken); skills field name; processing_start_time in customer booking; Sentry PIN gate flash; toggleQDisplay preview guard. All deployed. research/decoupling-audit.md is the full log. Channel audit is next phase.*
+*Last updated: 2026-06-20*
+*Updated by: session 14 — Calendar DnD hardening: handleEventDrop now preserves original duration on every drop; handleEventResize replaced with no-op; resize anchor CSS hardened with pointer-events: none. Root cause of "stretch" identified: BigCalendar event-width layout (overlapping events share column width, expanding when moved apart — normal calendar behaviour). Deployed.*

@@ -1,3 +1,31 @@
+﻿/*
+ * AUTHOR: AI agent under direction of Philip Keating (Qerxel founder)
+ * VISION: AI call-handling portal for UK sole traders. Every mutation is guarded.
+ * FILE: src/pages/PortalSidebar.jsx
+ * TOPOLOGY RING: 2 — Contained (1 caller: Portal.jsx)
+ * INTENT MAP: Left navigation shell — product section nav, Q health score card,
+ *   favourites pinning, section expand/collapse, notification panel, bottom icon bar.
+ * REGRESSION MAP:
+ *   INPUTS: 22 props from Portal.jsx (displayName, user, tenantId, isPreview, scheduleOnly,
+ *           activeTab, onTabSelect, hasSchedule, hasScheduleMulti, hasListen, hasSentry,
+ *           uncontactedCount, sidebarCollapsed, onCollapseToggle, notifPanelOpen, onNotifToggle,
+ *           notifyNewLead, notifyDailySummary, notifyWeeklyReport, onNotifChange, onSignOut,
+ *           onPlanSelectorOpen, isDemoMode, onDemoEnd)
+ *   READS: localStorage (section open/close state per-tenantId, pinned tabs), QScoreContext
+ *   MUTATIONS: localStorage only — no DB reads or writes
+ *   OUTPUTS: onTabSelect, onCollapseToggle, onNotifToggle, onNotifChange, onSignOut,
+ *            onPlanSelectorOpen, onDemoEnd (all callbacks to Portal.jsx)
+ * NON-OBVIOUS: scheduleOnly shows a completely different PRODUCTS array (Schedule-only nav).
+ *   Section state is keyed per-tenantId; isPreview resets to {} to prevent cross-tenant bleed.
+ *   baseTier is destructured but unused — dead prop, safe to remove when Portal.jsx is cleaned.
+ *   <style> tag inside render is intentional for ::-webkit-scrollbar which has no inline equivalent.
+ * IN-FILE PRIME DIRECTIVES:
+ *   1. Never create new files to house extracted logic. Keep it in this file.
+ *   2. Run a regression map before every single future edit.
+ *   3. No CSS, no CSS variables, inline styles only if layout is touched.
+ *   4. Every database mutation must keep its save guard (if applicable).
+ *   5. Clean Slate Rule: If complex nesting or multi-path drift occurs, rebuild from blank canvas.
+ */
 import { useState, useEffect, useRef } from 'react'
 import { useQScore } from '../context/QScoreContext'
 
@@ -191,66 +219,110 @@ const Toggle = ({ checked, onChange }) => (
 
 const PINS_KEY = 'qerxel_sb_pins'
 
-// ─── PortalSidebar ────────────────────────────────────────────────────────────
 
-export default function PortalSidebar({
-  displayName,
-  user,
-  tenantId,
-  isPreview,
-  scheduleOnly,
-  activeTab,
-  onTabSelect,
-  hasSchedule,
-  hasScheduleMulti,
-  hasListen,
-  hasSentry,
-  uncontactedCount,
-  sidebarCollapsed,
-  onCollapseToggle,
-  notifPanelOpen,
-  onNotifToggle,
-  notifyNewLead,
-  notifyDailySummary,
-  notifyWeeklyReport,
-  onNotifChange,
-  onSignOut,
-  onPlanSelectorOpen,
-  isDemoMode,
-  onDemoEnd,
-  baseTier,
-}) {
-  const { globalScore: qScore, channelHealth } = useQScore()
 
-  const sectionsKey = `qerxel_sb_sections_${tenantId || 'anon'}`
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  const [sections, setSections] = useState(() => {
-    if (isPreview) return {}
-    try { return JSON.parse(localStorage.getItem(sectionsKey) || '{}') }
-    catch { return {} }
-  })
+function sectionLabelColor(locked, isActive, subtle) {
+  if (locked) return 'rgba(255,255,255,0.18)'
+  if (isActive) return 'rgba(255,255,255,0.55)'
+  if (subtle) return 'rgba(255,255,255,0.2)'
+  return 'rgba(255,255,255,0.38)'
+}
 
-  // Reset to clean state whenever switching tenant in preview
-  useEffect(() => {
-    if (isPreview) { setSections({}); return }
-    try { setSections(JSON.parse(localStorage.getItem(sectionsKey) || '{}')) }
-    catch { setSections({}) }
-  }, [tenantId])
+function tabBg(isActive, isHovered) {
+  if (isActive) return 'rgba(240,165,0,0.1)'
+  if (isHovered) return 'rgba(255,255,255,0.05)'
+  return 'transparent'
+}
 
-  const [pins, setPins] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(PINS_KEY) || '[]') }
-    catch { return [] }
-  })
+function tabColor(isActive, locked) {
+  if (isActive) return 'white'
+  if (locked) return 'rgba(255,255,255,0.35)'
+  return 'rgba(255,255,255,0.62)'
+}
 
-  const [hoveredTab, setHoveredTab]       = useState(null)
-  const [hoveredIcon, setHoveredIcon]     = useState(null)
-  const [healthExpanded, setHealthExpanded] = useState(false)
-  const notifPanelRef = useRef(null)
-  const sidebarW = sidebarCollapsed ? 60 : 260
+// ─── TabRow ─────────────────────────────────────────────────────────────────
 
-  // ── Product / section map ─────────────────────────────────────────────────
+function TabRow({ tab, inFavourites, locked, activeTab, hoveredTab, setHoveredTab, pins, sidebarCollapsed, uncontactedCount, onTabSelect, togglePin }) {
+  const isActive  = activeTab === tab.id
+  const isHovered = hoveredTab === tab.id && !sidebarCollapsed
+  const isPinned  = pins.includes(tab.id)
+  const showBadge = tab.id === 'dashboard' && uncontactedCount > 0
+  const showStar  = !sidebarCollapsed && !inFavourites && !locked && (isPinned || isHovered) && !showBadge
+  const showFavStar = !sidebarCollapsed && inFavourites
 
-  const PRODUCTS = scheduleOnly ? [
+  return (
+    <button
+      onClick={() => onTabSelect(tab.id)}
+      onMouseEnter={() => setHoveredTab(tab.id)}
+      onMouseLeave={() => setHoveredTab(null)}
+      title={sidebarCollapsed ? tab.label : undefined}
+      style={{
+        width: '100%', height: 36,
+        display: 'flex', alignItems: 'center',
+        justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+        gap: '0.6rem',
+        padding: sidebarCollapsed ? 0 : '0 0.85rem 0 1.35rem',
+        border: 'none',
+        borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
+        marginLeft: isActive ? -3 : 0,
+        background: tabBg(isActive, isHovered),
+        color: tabColor(isActive, locked),
+        cursor: 'pointer',
+        transition: 'background 0.12s, color 0.12s',
+        boxSizing: 'border-box',
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: '0.8125rem',
+        fontWeight: isActive ? 500 : 400,
+      }}
+    >
+      {tab.icon}
+      {!sidebarCollapsed && (
+        <>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
+            {tab.label}
+          </span>
+          {showBadge && (
+            <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f0a500', color: '#1a0533', borderRadius: 10, padding: '0.05rem 0.38rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+              {uncontactedCount}
+            </span>
+          )}
+          {locked && !showBadge && (
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          )}
+          {showStar && (
+            <button
+              onClick={e => togglePin(tab.id, e)}
+              title={isPinned ? 'Remove from favourites' : 'Add to favourites'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.15rem', color: isPinned ? '#f0a500' : 'rgba(255,255,255,0.22)', fontSize: '0.8rem', lineHeight: 1, flexShrink: 0, transition: 'color 0.12s' }}
+            >
+              {isPinned ? '★' : '☆'}
+            </button>
+          )}
+          {showFavStar && (
+            <button
+              onClick={e => togglePin(tab.id, e)}
+              title="Remove from favourites"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.15rem', color: 'rgba(240,165,0,0.55)', fontSize: '0.8rem', lineHeight: 1, flexShrink: 0, opacity: isHovered ? 1 : 0.7, transition: 'opacity 0.1s' }}
+            >
+              ★
+            </button>
+          )}
+        </>
+      )}
+    </button>
+  )
+}
+
+// ─── buildSidebarProducts ────────────────────────────────────────────────────
+
+function buildSidebarProducts({ scheduleOnly, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user }) {
+  const adminEmails = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
+  if (scheduleOnly) return [
     {
       id: 'schedule',
       label: 'Schedule',
@@ -258,7 +330,8 @@ export default function PortalSidebar({
       tabs: [
         { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
         { id: 'team',      label: 'Team',       icon: <IcoPeople />, locked: !hasScheduleMulti },
-        { id: 'services',  label: 'Services',   icon: <IcoGear /> },
+        { id: 'services',  label: 'Services',   icon: <IcoServices /> },
+        { id: 'products',  label: 'Products',   icon: <IcoProducts /> },
         { id: 'analytics', label: 'Analytics',  icon: <IcoAnalytics /> },
         { id: 'referrals', label: 'Partners',   icon: <IcoPartners /> },
       ],
@@ -275,7 +348,20 @@ export default function PortalSidebar({
         ...(!isDemoMode ? [{ id: 'settings', label: 'Account & Billing', icon: <IcoGear /> }] : []),
       ],
     },
-  ] : [
+    ...(adminEmails.includes(user?.email) ? [{
+      id: 'support',
+      label: 'Support',
+      dot: '#dc2626',
+      tabs: [{ id: 'support', label: 'Support Intel', icon: <IcoSupport /> }],
+    }] : []),
+    ...(adminEmails.includes(user?.email) ? [{
+      id: 'command',
+      label: 'Command',
+      dot: '#dc2626',
+      tabs: [{ id: 'command', label: 'Master Control', icon: <IcoCommand /> }],
+    }] : []),
+  ]
+  return [
     {
       id: 'answer',
       label: 'Answer',
@@ -331,19 +417,137 @@ export default function PortalSidebar({
         { id: 'settings', label: 'Account & Billing', icon: <IcoGear /> },
       ],
     }] : []),
-    ...(['finsolsoffice@gmail.com','philoffice@btconnect.com'].includes(user?.email) ? [{
+    ...(adminEmails.includes(user?.email) ? [{
       id: 'support',
       label: 'Support',
       dot: '#dc2626',
       tabs: [{ id: 'support', label: 'Support Intel', icon: <IcoSupport /> }],
     }] : []),
-    ...(['finsolsoffice@gmail.com','philoffice@btconnect.com'].includes(user?.email) ? [{
+    ...(adminEmails.includes(user?.email) ? [{
       id: 'command',
       label: 'Command',
       dot: '#dc2626',
       tabs: [{ id: 'command', label: 'Master Control', icon: <IcoCommand /> }],
     }] : []),
   ]
+}
+
+// ─── QHealthPanel ─────────────────────────────────────────────────────────────
+
+function QHealthPanel({ onIssueSelect }) {
+  const { globalScore: qScore, channelHealth } = useQScore()
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(255,255,255,0.07)', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
+      >
+        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: qScore === null ? 'rgba(255,255,255,0.2)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171' }} />
+        <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.03em' }}>Health</span>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore === null ? 'rgba(255,255,255,0.25)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>
+          {qScore ?? '—'}
+        </span>
+        <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.18s', transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
+      </button>
+      {expanded && channelHealth.length > 0 && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.5rem' }}>
+          {channelHealth.map((ch, ci) => {
+            const scoreColor = ch.score >= 75 ? '#3db87a' : ch.score >= 50 ? '#f0a500' : '#f87171'
+            return (
+              <div key={ch.id} style={{ marginTop: ci === 0 ? '0.5rem' : '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.7rem 0.3rem' }}>
+                  <span style={{ fontSize: '0.565rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{ch.label}</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: scoreColor }}>{ch.score}</span>
+                </div>
+                <div style={{ height: 2, margin: '0 0.7rem 0.4rem', background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${ch.score}%`, background: scoreColor, borderRadius: 2, transition: 'width 0.3s' }} />
+                </div>
+                {ch.issues.length === 0 ? (
+                  <div style={{ padding: '0.1rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontSize: '0.62rem', color: '#3db87a', lineHeight: 1 }}>✓</span>
+                    <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>All good</span>
+                  </div>
+                ) : (
+                  ch.issues.map((issue, ii) => (
+                    <button
+                      key={ii}
+                      onClick={() => { onIssueSelect(issue.tab); setExpanded(false) }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: '0.22rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      <span style={{ fontSize: '0.55rem', color: issue.severity === 'high' ? '#f87171' : issue.severity === 'medium' ? '#f0a500' : 'rgba(255,255,255,0.3)', marginTop: 2, flexShrink: 0 }}>●</span>
+                      <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>{issue.label} →</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── PortalSidebar ────────────────────────────────────────────────────────────
+
+export default function PortalSidebar({
+  displayName,
+  user,
+  tenantId,
+  isPreview,
+  scheduleOnly,
+  activeTab,
+  onTabSelect,
+  hasSchedule,
+  hasScheduleMulti,
+  hasListen,
+  hasSentry,
+  uncontactedCount,
+  sidebarCollapsed,
+  onCollapseToggle,
+  notifPanelOpen,
+  onNotifToggle,
+  notifyNewLead,
+  notifyDailySummary,
+  notifyWeeklyReport,
+  onNotifChange,
+  onSignOut,
+  onPlanSelectorOpen,
+  isDemoMode,
+  onDemoEnd,
+  baseTier,
+}) {
+  const sectionsKey = `qerxel_sb_sections_${tenantId || 'anon'}`
+
+  const [sections, setSections] = useState(() => {
+    if (isPreview) return {}
+    try { return JSON.parse(localStorage.getItem(sectionsKey) || '{}') }
+    catch { return {} }
+  })
+
+  // Reset to clean state whenever switching tenant in preview
+  useEffect(() => {
+    if (isPreview) { setSections({}); return }
+    try { setSections(JSON.parse(localStorage.getItem(sectionsKey) || '{}')) }
+    catch { setSections({}) }
+  }, [tenantId])
+
+  const [pins, setPins] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(PINS_KEY) || '[]') }
+    catch { return [] }
+  })
+
+  const [hoveredTab, setHoveredTab]       = useState(null)
+  const [hoveredIcon, setHoveredIcon]     = useState(null)
+  const notifPanelRef = useRef(null)
+  const sidebarW = sidebarCollapsed ? 60 : 260
+
+  // ── Product / section map ─────────────────────────────────────────────────
+
+  const PRODUCTS = buildSidebarProducts({ scheduleOnly, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user })
 
   const activeProductId = PRODUCTS.find(p => p.tabs?.some(t => t.id === activeTab))?.id
   const allTabs         = PRODUCTS.flatMap(p => p.tabs || [])
@@ -396,82 +600,6 @@ export default function PortalSidebar({
     return sections[sectionId] === true
   }
 
-  // ── Tab row ───────────────────────────────────────────────────────────────
-
-  const renderTab = (tab, inFavourites = false, locked = false) => {
-    const isActive  = activeTab === tab.id
-    const isHovered = hoveredTab === tab.id && !sidebarCollapsed
-    const isPinned  = pins.includes(tab.id)
-    const showBadge = tab.id === 'dashboard' && uncontactedCount > 0
-    const showStar  = !sidebarCollapsed && !inFavourites && !locked && (isPinned || isHovered) && !showBadge
-    const showFavStar = !sidebarCollapsed && inFavourites
-
-    return (
-      <button
-        key={inFavourites ? `fav-${tab.id}` : tab.id}
-        onClick={() => onTabSelect(tab.id)}
-        onMouseEnter={() => setHoveredTab(tab.id)}
-        onMouseLeave={() => setHoveredTab(null)}
-        title={sidebarCollapsed ? tab.label : undefined}
-        style={{
-          width: '100%', height: 36,
-          display: 'flex', alignItems: 'center',
-          justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-          gap: '0.6rem',
-          padding: sidebarCollapsed ? 0 : '0 0.85rem 0 1.35rem',
-          border: 'none',
-          borderLeft: `3px solid ${isActive ? '#f0a500' : 'transparent'}`,
-          marginLeft: isActive ? -3 : 0,
-          background: isActive ? 'rgba(240,165,0,0.1)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-          color: isActive ? 'white' : locked ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.62)',
-          cursor: 'pointer',
-          transition: 'background 0.12s, color 0.12s',
-          boxSizing: 'border-box',
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: '0.8125rem',
-          fontWeight: isActive ? 500 : 400,
-        }}
-      >
-        {tab.icon}
-        {!sidebarCollapsed && (
-          <>
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
-              {tab.label}
-            </span>
-            {showBadge && (
-              <span style={{ fontSize: '0.6rem', fontWeight: 700, background: '#f0a500', color: '#1a0533', borderRadius: 10, padding: '0.05rem 0.38rem', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-                {uncontactedCount}
-              </span>
-            )}
-            {locked && !showBadge && (
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            )}
-            {showStar && (
-              <button
-                onClick={e => togglePin(tab.id, e)}
-                title={isPinned ? 'Remove from favourites' : 'Add to favourites'}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.15rem', color: isPinned ? '#f0a500' : 'rgba(255,255,255,0.22)', fontSize: '0.8rem', lineHeight: 1, flexShrink: 0, transition: 'color 0.12s' }}
-              >
-                {isPinned ? '★' : '☆'}
-              </button>
-            )}
-            {showFavStar && (
-              <button
-                onClick={e => togglePin(tab.id, e)}
-                title="Remove from favourites"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.15rem', color: 'rgba(240,165,0,0.55)', fontSize: '0.8rem', lineHeight: 1, flexShrink: 0, opacity: isHovered ? 1 : 0.7, transition: 'opacity 0.1s' }}
-              >
-                ★
-              </button>
-            )}
-          </>
-        )}
-      </button>
-    )
-  }
 
   // ── Section header ────────────────────────────────────────────────────────
 
@@ -506,7 +634,7 @@ export default function PortalSidebar({
         )}
         <span style={{
           fontSize: '0.585rem', fontWeight: 700,
-          color: product.locked ? 'rgba(255,255,255,0.18)' : isActiveSection ? 'rgba(255,255,255,0.55)' : product.subtle ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.38)',
+          color: sectionLabelColor(product.locked, isActiveSection, product.subtle),
           textTransform: 'uppercase', letterSpacing: '0.12em',
           fontFamily: "'DM Sans', sans-serif", flex: 1, whiteSpace: 'nowrap', transition: 'color 0.12s',
         }}>
@@ -559,75 +687,13 @@ export default function PortalSidebar({
       <style>{`#qerxel-nav::-webkit-scrollbar { display: none }`}</style>
       <nav id="qerxel-nav" style={{ flex: 1, paddingTop: '0.25rem', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none' }}>
 
-        {/* Health score — always visible, cannot be dismissed */}
-        {!sidebarCollapsed && (
-          <div style={{ margin: '0.5rem 0.75rem 0.4rem', background: 'rgba(255,255,255,0.07)', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-
-            {/* Collapsed header — always shown */}
-            <button
-              onClick={() => setHealthExpanded(e => !e)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: qScore === null ? 'rgba(255,255,255,0.2)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171' }} />
-              <span style={{ flex: 1, fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.03em' }}>Health</span>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: qScore === null ? 'rgba(255,255,255,0.25)' : qScore >= 75 ? '#3db87a' : qScore >= 50 ? '#f0a500' : '#f87171', flexShrink: 0 }}>
-                {qScore ?? '—'}
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.18s', transform: healthExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', lineHeight: 1, flexShrink: 0 }}>▾</span>
-            </button>
-
-            {/* Expanded — per-channel breakdown */}
-            {healthExpanded && channelHealth.length > 0 && (
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.5rem' }}>
-                {channelHealth.map((ch, ci) => {
-                  const scoreColor = ch.score >= 75 ? '#3db87a' : ch.score >= 50 ? '#f0a500' : '#f87171'
-                  return (
-                    <div key={ch.id} style={{ marginTop: ci === 0 ? '0.5rem' : '0.75rem' }}>
-
-                      {/* Channel header row */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.7rem 0.3rem' }}>
-                        <span style={{ fontSize: '0.565rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>{ch.label}</span>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, fontFamily: "'Syne', sans-serif", color: scoreColor }}>{ch.score}</span>
-                      </div>
-
-                      {/* Score bar */}
-                      <div style={{ height: 2, margin: '0 0.7rem 0.4rem', background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${ch.score}%`, background: scoreColor, borderRadius: 2, transition: 'width 0.3s' }} />
-                      </div>
-
-                      {/* Issues list */}
-                      {ch.issues.length === 0 ? (
-                        <div style={{ padding: '0.1rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.62rem', color: '#3db87a', lineHeight: 1 }}>✓</span>
-                          <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans', sans-serif" }}>All good</span>
-                        </div>
-                      ) : (
-                        ch.issues.map((issue, ii) => (
-                          <button
-                            key={ii}
-                            onClick={() => { onTabSelect(issue.tab); setHealthExpanded(false) }}
-                            style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: '0.22rem 0.7rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                          >
-                            <span style={{ fontSize: '0.55rem', color: issue.severity === 'high' ? '#f87171' : issue.severity === 'medium' ? '#f0a500' : 'rgba(255,255,255,0.3)', marginTop: 2, flexShrink: 0 }}>●</span>
-                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>{issue.label} →</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        {!sidebarCollapsed && <QHealthPanel onIssueSelect={onTabSelect} />}
 
         {/* Favourites — only when pins exist */}
         {pinnedTabs.length > 0 && (
           <div>
             {!sidebarCollapsed && renderSectionHeader({ id: '_favourites', label: 'Favourites', dot: null }, 0, isSectionOpen('_favourites'))}
-            {isSectionOpen('_favourites') && pinnedTabs.map(tab => renderTab(tab, true))}
+            {isSectionOpen('_favourites') && pinnedTabs.map(tab => <TabRow key={`fav-${tab.id}`} tab={tab} inFavourites={true} locked={false} activeTab={activeTab} hoveredTab={hoveredTab} setHoveredTab={setHoveredTab} pins={pins} sidebarCollapsed={sidebarCollapsed} uncontactedCount={uncontactedCount} onTabSelect={onTabSelect} togglePin={togglePin} />)}
             {!sidebarCollapsed && (
               <div style={{ height: 1, margin: '0.3rem 0.75rem', background: 'rgba(255,255,255,0.07)' }} />
             )}
@@ -648,7 +714,7 @@ export default function PortalSidebar({
           return (
             <div key={product.id}>
               {renderSectionHeader(product, labelIndex, isOpen)}
-              {isOpen && product.tabs.map(tab => renderTab(tab, false, !!product.locked))}
+              {isOpen && product.tabs.map(tab => <TabRow key={tab.id} tab={tab} inFavourites={false} locked={!!product.locked} activeTab={activeTab} hoveredTab={hoveredTab} setHoveredTab={setHoveredTab} pins={pins} sidebarCollapsed={sidebarCollapsed} uncontactedCount={uncontactedCount} onTabSelect={onTabSelect} togglePin={togglePin} />)}
             </div>
           )
         })}
