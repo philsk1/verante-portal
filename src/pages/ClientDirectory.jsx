@@ -430,7 +430,7 @@ const ClientDirectory = () => {
 
       {/* Segment info bar */}
       {hasSchedule && ['ritual', 'explorer', 'lapsed'].includes(filterTab) && (
-        <div style={{ marginBottom: '0.85rem', background: SEG_STYLE[filterTab].bg, border: `1px solid ${SEG_STYLE[filterTab].c}22`, borderRadius: '8px', padding: '0.6rem 0.9rem', fontSize: '0.78rem', color: SEG_STYLE[filterTab].c, lineHeight: 1.5 }}>
+        <div data-tenant-context="schedule-product-only" style={{ marginBottom: '0.85rem', background: SEG_STYLE[filterTab].bg, border: `1px solid ${SEG_STYLE[filterTab].c}22`, borderRadius: '8px', padding: '0.6rem 0.9rem', fontSize: '0.78rem', color: SEG_STYLE[filterTab].c, lineHeight: 1.5 }}>
           {filterTab === 'ritual'   && 'Consistent bookers — same routine, predictable schedule. They value reliability. A gentle check-in or loyalty offer lands well.'}
           {filterTab === 'explorer' && 'Clients who try different services. High engagement, high curiosity. Ideal audience for new service announcements.'}
           {filterTab === 'lapsed'   && `Clients who haven\'t booked in 6+ weeks. They were regulars. A personal message — not a template — tends to bring them back.`}

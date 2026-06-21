@@ -597,7 +597,7 @@ function EvaporationCard({ cancelledThisMonth, fragilityClients, hasAnswerProduc
           {cancelledThisMonth.length > 0 && <div style={{ fontSize: '0.6rem', color: '#ef4444', marginTop: 4, fontWeight: 600 }}>Ask Q &rarr;</div>}
         </div>
         {hasAnswerProduct && (
-          <div style={{ flex: 1, background: '#fff8f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
+          <div data-tenant-context="answer-product-only" style={{ flex: 1, background: '#fff8f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: '#f0a500' }}>{unconvertedLeads}</div>
             <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: 2 }}>leads not converted</div>
           </div>

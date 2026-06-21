@@ -6,7 +6,7 @@
  * INTENT MAP: Left navigation shell — product section nav, Q health score card,
  *   favourites pinning, section expand/collapse, notification panel, bottom icon bar.
  * REGRESSION MAP:
- *   INPUTS: 22 props from Portal.jsx (displayName, user, tenantId, isPreview, scheduleOnly,
+ *   INPUTS: 21 props from Portal.jsx (displayName, user, tenantId, isPreview, hasAnswerProduct,
  *           activeTab, onTabSelect, hasSchedule, hasScheduleMulti, hasListen, hasSentry,
  *           uncontactedCount, sidebarCollapsed, onCollapseToggle, notifPanelOpen, onNotifToggle,
  *           notifyNewLead, notifyDailySummary, notifyWeeklyReport, onNotifChange, onSignOut,
@@ -18,6 +18,9 @@
  * NON-OBVIOUS: buildSidebarProducts() is ONE array — Answer/Listen/Lines sections are
  *   conditionally spread in/out based on entitlement flags rather than maintained as a
  *   second parallel array. Do not reintroduce a scheduleOnly-branched duplicate of this array.
+ *   buildSidebarProducts is also exported and imported directly by Portal.jsx (Cmd+K sitemap
+ *   index + mobile bottom nav both derive from it now) — it is no longer contained to this
+ *   file's own render. Do not let a second copy grow there again; extend this one array instead.
  *   Section state is keyed per-tenantId; isPreview resets to {} to prevent cross-tenant bleed.
  *   <style> tag inside render is intentional for ::-webkit-scrollbar which has no inline equivalent.
  * IN-FILE PRIME DIRECTIVES:
@@ -29,60 +32,14 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import { useQScore } from '../context/QScoreContext'
+import { buildSidebarProducts } from './sidebarProducts'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
-export const IcoDashboard = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <rect x="3" y="3" width="7" height="7" rx="1"/>
-    <rect x="14" y="3" width="7" height="7" rx="1"/>
-    <rect x="14" y="14" width="7" height="7" rx="1"/>
-    <rect x="3" y="14" width="7" height="7" rx="1"/>
-  </svg>
-)
-
-export const IcoAI = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <rect x="9" y="2" width="6" height="11" rx="3"/>
-    <path d="M5 10a7 7 0 0 0 14 0"/>
-    <line x1="12" y1="19" x2="12" y2="22"/>
-    <line x1="9" y1="22" x2="15" y2="22"/>
-  </svg>
-)
-
-export const IcoAnalytics = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <line x1="18" y1="20" x2="18" y2="10"/>
-    <line x1="12" y1="20" x2="12" y2="4"/>
-    <line x1="6" y1="20" x2="6" y2="14"/>
-    <line x1="2" y1="20" x2="22" y2="20"/>
-  </svg>
-)
-
-export const IcoPartners = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-    <circle cx="9" cy="7" r="4"/>
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-  </svg>
-)
-
-export const IcoCalendar = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <rect x="3" y="4" width="18" height="18" rx="2"/>
-    <line x1="16" y1="2" x2="16" y2="6"/>
-    <line x1="8" y1="2" x2="8" y2="6"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-)
-
-export const IcoIntegrations = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-  </svg>
-)
+// Product/nav icons (Dashboard, AI, Analytics, Partners, Calendar, Integrations, Gear,
+// People, Building, Listen, Phone, Services, Products, Sentry, Desk, Support, Command,
+// Clients) live in sidebarProducts.jsx / PortalIcons.jsx now — buildSidebarProducts() was
+// the only consumer of those in this file. Only UI-chrome icons specific to this file's
+// own render (avatar, sign-out, chevrons, bell) stay here.
 
 export const IcoVera = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -165,52 +122,6 @@ export const IcoListen = () => (
 export const IcoPhone = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-  </svg>
-)
-
-export const IcoSentry = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-  </svg>
-)
-
-export const IcoDesk = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="2.5" y="1.5" width="11" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
-    <line x1="5" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-    <line x1="5" y1="7.5" x2="11" y2="7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-    <line x1="5" y1="10" x2="8.5" y2="10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-  </svg>
-)
-
-const IcoSupport = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-)
-
-const IcoCommand = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <rect x="3" y="3" width="7" height="7" rx="1"/>
-    <rect x="14" y="3" width="7" height="7" rx="1"/>
-    <rect x="3" y="14" width="7" height="7" rx="1"/>
-    <rect x="14" y="14" width="7" height="7" rx="1"/>
-  </svg>
-)
-
-const IcoServices = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-    <path d="M2 17l10 5 10-5"/>
-    <path d="M2 12l10 5 10-5"/>
-  </svg>
-)
-
-const IcoProducts = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <path d="M16 10a4 4 0 0 1-8 0"/>
   </svg>
 )
 
@@ -333,83 +244,6 @@ function TabRow({ tab, inFavourites, locked, activeTab, hoveredTab, setHoveredTa
       )}
     </button>
   )
-}
-
-// ─── buildSidebarProducts ────────────────────────────────────────────────────
-
-function buildSidebarProducts({ hasAnswerProduct, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user }) {
-  const adminEmails = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
-  return [
-    ...(hasAnswerProduct ? [{
-      id: 'answer',
-      label: 'Answer',
-      dot: '#3db87a',
-      tabs: [
-        { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
-        { id: 'ai',        label: 'Answer AI', icon: <IcoAI /> },
-      ],
-    }] : []),
-    ...(hasAnswerProduct ? [{
-      id: 'listen',
-      label: 'Listen',
-      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.2)',
-      locked: !hasListen,
-      tabs: [{ id: 'listen', label: 'Listen', icon: <IcoListen /> }],
-    }] : []),
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      dot: hasSchedule ? '#3db87a' : 'rgba(255,255,255,0.2)',
-      locked: !hasSchedule,
-      tabs: [
-        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
-        { id: 'team',      label: 'Team',      icon: <IcoPeople />, locked: !hasScheduleMulti },
-        { id: 'services',  label: 'Services',  icon: <IcoServices /> },
-        { id: 'products',  label: 'Products',  icon: <IcoProducts /> },
-        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
-      ],
-    },
-    { id: 'sentry', label: 'Sentry', dot: hasSentry ? '#ef4444' : 'rgba(255,255,255,0.2)', locked: !hasSentry, tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] },
-    {
-      id: 'lines',
-      label: 'Lines',
-      dot: '#0d9488',
-      subtle: true,
-      tabs: [{ id: 'lines', label: 'Lines', icon: <IcoPhone /> }],
-    },
-    { id: '_divider', divider: true, tabs: [] },
-    {
-      id: 'business',
-      label: 'Business',
-      dot: '#60a5fa',
-      tabs: [
-        { id: 'business',     label: 'Business Desk',    icon: <IcoDesk /> },
-        { id: 'referrals',    label: 'Partners',         icon: <IcoPartners /> },
-        { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
-        { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
-      ],
-    },
-    ...(!isDemoMode ? [{
-      id: 'platform',
-      label: 'Platform',
-      dot: '#60a5fa',
-      tabs: [
-        { id: 'settings', label: 'Account & Billing', icon: <IcoGear /> },
-      ],
-    }] : []),
-    ...(adminEmails.includes(user?.email) ? [{
-      id: 'support',
-      label: 'Support',
-      dot: '#dc2626',
-      tabs: [{ id: 'support', label: 'Support Intel', icon: <IcoSupport /> }],
-    }] : []),
-    ...(adminEmails.includes(user?.email) ? [{
-      id: 'command',
-      label: 'Command',
-      dot: '#dc2626',
-      tabs: [{ id: 'command', label: 'Master Control', icon: <IcoCommand /> }],
-    }] : []),
-  ]
 }
 
 // ─── QHealthPanel ─────────────────────────────────────────────────────────────
@@ -690,8 +524,12 @@ export default function PortalSidebar({
           const isOpen         = isSectionOpen(product.id)
           const labelIndex     = PRODUCTS.filter((p, i) => !p.divider && i <= pi).length - 1
 
+          // Answer/Listen sections are the only ones genuinely absent from PRODUCTS (not just
+          // locked-but-rendered) when the tenant lacks the Answer product — see sidebarProducts.jsx.
+          const tenantContext = (product.id === 'answer' || product.id === 'listen') ? 'answer-product-only' : undefined
+
           return (
-            <div key={product.id}>
+            <div key={product.id} data-tenant-context={tenantContext}>
               {renderSectionHeader(product, labelIndex, isOpen)}
               {isOpen && product.tabs.map(tab => <TabRow key={tab.id} tab={tab} inFavourites={false} locked={!!product.locked} activeTab={activeTab} hoveredTab={hoveredTab} setHoveredTab={setHoveredTab} pins={pins} sidebarCollapsed={sidebarCollapsed} uncontactedCount={uncontactedCount} onTabSelect={onTabSelect} togglePin={togglePin} />)}
             </div>

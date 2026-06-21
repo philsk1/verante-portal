@@ -25,11 +25,8 @@ import MasterControl from './MasterControl'
 import HelpMascot from '../components/HelpMascot'
 import { QScoreProvider } from '../context/QScoreContext'
 import PortalSidebar from './PortalSidebar'
-import {
-  IcoDashboard, IcoAI, IcoAnalytics, IcoPartners, IcoCalendar,
-  IcoIntegrations, IcoGear, IcoPeople, IcoBuilding, IcoClients, IcoServices,
-  IcoProducts, IcoListen, IcoPhone, IcoEye,
-} from './PortalIcons'
+import { buildSidebarProducts } from './sidebarProducts'
+import { IcoDashboard, IcoAI, IcoAnalytics, IcoCalendar, IcoGear, IcoPeople, IcoServices } from './PortalIcons'
 import { useTenantState } from '../hooks/useTenantState'
 
 // ─── Static data — defined outside component so they never trigger re-renders ──
@@ -388,98 +385,18 @@ const Portal = () => {
     await supabase.from('tenants').update({ q_display_on_screen: next }).eq('id', tid)
   }, [tenantId, preview.isPreview])
 
-  // Memoised so icon React elements aren't recreated on unrelated re-renders
-  const PRODUCTS = useMemo(() => scheduleOnly ? [
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      dot: '#60a5fa',
-      tabs: [
-        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
-        { id: 'team',      label: 'Team',      icon: <IcoPeople />,   locked: !hasScheduleMulti },
-        { id: 'services',  label: 'Services',  icon: <IcoServices /> },
-        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
-        { id: 'referrals', label: 'Partners',  icon: <IcoPartners /> },
-      ],
-    },
-    { id: '_build_card', buildCard: true, tabs: [] },
-    {
-      id: 'sentry',
-      label: 'Sentry',
-      dot: sentryCameraLimit > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)',
-      locked: sentryCameraLimit === 0,
-      tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoEye />, locked: sentryCameraLimit === 0 }],
-    },
-    {
-      id: 'platform',
-      label: 'Platform',
-      dot: null,
-      tabs: [
-        { id: 'profile',      label: 'Business Profile',  icon: <IcoBuilding /> },
-        { id: 'settings',     label: 'Account & Billing', icon: <IcoGear /> },
-        { id: 'integrations', label: 'Integrations',      icon: <IcoIntegrations /> },
-      ],
-    },
-    { id: '_answer_upsell', upsell: 'answer', tabs: [] },
-  ] : [
-    {
-      id: 'answer',
-      label: 'Answer',
-      dot: '#f0a500',
-      tabs: [
-        { id: 'dashboard', label: 'Home',        icon: <IcoDashboard /> },
-        { id: 'analytics', label: 'Analytics',   icon: <IcoAnalytics /> },
-        { id: 'ai',        label: 'AI Settings', icon: <IcoAI /> },
-        { id: 'referrals', label: 'Partners',    icon: <IcoPartners /> },
-      ],
-    },
-    {
-      id: 'listen',
-      label: 'Listen',
-      dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.18)',
-      locked: !hasListen,
-      tabs: [{ id: 'listen', label: 'Listen', icon: <IcoListen />, locked: !hasListen }],
-    },
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      dot: hasSchedule ? '#60a5fa' : 'rgba(255,255,255,0.18)',
-      locked: !hasSchedule,
-      tabs: [
-        { id: 'calendar', label: 'Calendar', icon: <IcoCalendar />, locked: !hasSchedule },
-        { id: 'team',     label: 'Team',     icon: <IcoPeople />,   locked: !hasScheduleMulti },
-      ],
-    },
-    { id: '_build_card', buildCard: true, tabs: [] },
-    {
-      id: 'sentry',
-      label: 'Sentry',
-      dot: sentryCameraLimit > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)',
-      locked: sentryCameraLimit === 0,
-      tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoEye />, locked: sentryCameraLimit === 0 }],
-    },
-    {
-      id: 'business',
-      label: 'Business',
-      dot: '#f0a500',
-      tabs: [
-        { id: 'clients',  label: 'Clients',  icon: <IcoClients /> },
-        { id: 'services', label: 'Services', icon: <IcoServices /> },
-        { id: 'products', label: 'Products', icon: <IcoProducts /> },
-      ],
-    },
-    {
-      id: 'platform',
-      label: 'Platform',
-      dot: null,
-      tabs: [
-        { id: 'profile',      label: 'Business Profile',  icon: <IcoBuilding /> },
-        { id: 'lines',        label: 'Lines',             icon: <IcoPhone /> },
-        { id: 'settings',     label: 'Account & Billing', icon: <IcoGear /> },
-        { id: 'integrations', label: 'Integrations',      icon: <IcoIntegrations /> },
-      ],
-    },
-  ], [scheduleOnly, hasListen, hasSchedule, hasScheduleMulti, sentryCameraLimit])
+  // Single source of truth for nav structure — same buildSidebarProducts() PortalSidebar.jsx
+  // renders, reused here purely to build the Cmd+K sitemap index. Do not redeclare this list;
+  // a second hand-maintained copy is exactly the drift that lost the Clients tab on desktop.
+  const PRODUCTS = useMemo(() => buildSidebarProducts({
+    hasAnswerProduct,
+    hasSchedule,
+    hasScheduleMulti,
+    hasListen,
+    hasSentry: sentryCameraLimit > 0,
+    isDemoMode,
+    user,
+  }), [hasAnswerProduct, hasSchedule, hasScheduleMulti, hasListen, sentryCameraLimit, isDemoMode, user])
 
   const mobileNavTabs = useMemo(() => scheduleOnly ? [
     { id: 'calendar',  label: 'Calendar', icon: <IcoCalendar /> },
