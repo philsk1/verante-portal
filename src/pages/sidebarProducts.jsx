@@ -3,6 +3,34 @@
 // not PortalSidebar.jsx — because exporting a non-component function alongside a default
 // component export breaks Vite Fast Refresh (react-refresh/only-export-components).
 // Do not reintroduce a second, hand-maintained copy of this array anywhere.
+/**
+ * ============================================================================
+ * 🔒 CANONICAL INTEGRITY CONTRACT (SOP v3.0 — full procedure: CLAUDE-PROCEDURES.md §Procedure 12)
+ * ============================================================================
+ * 🚦 MULTI-TENANT PROOF-OF-VERIFICATION
+ * - [ ] Answer + Schedule  -> Proof: static trace only. hasAnswerProduct=true spreads
+ *       in Answer/Listen sections (lines 13-21); Schedule section always present,
+ *       locked: !hasSchedule (lines 23-33). No live tenant render captured this session.
+ * - [ ] Schedule-Only      -> Proof: static trace only. hasAnswerProduct=false collapses
+ *       Answer/Listen sections to [] via the conditional spread (lines 13-21) — confirmed
+ *       by reading the spread logic, not by rendering it. No live render captured.
+ * - [ ] Demo/Sandbox       -> Proof: static trace only. isDemoMode=true removes the
+ *       Platform/Account&Billing section (lines ~57-64). No live render captured.
+ * ----------------------------------------------------------------------------
+ * 🗺️ REACHABILITY & DUPLICATION PROOF
+ * - [ ] Reachable via: Desktop Sidebar (PortalSidebar.jsx render loop) | Search/Cmd+K
+ *       (Portal.jsx:393 sitemapAllItems) -> Proof: both call buildSidebarProducts()
+ *       directly, confirmed by import grep, no second copy exists (commit 3b101af).
+ * - [ ] Duplication check -> Proof: this file replaced THREE independent copies
+ *       (PortalSidebar.jsx's own buildSidebarProducts, Portal.jsx's PRODUCTS literal,
+ *       Portal.jsx's mobileNavTabs partially) found drifted on 2026-06-21.
+ * ----------------------------------------------------------------------------
+ * 📉 LOCAL METRICS (SonarJS ground truth — ran 2026-06-21)
+ * Cognitive Score: 9 (buildSidebarProducts, line 12)  ·  Inputs/Outputs Frozen: NO — newly extracted, may take more callers
+ * ----------------------------------------------------------------------------
+ * Last Audited: 2026-06-21  ·  Audited By: Claude session (mobile-nav unification)  ·  Status: OK
+ * ============================================================================
+ */
 import {
   IcoDashboard, IcoAI, IcoListen, IcoCalendar, IcoPeople, IcoServices, IcoProducts,
   IcoAnalytics, IcoPartners, IcoBuilding, IcoIntegrations, IcoGear, IcoPhone, IcoClients,

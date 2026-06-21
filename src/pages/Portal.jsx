@@ -1,3 +1,35 @@
+/**
+ * ============================================================================
+ * 🔒 CANONICAL INTEGRITY CONTRACT (SOP v3.0 — full procedure: CLAUDE-PROCEDURES.md §Procedure 12)
+ * ============================================================================
+ * 🚦 MULTI-TENANT PROOF-OF-VERIFICATION
+ * - [ ] Answer + Schedule  -> Proof: static trace only. scheduleOnly = hasSchedule &&
+ *       !hasAnswerProduct (line ~310); lockedProduct gate (~311-314) and dashboard-redirect
+ *       guard (~317-319) read and confirmed unchanged from before this session
+ *       (verified against commit d780b70). No live tenant render captured this session.
+ * - [ ] Schedule-Only      -> Proof: static trace only, same lines as above — confirmed
+ *       scheduleOnly=true forces redirect off 'dashboard' to 'calendar'. No live render captured.
+ * - [ ] Demo/Sandbox       -> Proof: static trace only. isDemoMode read from useTenantState,
+ *       passed to buildSidebarProducts to drop the Platform section. No live render captured.
+ * ----------------------------------------------------------------------------
+ * 🗺️ REACHABILITY & DUPLICATION PROOF
+ * - [ ] Reachable via: this is the routed /portal page itself (src/App.jsx) — not applicable
+ *       to discuss its own reachability; its sitemap (Cmd+K) and mobile nav are what other
+ *       files reach through it.
+ * - [ ] Duplication check -> Proof: PRODUCTS (sitemap index) now calls buildSidebarProducts()
+ *       directly (line 393) instead of maintaining its own ~90-line duplicate literal with
+ *       its own scheduleOnly ternary — removed 2026-06-21 (commit 3b101af). mobileNavTabs
+ *       deliberately kept separate (small, curated, not duplicated data — see PortalSidebar.jsx
+ *       header note).
+ * ----------------------------------------------------------------------------
+ * 📉 LOCAL METRICS (SonarJS ground truth — ran 2026-06-21)
+ * Cognitive Score: 31 (main Portal function, line 239 — PRE-EXISTING, confirmed unchanged
+ * from before this session by diffing against commit d780b70; over the 15 threshold, not
+ * introduced or fixed by tonight's work)  ·  Inputs/Outputs Frozen: NO
+ * ----------------------------------------------------------------------------
+ * Last Audited: 2026-06-21  ·  Audited By: Claude session (mobile-nav unification)  ·  Status: OK
+ * ============================================================================
+ */
 import { useState, useEffect, useRef, useMemo, useCallback, Component } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'

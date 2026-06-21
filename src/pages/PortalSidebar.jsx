@@ -18,17 +18,55 @@
  * NON-OBVIOUS: buildSidebarProducts() is ONE array — Answer/Listen/Lines sections are
  *   conditionally spread in/out based on entitlement flags rather than maintained as a
  *   second parallel array. Do not reintroduce a scheduleOnly-branched duplicate of this array.
- *   buildSidebarProducts is also exported and imported directly by Portal.jsx (Cmd+K sitemap
- *   index + mobile bottom nav both derive from it now) — it is no longer contained to this
- *   file's own render. Do not let a second copy grow there again; extend this one array instead.
+ *   buildSidebarProducts now lives in sidebarProducts.jsx (not this file) and is imported by
+ *   both this component (desktop render) and Portal.jsx (Cmd+K sitemap index — NOT the mobile
+ *   bottom nav, which stays its own small deliberately-curated 5-id list). Corrected 2026-06-21
+ *   — a prior version of this note incorrectly claimed mobile nav also derived from it.
+ *   Do not let a second copy of buildSidebarProducts grow anywhere; extend the one in
+ *   sidebarProducts.jsx instead.
  *   Section state is keyed per-tenantId; isPreview resets to {} to prevent cross-tenant bleed.
  *   <style> tag inside render is intentional for ::-webkit-scrollbar which has no inline equivalent.
  * IN-FILE PRIME DIRECTIVES:
- *   1. Never create new files to house extracted logic. Keep it in this file.
+ *   1. Never create new files to house extracted logic specific to THIS file's own render.
+ *      (buildSidebarProducts was the one exception — moved out only because co-locating a
+ *      non-component export here broke Vite Fast Refresh. Don't use that as license to split
+ *      further without the same kind of concrete, mechanical reason.)
  *   2. Run a regression map before every single future edit.
  *   3. No CSS, no CSS variables, inline styles only if layout is touched.
  *   4. Every database mutation must keep its save guard (if applicable).
  *   5. Clean Slate Rule: If complex nesting or multi-path drift occurs, rebuild from blank canvas.
+ */
+/**
+ * ============================================================================
+ * 🔒 CANONICAL INTEGRITY CONTRACT (SOP v3.0 — full procedure: CLAUDE-PROCEDURES.md §Procedure 12)
+ * ============================================================================
+ * 🚦 MULTI-TENANT PROOF-OF-VERIFICATION
+ * - [ ] Answer + Schedule  -> Proof: static trace only. hasAnswerProduct gate read and
+ *       confirmed at sidebarProducts.jsx:13-21; section render loop tags Answer/Listen
+ *       with data-tenant-context="answer-product-only" at line ~528. No live tenant
+ *       render captured this session (vercel dev local proxy was unreliable).
+ * - [ ] Schedule-Only      -> Proof: static trace only, same caveat — confirmed the
+ *       Answer/Listen sections collapse to [] in the array, not rendered as locked.
+ *       No live render captured.
+ * - [ ] Demo/Sandbox       -> Proof: static trace only. isDemoMode passed through to
+ *       sidebarProducts.jsx, confirmed removes Platform section. No live render captured.
+ * ----------------------------------------------------------------------------
+ * 🗺️ REACHABILITY & DUPLICATION PROOF
+ * - [ ] Reachable via: Desktop Sidebar (this component, sole renderer)
+ *       -> Proof: `grep -rn "from '\./PortalSidebar'" src/` returns exactly one
+ *       caller (Portal.jsx:27).
+ * - [ ] Duplication check -> Proof: 11 icon consts that duplicated PortalIcons.jsx
+ *       exactly (IcoDashboard, IcoAI, IcoAnalytics, IcoPartners, IcoCalendar,
+ *       IcoIntegrations, IcoGear, IcoPeople, IcoBuilding, IcoListen, IcoPhone) and 4
+ *       sidebar-only icons (IcoSentry, IcoDesk, IcoSupport, IcoCommand) removed from
+ *       this file 2026-06-21 (commit 3b101af) — confirmed via `grep -c "<IcoX"` = 0
+ *       for each before deletion.
+ * ----------------------------------------------------------------------------
+ * 📉 LOCAL METRICS (SonarJS ground truth — ran 2026-06-21)
+ * Cognitive Score: 15 (highest function, line 175 — within 15 threshold, 0 violations on standard scan)  ·  Inputs/Outputs Frozen: NO — INPUTS list changed twice this session (scheduleOnly->hasAnswerProduct, baseTier removed)
+ * ----------------------------------------------------------------------------
+ * Last Audited: 2026-06-21  ·  Audited By: Claude session (mobile-nav unification)  ·  Status: OK
+ * ============================================================================
  */
 import { useState, useEffect, useRef } from 'react'
 import { useQScore } from '../context/QScoreContext'
