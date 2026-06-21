@@ -228,6 +228,26 @@ All completed work must be committed and pushed to GitHub as soon as it is appro
 
 ---
 
+## PROCEDURE 12 — CANONICAL INTEGRITY CONTRACT (SOP v3.0)
+
+A specialization of Procedure 3's gate 2 ("real-user-path verified") for files where the real-user-path varies by tenant shape. Adopted 2026-06-21 after a session that found and fixed four related production bugs (Birchwood crash, desktop/mobile sidebar split, catalogue limit bug, missing Clients tab) — all caused by the same root pattern: code verified against one tenant shape, silently wrong for another, plus duplicate logic drifting apart across files without anyone noticing.
+
+**Scope:** Mandatory for (a) any file that branches on `subscription_tier`, `calendar_tier`, or a product-gate boolean (`hasAnswerProduct`, `hasSchedule`, `hasListen`, `hasSentry`, `scheduleOnly`, `isDemoMode`), (b) layout hub files (`Portal.jsx`, `PortalSidebar.jsx`), and (c) shared state/data files consumed by more than one component. Not required file-wide — applying it everywhere risks the same "boilerplate nobody reads" fate as a header nobody updates.
+
+**The header** (full template: `research/canonical-integrity-contract-v3.md`) carries three sections per file: Multi-Tenant Proof-of-Verification, Reachability & Duplication Proof, and Local Metrics (SonarJS ground truth only — see Procedure 9/10 on never guessing).
+
+**Rules:**
+
+1. **No silent edits.** Any functional change to a file with this header requires updating the header in the same commit. A header that doesn't reflect the latest change is stale and must be treated as if the file has no header at all.
+2. **Evidence, not assertion.** Every checkbox requires a Proof field naming the concrete verification taken — a command run, a file:line reference, a screenshot, a test name. "Verified" or "Console clean" with no reference is not acceptable.
+3. **N/A is a valid answer.** If a file has no tenant-shape branching, write "N/A — no tenant-shape branching" once instead of leaving boxes unchecked.
+4. **Duplication check is mandatory** before adding any new shared data structure (nav arrays, icon sets, limit tables, tier lookups) — grep the codebase for the same shape before declaring this file's copy canonical. The mobile-nav duplicate and the Service/Product limit-table duplicate found on 2026-06-21 both existed because this step was skipped for weeks.
+5. **Philip is the hard gate.** Verification must be demonstrated in chat — with the actual command/output, not a description of one — before Claude writes a proof into the header. A false or stale proof is a process violation, identical to skipping the header outright.
+6. **Defers to Procedure 5 (Authority Boundaries)** for any case where satisfying a rule above would require a product decision rather than a technical one — which tenant shape should see a feature, how to resolve a naming/IA conflict, whether a limit is a bug or a deliberate tier rule. Stop and ask; do not infer business intent from code shape alone.
+7. **Does not replace Procedure 11.** A file can have a perfect header and still be useless if the change was never committed and pushed.
+
+---
+
 ## HOW THESE PROCEDURES APPLY IN PRACTICE
 
 At the start of any piece of work, Claude states:
