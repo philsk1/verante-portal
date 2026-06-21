@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePreview } from '../context/PreviewContext'
-
-const PRODUCT_LIMIT = { free: 5, light: 30, standard: 100, professional: 400, enterprise: Infinity, bespoke: Infinity }
-const lim = (tier) => PRODUCT_LIMIT[tier] ?? 30
+import { productLimit as lim } from '../utils/catalogueLimits'
 
 const fmtPrice = (from, to) => {
   if (!from && !to) return '—'
