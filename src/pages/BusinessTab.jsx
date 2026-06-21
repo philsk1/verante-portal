@@ -151,8 +151,15 @@ export default function BusinessTab({ onNavigate }) {
   // ─── Shared render helpers ────────────────────────────────────────────────────
 
   const chip = (label, href, bg, colour) => (
-    <a key={`${label}-${href}`} href={href} style={{ fontSize: '0.7rem', background: bg, color: colour, padding: '3px 10px', borderRadius: 20, textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</a>
+    <a key={`${label}-${href}`} href={href} onClick={e => e.stopPropagation()} style={{ fontSize: '0.7rem', background: bg, color: colour, padding: '3px 10px', borderRadius: 20, textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</a>
   )
+
+  const navigableCard = (tab) => !onNavigate ? {} : {
+    onClick: e => { if (!['a', 'select', 'option', 'button', 'input'].includes(e.target.tagName.toLowerCase())) onNavigate(tab) },
+    onMouseEnter: e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(94,59,135,0.12)'; e.currentTarget.style.transform = 'translateY(-1px)' },
+    onMouseLeave: e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' },
+  }
+  const navigableStyle = { cursor: onNavigate ? 'pointer' : 'default', transition: 'box-shadow 0.15s, transform 0.15s' }
 
   const contactChips = (phone, email) => [
     phone && chip('Call', `tel:${phone}`,     '#f0ebf8', '#5e3b87'),
@@ -216,7 +223,7 @@ export default function BusinessTab({ onNavigate }) {
               {activeStaff.map(member => {
                 const av = avatarStyle(member.name, member.colour)
                 return (
-                  <div key={member.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <div key={member.id} {...navigableCard('team')} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', ...navigableStyle }}>
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: av.bg, color: av.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.875rem', flexShrink: 0 }}>
                       {initials(member.name)}
                     </div>
@@ -244,7 +251,7 @@ export default function BusinessTab({ onNavigate }) {
               {services.map(item => {
                 const price = fmt(item.price_from, item.price_to)
                 return (
-                  <div key={item.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', opacity: item.active ? 1 : 0.5, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div key={item.id} {...navigableCard('services')} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', opacity: item.active ? 1 : 0.5, display: 'flex', flexDirection: 'column', gap: '0.35rem', ...navigableStyle }}>
                     <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
                     {item.description && <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.4 }}>{item.description}</div>}
                     <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
@@ -275,7 +282,7 @@ export default function BusinessTab({ onNavigate }) {
                 const supplier = suppliers.find(s => s.id === item.supplier_id)
                 const price = fmt(item.price_from, item.price_to)
                 return (
-                  <div key={item.id} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', opacity: item.active ? 1 : 0.5, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div key={item.id} {...navigableCard('products')} style={{ background: 'white', border: '0.5px solid rgba(94,59,135,0.1)', borderRadius: 10, padding: '1rem', opacity: item.active ? 1 : 0.5, display: 'flex', flexDirection: 'column', gap: '0.35rem', ...navigableStyle }}>
                     <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1a1a1a' }}>{item.name}</div>
                     {item.description && <div style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.4 }}>{item.description}</div>}
                     <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
@@ -328,7 +335,7 @@ export default function BusinessTab({ onNavigate }) {
               {partners.map(partner => {
                 const av = avatarStyle(partner.partner_name, '#0ea5e9')
                 return (
-                  <div key={partner.id} style={{ background: 'white', border: '0.5px solid rgba(14,165,233,0.15)', borderRadius: 10, padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <div key={partner.id} {...navigableCard('referrals')} style={{ background: 'white', border: '0.5px solid rgba(14,165,233,0.15)', borderRadius: 10, padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', ...navigableStyle }}>
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e0f2fe', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.875rem', flexShrink: 0 }}>
                       {initials(partner.partner_name)}
                     </div>

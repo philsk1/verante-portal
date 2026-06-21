@@ -598,7 +598,7 @@ const Portal = () => {
           uncontactedCount={uncontactedCount}
           sidebarCollapsed={sidebarCollapsed}
           onCollapseToggle={() => setSidebarCollapsed(c => !c)}
-          scheduleOnly={scheduleOnly}
+          hasAnswerProduct={hasAnswerProduct}
           isPreview={preview.isPreview}
           notifPanelOpen={notifPanelOpen}
           onNotifToggle={() => setNotifPanelOpen(o => !o)}
@@ -611,7 +611,6 @@ const Portal = () => {
           onSignOut={handleSignOut}
           isDemoMode={isDemoMode}
           onDemoEnd={() => setShowDemoEndModal(true)}
-          baseTier={baseTier}
         />
       )}
 

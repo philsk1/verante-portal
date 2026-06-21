@@ -15,9 +15,10 @@
  *   MUTATIONS: localStorage only — no DB reads or writes
  *   OUTPUTS: onTabSelect, onCollapseToggle, onNotifToggle, onNotifChange, onSignOut,
  *            onPlanSelectorOpen, onDemoEnd (all callbacks to Portal.jsx)
- * NON-OBVIOUS: scheduleOnly shows a completely different PRODUCTS array (Schedule-only nav).
+ * NON-OBVIOUS: buildSidebarProducts() is ONE array — Answer/Listen/Lines sections are
+ *   conditionally spread in/out based on entitlement flags rather than maintained as a
+ *   second parallel array. Do not reintroduce a scheduleOnly-branched duplicate of this array.
  *   Section state is keyed per-tenantId; isPreview resets to {} to prevent cross-tenant bleed.
- *   baseTier is destructured but unused — dead prop, safe to remove when Portal.jsx is cleaned.
  *   <style> tag inside render is intentional for ::-webkit-scrollbar which has no inline equivalent.
  * IN-FILE PRIME DIRECTIVES:
  *   1. Never create new files to house extracted logic. Keep it in this file.
@@ -336,73 +337,36 @@ function TabRow({ tab, inFavourites, locked, activeTab, hoveredTab, setHoveredTa
 
 // ─── buildSidebarProducts ────────────────────────────────────────────────────
 
-function buildSidebarProducts({ scheduleOnly, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user }) {
+function buildSidebarProducts({ hasAnswerProduct, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user }) {
   const adminEmails = ['finsolsoffice@gmail.com', 'philoffice@btconnect.com']
-  if (scheduleOnly) return [
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      dot: '#3db87a',
-      tabs: [
-        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
-        { id: 'team',      label: 'Team',       icon: <IcoPeople />, locked: !hasScheduleMulti },
-        { id: 'services',  label: 'Services',   icon: <IcoServices /> },
-        { id: 'products',  label: 'Products',   icon: <IcoProducts /> },
-        { id: 'analytics', label: 'Analytics',  icon: <IcoAnalytics /> },
-        { id: 'referrals', label: 'Partners',   icon: <IcoPartners /> },
-      ],
-    },
-    { id: 'sentry', label: 'Sentry', dot: hasSentry ? '#ef4444' : 'rgba(255,255,255,0.2)', locked: !hasSentry, tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] },
-    { id: '_divider', divider: true, tabs: [] },
-    {
-      id: 'platform',
-      label: 'Platform',
-      dot: '#60a5fa',
-      tabs: [
-        { id: 'profile',      label: 'Business Profile', icon: <IcoBuilding /> },
-        { id: 'integrations', label: 'Integrations',     icon: <IcoIntegrations /> },
-        ...(!isDemoMode ? [{ id: 'settings', label: 'Account & Billing', icon: <IcoGear /> }] : []),
-      ],
-    },
-    ...(adminEmails.includes(user?.email) ? [{
-      id: 'support',
-      label: 'Support',
-      dot: '#dc2626',
-      tabs: [{ id: 'support', label: 'Support Intel', icon: <IcoSupport /> }],
-    }] : []),
-    ...(adminEmails.includes(user?.email) ? [{
-      id: 'command',
-      label: 'Command',
-      dot: '#dc2626',
-      tabs: [{ id: 'command', label: 'Master Control', icon: <IcoCommand /> }],
-    }] : []),
-  ]
   return [
-    {
+    ...(hasAnswerProduct ? [{
       id: 'answer',
       label: 'Answer',
       dot: '#3db87a',
       tabs: [
         { id: 'dashboard', label: 'Home',      icon: <IcoDashboard /> },
-        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
         { id: 'ai',        label: 'Answer AI', icon: <IcoAI /> },
       ],
-    },
-    {
+    }] : []),
+    ...(hasAnswerProduct ? [{
       id: 'listen',
       label: 'Listen',
       dot: hasListen ? '#3db87a' : 'rgba(255,255,255,0.2)',
       locked: !hasListen,
       tabs: [{ id: 'listen', label: 'Listen', icon: <IcoListen /> }],
-    },
+    }] : []),
     {
       id: 'schedule',
       label: 'Schedule',
       dot: hasSchedule ? '#3db87a' : 'rgba(255,255,255,0.2)',
       locked: !hasSchedule,
       tabs: [
-        { id: 'calendar', label: 'Calendar', icon: <IcoCalendar /> },
-        { id: 'team',     label: 'Team',     icon: <IcoPeople /> },
+        { id: 'calendar',  label: 'Calendar',  icon: <IcoCalendar /> },
+        { id: 'team',      label: 'Team',      icon: <IcoPeople />, locked: !hasScheduleMulti },
+        { id: 'services',  label: 'Services',  icon: <IcoServices /> },
+        { id: 'products',  label: 'Products',  icon: <IcoProducts /> },
+        { id: 'analytics', label: 'Analytics', icon: <IcoAnalytics /> },
       ],
     },
     { id: 'sentry', label: 'Sentry', dot: hasSentry ? '#ef4444' : 'rgba(255,255,255,0.2)', locked: !hasSentry, tabs: [{ id: 'sentry', label: 'Sentry', icon: <IcoSentry /> }] },
@@ -514,7 +478,7 @@ export default function PortalSidebar({
   user,
   tenantId,
   isPreview,
-  scheduleOnly,
+  hasAnswerProduct,
   activeTab,
   onTabSelect,
   hasSchedule,
@@ -534,7 +498,6 @@ export default function PortalSidebar({
   onPlanSelectorOpen,
   isDemoMode,
   onDemoEnd,
-  baseTier,
 }) {
   const sectionsKey = `qerxel_sb_sections_${tenantId || 'anon'}`
 
@@ -563,7 +526,7 @@ export default function PortalSidebar({
 
   // ── Product / section map ─────────────────────────────────────────────────
 
-  const PRODUCTS = buildSidebarProducts({ scheduleOnly, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user })
+  const PRODUCTS = buildSidebarProducts({ hasAnswerProduct, hasSchedule, hasScheduleMulti, hasListen, hasSentry, isDemoMode, user })
 
   const activeProductId = PRODUCTS.find(p => p.tabs?.some(t => t.id === activeTab))?.id
   const allTabs         = PRODUCTS.flatMap(p => p.tabs || [])
